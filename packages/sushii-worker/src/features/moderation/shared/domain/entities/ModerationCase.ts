@@ -142,4 +142,38 @@ export class ModerationCase {
       pending,
     );
   }
+
+  withReason(reason: Reason | null): ModerationCase {
+    return new ModerationCase(
+      this._guildId,
+      this._caseId,
+      this._actionType,
+      this._actionTime,
+      this._userId,
+      this._userTag,
+      this._executorId,
+      reason,
+      this._msgId,
+      this._attachments,
+      this._dmResult,
+      this._pending,
+    );
+  }
+
+  withExecutor(executorId: string | null): ModerationCase {
+    return new ModerationCase(
+      this._guildId,
+      this._caseId,
+      this._actionType,
+      this._actionTime,
+      this._userId,
+      this._userTag,
+      executorId,
+      this._reason,
+      this._msgId,
+      this._attachments,
+      this._dmResult,
+      this._pending,
+    );
+  }
 }

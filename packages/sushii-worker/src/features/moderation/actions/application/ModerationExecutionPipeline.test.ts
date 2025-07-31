@@ -12,7 +12,6 @@ import pino from "pino";
 import { Err, Ok, Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
-import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { type DMNotificationService } from "../../shared/application/DMNotificationService";
 import {
@@ -23,7 +22,6 @@ import {
 } from "../../shared/domain/entities/ModerationAction";
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
-import { TempBan } from "../../shared/domain/entities/TempBan";
 import { type ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { type TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import { type ModLogService } from "../../shared/domain/services/ModLogService";

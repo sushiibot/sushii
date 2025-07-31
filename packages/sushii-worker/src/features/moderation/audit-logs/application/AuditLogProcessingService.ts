@@ -54,7 +54,11 @@ export class AuditLogProcessingService {
         !guildConfig.loggingSettings.modLogEnabled
       ) {
         this.logger.debug(
-          { guildId: guild.id },
+          {
+            guildId: guild.id,
+            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+            modLogEnabled: guildConfig.loggingSettings.modLogEnabled,
+          },
           "Mod log not configured or disabled",
         );
 

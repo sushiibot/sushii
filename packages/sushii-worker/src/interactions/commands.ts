@@ -8,11 +8,6 @@ import EmojiStatsCommand from "./emojis/EmojiStatsCommands";
 import GiveawayAutocomplete from "./giveaway/Giveaway.autocomplete";
 import GiveawayButtonHandler from "./giveaway/Giveaway.button";
 import GiveawayCommand from "./giveaway/Giveaway.command";
-import DeleteModLogDMButtonHandler from "./moderation/reason/DMButton";
-import ReasonAutocomplete from "./moderation/reason/ReasonAutocomplete";
-import ModLogReasonButtonHandler from "./moderation/reason/ReasonButton";
-import ReasonCommand from "./moderation/reason/ReasonCommand";
-import ModLogReasonModalHandler from "./moderation/reason/ReasonModal";
 import ReminderDeleteAutocomplete from "./reminders/ReminderAutocomplete";
 import ReminderCommand from "./reminders/ReminderCommand";
 import RoleMenuCommand from "./roles/RoleMenu";
@@ -39,9 +34,6 @@ export default function registerInteractionHandlers(
     // Meta
     new StatusCommand(),
 
-    // Moderation (legacy commands not yet migrated to DDD)
-    new ReasonCommand(),
-
     // Guild
     new EmojiStatsCommand(),
     new GiveawayCommand(),
@@ -63,7 +55,6 @@ export default function registerInteractionHandlers(
   interactionRouter.addAutocompleteHandlers(
     new ReminderDeleteAutocomplete(),
     new RoleMenuAutocomplete(),
-    new ReasonAutocomplete(),
     new GiveawayAutocomplete(),
   );
 
@@ -75,16 +66,10 @@ export default function registerInteractionHandlers(
   // Buttons
   interactionRouter.addButtons(
     new RoleMenuButtonHandler(),
-    new ModLogReasonButtonHandler(),
-    new DeleteModLogDMButtonHandler(),
     new GiveawayButtonHandler(),
   );
 
   // ----------------------------------------
   // Select menus
   interactionRouter.addSelectMenus(new RoleMenuSelectMenuHandler());
-
-  // ----------------------------------------
-  // Modals
-  interactionRouter.addModalHandlers(new ModLogReasonModalHandler());
 }

@@ -104,6 +104,9 @@ export function registerFeatures(
     });
   }
 
+  // Button handlers
+  interactionRouter.addButtons(...moderationFeature.buttonHandlers);
+
   // ---------------------------------------------------------------------------
   // Build event handlers
 

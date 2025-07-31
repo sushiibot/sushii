@@ -61,6 +61,8 @@ import {
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
 import { COMMAND_CONFIGS, ReasonAutocomplete } from "./shared/presentation";
+// Button handlers
+import { ModLogReasonButtonHandler, ModLogDeleteDMButtonHandler } from "./audit-logs/presentation/components";
 
 interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -220,6 +222,7 @@ export function createModerationServices({
     caseDeletionService,
     reasonUpdateService,
     caseRangeAutocompleteService,
+
     // Audit log services
     auditLogProcessingService,
     nativeTimeoutDMService,
@@ -302,10 +305,22 @@ export function createModerationCommands(
     ),
   ];
 
+  const buttonHandlers = [
+    new ModLogReasonButtonHandler(
+      services.moderationCaseRepository,
+      logger.child({ buttonHandler: "modLogReason" }),
+    ),
+    new ModLogDeleteDMButtonHandler(
+      services.moderationCaseRepository,
+      logger.child({ buttonHandler: "modLogDeleteDM" }),
+    ),
+  ];
+
   return {
     commands,
     autocompletes,
     contextMenuHandlers,
+    buttonHandlers,
   };
 }
 

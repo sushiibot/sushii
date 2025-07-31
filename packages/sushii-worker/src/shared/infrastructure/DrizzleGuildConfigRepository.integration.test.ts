@@ -18,7 +18,7 @@ import { DrizzleGuildConfigRepository } from "./DrizzleGuildConfigRepository";
 
 describe("DrizzleGuildConfigRepository (Integration)", () => {
   let testDb: PostgresTestDatabase;
-  let db: ReturnType<typeof import("drizzle-orm/node-postgres").drizzle>;
+  let db: NodePgDatabase<typeof schema>;
   let repo: DrizzleGuildConfigRepository;
   let logger: Logger;
 
@@ -26,10 +26,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
     testDb = new PostgresTestDatabase();
     db = await testDb.initialize();
     logger = pino({ level: "silent" }); // Silent logger for tests
-    repo = new DrizzleGuildConfigRepository(
-      db as unknown as NodePgDatabase<typeof schema>,
-      logger,
-    );
+    repo = new DrizzleGuildConfigRepository(db, logger);
   });
 
   beforeEach(async () => {

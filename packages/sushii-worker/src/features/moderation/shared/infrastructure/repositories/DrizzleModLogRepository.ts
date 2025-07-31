@@ -9,7 +9,10 @@ import dayjs from "@/shared/domain/dayjs";
 
 import { DMResult, ModerationCase } from "../../domain/entities/ModerationCase";
 import { ModLogRepository } from "../../domain/repositories/ModLogRepository";
-import { ActionType, actionTypeFromString } from "../../domain/value-objects/ActionType";
+import {
+  ActionType,
+  actionTypeFromString,
+} from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";
 
 export class DrizzleModLogRepository implements ModLogRepository {
@@ -27,7 +30,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
   ): Promise<Result<ModerationCase | null, string>> {
     const db = tx || this.db;
     try {
-      const minimumTime = dayjs.utc().subtract(maxAgeMinutes, "minute").toDate();
+      const minimumTime = dayjs
+        .utc()
+        .subtract(maxAgeMinutes, "minute")
+        .toDate();
 
       const result = await db
         .select()
@@ -50,7 +56,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
 
       const row = result[0];
       const moderationCase = this.mapRowToModerationCase(row);
-      
+
       return Ok(moderationCase);
     } catch (error) {
       this.logger.error(
@@ -198,13 +204,15 @@ export class DrizzleModLogRepository implements ModLogRepository {
     }
   }
 
-  private mapRowToModerationCase(row: any): ModerationCase {
-    const dmResult: DMResult | null = 
+  private mapRowToModerationCase(
+    row: typeof modLogsInAppPublic.$inferInsert,
+  ): ModerationCase {
+    const dmResult: DMResult | null =
       row.dmChannelId || row.dmMessageId || row.dmMessageError
         ? {
             channelId: row.dmChannelId?.toString(),
             messageId: row.dmMessageId?.toString(),
-            error: row.dmMessageError,
+            error: row.dmMessageError || undefined,
           }
         : null;
 

@@ -10,7 +10,8 @@
     "typecheck": "tsc --skipLibCheck --noEmit",
     "lint": "eslint ./src",
     "prettier": "prettier --write ./src/**/*.ts",
-    "test:e2e": "bun test --timeout 30000 ./tests/e2e/"
+    "test:e2e": "bun test --timeout 30000 ./tests/e2e/",
+    "test:integration": "TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000 ./tests/integration/"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

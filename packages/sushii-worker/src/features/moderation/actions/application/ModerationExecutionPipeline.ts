@@ -175,6 +175,12 @@ export class ModerationExecutionPipeline {
 
         const caseId = caseNumberResult.val.toString();
 
+        // Should not be pending for note or warn
+        // Only pending for actions that create an audit-log event
+        const isPending =
+          finalActionType !== ActionType.Note &&
+          finalActionType !== ActionType.Warn;
+
         // Create moderation case
         const moderationCase = ModerationCase.create(
           action.guildId,
@@ -186,7 +192,7 @@ export class ModerationExecutionPipeline {
           action.reason,
           undefined,
           action.attachment ? [action.attachment.url] : [],
-        );
+        ).withPending(isPending);
 
         // Save moderation case
         const saveCaseResult = await this.caseRepository.save(
@@ -562,8 +568,11 @@ export class ModerationExecutionPipeline {
           }
           await guild.members.ban(target.id, {
             reason: action.reason?.value || "No reason provided",
-            deleteMessageDays:
-              action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS,
+            deleteMessageSeconds:
+              (action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS) *
+              24 *
+              60 *
+              60,
           });
           break;
         }
