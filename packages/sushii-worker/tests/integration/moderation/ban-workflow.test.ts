@@ -76,7 +76,7 @@ describe("Ban Workflow Integration", () => {
     const existingGuild = mockDiscord.client.guilds.cache.get(guildId);
     if (!existingGuild) {
       // Add the guild to the mock client if it doesn't exist
-      (mockDiscord.client as any).addGuild(guildId, "Test Guild");
+      mockDiscord.addGuild(guildId, "Test Guild");
     }
 
     // =========================================================================
@@ -89,10 +89,8 @@ describe("Ban Workflow Integration", () => {
       executor,
       users: targetUserId,
       reason: banReason,
+      guild: mockDiscord.client.guilds.cache.get(guildId),
     });
-
-    // Replace the guild in the interaction with the one from mockDiscord
-    (interaction as any).guild = mockDiscord.client.guilds.cache.get(guildId);
 
     // Execute ban command through the command handler
     const banCommand = moderationFeature.commands.find(
@@ -129,10 +127,22 @@ describe("Ban Workflow Integration", () => {
     // Always an editReply
     expect(interactionSpies.editReply.mock.calls.length).toBe(1);
 
-    expect(
-      (interactionSpies.editReply.mock.calls[0][0] as any).embeds[0].toJSON()
-        .description,
-    ).toContain("banned");
+    expect(interactionSpies.editReply.mock.calls.length).toBeGreaterThan(0);
+    
+    // Check that the edit reply was called with expected content
+    const mockCalls = interactionSpies.editReply.mock.calls as unknown[];
+    expect(mockCalls.length).toBeGreaterThan(0);
+    
+    const firstCall = mockCalls[0] as unknown[];
+    expect(firstCall).toBeDefined();
+    expect(firstCall.length).toBeGreaterThan(0);
+    
+    const replyPayload = firstCall[0] as Record<string, unknown>;
+    expect(replyPayload).toBeDefined();
+    expect(replyPayload.embeds).toBeDefined();
+    
+    const embeds = replyPayload.embeds as { toJSON(): { description: string } }[];
+    expect(embeds[0]?.toJSON()?.description).toContain("banned");
 
     // Verify Discord.js ban was called
     expect(mockDiscord.spies.ban).toHaveBeenCalledWith(

@@ -12,13 +12,13 @@ import {
 import { MockUserData, getMockUserById } from "./mockUsers";
 
 export interface DiscordAPISpies {
-  ban: Mock<(userId: string, options?: any) => Promise<GuildMember | User>>;
+  ban: Mock<(userId: string, options?: unknown) => Promise<GuildMember | User>>;
   unban: Mock<(userId: string, reason?: string) => Promise<User>>;
   kick: Mock<(reason?: string) => Promise<GuildMember>>;
   timeout: Mock<
     (duration: number | null, reason?: string) => Promise<GuildMember>
   >;
-  send: Mock<(options: any) => Promise<any>>;
+  send: Mock<(options: unknown) => Promise<unknown>>;
   createDM: Mock<() => Promise<DMChannel>>;
 }
 
@@ -26,6 +26,7 @@ export interface MockDiscordClient {
   client: Client;
   spies: DiscordAPISpies;
   addUser: (user: MockUserData) => void;
+  addGuild: (guildId: string, guildName?: string) => Guild;
   addGuildMember: (
     guildId: string,
     userId: string,
@@ -44,17 +45,24 @@ export interface MockDiscordClient {
  */
 export function createMockDiscordClient(): MockDiscordClient {
   // Create spy functions
-  const banSpy = mock((userId: string, options?: any) =>
+  const banSpy = mock((_userId: string, _options?: unknown) =>
     Promise.resolve({} as User),
   );
-  const unbanSpy = mock((userId: string, reason?: string) =>
+  const unbanSpy = mock((_userId: string, _reason?: string) =>
     Promise.resolve({} as User),
   );
-  const kickSpy = mock((reason?: string) => Promise.resolve({} as GuildMember));
-  const timeoutSpy = mock((duration: number | null, reason?: string) =>
+  const kickSpy = mock((_reason?: string) =>
     Promise.resolve({} as GuildMember),
   );
-  const sendSpy = mock((options: any) => Promise.resolve({ id: "message-id" }));
+  const timeoutSpy = mock((_duration: number | null, _reason?: string) =>
+    Promise.resolve({} as GuildMember),
+  );
+  const sendSpy = mock((_options: unknown) =>
+    Promise.resolve({
+      id: "message-id",
+      channel: { id: "dm-channel-id" },
+    }),
+  );
   const createDMSpy = mock(() =>
     Promise.resolve({
       id: "dm-channel-id",
@@ -86,6 +94,7 @@ export function createMockDiscordClient(): MockDiscordClient {
         const mockUserData = getMockUserById(userId);
         if (mockUserData) {
           const user = createMockUserFromData(mockUserData);
+          userCache.set(userId, user); // Cache the user for consistency
           return Promise.resolve(user);
         }
         return Promise.reject(new Error(`User ${userId} not found`));
@@ -107,6 +116,7 @@ export function createMockDiscordClient(): MockDiscordClient {
     const mockGuild = {
       id: guildId,
       name: guildName,
+      iconURL: () => `https://cdn.discordapp.com/icons/${guildId}/icon.png`,
       members: {
         ban: banSpy,
         unban: unbanSpy,
@@ -186,7 +196,13 @@ export function createMockDiscordClient(): MockDiscordClient {
       discriminator: userData.discriminator,
       bot: userData.bot,
       system: userData.system,
-      createDM: createDMSpy,
+      createDM: mock(() =>
+        Promise.resolve({
+          id: "dm-channel-id",
+          send: sendSpy, // Use the global sendSpy
+        } as unknown as DMChannel),
+      ),
+      send: sendSpy, // Use the global sendSpy
       displayAvatarURL: () =>
         `https://cdn.discordapp.com/avatars/${userData.id}/avatar.png`,
     } as unknown as User;
@@ -202,15 +218,15 @@ export function createMockDiscordClient(): MockDiscordClient {
       id: userId,
       tag: `TestUser#${userId.slice(-4)}`,
       username: `TestUser${userId.slice(-4)}`,
-      createDM: createDMSpy,
+      createDM: mock(() =>
+        Promise.resolve({
+          id: "dm-channel-id",
+          send: sendSpy, // Use the global sendSpy
+        } as unknown as DMChannel),
+      ),
+      send: sendSpy, // Use the global sendSpy
     } as unknown as User;
   };
-
-  // Add default test guild with valid snowflake ID
-  const defaultGuild = addMockGuild("123456789012345678", "Test Guild");
-
-  // Also add a helper to easily add more guilds
-  (mockClient as any).addGuild = addMockGuild;
 
   return {
     client: mockClient,
@@ -227,21 +243,27 @@ export function createMockDiscordClient(): MockDiscordClient {
       const discordUser = createMockUserFromData(user);
       userCache.set(user.id, discordUser);
     },
+    addGuild: addMockGuild,
     addGuildMember: (
       guildId: string,
       userId: string,
       memberData?: Partial<GuildMember>,
     ) => {
-      if (!guildMembers.has(guildId)) {
-        guildMembers.set(guildId, new Set());
+      let guildMemberSet = guildMembers.get(guildId);
+      if (!guildMemberSet) {
+        guildMemberSet = new Set();
+        guildMembers.set(guildId, guildMemberSet);
       }
-      guildMembers.get(guildId)!.add(userId);
+
+      guildMemberSet.add(userId);
 
       if (memberData) {
-        if (!memberDataCache.has(guildId)) {
-          memberDataCache.set(guildId, new Map());
+        let guildMemberDataCache = memberDataCache.get(guildId);
+        if (!guildMemberDataCache) {
+          guildMemberDataCache = new Map();
+          memberDataCache.set(guildId, guildMemberDataCache);
         }
-        memberDataCache.get(guildId)!.set(userId, memberData);
+        guildMemberDataCache.set(userId, memberData);
       }
     },
     setAvailableUsers: (userIds: string[]) => {
@@ -285,9 +307,20 @@ export function createMockUser(
       createDM: mock(() =>
         Promise.resolve({
           id: "dm-channel-id",
-          send: mock(() => Promise.resolve({ id: "message-id" })),
+          send: mock(() =>
+            Promise.resolve({
+              id: "message-id",
+              channel: { id: "dm-channel-id" },
+            }),
+          ),
         } as unknown as DMChannel),
       ),
+      send: mock(() =>
+        Promise.resolve({
+          id: "message-id",
+          channel: { id: "dm-channel-id" },
+        }),
+      ), // Add send method for direct DM
       ...overrides,
     } as User;
   }
@@ -304,6 +337,12 @@ export function createMockUser(
         id: "dm-channel-id",
         send: mock(() => Promise.resolve({ id: "message-id" })),
       } as unknown as DMChannel),
+    ),
+    send: mock(() =>
+      Promise.resolve({
+        id: "message-id",
+        channel: { id: "dm-channel-id" },
+      }),
     ),
     ...overrides,
   } as User;

@@ -1,2 +1,2 @@
-export * from "./SlowmodeView";
-export * from "./TempbanListView";
+export * from "../../../management/presentation/views/SlowmodeView";
+export * from "../../../management/presentation/views/TempbanListView";

@@ -36,7 +36,7 @@ export class HealthCheckUtils {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as Record<string, unknown>;
 
       if (!data || typeof data !== "object") {
         this.logger.error({ port, data }, "Invalid health response format");
@@ -49,9 +49,9 @@ export class HealthCheckUtils {
 
       return {
         status: "healthy",
-        timestamp: data.timestamp || new Date().toISOString(),
-        deployment: data.deployment,
-        uptime: data.uptime,
+        timestamp: (data.timestamp as string) || new Date().toISOString(),
+        deployment: data.deployment as string,
+        uptime: data.uptime as number,
       };
     } catch (err) {
       this.logger.error({ err, port }, "Failed to check bot health");

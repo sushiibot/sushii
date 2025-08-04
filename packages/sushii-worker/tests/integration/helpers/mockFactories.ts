@@ -3,9 +3,14 @@ import {
   ApplicationCommandType,
   AuditLogEvent,
   ChatInputCommandInteraction,
+  Collection,
   Guild,
   GuildAuditLogsEntry,
+  GuildMember,
+  GuildMemberRoleManager,
   InteractionType,
+  Role,
+  Snowflake,
   User,
 } from "discord.js";
 
@@ -59,8 +64,15 @@ export function createMockSlashCommandInteraction(options: {
   guildId: string;
   user: User;
   options?: Record<string, unknown>;
+  guild?: Guild;
 }): MockInteractionResult {
-  const { commandName, guildId, user, options: cmdOptions = {} } = options;
+  const {
+    commandName,
+    guildId,
+    user,
+    options: cmdOptions = {},
+    guild,
+  } = options;
 
   // Mock option getters
   const optionSpies = {
@@ -95,7 +107,7 @@ export function createMockSlashCommandInteraction(options: {
       // Get the user data to determine role position
       const userData = getMockUserById(userId);
       const rolePosition = userData?.rolePosition || 1;
-      
+
       return Promise.resolve(
         createMockGuildMember({
           id: userId,
@@ -104,23 +116,25 @@ export function createMockSlashCommandInteraction(options: {
               position: rolePosition,
               id: rolePosition > 5 ? "moderator-role-id" : "member-role-id",
               name: rolePosition > 5 ? "Moderator" : "Member",
-            },
-            cache: new Map(),
-          },
+            } as Role,
+            cache: new Collection<Snowflake, Role>(),
+          } as GuildMemberRoleManager,
         }),
       );
     }
     return Promise.resolve();
   });
 
-  const mockGuild = {
-    id: guildId,
-    name: "Test Guild",
-    members: {
-      cache: new Map(),
-      fetch: membersFetchSpy,
-    },
-  };
+  const mockGuild =
+    guild ||
+    ({
+      id: guildId,
+      name: "Test Guild",
+      members: {
+        cache: new Collection<Snowflake, GuildMember>(),
+        fetch: membersFetchSpy,
+      },
+    } as unknown as Guild);
 
   const interaction = {
     type: InteractionType.ApplicationCommand,
@@ -200,11 +214,13 @@ export function createMockBanInteraction(options: {
   executor: User;
   users: string;
   reason?: string;
+  guild?: Guild;
 }): MockInteractionResult {
   return createMockSlashCommandInteraction({
     commandName: "ban",
     guildId: options.guildId,
     user: options.executor,
+    guild: options.guild,
     options: {
       users: options.users,
       reason: options.reason || "No reason provided",
@@ -247,7 +263,7 @@ export function createMockGuild(
       // Get the user data to determine role position
       const userData = getMockUserById(userId);
       const rolePosition = userData?.rolePosition || 1;
-      
+
       return Promise.resolve(
         createMockGuildMember({
           id: userId,
@@ -256,9 +272,9 @@ export function createMockGuild(
               position: rolePosition,
               id: rolePosition > 5 ? "moderator-role-id" : "member-role-id",
               name: rolePosition > 5 ? "Moderator" : "Member",
-            },
-            cache: new Map(),
-          },
+            } as Role,
+            cache: new Collection<Snowflake, Role>(),
+          } as GuildMemberRoleManager,
         }),
       );
     }
@@ -294,7 +310,7 @@ export function createMockGuild(
       },
     },
     ...overrides,
-  } as unknown as Guild;
+  } as Guild;
 
   const spies: GuildSpies = {
     membersFetch: membersFetchSpy,

@@ -44,9 +44,9 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   const testDeployment = Deployment.create("blue");
   const mockDeploymentRepo = {
     getActive: async () => testDeployment,
-    setActive: async () => {},
-    start: async () => {},
-    stop: async () => {},
+    setActive: async () => Promise.resolve(),
+    start: async () => Promise.resolve(),
+    stop: async () => Promise.resolve(),
   };
 
   const deploymentConfig = {
