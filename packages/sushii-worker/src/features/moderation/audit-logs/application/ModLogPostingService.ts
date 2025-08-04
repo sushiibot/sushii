@@ -4,11 +4,9 @@ import { Err, Ok, Result } from "ts-results";
 
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 
-import {
-  AuditLogEvent,
-  ModLogComponents,
-} from "../domain/entities";
+import { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for posting mod log messages to Discord channels.
@@ -43,7 +41,7 @@ export class ModLogPostingService {
       );
 
       // Build message components
-      const modLogComponents = new ModLogComponents(
+      const modLogComponents = new ModLogComponentBuilder(
         auditLogEvent.actionType,
         modLogCase,
       );

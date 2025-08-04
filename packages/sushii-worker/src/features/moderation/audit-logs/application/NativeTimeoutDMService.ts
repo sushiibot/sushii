@@ -10,45 +10,13 @@ import { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for sending DM notifications for native Discord timeouts.
- * Handles the business logic for when and how to send timeout DMs.
+ * Orchestrates the process of sending timeout DMs to users.
  */
 export class NativeTimeoutDMService {
   constructor(
     private readonly dmNotificationService: DMNotificationService,
     private readonly logger: Logger,
   ) {}
-
-  /**
-   * Determines if a DM should be sent for this audit log event.
-   */
-  shouldSendDM(
-    auditLogEvent: AuditLogEvent,
-    hasPendingCase: boolean,
-    guildConfig?: GuildConfig,
-  ): boolean {
-    // Was invoked via command, so there was already a DM sent.
-    if (hasPendingCase) {
-      return false;
-    }
-
-    // Only timeout and timeout removal actions
-    if (!auditLogEvent.shouldSendNativeTimeoutDM()) {
-      return false;
-    }
-
-    // Don't DM for timeout adjustments (only bots can do this)
-    if (auditLogEvent.isTimeoutAdjustment()) {
-      return false;
-    }
-
-    // Check guild settings preference for native timeout DMs
-    if (guildConfig) {
-      return guildConfig.moderationSettings.timeoutNativeDmEnabled;
-    }
-
-    // Default to not sending if no guild config
-    return false;
-  }
 
   /**
    * Sends a timeout DM to the target user.

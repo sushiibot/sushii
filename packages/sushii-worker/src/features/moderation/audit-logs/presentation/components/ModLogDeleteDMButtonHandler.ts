@@ -10,11 +10,10 @@ import {
 import { Logger } from "pino";
 
 import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/interactions/handlers";
 import Color from "@/utils/colors";
-
-import { ModLogComponents } from "../../domain/entities";
 
 /**
  * Button handler for deleting DM messages sent to users for moderation cases.
@@ -217,7 +216,7 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     }
 
     // Build updated components showing DM as deleted
-    const modLogComponents = new ModLogComponents(
+    const modLogComponents = new ModLogComponentBuilder(
       moderationCase.actionType,
       moderationCase,
       true, // dmDeleted = true

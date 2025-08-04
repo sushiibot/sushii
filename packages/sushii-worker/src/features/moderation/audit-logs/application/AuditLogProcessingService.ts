@@ -4,10 +4,11 @@ import { Err, Ok, Result } from "ts-results";
 
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
+import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import { AuditLogEvent, ModLogComponents } from "../domain/entities";
+import { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for processing Discord audit log events.
@@ -247,8 +248,8 @@ export class AuditLogProcessingService {
     auditLogEvent: AuditLogEvent,
     modLogCase: ModerationCase,
     dmDeleted: boolean = false,
-  ): ModLogComponents {
-    return new ModLogComponents(
+  ): ModLogComponentBuilder {
+    return new ModLogComponentBuilder(
       auditLogEvent.actionType,
       modLogCase,
       dmDeleted,

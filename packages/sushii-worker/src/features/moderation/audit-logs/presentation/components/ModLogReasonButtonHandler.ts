@@ -11,9 +11,9 @@ import { Err, Ok } from "ts-results";
 import { ButtonHandler } from "@/interactions/handlers";
 import customIds from "@/interactions/customIds";
 import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
-import { ModLogComponents } from "../../domain/entities";
 
 /**
  * Button handler for setting reasons on moderation cases.
@@ -206,7 +206,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     );
 
     // Build updated components (should now show DM buttons if applicable and hide reason button)
-    const modLogComponents = new ModLogComponents(
+    const modLogComponents = new ModLogComponentBuilder(
       updatedCaseWithExecutor.actionType,
       updatedCaseWithExecutor,
     );

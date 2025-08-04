@@ -116,8 +116,7 @@ export class AuditLogOrchestrationService {
       );
     }
 
-    const shouldSend = this.nativeTimeoutDMService.shouldSendDM(
-      auditLogEvent,
+    const shouldSend = auditLogEvent.shouldSendTimeoutDM(
       wasPendingCase,
       guildConfig,
     );

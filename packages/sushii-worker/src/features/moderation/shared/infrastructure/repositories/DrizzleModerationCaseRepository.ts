@@ -47,9 +47,9 @@ export class DrizzleModerationCaseRepository
       });
 
       return Ok.EMPTY;
-    } catch (error) {
-      this.logger.error({ error }, "Failed to save moderation case");
-      return Err(`Failed to save moderation case: ${error}`);
+    } catch (err) {
+      this.logger.error({ err }, "Failed to save moderation case");
+      return Err(`Failed to save moderation case: ${err}`);
     }
   }
 
@@ -78,12 +78,12 @@ export class DrizzleModerationCaseRepository
       const row = result[0];
       const moderationCase = this.mapRowToModerationCase(row);
       return Ok(moderationCase);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, caseId: caseId.toString() },
+        { err, caseId: caseId.toString() },
         "Failed to find moderation case by ID",
       );
-      return Err(`Failed to find moderation case: ${error}`);
+      return Err(`Failed to find moderation case: ${err}`);
     }
   }
 
@@ -107,12 +107,12 @@ export class DrizzleModerationCaseRepository
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, userId },
+        { err, guildId, userId },
         "Failed to find moderation cases by user ID",
       );
-      return Err(`Failed to find moderation cases: ${error}`);
+      return Err(`Failed to find moderation cases: ${err}`);
     }
   }
 
@@ -134,12 +134,12 @@ export class DrizzleModerationCaseRepository
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, limit, offset },
+        { err, guildId, limit, offset },
         "Failed to find moderation cases by guild ID",
       );
-      return Err(`Failed to find moderation cases: ${error}`);
+      return Err(`Failed to find moderation cases: ${err}`);
     }
   }
 
@@ -159,9 +159,9 @@ export class DrizzleModerationCaseRepository
 
       const nextCaseNumber = result.length > 0 ? result[0].maxCaseId + 1n : 1n;
       return Ok(nextCaseNumber);
-    } catch (error) {
-      this.logger.error({ error, guildId }, "Failed to get next case number");
-      return Err(`Failed to get next case number: ${error}`);
+    } catch (err) {
+      this.logger.error({ err, guildId }, "Failed to get next case number");
+      return Err(`Failed to get next case number: ${err}`);
     }
   }
 
@@ -198,9 +198,9 @@ export class DrizzleModerationCaseRepository
         );
 
       return Ok.EMPTY;
-    } catch (error) {
-      this.logger.error({ error }, "Failed to update moderation case");
-      return Err(`Failed to update moderation case: ${error}`);
+    } catch (err) {
+      this.logger.error({ err }, "Failed to update moderation case");
+      return Err(`Failed to update moderation case: ${err}`);
     }
   }
 
@@ -221,12 +221,12 @@ export class DrizzleModerationCaseRepository
         );
 
       return Ok.EMPTY;
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, caseId },
+        { err, guildId, caseId },
         "Failed to delete moderation case",
       );
-      return Err(`Failed to delete moderation case: ${error}`);
+      return Err(`Failed to delete moderation case: ${err}`);
     }
   }
 
@@ -298,12 +298,12 @@ export class DrizzleModerationCaseRepository
       );
 
       return Ok(deletedCases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, startCaseId, endCaseId },
+        { err, guildId, startCaseId, endCaseId },
         "Failed to delete case range",
       );
-      return Err(`Failed to delete case range: ${error}`);
+      return Err(`Failed to delete case range: ${err}`);
     }
   }
 
@@ -326,12 +326,12 @@ export class DrizzleModerationCaseRepository
         .limit(1);
 
       return Ok(result.length > 0);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, caseId },
+        { err, guildId, caseId },
         "Failed to check case existence",
       );
-      return Err(`Failed to check case existence: ${error}`);
+      return Err(`Failed to check case existence: ${err}`);
     }
   }
 
@@ -360,12 +360,12 @@ export class DrizzleModerationCaseRepository
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, startCaseId, endCaseId },
+        { err, guildId, startCaseId, endCaseId },
         "Failed to find cases by range",
       );
-      return Err(`Failed to find cases by range: ${error}`);
+      return Err(`Failed to find cases by range: ${err}`);
     }
   }
 
@@ -419,12 +419,12 @@ export class DrizzleModerationCaseRepository
       );
 
       return Ok(updatedCases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, startCaseId, endCaseId },
+        { err, guildId, startCaseId, endCaseId },
         "Failed to bulk update reasons",
       );
-      return Err(`Failed to bulk update reasons: ${error}`);
+      return Err(`Failed to bulk update reasons: ${err}`);
     }
   }
 
@@ -450,12 +450,12 @@ export class DrizzleModerationCaseRepository
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, prefix },
+        { err, guildId, prefix },
         "Failed to search cases by prefix",
       );
-      return Err(`Failed to search cases by prefix: ${error}`);
+      return Err(`Failed to search cases by prefix: ${err}`);
     }
   }
 
@@ -475,12 +475,12 @@ export class DrizzleModerationCaseRepository
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, limit },
+        { err, guildId, limit },
         "Failed to find recent cases",
       );
-      return Err(`Failed to find recent cases: ${error}`);
+      return Err(`Failed to find recent cases: ${err}`);
     }
   }
 }

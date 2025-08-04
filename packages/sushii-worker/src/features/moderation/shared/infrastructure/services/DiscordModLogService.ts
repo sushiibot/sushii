@@ -8,6 +8,7 @@ import db from "@/infrastructure/database/db";
 
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import { ModerationTarget } from "../../domain/entities/ModerationTarget";
+import { ModLogComponentBuilder } from "../../domain/services/ModLogComponentBuilder";
 import { ModLogService } from "../../domain/services/ModLogService";
 import { ActionType } from "../../domain/value-objects/ActionType";
 
@@ -57,7 +58,12 @@ export class DiscordModLogService implements ModLogService {
         },
       );
 
-      // TODO: Add components once buildModLogComponents is implemented
+      // Build message components
+      const componentBuilder = new ModLogComponentBuilder(
+        actionType,
+        moderationCase,
+      );
+      const components = componentBuilder.build();
 
       // Fetch and send to mod log channel
       const guild = this.client.guilds.cache.get(guildId);
@@ -72,6 +78,7 @@ export class DiscordModLogService implements ModLogService {
 
       await modLogChannel.send({
         embeds: [embed],
+        components,
       });
 
       this.logger.info(

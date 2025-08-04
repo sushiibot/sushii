@@ -4,6 +4,7 @@ import {
 } from "discord.js";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import { TimeoutChange } from "../value-objects/TimeoutChange";
 
@@ -108,5 +109,41 @@ export class AuditLogEvent {
    */
   isTimeoutAdjustment(): boolean {
     return this.actionType === ActionType.TimeoutAdjust;
+  }
+
+  /**
+   * Determines if a timeout DM should be sent for this audit log event.
+   * Contains the business rules for when native timeout DMs are appropriate.
+   * 
+   * @param hasPendingCase - Whether this timeout was already handled by a command (and DM already sent)
+   * @param guildConfig - The guild's configuration for DM preferences
+   * @returns true if a DM should be sent to the target user
+   */
+  shouldSendTimeoutDM(
+    hasPendingCase: boolean,
+    guildConfig?: GuildConfig,
+  ): boolean {
+    // Was invoked via command, so there was already a DM sent.
+    if (hasPendingCase) {
+      return false;
+    }
+
+    // Only timeout and timeout removal actions
+    if (!this.shouldSendNativeTimeoutDM()) {
+      return false;
+    }
+
+    // Don't DM for timeout adjustments (only bots can do this)
+    if (this.isTimeoutAdjustment()) {
+      return false;
+    }
+
+    // Check guild settings preference for native timeout DMs
+    if (guildConfig) {
+      return guildConfig.moderationSettings.timeoutNativeDmEnabled;
+    }
+
+    // Default to not sending if no guild config
+    return false;
   }
 }

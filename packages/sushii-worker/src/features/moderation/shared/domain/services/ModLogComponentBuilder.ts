@@ -2,14 +2,14 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 import customIds from "@/interactions/customIds";
 
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ActionType } from "../value-objects/ActionType";
+import { ModerationCase } from "../entities/ModerationCase";
 
 /**
- * Domain entity for building mod log message components (buttons).
+ * Domain service for building mod log message components (buttons).
  * Encapsulates the business logic for which buttons to show based on action type and DM status.
  */
-export class ModLogComponents {
+export class ModLogComponentBuilder {
   constructor(
     private readonly actionType: ActionType,
     private readonly moderationCase: ModerationCase,
