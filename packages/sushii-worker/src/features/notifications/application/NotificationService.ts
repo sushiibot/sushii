@@ -27,12 +27,12 @@ export class NotificationService {
         success: added,
         alreadyExists: !added,
       };
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, userId, keyword },
+        { err, guildId, userId, keyword },
         "Failed to add notification",
       );
-      throw error;
+      throw new Error("Failed to add notification", { cause: err });
     }
   }
 

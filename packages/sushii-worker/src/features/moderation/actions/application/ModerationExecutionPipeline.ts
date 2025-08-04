@@ -137,6 +137,7 @@ export class ModerationExecutionPipeline {
         },
         "Pipeline execution failed",
       );
+
       return Err(error instanceof Error ? error.message : String(error));
     }
   }
@@ -296,7 +297,8 @@ export class ModerationExecutionPipeline {
         },
         "Failed to execute Discord action",
       );
-      throw new Error(`Discord action failed: ${discordResult.val}`);
+
+      throw new Error("Discord action failed", { cause: discordResult.val });
     }
   }
 
@@ -673,7 +675,7 @@ export class ModerationExecutionPipeline {
         "Failed to execute Discord action",
       );
 
-      return Err(`Discord action failed: ${error}`);
+      return Err(error instanceof Error ? error.message : String(error));
     }
   }
 }
