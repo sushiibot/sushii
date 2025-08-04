@@ -1,7 +1,6 @@
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
-import { MOCK_USERS, MockUserData } from "../../helpers/mockUsers";
-
+import { MOCK_USERS } from "../../helpers/mockUsers";
 import { ModerationTestCase } from "./testCaseTypes";
 
 const DEFAULT_GUILD_ID = "123456789012345678";
@@ -152,7 +151,7 @@ export function createUnbanTestCase(
 ): ModerationTestCase {
   return {
     name,
-    actionType: ActionType.Unban,
+    actionType: ActionType.BanRemove,
     commandName: "unban",
     setup: {
       guildId: DEFAULT_GUILD_ID,
@@ -175,7 +174,7 @@ export function createUnbanTestCase(
       moderationCase: {
         shouldCreate: true,
         pending: true,
-        actionType: ActionType.Unban,
+        actionType: ActionType.BanRemove,
       },
       interaction: {
         deferReply: true,
@@ -203,10 +202,9 @@ export function createDmConfigVariations<T extends ModerationTestCase>(
       ...baseTestCase.setup,
       guildConfig: {
         ...baseTestCase.setup.guildConfig,
-        ...(baseTestCase.actionType === ActionType.Ban 
+        ...(baseTestCase.actionType === ActionType.Ban
           ? { banDmEnabled: true }
-          : { timeoutCommandDmEnabled: true }
-        ),
+          : { timeoutCommandDmEnabled: true }),
       },
     },
     commandOptions: {
@@ -231,10 +229,9 @@ export function createDmConfigVariations<T extends ModerationTestCase>(
       targetUser: MOCK_USERS.MEMBER_2,
       guildConfig: {
         ...baseTestCase.setup.guildConfig,
-        ...(baseTestCase.actionType === ActionType.Ban 
+        ...(baseTestCase.actionType === ActionType.Ban
           ? { banDmEnabled: false }
-          : { timeoutCommandDmEnabled: false }
-        ),
+          : { timeoutCommandDmEnabled: false }),
       },
     },
     commandOptions: {
@@ -260,10 +257,9 @@ export function createDmConfigVariations<T extends ModerationTestCase>(
       targetUser: MOCK_USERS.MEMBER_3,
       guildConfig: {
         ...baseTestCase.setup.guildConfig,
-        ...(baseTestCase.actionType === ActionType.Ban 
+        ...(baseTestCase.actionType === ActionType.Ban
           ? { banDmEnabled: false }
-          : { timeoutCommandDmEnabled: false }
-        ),
+          : { timeoutCommandDmEnabled: false }),
       },
     },
     commandOptions: {
@@ -289,10 +285,9 @@ export function createDmConfigVariations<T extends ModerationTestCase>(
       targetUser: MOCK_USERS.MEMBER_1,
       guildConfig: {
         ...baseTestCase.setup.guildConfig,
-        ...(baseTestCase.actionType === ActionType.Ban 
+        ...(baseTestCase.actionType === ActionType.Ban
           ? { banDmEnabled: true }
-          : { timeoutCommandDmEnabled: true }
-        ),
+          : { timeoutCommandDmEnabled: true }),
       },
     },
     commandOptions: {
