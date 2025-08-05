@@ -1,8 +1,7 @@
 import dayjs, { Dayjs } from "dayjs";
 import { Duration } from "dayjs/plugin/duration";
-import { GuildAuditLogsEntry } from "discord.js";
+import { AuditLogChange, GuildAuditLogsEntry } from "discord.js";
 
-import { findTimeoutChange } from "@/types/ModLogEventData";
 import logger from "@/shared/infrastructure/logger";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
@@ -20,11 +19,29 @@ export class TimeoutChange {
   ) {}
 
   /**
+   * Type guard to check if the APIAuditLogChange is of a specific type.
+   * Used for iteration over the changes array in the audit log entry.
+   */
+  private static isAPIAuditLogChange<V extends AuditLogChange["key"]>(val: V) {
+    return (obj: AuditLogChange): obj is Extract<AuditLogChange, { key: V }> =>
+      obj.key === val;
+  }
+
+  /**
+   * Finds timeout-related changes in audit log changes array.
+   */
+  private static findTimeoutChange(
+    changes?: AuditLogChange[],
+  ): AuditLogChange | undefined {
+    return changes?.find(TimeoutChange.isAPIAuditLogChange("communication_disabled_until"));
+  }
+
+  /**
    * Creates a TimeoutChange from a Discord audit log entry.
    * Returns undefined if the entry is not timeout-related.
    */
   static fromAuditLogEntry(entry: GuildAuditLogsEntry): TimeoutChange | undefined {
-    const timeoutChangeData = findTimeoutChange(entry.changes);
+    const timeoutChangeData = TimeoutChange.findTimeoutChange(entry.changes);
     if (!timeoutChangeData) {
       return undefined;
     }
