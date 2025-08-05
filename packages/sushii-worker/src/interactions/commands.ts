@@ -1,12 +1,8 @@
 import InteractionClient from "@/core/cluster/discord/InteractionRouter";
 
-import LevelRoleCommand from "../features/leveling/presentation/commands/LevelRoleCommand";
 import XpCommand from "../features/leveling/presentation/commands/XpCommands";
 import StatusCommand from "../features/status/presentation/StatusCommand";
 import EmojiStatsCommand from "./emojis/EmojiStatsCommands";
-import GiveawayAutocomplete from "./giveaway/Giveaway.autocomplete";
-import GiveawayButtonHandler from "./giveaway/Giveaway.button";
-import GiveawayCommand from "./giveaway/Giveaway.command";
 import ReminderDeleteAutocomplete from "./reminders/ReminderAutocomplete";
 import ReminderCommand from "./reminders/ReminderCommand";
 import RoleMenuCommand from "./roles/RoleMenu";
@@ -35,7 +31,6 @@ export default function registerInteractionHandlers(
 
     // Guild
     new EmojiStatsCommand(),
-    new GiveawayCommand(),
 
     new ReminderCommand(),
 
@@ -43,7 +38,6 @@ export default function registerInteractionHandlers(
     new RoleMenuCommand(),
 
     // XP
-    new LevelRoleCommand(),
     new XpCommand(),
   );
 
@@ -52,7 +46,6 @@ export default function registerInteractionHandlers(
   interactionRouter.addAutocompleteHandlers(
     new ReminderDeleteAutocomplete(),
     new RoleMenuAutocomplete(),
-    new GiveawayAutocomplete(),
   );
 
   // ----------------------------------------
@@ -63,7 +56,6 @@ export default function registerInteractionHandlers(
   // Buttons
   interactionRouter.addButtons(
     new RoleMenuButtonHandler(),
-    new GiveawayButtonHandler(),
   );
 
   // ----------------------------------------

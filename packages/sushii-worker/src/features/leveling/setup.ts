@@ -6,13 +6,15 @@ import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
+import { LevelRoleService } from "./application/LevelRoleService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
 import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
-import { MessageLevelHandler } from "./presentation/commands/MessageLevelHandler";
+import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
+import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 import RankCommand from "./presentation/commands/RankCommand";
 
 interface LevelingDependencies {
@@ -39,6 +41,8 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     xpBlockRepository,
   );
 
+  const levelRoleService = new LevelRoleService(levelRoleRepository);
+
   return {
     userProfileRepository,
     userLevelRepository,
@@ -47,6 +51,7 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     getUserRankService,
     getLeaderboardService,
     updateUserXpService,
+    levelRoleService,
   };
 }
 
@@ -54,11 +59,12 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService, getLeaderboardService } = services;
+  const { getUserRankService, getLeaderboardService, levelRoleService } = services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),
     new LeaderboardCommand(getLeaderboardService),
+    new LevelRoleCommand(levelRoleService),
   ];
 
   return {

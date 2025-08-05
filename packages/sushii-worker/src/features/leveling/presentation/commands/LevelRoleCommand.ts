@@ -1,21 +1,15 @@
 import {
   ChatInputCommandInteraction,
-  EmbedBuilder,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
-import {
-  deleteLevelRole,
-  getAllLevelRoles,
-  upsertLevelRole,
-} from "@/db/LevelRole/LevelRole.repository";
-import db from "@/infrastructure/database/db";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
-import canAddRole from "@/utils/canAddRole";
-import Color from "@/utils/colors";
+
+import { LevelRoleService } from "../../application/LevelRoleService";
+import { LevelRoleView } from "../views/LevelRoleView";
 
 enum CommandName {
   LevelRoleNew = "new",
@@ -31,6 +25,9 @@ enum LevelRoleOption {
 }
 
 export default class LevelRoleCommand extends SlashCommandHandler {
+  constructor(private readonly levelRoleService: LevelRoleService) {
+    super();
+  }
   command = new SlashCommandBuilder()
     .setName("levelrole")
     .setDescription("Configure level roles.")
@@ -112,55 +109,19 @@ export default class LevelRoleCommand extends SlashCommandHandler {
       LevelRoleOption.RemoveLevel,
     );
 
-    const canAddRes = await canAddRole(interaction, role);
-    if (canAddRes.err) {
-      await interactionReplyErrorPlainMessage(interaction, canAddRes.val, true);
-
-      return;
-    }
-
-    if (removeLevel && removeLevel <= addLevel) {
-      await interactionReplyErrorPlainMessage(
-        interaction,
-        "remove_level must be higher than add_level",
-        true,
-      );
-
-      return;
-    }
-
-    await upsertLevelRole(
-      db,
-      interaction.guildId,
-      role.id,
+    const result = await this.levelRoleService.createLevelRole(
+      interaction,
+      role,
       addLevel,
-      removeLevel || undefined,
+      removeLevel ?? undefined,
     );
 
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Created a new level role")
-          .setFields([
-            {
-              name: "Role",
-              value: `<@&${role.id}>`,
-            },
-            {
-              name: "Add level",
-              value: addLevel.toString(),
-            },
-            {
-              name: "Remove level",
-              value:
-                removeLevel?.toString() ??
-                "Role will not be automatically removed",
-            },
-          ])
-          .setColor(Color.Success)
-          .toJSON(),
-      ],
-    });
+    if (result.err) {
+      await interactionReplyErrorPlainMessage(interaction, result.val, true);
+      return;
+    }
+
+    await interaction.reply(LevelRoleView.formatCreateSuccess(result.val));
   }
 
   private async deleteLevelRoleHandler(
@@ -168,79 +129,26 @@ export default class LevelRoleCommand extends SlashCommandHandler {
   ): Promise<void> {
     const role = interaction.options.getRole(LevelRoleOption.Role, true);
 
-    const deletedCount = await deleteLevelRole(
-      db,
+    const result = await this.levelRoleService.deleteLevelRole(
       interaction.guildId,
       role.id,
     );
 
-    if (deletedCount.numDeletedRows === BigInt(0)) {
-      await interactionReplyErrorPlainMessage(
-        interaction,
-        `No level role was found for <@&${role.id}>`,
-        true,
-      );
-
+    if (result.err) {
+      await interactionReplyErrorPlainMessage(interaction, result.val, true);
       return;
     }
 
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Deleted level role")
-          .setFields([
-            {
-              name: "Role",
-              value: `<@&${role.id}>`,
-            },
-          ])
-          .setColor(Color.Success)
-          .toJSON(),
-      ],
-    });
+    await interaction.reply(LevelRoleView.formatDeleteSuccess(role.id));
   }
 
   private async listLevelRoleHandler(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const allLevelRoles = await getAllLevelRoles(db, interaction.guildId);
+    const levelRoles = await this.levelRoleService.getLevelRolesByGuild(
+      interaction.guildId,
+    );
 
-    if (allLevelRoles.length === 0) {
-      await interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("All level roles")
-            .setDescription("There are no level roles")
-            .setColor(Color.Success)
-            .toJSON(),
-        ],
-      });
-
-      return;
-    }
-
-    const levelRoles = allLevelRoles.map((node) => {
-      let s = `<@&${node.role_id}>`;
-
-      if (node.add_level) {
-        s += ` at level ${node.add_level}`;
-      }
-
-      if (node.remove_level) {
-        s += ` and removed at level ${node.remove_level}`;
-      }
-
-      return s;
-    });
-
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("All level roles")
-          .setDescription(levelRoles.join("\n"))
-          .setColor(Color.Success)
-          .toJSON(),
-      ],
-    });
+    await interaction.reply(LevelRoleView.formatList(levelRoles));
   }
 }

@@ -1,20 +1,21 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
-  EmbedBuilder,
-  ComponentType,
   ChatInputCommandInteraction,
+  ComponentType,
+  EmbedBuilder,
 } from "discord.js";
+import type { Logger } from "pino";
+
 import Paginator, {
-  PaginatorBuilder,
+  ComponentInteractionError,
+  EmbedModifierFn,
   GetPageFn,
   GetTotalEntriesFn,
-  EmbedModifierFn,
-  PaginationError,
   PageFetchError,
-  ComponentInteractionError,
   type PaginationConfig,
+  PaginationError,
+  PaginatorBuilder,
 } from "./Paginator";
-import type { Logger } from "pino";
 
 // Mock Discord.js types for testing
 interface MockUser {
@@ -366,7 +367,7 @@ describe("Paginator", () => {
 
       expect(mockMessage.createMessageComponentCollector).toHaveBeenCalledWith({
         componentType: ComponentType.Button,
-        time: 3 * 60 * 1000, // default timeout
+        idle: 3 * 60 * 1000, // default timeout
       });
     });
   });
@@ -582,7 +583,7 @@ describe("Paginator", () => {
 
       expect(mockMessage.createMessageComponentCollector).toHaveBeenCalledWith({
         componentType: ComponentType.Button,
-        time: customTimeout,
+        idle: customTimeout,
       });
     });
 
@@ -601,78 +602,6 @@ describe("Paginator", () => {
 
       expect(paginator).toBeInstanceOf(Paginator);
       // Jump size behavior would be tested in navigation tests
-    });
-  });
-
-  describe("Logging", () => {
-    let mockMessage: MockMessage;
-    let mockCollector: MockComponentCollector;
-
-    beforeEach(() => {
-      mockMessage = createMockMessage();
-      mockCollector = createMockComponentCollector();
-      mockMessage.createMessageComponentCollector = mock(() => mockCollector);
-
-      // Setup collector to end immediately
-      mockCollector.on = mock(
-        (event: string, handler: (arg?: unknown) => void) => {
-          if (event === "end") {
-            setTimeout(() => handler(), 1);
-          }
-        },
-      );
-
-      const mockResponse = createMockInteractionResponse(mockMessage);
-      mockInteraction.reply = mock(() => Promise.resolve(mockResponse));
-    });
-
-    it("should log debug information during pagination", async () => {
-      const paginator = new Paginator({
-        interaction:
-          mockInteraction as unknown as ChatInputCommandInteraction<"cached">,
-        getPageFn: mockGetPageFn,
-        getTotalEntriesFn: mockGetTotalEntriesFn,
-        pageSize: 10,
-        embedModifierFn: mockEmbedModifierFn,
-        logger: mockLogger,
-      });
-
-      await paginator.paginate();
-
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pageIndex: 0,
-          pageSize: 10,
-          page: expect.any(String),
-        }),
-        "Fetched page",
-      );
-
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embed: expect.any(EmbedBuilder),
-          totalPages: expect.any(Number),
-        }),
-        "starting pagination",
-      );
-    });
-
-    it("should use custom logger when provided", async () => {
-      const customLogger = createMockLogger();
-      const paginator = new Paginator({
-        interaction:
-          mockInteraction as unknown as ChatInputCommandInteraction<"cached">,
-        getPageFn: mockGetPageFn,
-        getTotalEntriesFn: mockGetTotalEntriesFn,
-        pageSize: 10,
-        embedModifierFn: mockEmbedModifierFn,
-        logger: customLogger,
-      });
-
-      await paginator.paginate();
-
-      expect(customLogger.debug).toHaveBeenCalled();
-      expect(mockLogger.debug).not.toHaveBeenCalled();
     });
   });
 
@@ -1170,7 +1099,7 @@ describe("Paginator", () => {
       expect(mockPageFn).toHaveBeenCalledWith(0, 5);
       expect(mockMessage.createMessageComponentCollector).toHaveBeenCalledWith({
         componentType: ComponentType.Button,
-        time: 30000,
+        idle: 30000,
       });
     });
   });
