@@ -1,8 +1,11 @@
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
+import { Client } from "discord.js";
 
 import * as schema from "@/infrastructure/database/schema";
 import { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
+import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Application services
 import { GiveawayService } from "./application/GiveawayService";
@@ -20,10 +23,18 @@ import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
 import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutocomplete";
 import { GiveawayButtonHandler } from "./presentation/components/GiveawayButtonHandler";
 
+// Tasks
+import { GiveawayTask } from "./infrastructure/tasks/GiveawayTask";
+
 interface GiveawayDependencies {
   db: NodePgDatabase<typeof schema>;
   userLevelRepository: UserLevelRepository;
   logger: Logger;
+}
+
+interface GiveawayTaskDependencies extends GiveawayDependencies {
+  client: Client;
+  deploymentService: DeploymentService;
 }
 
 export function createGiveawayServices({
@@ -65,6 +76,7 @@ export function createGiveawayServices({
 
   const giveawayDrawService = new GiveawayDrawService(
     giveawayEntryRepository,
+    giveawayRepository,
     logger.child({ module: "giveawayDrawService" }),
   );
 
@@ -136,18 +148,47 @@ export function createGiveawayEventHandlers(
   };
 }
 
+export function createGiveawayTasks(
+  services: ReturnType<typeof createGiveawayServices>,
+  client: Client,
+  deploymentService: DeploymentService,
+) {
+  const { giveawayService, giveawayDrawService, giveawayEntryService } = services;
+
+  const tasks = [
+    new GiveawayTask(
+      client,
+      deploymentService,
+      giveawayService,
+      giveawayDrawService,
+      giveawayEntryService,
+    ),
+  ];
+
+  return {
+    tasks,
+  };
+}
+
 export function setupGiveawayFeature({
   db,
   userLevelRepository,
   logger,
-}: GiveawayDependencies) {
+  client,
+  deploymentService,
+}: GiveawayTaskDependencies): FullFeatureSetupReturn<ReturnType<typeof createGiveawayServices>> {
   const services = createGiveawayServices({ db, userLevelRepository, logger });
   const commands = createGiveawayCommands(services, logger);
   const events = createGiveawayEventHandlers(services, logger);
+  const tasks = createGiveawayTasks(services, client, deploymentService);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: commands.buttonHandlers,
+    eventHandlers: events.eventHandlers,
+    tasks: tasks.tasks,
   };
 }

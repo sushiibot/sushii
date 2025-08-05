@@ -1,4 +1,4 @@
-import { Ok, Err, Result } from "ts-results";
+import { Result } from "ts-results";
 import { Logger } from "pino";
 
 import { Giveaway, GiveawayData } from "../domain/entities/Giveaway";

@@ -195,7 +195,7 @@ export class GiveawayButtonHandler extends ButtonHandler {
         // 2 Minutes
         time: 1000 * 60 * 2,
       });
-    } catch (err) {
+    } catch (_err) {
       this.logger.debug(
         {
           giveawayId,

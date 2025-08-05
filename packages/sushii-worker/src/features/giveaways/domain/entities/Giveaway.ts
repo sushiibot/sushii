@@ -1,5 +1,4 @@
 import { GuildMember } from "discord.js";
-import { calculateLevel } from "@/shared/domain/utils/LevelCalculations";
 
 export interface GiveawayData {
   id: string;

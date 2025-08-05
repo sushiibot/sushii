@@ -3,8 +3,8 @@ import { Ok, Err, Result } from "ts-results";
 import { Logger } from "pino";
 
 import { Giveaway } from "../domain/entities/Giveaway";
-import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
 import { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
 
 export interface DrawResult {
   winnerIds: string[];
@@ -15,6 +15,7 @@ export interface DrawResult {
 export class GiveawayDrawService {
   constructor(
     private readonly giveawayEntryRepository: GiveawayEntryRepository,
+    private readonly giveawayRepository: GiveawayRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -90,6 +91,21 @@ export class GiveawayDrawService {
           } else {
             reason = `Some users were excluded (previously picked). Enable repeat winners to include them.`;
           }
+        }
+      }
+
+      // Mark giveaway as ended if it's not already ended
+      if (!giveaway.isEnded) {
+        const markEndedResult = await this.giveawayRepository.markAsEnded(giveaway.id);
+        if (!markEndedResult.ok) {
+          this.logger.warn({
+            giveawayId: giveaway.id,
+            error: markEndedResult.val,
+          }, "Failed to mark giveaway as ended after drawing winners");
+        } else {
+          this.logger.info({
+            giveawayId: giveaway.id,
+          }, "Giveaway marked as ended after drawing winners");
         }
       }
 

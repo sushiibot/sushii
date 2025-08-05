@@ -1,5 +1,5 @@
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Ok, Err, Result } from "ts-results";
 import { Logger } from "pino";
 
@@ -35,7 +35,7 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         };
       });
 
-      const result = await database
+      await database
         .insert(schema.giveawayEntriesInAppPublic)
         .values(values)
         .onConflictDoNothing({ target: [schema.giveawayEntriesInAppPublic.giveawayId, schema.giveawayEntriesInAppPublic.userId] });
@@ -157,7 +157,7 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         .where(
           and(
             eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
-            sql`${schema.giveawayEntriesInAppPublic.userId} = ANY(${userIds.map(id => BigInt(id))}::bigint[])`,
+            inArray(schema.giveawayEntriesInAppPublic.userId, userIds.map(id => BigInt(id))),
           ),
         );
 

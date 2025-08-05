@@ -2,7 +2,6 @@ import { GuildMember } from "discord.js";
 import { Ok, Err, Result } from "ts-results";
 import { Logger } from "pino";
 
-import { calculateLevel } from "@/shared/domain/utils/LevelCalculations";
 import { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 
 import { Giveaway, GiveawayEligibility } from "../domain/entities/Giveaway";

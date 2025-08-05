@@ -1,5 +1,4 @@
 import { Message } from "discord.js";
-import { Ok, Err, Result } from "ts-results";
 import { Logger } from "pino";
 
 import { GiveawayEntry } from "../domain/entities/GiveawayEntry";

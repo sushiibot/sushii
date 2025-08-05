@@ -1,5 +1,5 @@
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Ok, Err, Result } from "ts-results";
+import { Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 

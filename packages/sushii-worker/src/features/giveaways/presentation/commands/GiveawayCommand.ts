@@ -19,7 +19,7 @@ import parseDuration from "@/utils/parseDuration";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
-import { GiveawayData } from "../../domain/entities/Giveaway";
+import { Giveaway, GiveawayData } from "../../domain/entities/Giveaway";
 import { GiveawayService } from "../../application/GiveawayService";
 import { GiveawayDrawService } from "../../application/GiveawayDrawService";
 import { buildGiveawayEmbed } from "../views/GiveawayEmbedBuilder";
@@ -239,7 +239,8 @@ export class GiveawayCommand extends SlashCommandHandler {
       isEnded: false,
     };
 
-    const embed = buildGiveawayEmbed({ ...giveawayData, toData: () => giveawayData } as any, []);
+    const tempGiveaway = new Giveaway(giveawayData);
+    const embed = buildGiveawayEmbed(tempGiveaway, []);
     const components = buildGiveawayComponents(0, false);
 
     let giveawayMsg;
@@ -451,8 +452,7 @@ export class GiveawayCommand extends SlashCommandHandler {
 
     const { winnerIds, hasInsufficientWinners, reason } = drawResult.val;
 
-    // Mark giveaway as ended
-    await this.giveawayService.markAsEnded(giveawayId);
+    // Note: GiveawayDrawService now automatically marks giveaway as ended
 
     if (winnerIds.length > 0) {
       await this.giveawayDrawService.sendWinnersMessage(channel, giveaway, winnerIds);
