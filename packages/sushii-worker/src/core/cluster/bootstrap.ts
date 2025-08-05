@@ -10,6 +10,7 @@ import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupTagFeature } from "@/features/tags/setup";
+import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { drizzleDb } from "@/infrastructure/database/db";
 import * as schema from "@/infrastructure/database/schema";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
@@ -84,6 +85,13 @@ export function registerFeatures(
     logger,
   });
 
+  // Giveaway feature
+  const giveawayFeature = setupGiveawayFeature({
+    db,
+    userLevelRepository: levelingFeature.services.userLevelRepository,
+    logger,
+  });
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -91,10 +99,12 @@ export function registerFeatures(
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
     ...moderationFeature.commands,
+    ...giveawayFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...tagFeature.autocompletes,
     ...notificationFeature.autocompletes,
+    ...giveawayFeature.autocompletes,
   );
 
   // Context menu handlers
@@ -105,7 +115,10 @@ export function registerFeatures(
   }
 
   // Button handlers
-  interactionRouter.addButtons(...moderationFeature.buttonHandlers);
+  interactionRouter.addButtons(
+    ...moderationFeature.buttonHandlers,
+    ...giveawayFeature.buttonHandlers,
+  );
 
   // ---------------------------------------------------------------------------
   // Build event handlers
@@ -199,4 +212,14 @@ export function registerFeatures(
       }
     });
   }
+
+  // Return giveaway services for use in tasks
+  return {
+    giveawayServices: {
+      giveawayService: giveawayFeature.services.giveawayService,
+      giveawayDrawService: giveawayFeature.services.giveawayDrawService,
+      giveawayEntryService: giveawayFeature.services.giveawayEntryService,
+    },
+    tempBanRepository: moderationFeature.services.tempBanRepository,
+  };
 }

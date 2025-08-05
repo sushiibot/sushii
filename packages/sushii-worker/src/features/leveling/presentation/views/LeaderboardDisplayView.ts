@@ -3,7 +3,7 @@ import { UserRank } from "../../domain/entities/UserRank";
 import {
   calculateLevel,
   calculateLevelProgress,
-} from "../../domain/utils/LevelCalculations";
+} from "@/shared/domain/utils/LevelCalculations";
 import { ProgressBar } from "../../domain/value-objects/ProgressBar";
 import { TimeFrame } from "../../domain/value-objects/TimeFrame";
 

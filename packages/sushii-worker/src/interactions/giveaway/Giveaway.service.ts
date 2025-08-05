@@ -14,7 +14,7 @@ import {
 import { GiveawayRow } from "../../db/Giveaway/Giveaway.table";
 import db from "../../infrastructure/database/db";
 import { getUserGuildLevel } from "../../db/UserLevel/UserLevel.repository";
-import { calculateLevel } from "../../features/leveling/domain/utils/LevelCalculations";
+import { calculateLevel } from "@/shared/domain/utils/LevelCalculations";
 import { GiveawayOption } from "./Giveaway.options";
 import Color from "../../utils/colors";
 import { getGiveawayEmbed } from "./Giveaway.embed";

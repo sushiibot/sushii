@@ -2,7 +2,7 @@ import {
   LevelProgress,
   calculateLevel,
   calculateLevelProgress,
-} from "../utils/LevelCalculations";
+} from "@/shared/domain/utils/LevelCalculations";
 import { ProgressBar } from "../value-objects/ProgressBar";
 import { XpAmount } from "../value-objects/XpAmount";
 

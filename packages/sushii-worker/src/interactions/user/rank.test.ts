@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { calculateLevel, calculateLevelProgress } from "../../features/leveling/domain/utils/LevelCalculations";
+import { calculateLevel, calculateLevelProgress } from "@/shared/domain/utils/LevelCalculations";
 
 describe("Level calculations", () => {
   describe.each([

@@ -4,6 +4,9 @@ import { Client } from "discord.js";
 
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
+import { GiveawayService } from "@/features/giveaways/application/GiveawayService";
+import { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
+import { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
 import logger from "@/shared/infrastructure/logger";
 
 import { AbstractBackgroundTask } from "./AbstractBackgroundTask";
@@ -14,10 +17,17 @@ import { RemindersTask } from "./RemindersTask";
 import { StatsTask } from "./StatsTask";
 import { TempbanTask } from "./TempbanTask";
 
+interface GiveawayServices {
+  giveawayService: GiveawayService;
+  giveawayDrawService: GiveawayDrawService;
+  giveawayEntryService: GiveawayEntryService;
+}
+
 export default async function startTasks(
   client: Client,
   deploymentService: DeploymentService,
   tempBanRepository?: TempBanRepository,
+  giveawayServices?: GiveawayServices,
 ): Promise<void> {
   const isCluster0 = client.cluster.shardList.includes(0);
 
@@ -48,7 +58,16 @@ export default async function startTasks(
     new StatsTask(client, deploymentService),
     new DeleteStaleEmojiStatsRateLimit(client, deploymentService),
     new RemindersTask(client, deploymentService),
-    new GiveawayTask(client, deploymentService),
+    // Only add GiveawayTask if services are provided
+    ...(giveawayServices
+      ? [new GiveawayTask(
+          client,
+          deploymentService,
+          giveawayServices.giveawayService,
+          giveawayServices.giveawayDrawService,
+          giveawayServices.giveawayEntryService,
+        )]
+      : []),
     // TODO: For now, skip TempbanTask if no repository provided (during transition)
     // In the future, this should always be provided
     ...(tempBanRepository

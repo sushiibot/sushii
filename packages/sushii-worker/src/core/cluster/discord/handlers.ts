@@ -117,11 +117,18 @@ async function runParallel(
   }
 }
 
+interface GiveawayServices {
+  giveawayService: any;
+  giveawayDrawService: any;
+  giveawayEntryService: any;
+}
+
 export default function registerEventHandlers(
   client: Client,
   interactionHandler: InteractionClient,
   deploymentService: DeploymentService,
   tempBanRepository?: TempBanRepository,
+  giveawayServices?: GiveawayServices,
 ): void {
   client.once(Events.ClientReady, async (c) => {
     logger.info(
@@ -155,7 +162,7 @@ export default function registerEventHandlers(
     );
 
     // After after client is ready to ensure guilds are cached
-    await startTasks(c, deploymentService, tempBanRepository);
+    await startTasks(c, deploymentService, tempBanRepository, giveawayServices);
 
     await tracer.startActiveSpan(
       prefixSpanName(Events.ClientReady),
