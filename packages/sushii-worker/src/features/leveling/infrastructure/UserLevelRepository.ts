@@ -1,10 +1,11 @@
-import { and, count, eq, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, sql, sum } from "drizzle-orm";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { userLevelsInAppPublic } from "@/infrastructure/database/schema";
 import * as schema from "@/infrastructure/database/schema";
 
 import { GlobalUserLevel } from "../domain/entities/GlobalUserLevel";
+import { LeaderboardEntry } from "../domain/entities/LeaderboardEntry";
 import { UserLevel } from "../domain/entities/UserLevel";
 import { UserRank } from "../domain/entities/UserRank";
 import { UserLevelRepository as IUserLevelRepository } from "../domain/repositories/UserLevelRepository";
@@ -132,7 +133,7 @@ export class UserLevelRepository implements IUserLevelRepository {
     }
   }
 
-  private async getUserCountInTimeframe(
+  private async getPrivateUserCountInTimeframe(
     guildId: string,
     timeframe: TimeFrame,
   ): Promise<number> {
@@ -179,7 +180,7 @@ export class UserLevelRepository implements IUserLevelRepository {
   ): Promise<UserRankData> {
     try {
       // First get total count as it's always returned
-      const totalCount = await this.getUserCountInTimeframe(guildId, timeframe);
+      const totalCount = await this.getPrivateUserCountInTimeframe(guildId, timeframe);
 
       // Basic check if user has any activity at all
       const user = await this.db
@@ -195,7 +196,7 @@ export class UserLevelRepository implements IUserLevelRepository {
 
       if (!user[0]) {
         // Still want to return the total
-        const totalCount = await this.getUserCountInTimeframe(
+        const totalCount = await this.getPrivateUserCountInTimeframe(
           guildId,
           timeframe,
         );
@@ -253,13 +254,18 @@ export class UserLevelRepository implements IUserLevelRepository {
 
       const userXp = userXpResult[0].xp;
 
-      // Count users with higher XP (rank = count + 1)
+      // Count users with higher XP or same XP but higher user ID (rank = count + 1)
       const rankResult = await this.db
         // count() automatically maps to Number! If doing a raw sql for COUNT(),
         // it will return string and require manual .mapWith(Number)
         .select({ count: count() })
         .from(userLevelsInAppPublic)
-        .where(and(...conditions, sql`${orderColumn} > ${userXp}`));
+        .where(
+          and(
+            ...conditions,
+            sql`(${orderColumn} > ${userXp} OR (${orderColumn} = ${userXp} AND ${userLevelsInAppPublic.userId} > ${BigInt(userId)}))`
+          )
+        );
 
       const rank = (rankResult[0]?.count ?? 0) + 1;
 
@@ -329,5 +335,112 @@ export class UserLevelRepository implements IUserLevelRepository {
         totalCount: rankings[TimeFrame.ALL_TIME].total_count,
       },
     });
+  }
+
+  async getLeaderboardPage(
+    guildId: string,
+    timeframe: TimeFrame,
+    pageIndex: number,
+    pageSize: number,
+  ): Promise<LeaderboardEntry[]> {
+    try {
+      const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
+      const orderColumn = this.getOrderByColumn(timeframe);
+
+      // Add timeframe conditions for filtering users
+      switch (timeframe) {
+        case TimeFrame.DAY:
+          conditions.push(
+            sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.WEEK:
+          conditions.push(
+            sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.MONTH:
+          conditions.push(
+            sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.ALL_TIME:
+          // No additional conditions
+          break;
+      }
+
+      const result = await this.db
+        .select({
+          userId: userLevelsInAppPublic.userId,
+          msgAllTime: userLevelsInAppPublic.msgAllTime,
+          msgDay: userLevelsInAppPublic.msgDay,
+          msgWeek: userLevelsInAppPublic.msgWeek,
+          msgMonth: userLevelsInAppPublic.msgMonth,
+        })
+        .from(userLevelsInAppPublic)
+        .where(and(...conditions))
+        .orderBy(desc(orderColumn), desc(userLevelsInAppPublic.userId))
+        .limit(pageSize)
+        .offset(pageIndex * pageSize);
+
+      return result.map((row, index) =>
+        LeaderboardEntry.create(
+          String(row.userId),
+          pageIndex * pageSize + index + 1, // Calculate rank based on position
+          row.msgAllTime,
+          row.msgDay,
+          row.msgWeek,
+          row.msgMonth,
+        )
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to get leaderboard page for guildId ${guildId}, timeframe ${timeframe}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async getUserCountInTimeframe(guildId: string, timeframe: TimeFrame): Promise<number> {
+    try {
+      const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
+
+      switch (timeframe) {
+        case TimeFrame.DAY:
+          conditions.push(
+            sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.WEEK:
+          conditions.push(
+            sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.MONTH:
+          conditions.push(
+            sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
+            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
+          );
+          break;
+        case TimeFrame.ALL_TIME:
+          // No additional filtering needed
+          break;
+      }
+
+      const result = await this.db
+        .select({ count: count() })
+        .from(userLevelsInAppPublic)
+        .where(and(...conditions));
+
+      return result[0]?.count ?? 0;
+    } catch (error) {
+      throw new Error(
+        `Failed to get user count for guildId ${guildId}, timeframe ${timeframe}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }

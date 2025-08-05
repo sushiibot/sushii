@@ -3,12 +3,14 @@ import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
 
+import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
 import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
+import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
 import { MessageLevelHandler } from "./presentation/commands/MessageLevelHandler";
 import RankCommand from "./presentation/commands/RankCommand";
 
@@ -28,6 +30,8 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     userLevelRepository,
   );
 
+  const getLeaderboardService = new GetLeaderboardService(userLevelRepository);
+
   const updateUserXpService = new UpdateUserXpService(
     userLevelRepository,
     levelRoleRepository,
@@ -40,6 +44,7 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     levelRoleRepository,
     xpBlockRepository,
     getUserRankService,
+    getLeaderboardService,
     updateUserXpService,
   };
 }
@@ -48,10 +53,11 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService } = services;
+  const { getUserRankService, getLeaderboardService } = services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),
+    new LeaderboardCommand(getLeaderboardService),
   ];
 
   return {

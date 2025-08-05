@@ -1,27 +1,27 @@
-import "@/shared/domain/dayjs";
 import * as Sentry from "@sentry/bun";
-import { fileURLToPath } from "url";
-import log from "@/shared/infrastructure/logger";
-import server from "@/core/manager/server";
-import sdk from "@/shared/infrastructure/tracing";
-import { config } from "@/shared/infrastructure/config";
-import { registerShutdownSignals } from "@/core/manager/signals";
-import { drizzleDb } from "@/infrastructure/database/db";
-
-// Type-safe reference to ensure shard.ts exists WITHOUT importing and running
-// the file. If it's imported, it will cause process.send not defined errors as
-// it wasn't spawned by the ShardingManager
-import type {} from "@/core/cluster/cluster";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   Child,
   ClusterManager,
   HeartbeatManager,
 } from "discord-hybrid-sharding";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { fileURLToPath } from "url";
+
+// Type-safe reference to ensure shard.ts exists WITHOUT importing and running
+// the file. If it's imported, it will cause process.send not defined errors as
+// it wasn't spawned by the ShardingManager
+import type {} from "@/core/cluster/cluster";
+import server from "@/core/manager/server";
+import { registerShutdownSignals } from "@/core/manager/signals";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
-import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { DeploymentChanged } from "@/features/deployment/domain/events/DeploymentChanged";
+import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
+import { drizzleDb } from "@/infrastructure/database/db";
+import "@/shared/domain/dayjs";
+import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
+import { config } from "@/shared/infrastructure/config";
+import log from "@/shared/infrastructure/logger";
+import sdk from "@/shared/infrastructure/tracing";
 
 Error.stackTraceLimit = 50;
 
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
         pid: (cluster.thread as Child)?.process?.pid,
         connected: (cluster.thread as Child)?.process?.connected,
       },
-      `Launched Cluster $`,
+      `Launched Cluster`,
     );
   });
 

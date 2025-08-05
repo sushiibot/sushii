@@ -1,6 +1,5 @@
 import InteractionClient from "@/core/cluster/discord/InteractionRouter";
 
-import LeaderboardCommand from "../features/leveling/presentation/commands/LeaderboardCommand";
 import LevelRoleCommand from "../features/leveling/presentation/commands/LevelRoleCommand";
 import XpCommand from "../features/leveling/presentation/commands/XpCommands";
 import StatusCommand from "../features/status/presentation/StatusCommand";
@@ -40,7 +39,6 @@ export default function registerInteractionHandlers(
 
     new ReminderCommand(),
 
-    new LeaderboardCommand(),
 
     // Roles
     new RoleMenuCommand(),
