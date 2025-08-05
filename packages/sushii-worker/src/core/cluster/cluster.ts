@@ -11,7 +11,8 @@ import registerInteractionHandlers from "../../interactions/commands";
 import "../../shared/domain/dayjs";
 import initI18next from "../../shared/infrastructure/i18next";
 import log from "../../shared/infrastructure/logger";
-import { initCore, registerFeatures } from "./bootstrap";
+import { initCore } from "./initialization/initCore";
+import { registerFeatures } from "./initialization/registerFeatures";
 
 Error.stackTraceLimit = 50;
 

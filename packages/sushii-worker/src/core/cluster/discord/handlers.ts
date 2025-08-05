@@ -8,7 +8,7 @@ import {
   GatewayDispatchPayload,
 } from "discord.js";
 
-import webhookLog, { webhookActivity } from "@/core/cluster/webhookLogger";
+import webhookLog, { webhookActivity } from "@/core/cluster/discord/webhookLogger";
 import {
   banCacheBanHandler,
   banCacheUnbanHandler,
