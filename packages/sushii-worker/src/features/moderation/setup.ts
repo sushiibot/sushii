@@ -2,9 +2,11 @@ import { Client } from "discord.js";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
+import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import * as schema from "@/infrastructure/database/schema";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
+import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Actions sub-feature
 import {
@@ -23,6 +25,11 @@ import {
   NativeTimeoutDMService,
 } from "./audit-logs/application";
 import { DiscordAuditLogService } from "./audit-logs/infrastructure";
+// Button handlers
+import {
+  ModLogDeleteDMButtonHandler,
+  ModLogReasonButtonHandler,
+} from "./audit-logs/presentation/components";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -37,6 +44,8 @@ import {
   ReasonCommand,
   UncaseCommand,
 } from "./cases/presentation";
+// Tasks
+import { TempbanTask } from "./infrastructure/tasks/TempbanTask";
 // Management sub-feature
 import {
   PruneMessageService,
@@ -61,13 +70,15 @@ import {
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
 import { COMMAND_CONFIGS, ReasonAutocomplete } from "./shared/presentation";
-// Button handlers
-import { ModLogReasonButtonHandler, ModLogDeleteDMButtonHandler } from "./audit-logs/presentation/components";
 
 interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
   client: Client;
   logger: Logger;
+}
+
+interface ModerationTaskDependencies extends ModerationDependencies {
+  deploymentService: DeploymentService;
 }
 
 export function createModerationServices({
@@ -340,18 +351,40 @@ export function createModerationEventHandlers(
   };
 }
 
+export function createModerationTasks(
+  services: ReturnType<typeof createModerationServices>,
+  client: Client,
+  deploymentService: DeploymentService,
+) {
+  const { tempBanRepository } = services;
+
+  const tasks = [new TempbanTask(client, deploymentService, tempBanRepository)];
+
+  return {
+    tasks,
+  };
+}
+
 export function setupModerationFeature({
   db,
   client,
   logger,
-}: ModerationDependencies) {
+  deploymentService,
+}: ModerationTaskDependencies): FullFeatureSetupReturn<
+  ReturnType<typeof createModerationServices>
+> {
   const services = createModerationServices({ db, client, logger });
   const commands = createModerationCommands(services, logger);
   const events = createModerationEventHandlers(services, logger);
+  const tasks = createModerationTasks(services, client, deploymentService);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: commands.contextMenuHandlers,
+    buttonHandlers: commands.buttonHandlers,
+    eventHandlers: events.eventHandlers,
+    tasks: tasks.tasks,
   };
 }

@@ -22,7 +22,8 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
 
   readonly eventType = Events.MessageCreate;
 
-  async handle(msg: Message): Promise<void> {
+  async handle(...data: [Message]): Promise<void> {
+    const [msg] = data;
     startCaughtActiveSpan(tracer, "messageLevelHandler", async () => {
       if (!msg.inGuild()) {
         return;

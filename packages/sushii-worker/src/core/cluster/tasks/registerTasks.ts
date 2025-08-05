@@ -3,32 +3,18 @@ import { CronJob } from "cron";
 import { Client } from "discord.js";
 
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
-import { GiveawayService } from "@/features/giveaways/application/GiveawayService";
-import { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
-import { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
 import logger from "@/shared/infrastructure/logger";
+import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import { DeleteOldMessagesTask } from "@/tasks/DeleteOldMessagesTask";
+import { DeleteStaleEmojiStatsRateLimit } from "@/tasks/DeleteStaleEmojiStatsRateLimit";
+import { RemindersTask } from "@/tasks/RemindersTask";
+import { StatsTask } from "@/tasks/StatsTask";
 
-import { AbstractBackgroundTask } from "./AbstractBackgroundTask";
-import { DeleteOldMessagesTask } from "./DeleteOldMessagesTask";
-import { DeleteStaleEmojiStatsRateLimit } from "./DeleteStaleEmojiStatsRateLimit";
-import { GiveawayTask } from "./GiveawayTask";
-import { RemindersTask } from "./RemindersTask";
-import { StatsTask } from "./StatsTask";
-import { TempbanTask } from "./TempbanTask";
-
-interface GiveawayServices {
-  giveawayService: GiveawayService;
-  giveawayDrawService: GiveawayDrawService;
-  giveawayEntryService: GiveawayEntryService;
-}
-
-export default async function startTasks(
+export function registerTasks(
   client: Client,
   deploymentService: DeploymentService,
-  tempBanRepository?: TempBanRepository,
-  giveawayServices?: GiveawayServices,
-): Promise<void> {
+  featureTasks: AbstractBackgroundTask[],
+): void {
   const isCluster0 = client.cluster.shardList.includes(0);
 
   // Only run background tasks on shard 0 to avoid duplication
@@ -53,29 +39,17 @@ export default async function startTasks(
     "Starting background tasks on cluster with shard 0",
   );
 
-  const tasks: AbstractBackgroundTask[] = [
+  // Combine legacy tasks with feature tasks
+  const legacyTasks: AbstractBackgroundTask[] = [
     new DeleteOldMessagesTask(client, deploymentService),
     new StatsTask(client, deploymentService),
     new DeleteStaleEmojiStatsRateLimit(client, deploymentService),
     new RemindersTask(client, deploymentService),
-    // Only add GiveawayTask if services are provided
-    ...(giveawayServices
-      ? [new GiveawayTask(
-          client,
-          deploymentService,
-          giveawayServices.giveawayService,
-          giveawayServices.giveawayDrawService,
-          giveawayServices.giveawayEntryService,
-        )]
-      : []),
-    // TODO: For now, skip TempbanTask if no repository provided (during transition)
-    // In the future, this should always be provided
-    ...(tempBanRepository
-      ? [new TempbanTask(client, deploymentService, tempBanRepository)]
-      : []),
   ];
 
-  for (const task of tasks) {
+  const allTasks = [...legacyTasks, ...featureTasks];
+
+  for (const task of allTasks) {
     const cron = new CronJob(task.cronTime, async () => {
       try {
         logger.info(

@@ -38,12 +38,10 @@ import { cacheUserHandler } from "@/events/cache/cacheUser";
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 import { StatName, updateStat } from "@/tasks/StatsTask";
-import startTasks from "@/tasks/startTasks";
 import Color from "@/utils/colors";
 
 import InteractionClient from "./InteractionRouter";
@@ -117,18 +115,11 @@ async function runParallel(
   }
 }
 
-interface GiveawayServices {
-  giveawayService: any;
-  giveawayDrawService: any;
-  giveawayEntryService: any;
-}
 
 export default function registerEventHandlers(
   client: Client,
   interactionHandler: InteractionClient,
   deploymentService: DeploymentService,
-  tempBanRepository?: TempBanRepository,
-  giveawayServices?: GiveawayServices,
 ): void {
   client.once(Events.ClientReady, async (c) => {
     logger.info(
@@ -161,8 +152,7 @@ export default function registerEventHandlers(
       Color.Success,
     );
 
-    // After after client is ready to ensure guilds are cached
-    await startTasks(c, deploymentService, tempBanRepository, giveawayServices);
+    // Tasks are now started in bootstrap.ts during feature registration
 
     await tracer.startActiveSpan(
       prefixSpanName(Events.ClientReady),

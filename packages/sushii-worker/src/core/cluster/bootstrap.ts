@@ -5,17 +5,19 @@ import { DeploymentService } from "@/features/deployment/application/DeploymentS
 import { DeploymentChanged } from "@/features/deployment/domain/events/DeploymentChanged";
 import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
+import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupTagFeature } from "@/features/tags/setup";
-import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { drizzleDb } from "@/infrastructure/database/db";
 import * as schema from "@/infrastructure/database/schema";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
+
+import { registerTasks } from "./tasks/registerTasks";
 
 import InteractionRouter from "./discord/InteractionRouter";
 import { EventHandler } from "./presentation/EventHandler";
@@ -57,6 +59,7 @@ export async function initCore() {
   };
 }
 
+
 export function registerFeatures(
   db: NodePgDatabase<typeof schema>,
   client: Client,
@@ -83,6 +86,7 @@ export function registerFeatures(
     db,
     client,
     logger,
+    deploymentService,
   });
 
   // Giveaway feature
@@ -90,6 +94,8 @@ export function registerFeatures(
     db,
     userLevelRepository: levelingFeature.services.userLevelRepository,
     logger,
+    client,
+    deploymentService,
   });
 
   // Register commands and handlers on interaction router
@@ -102,20 +108,25 @@ export function registerFeatures(
     ...giveawayFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
+    ...levelingFeature.autocompletes,
     ...tagFeature.autocompletes,
     ...notificationFeature.autocompletes,
+    ...guildSettingsFeature.autocompletes,
+    ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
   );
 
   // Context menu handlers
-  if (moderationFeature.contextMenuHandlers) {
-    moderationFeature.contextMenuHandlers.forEach((handler) => {
-      interactionRouter.addContextMenu(handler);
-    });
-  }
+  moderationFeature.contextMenuHandlers.forEach((handler) => {
+    interactionRouter.addContextMenu(handler);
+  });
 
   // Button handlers
   interactionRouter.addButtons(
+    ...levelingFeature.buttonHandlers,
+    ...tagFeature.buttonHandlers,
+    ...notificationFeature.buttonHandlers,
+    ...guildSettingsFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
   );
@@ -213,7 +224,14 @@ export function registerFeatures(
     });
   }
 
-  // Return giveaway services for use in tasks
+  // ---------------------------------------------------------------------------
+  // Register background tasks
+
+  const featureTasks = [...giveawayFeature.tasks, ...moderationFeature.tasks];
+
+  registerTasks(client, deploymentService, featureTasks);
+
+  // Return services for backwards compatibility (can be removed later)
   return {
     giveawayServices: {
       giveawayService: giveawayFeature.services.giveawayService,

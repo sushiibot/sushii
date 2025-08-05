@@ -2,6 +2,7 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
+import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
@@ -79,14 +80,22 @@ export function createLevelingEventHandlers(
   };
 }
 
-export function setupLevelingFeature({ db, logger }: LevelingDependencies) {
+export function setupLevelingFeature({
+  db,
+  logger,
+}: LevelingDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createLevelingServices>
+> {
   const services = createLevelingServices({ db, logger });
   const commands = createLevelingCommands(services, logger);
   const events = createLevelingEventHandlers(services, logger);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers: events.eventHandlers,
   };
 }

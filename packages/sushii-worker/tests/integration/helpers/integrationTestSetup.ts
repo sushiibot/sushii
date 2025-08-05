@@ -5,6 +5,8 @@ import pino from "pino";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import { setupModerationFeature } from "@/features/moderation/setup";
+import { setupGiveawayFeature } from "@/features/giveaways/setup";
+import { createLevelingServices } from "@/features/leveling/setup";
 import * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import { DeploymentConfig } from "@/shared/infrastructure/config/config";
@@ -19,6 +21,7 @@ export interface IntegrationTestServices {
   db: NodePgDatabase<typeof schema>;
   mockDiscord: MockDiscordClient;
   moderationFeature: ReturnType<typeof setupModerationFeature>;
+  giveawayFeature: ReturnType<typeof setupGiveawayFeature>;
   guildConfigRepository: DrizzleGuildConfigRepository;
   deploymentService: DeploymentService;
   logger: pino.Logger;
@@ -67,17 +70,31 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   // Create guild config repository (shared service)
   const guildConfigRepository = new DrizzleGuildConfigRepository(db, logger);
 
+  // Create leveling services (needed for giveaways)
+  const levelingServices = createLevelingServices({ db, logger });
+
   // Create moderation services with mock client
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
     logger,
+    deploymentService,
+  });
+
+  // Create giveaway services with mock client
+  const giveawayFeature = setupGiveawayFeature({
+    db,
+    userLevelRepository: levelingServices.userLevelRepository,
+    logger,
+    client: mockDiscord.client as unknown as Client,
+    deploymentService,
   });
 
   return {
     db,
     mockDiscord,
     moderationFeature,
+    giveawayFeature,
     guildConfigRepository,
     deploymentService,
     logger,
