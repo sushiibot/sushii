@@ -39,7 +39,6 @@ export default function registerInteractionHandlers(
 
     new ReminderCommand(),
 
-
     // Roles
     new RoleMenuCommand(),
 

@@ -12,9 +12,9 @@ import { setupTagFeature } from "@/features/tags/setup";
 import * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
-import { registerTasks } from "../tasks/registerTasks";
 import InteractionRouter from "../discord/InteractionRouter";
 import { EventHandler } from "../presentation/EventHandler";
+import { registerTasks } from "../tasks/registerTasks";
 
 export function registerFeatures(
   db: NodePgDatabase<typeof schema>,

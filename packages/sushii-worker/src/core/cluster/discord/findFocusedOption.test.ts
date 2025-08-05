@@ -1,8 +1,9 @@
-import { describe, expect, test, mock } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type {
-  AutocompleteInteraction,
   AutocompleteFocusedOption,
+  AutocompleteInteraction,
 } from "discord.js";
+
 import { findFocusedOption } from "./InteractionRouter";
 
 // Mock factories for Discord.js types

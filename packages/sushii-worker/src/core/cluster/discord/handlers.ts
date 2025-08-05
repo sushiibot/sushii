@@ -8,7 +8,9 @@ import {
   GatewayDispatchPayload,
 } from "discord.js";
 
-import webhookLog, { webhookActivity } from "@/core/cluster/discord/webhookLogger";
+import webhookLog, {
+  webhookActivity,
+} from "@/core/cluster/discord/webhookLogger";
 import {
   banCacheBanHandler,
   banCacheUnbanHandler,
@@ -114,7 +116,6 @@ async function runParallel(
     }
   }
 }
-
 
 export default function registerEventHandlers(
   client: Client,
