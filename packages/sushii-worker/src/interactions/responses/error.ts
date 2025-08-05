@@ -21,8 +21,8 @@ export function getErrorMessageEmbeds(
 ): EmbedBuilder[] {
   return [
     new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
+      .setTitle(title || "Error")
+      .setDescription(description || "An error occurred")
       .setColor(Color.Error),
   ];
 }

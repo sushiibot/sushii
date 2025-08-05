@@ -12,8 +12,8 @@ import customIds from "@/interactions/customIds";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 
-import { ReasonUpdateService } from "../../application/ReasonUpdateService";
 import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
+import { ReasonUpdateService } from "../../application/ReasonUpdateService";
 import {
   reasonCancelledView,
   reasonErrorView,
