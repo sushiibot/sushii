@@ -7,7 +7,7 @@ import {
   expect,
   test,
 } from "bun:test";
-import { PermissionFlagsBits } from "discord.js";
+import { Embed, PermissionFlagsBits } from "discord.js";
 
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
@@ -301,7 +301,9 @@ describe("Reason Command Integration", () => {
       ];
       expect(replyCall[0]?.embeds).toBeDefined();
       expect(replyCall[0]?.embeds?.[0]).toHaveProperty("data");
-      expect((replyCall[0]?.embeds?.[0] as any)?.data?.description).toContain("25 cases");
+      expect(
+        (replyCall[0]?.embeds?.[0] as unknown as Embed).data?.description,
+      ).toContain("25 cases");
     });
   });
 
