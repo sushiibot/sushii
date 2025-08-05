@@ -28,6 +28,14 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Migrating 
 **Imports**: Absolute (`@/`) for cross-feature/shared, relative for within-feature
 **Sleep**: Use built-in `sleep` from "bun"
 
+## Error Handling Guidelines
+
+**Error Messages**: Keep concise and searchable. Use Error `cause` for details: `throw new Error("Operation failed", { cause: originalError })`
+**Business Errors**: Use `Result<T, string>` for expected failures (validation, not found, permissions)
+**System Errors**: Use `throw new Error()` for unexpected failures (API down, DB connection lost)
+**Logging Errors**: Always use `{ err: error, ...context }` format with pino
+**Error Context**: Put debugging info in logger context, not error message: `logger.error({ err, userId, guildId }, "Ban failed")`
+
 ## Layer Structure & Rules
 
 **Domain** (`/domain/`): Pure business logic, entities, interfaces. No external dependencies.
@@ -39,3 +47,11 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Migrating 
 
 **Dependencies**: Point inward to domain. Use events between features, not direct calls.
 **Testing**: Domain (unit), Application (mocked deps), Infrastructure (integration), Presentation (mocked services).
+
+## Testing
+
+- When running tests, use this with timeouts and env vars `TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000`
+
+## Communication Guidelines
+
+- Ask clarifying questions to flesh out more details for all user requests before creating a plan for approval.
