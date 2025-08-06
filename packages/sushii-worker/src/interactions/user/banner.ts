@@ -19,7 +19,7 @@ export default class BannerCommand extends SlashCommandHandler {
     )
     .toJSON();
 
-  // eslint-disable-next-line class-methods-use-this
+   
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const target =
       interaction.options.getUser("user", false) || interaction.user;

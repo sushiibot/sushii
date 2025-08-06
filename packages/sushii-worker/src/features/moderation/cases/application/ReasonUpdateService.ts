@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, TextChannel } from "discord.js";
+import { Client, TextChannel, User } from "discord.js";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
@@ -7,6 +7,7 @@ import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigR
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
+import buildModLogEmbed from "../../shared/presentation/buildModLogEmbed";
 
 export interface ReasonUpdateResult {
   updatedCases: ModerationCase[];
@@ -189,8 +190,6 @@ export class ReasonUpdateService {
       const error = await this.updateModLogMessage(
         modCase,
         modLogChannel,
-        executorId,
-        reason,
       );
 
       if (error) {
@@ -225,20 +224,7 @@ export class ReasonUpdateService {
   private async updateModLogMessage(
     modCase: ModerationCase,
     modLogChannel: TextChannel,
-    executorId: string,
-    newReason: string,
   ): Promise<ReasonUpdateError | null> {
-    // Validate user exists
-    try {
-      await this.client.users.fetch(modCase.userId);
-    } catch {
-      return {
-        caseId: modCase.caseId,
-        errorType: "user_fetch",
-        message: "Could not fetch user",
-      };
-    }
-
     // Check if message ID exists
     if (!modCase.msgId) {
       return {
@@ -252,37 +238,34 @@ export class ReasonUpdateService {
     try {
       const message = await modLogChannel.messages.fetch(modCase.msgId);
 
-      if (!message.embeds[0]) {
+      // Fetch the target user for rebuilding the embed
+      let targetUser: User;
+      try {
+        targetUser = await this.client.users.fetch(modCase.userId);
+      } catch (error) {
+        this.logger.error(
+          { error, userId: modCase.userId },
+          "Failed to fetch target user for mod log update",
+        );
         return {
           caseId: modCase.caseId,
-          errorType: "msg_fetch",
-          message: "Message has no embeds",
+          errorType: "user_fetch",
+          message: "Could not fetch target user",
         };
       }
 
-      const executor = await this.client.users.fetch(executorId);
-      const oldEmbed = message.embeds[0];
-      const reasonFieldIndex =
-        oldEmbed.fields?.findIndex((f) => f.name === "Reason") ?? -1;
-
-      if (reasonFieldIndex === -1) {
-        return {
-          caseId: modCase.caseId,
-          errorType: "msg_fetch",
-          message: "Reason field not found in embed",
-        };
-      }
-
-      const newEmbed = new EmbedBuilder(oldEmbed.data)
-        .setAuthor({
-          name: executor.tag,
-          iconURL: executor.displayAvatarURL(),
-        })
-        .spliceFields(reasonFieldIndex, 1, {
-          name: "Reason",
-          value: newReason,
-          inline: false,
-        });
+      // Build new embed using the pure function with updated case data
+      const newEmbed = await buildModLogEmbed(
+        this.client,
+        modCase.actionType,
+        targetUser,
+        {
+          case_id: modCase.caseId,
+          executor_id: modCase.executorId,
+          reason: modCase.reason?.value || null,
+          attachments: modCase.attachments,
+        },
+      );
 
       await message.edit({
         embeds: [newEmbed],

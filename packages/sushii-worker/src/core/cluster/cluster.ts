@@ -1,15 +1,18 @@
-import "../../shared/domain/dayjs";
 import * as Sentry from "@sentry/node";
-import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
-import log from "../../shared/infrastructure/logger";
-import InteractionRouter from "@/core/cluster/discord/InteractionRouter";
-import initI18next from "../../shared/infrastructure/i18next";
-import registerInteractionHandlers from "../../interactions/commands";
-import sdk from "@/shared/infrastructure/tracing";
-import { config } from "@/shared/infrastructure/config";
-import registerEventHandlers from "@/core/cluster/discord/handlers";
-import { initCore, registerFeatures } from "./bootstrap";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
+import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
+
+import InteractionRouter from "@/core/cluster/discord/InteractionRouter";
+import registerEventHandlers from "@/core/cluster/discord/handlers";
+import { config } from "@/shared/infrastructure/config";
+import sdk from "@/shared/infrastructure/tracing";
+
+import registerInteractionHandlers from "../../interactions/commands";
+import "../../shared/domain/dayjs";
+import initI18next from "../../shared/infrastructure/i18next";
+import log from "../../shared/infrastructure/logger";
+import { initCore } from "./initialization/initCore";
+import { registerFeatures } from "./initialization/registerFeatures";
 
 Error.stackTraceLimit = 50;
 
@@ -64,8 +67,8 @@ async function initializeShard(): Promise<void> {
   const interactionRouter = new InteractionRouter(client, deploymentService);
   registerInteractionHandlers(interactionRouter);
 
-  // New registration of features -- also adds commands to the router
-  const { guildSettingsService, tempBanRepository } = registerFeatures(db, client, deploymentService, interactionRouter);
+  // New registration of features -- also adds commands to the router and starts tasks
+  registerFeatures(db, client, deploymentService, interactionRouter);
 
   // AFTER features are registered (includes registering commands)
 
@@ -87,7 +90,7 @@ async function initializeShard(): Promise<void> {
   }
 
   // Legacy registration of event handlers
-  registerEventHandlers(client, interactionRouter, deploymentService, guildSettingsService, tempBanRepository);
+  registerEventHandlers(client, interactionRouter, deploymentService);
 
   process.on("SIGTERM", async () => {
     log.info("SIGTERM received, shutting down shard gracefully");

@@ -2,9 +2,11 @@ import { Client } from "discord.js";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
+import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import * as schema from "@/infrastructure/database/schema";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
+import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Actions sub-feature
 import {
@@ -14,6 +16,20 @@ import {
   TargetResolutionService,
 } from "./actions/application";
 import { ModerationCommand } from "./actions/presentation";
+import { AuditLogEventHandler } from "./audit-logs";
+// Audit logs sub-feature
+import {
+  AuditLogOrchestrationService,
+  AuditLogProcessingService,
+  ModLogPostingService,
+  NativeTimeoutDMService,
+} from "./audit-logs/application";
+import { DiscordAuditLogService } from "./audit-logs/infrastructure";
+// Button handlers
+import {
+  ModLogDeleteDMButtonHandler,
+  ModLogReasonButtonHandler,
+} from "./audit-logs/presentation/components";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -24,18 +40,32 @@ import {
 import {
   HistoryCommand,
   LookupCommand,
+  LookupContextMenuHandler,
   ReasonCommand,
   UncaseCommand,
 } from "./cases/presentation";
+// Tasks
+import { TempbanTask } from "./infrastructure/tasks/TempbanTask";
 // Management sub-feature
-import { SlowmodeService, TempBanListService } from "./management/application";
-import { SlowmodeCommand, TempbanListCommand } from "./management/presentation";
+import {
+  PruneMessageService,
+  SlowmodeService,
+  TempBanListService,
+} from "./management/application";
+import {
+  PruneCommand,
+  SlowmodeCommand,
+  TempbanListCommand,
+} from "./management/presentation";
+// Shared components
+import { DMNotificationService } from "./shared/application";
 // Shared components
 import { TimeoutDetectionService } from "./shared/domain/services/TimeoutDetectionService";
 import {
   DiscordChannelService,
   DiscordModLogService,
   DiscordPermissionValidationService,
+  DrizzleModLogRepository,
   DrizzleModerationCaseRepository,
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
@@ -47,6 +77,10 @@ interface ModerationDependencies {
   logger: Logger;
 }
 
+interface ModerationTaskDependencies extends ModerationDependencies {
+  deploymentService: DeploymentService;
+}
+
 export function createModerationServices({
   db,
   client,
@@ -55,6 +89,11 @@ export function createModerationServices({
   const moderationCaseRepository = new DrizzleModerationCaseRepository(
     db,
     logger.child({ module: "moderationCaseRepository" }),
+  );
+
+  const modLogRepository = new DrizzleModLogRepository(
+    db,
+    logger.child({ module: "modLogRepository" }),
   );
 
   const guildConfigRepository = new DrizzleGuildConfigRepository(
@@ -68,6 +107,9 @@ export function createModerationServices({
   );
 
   const dmPolicyService = new DMPolicyService(guildConfigRepository);
+  const dmNotificationService = new DMNotificationService(
+    logger.child({ module: "dmNotificationService" }),
+  );
 
   const permissionService = new DiscordPermissionValidationService();
   const timeoutDetectionService = new TimeoutDetectionService();
@@ -78,10 +120,12 @@ export function createModerationServices({
 
   // Create execution pipeline with focused dependencies
   const moderationExecutionPipeline = new ModerationExecutionPipeline(
+    db,
     moderationCaseRepository,
     tempBanRepository,
     modLogService,
     dmPolicyService,
+    dmNotificationService,
     client,
     logger.child({ module: "moderationExecutionPipeline" }),
   );
@@ -118,6 +162,11 @@ export function createModerationServices({
     logger.child({ module: "slowmodeService" }),
   );
 
+  const pruneMessageService = new PruneMessageService(
+    client,
+    logger.child({ module: "pruneMessageService" }),
+  );
+
   const caseDeletionService = new CaseDeletionService(
     db,
     moderationCaseRepository,
@@ -138,20 +187,59 @@ export function createModerationServices({
     logger.child({ module: "caseRangeAutocompleteService" }),
   );
 
+  // Audit log services
+  const auditLogProcessingService = new AuditLogProcessingService(
+    modLogRepository,
+    guildConfigRepository,
+    logger.child({ module: "auditLogProcessingService" }),
+  );
+
+  const nativeTimeoutDMService = new NativeTimeoutDMService(
+    dmNotificationService,
+    logger.child({ module: "nativeTimeoutDMService" }),
+  );
+
+  const modLogPostingService = new ModLogPostingService(
+    logger.child({ module: "modLogPostingService" }),
+  );
+
+  const auditLogOrchestrationService = new AuditLogOrchestrationService(
+    auditLogProcessingService,
+    nativeTimeoutDMService,
+    modLogPostingService,
+    guildConfigRepository,
+    logger.child({ module: "auditLogOrchestrationService" }),
+  );
+
+  const discordAuditLogService = new DiscordAuditLogService(
+    auditLogOrchestrationService,
+    logger.child({ module: "discordAuditLogService" }),
+  );
+
   return {
     moderationCaseRepository,
+    modLogRepository,
     guildConfigRepository,
     tempBanRepository,
     dmPolicyService,
+    dmNotificationService,
     moderationService,
     lookupUserService,
     targetResolutionService,
     tempBanListService,
     channelService,
     slowmodeService,
+    pruneMessageService,
     caseDeletionService,
     reasonUpdateService,
     caseRangeAutocompleteService,
+
+    // Audit log services
+    auditLogProcessingService,
+    nativeTimeoutDMService,
+    modLogPostingService,
+    auditLogOrchestrationService,
+    discordAuditLogService,
   };
 }
 
@@ -165,6 +253,7 @@ export function createModerationCommands(
     targetResolutionService,
     tempBanListService,
     slowmodeService,
+    pruneMessageService,
     caseDeletionService,
     reasonUpdateService,
     caseRangeAutocompleteService,
@@ -199,6 +288,10 @@ export function createModerationCommands(
       slowmodeService,
       logger.child({ commandHandler: "slowmode" }),
     ),
+    new PruneCommand(
+      pruneMessageService,
+      logger.child({ commandHandler: "prune" }),
+    ),
     new UncaseCommand(
       caseDeletionService,
       logger.child({ commandHandler: "uncase" }),
@@ -216,9 +309,29 @@ export function createModerationCommands(
     ),
   ];
 
+  const contextMenuHandlers = [
+    new LookupContextMenuHandler(
+      lookupUserService,
+      logger.child({ contextMenuHandler: "lookupContextMenu" }),
+    ),
+  ];
+
+  const buttonHandlers = [
+    new ModLogReasonButtonHandler(
+      services.moderationCaseRepository,
+      logger.child({ buttonHandler: "modLogReason" }),
+    ),
+    new ModLogDeleteDMButtonHandler(
+      services.moderationCaseRepository,
+      logger.child({ buttonHandler: "modLogDeleteDM" }),
+    ),
+  ];
+
   return {
     commands,
     autocompletes,
+    contextMenuHandlers,
+    buttonHandlers,
   };
 }
 
@@ -226,9 +339,29 @@ export function createModerationEventHandlers(
   services: ReturnType<typeof createModerationServices>,
   logger: Logger,
 ) {
-  // Moderation feature doesn't have event handlers currently
+  const { discordAuditLogService } = services;
+
+  const auditLogEventHandler = new AuditLogEventHandler(
+    discordAuditLogService,
+    logger.child({ eventHandler: "auditLog" }),
+  );
+
   return {
-    eventHandlers: [],
+    eventHandlers: [auditLogEventHandler],
+  };
+}
+
+export function createModerationTasks(
+  services: ReturnType<typeof createModerationServices>,
+  client: Client,
+  deploymentService: DeploymentService,
+) {
+  const { tempBanRepository } = services;
+
+  const tasks = [new TempbanTask(client, deploymentService, tempBanRepository)];
+
+  return {
+    tasks,
   };
 }
 
@@ -236,14 +369,22 @@ export function setupModerationFeature({
   db,
   client,
   logger,
-}: ModerationDependencies) {
+  deploymentService,
+}: ModerationTaskDependencies): FullFeatureSetupReturn<
+  ReturnType<typeof createModerationServices>
+> {
   const services = createModerationServices({ db, client, logger });
   const commands = createModerationCommands(services, logger);
   const events = createModerationEventHandlers(services, logger);
+  const tasks = createModerationTasks(services, client, deploymentService);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: commands.contextMenuHandlers,
+    buttonHandlers: commands.buttonHandlers,
+    eventHandlers: events.eventHandlers,
+    tasks: tasks.tasks,
   };
 }

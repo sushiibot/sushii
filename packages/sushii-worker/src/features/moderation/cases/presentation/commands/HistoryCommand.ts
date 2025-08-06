@@ -1,16 +1,16 @@
 import {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
   ChatInputCommandInteraction,
-  PermissionsBitField,
   InteractionContextType,
+  PermissionFlagsBits,
+  PermissionsBitField,
+  SlashCommandBuilder,
 } from "discord.js";
 import { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
 import { LookupUserService } from "../../application/LookupUserService";
-import { buildUserHistoryEmbeds } from "../../../shared/presentation/views/HistoryView";
+import { buildUserHistoryEmbeds } from "../views/HistoryView";
 
 export class HistoryCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -83,7 +83,10 @@ export class HistoryCommand extends SlashCommandHandler {
     );
 
     log.info(
-      { totalCases: historyResult.val.totalCases, embedCount: historyEmbeds.length },
+      {
+        totalCases: historyResult.val.totalCases,
+        embedCount: historyEmbeds.length,
+      },
       "History command completed successfully",
     );
 

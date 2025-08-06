@@ -106,31 +106,49 @@ export class GuildSettingsService {
     let updatedConfig: GuildConfig;
     switch (setting) {
       case "joinMessage":
-        updatedConfig = config.toggleJoinMessage();
+        updatedConfig = config.setJoinMessageEnabled(
+          !config.messageSettings.joinMessageEnabled,
+        );
         break;
       case "leaveMessage":
-        updatedConfig = config.toggleLeaveMessage();
+        updatedConfig = config.setLeaveMessageEnabled(
+          !config.messageSettings.leaveMessageEnabled,
+        );
         break;
       case "modLog":
-        updatedConfig = config.toggleModLog();
+        updatedConfig = config.setModLogEnabled(
+          !config.loggingSettings.modLogEnabled,
+        );
         break;
       case "memberLog":
-        updatedConfig = config.toggleMemberLog();
+        updatedConfig = config.setMemberLogEnabled(
+          !config.loggingSettings.memberLogEnabled,
+        );
         break;
       case "messageLog":
-        updatedConfig = config.toggleMessageLog();
+        updatedConfig = config.setMessageLogEnabled(
+          !config.loggingSettings.messageLogEnabled,
+        );
         break;
       case "lookupOptIn":
-        updatedConfig = config.toggleLookupOptIn();
+        updatedConfig = config.setLookupOptInEnabled(
+          !config.moderationSettings.lookupDetailsOptIn,
+        );
         break;
       case "timeoutCommandDm":
-        updatedConfig = config.toggleTimeoutCommandDm();
+        updatedConfig = config.setTimeoutCommandDmEnabled(
+          !config.moderationSettings.timeoutCommandDmEnabled,
+        );
         break;
       case "timeoutNativeDm":
-        updatedConfig = config.toggleTimeoutNativeDm();
+        updatedConfig = config.setTimeoutNativeDmEnabled(
+          !config.moderationSettings.timeoutNativeDmEnabled,
+        );
         break;
       case "banDm":
-        updatedConfig = config.toggleBanDm();
+        updatedConfig = config.setBanDmEnabled(
+          !config.moderationSettings.banDmEnabled,
+        );
         break;
     }
 

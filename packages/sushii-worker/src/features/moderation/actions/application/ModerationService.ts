@@ -1,6 +1,6 @@
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
-import { Err, Result } from "ts-results";
+import { Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 
@@ -21,8 +21,8 @@ export class ModerationService {
   ) {}
 
   /**
-   * Enhanced executeAction with transaction support, permission validation,
-   * timeout detection, comprehensive rollback.
+   * Enhanced executeAction with permission validation, timeout detection,
+   * and focused transaction boundaries for database operations only.
    */
   async executeAction(
     action: ModerationAction,
@@ -38,60 +38,32 @@ export class ModerationService {
       "Executing batch moderation actions",
     );
 
-    try {
-      // Execute all actions within a transaction for consistency
-      const results = await this.db.transaction(async (tx) => {
-        const actionResults: Result<ModerationCase, string>[] = [];
+    const actionResults: Result<ModerationCase, string>[] = [];
 
-        // Process each target sequentially to avoid race conditions
-        for (const target of targets) {
-          const result = await this.executeActionSingle(action, target, tx);
-          actionResults.push(result);
-        }
-
-        return actionResults;
-      });
-
-      return results;
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          actionType: action.actionType,
-          targetCount: targets.length,
-          guildId: action.guildId,
-        },
-        "Failed to execute moderation actions",
-      );
-
-      // Return error results for all targets
-      return targets.map(() => Err(`Transaction failed: ${error}`));
+    // Process each target sequentially to avoid race conditions
+    for (const target of targets) {
+      const result = await this.executeActionSingle(action, target);
+      actionResults.push(result);
     }
+
+    return actionResults;
   }
 
   /**
-   * Enhanced executeActionSingle with comprehensive error handling and rollback.
+   * Enhanced executeActionSingle with permission validation and timeout detection.
    *
    * Execution flow:
    * 1. Validate permissions for the action
    * 2. Detect timeout adjustments and correct action type
-   * 3. Create moderation case record with row locking
-   * 4. Send DM notification before Discord action (for ban actions only)
-   * 5. Execute the actual Discord API action (ban/kick/timeout/etc.)
-   * 6. Manage temp ban database records (create for TempBan, delete for BanRemove)
-   * 7. Send DM notification after Discord action (for non-ban actions)
-   * 8. Send mod log for Warn/Note actions
-   * 9. Comprehensive rollback on any failure
+   * 3. Execute moderation pipeline with focused transaction boundaries
    *
    * @param action - The moderation action to execute
    * @param target - The target user for the action
-   * @param tx - Transaction-aware database instance
    * @returns Result containing the final moderation case or error message
    */
   private async executeActionSingle(
     action: ModerationAction,
     target: ModerationTarget,
-    tx: NodePgDatabase<typeof schema>,
   ): Promise<Result<ModerationCase, string>> {
     // 1. Permission validation
     const permissionResult = await this.permissionService.canTargetUser(
@@ -119,7 +91,6 @@ export class ModerationService {
       action,
       finalActionType,
       target,
-      tx,
     );
   }
 }

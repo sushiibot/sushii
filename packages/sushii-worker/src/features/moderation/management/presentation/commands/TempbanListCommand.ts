@@ -15,7 +15,7 @@ import {
   tempBanListEmptyView,
   tempBanListErrorView,
   tempBanListView,
-} from "../../../shared/presentation/views/TempbanListView";
+} from "../views/TempbanListView";
 
 export class TempbanListCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField().add("BanMembers");

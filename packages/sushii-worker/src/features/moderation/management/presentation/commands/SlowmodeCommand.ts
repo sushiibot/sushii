@@ -11,7 +11,7 @@ import { Logger } from "pino";
 import { SlashCommandHandler } from "@/interactions/handlers";
 
 import { SlowmodeService } from "../../application/SlowmodeService";
-import { slowmodeErrorView, slowmodeSuccessView } from "../../../shared/presentation/views/SlowmodeView";
+import { slowmodeErrorView, slowmodeSuccessView } from "../views/SlowmodeView";
 
 enum SlowmodeOption {
   Duration = "duration",

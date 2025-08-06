@@ -2,6 +2,7 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
+import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { TagAdminService, TagSearchService, TagService } from "./application";
 import { DrizzleTagRepository } from "./infrastructure";
@@ -110,14 +111,20 @@ export function createTagEventHandlers(
   };
 }
 
-export function setupTagFeature({ db, logger }: TagDependencies) {
+export function setupTagFeature({ 
+  db, 
+  logger 
+}: TagDependencies): FeatureSetupWithServices<ReturnType<typeof createTagServices>> {
   const services = createTagServices({ db, logger });
   const commands = createTagCommands(services, logger);
   const events = createTagEventHandlers(services, logger);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers: events.eventHandlers,
   };
 }

@@ -6,7 +6,7 @@ import {
   match,
 } from "path-to-regexp";
 
-import { ActionType } from "./moderation/ActionType";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
 enum Paths {
   RoleMenuButton = "/rolemenu/button/:roleId",

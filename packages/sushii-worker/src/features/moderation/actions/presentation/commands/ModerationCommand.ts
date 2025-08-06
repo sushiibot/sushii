@@ -10,12 +10,7 @@ import {
 } from "discord.js";
 import { Err, Ok, Result } from "ts-results";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
-import {
-  getErrorMessage,
-  getErrorMessageEdit,
-} from "@/interactions/responses/error";
-
+import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import {
   BanAction,
   KickAction,
@@ -35,7 +30,12 @@ import {
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
-import { buildActionResultEmbed } from "@/features/moderation/shared/presentation/views/ModerationActionView";
+import { SlashCommandHandler } from "@/interactions/handlers";
+import {
+  getErrorMessage,
+  getErrorMessageEdit,
+} from "@/interactions/responses/error";
+
 import { ModerationService } from "../../application/ModerationService";
 import { TargetResolutionService } from "../../application/TargetResolutionService";
 
@@ -295,6 +295,7 @@ export class ModerationCommand extends SlashCommandHandler {
       interaction,
       options,
     );
+
     if (!actionResult.ok) {
       const editMsg = getErrorMessageEdit("Error", actionResult.val);
       await interaction.editReply(editMsg);
@@ -304,13 +305,13 @@ export class ModerationCommand extends SlashCommandHandler {
     const action = actionResult.val;
     const result = await this.moderationService.executeAction(action, targets);
 
-    const embed = buildActionResultEmbed(
+    const message = buildActionResultMessage(
       this.config.actionType,
       interaction.user,
       targets,
       result,
     );
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply(message);
   }
 }

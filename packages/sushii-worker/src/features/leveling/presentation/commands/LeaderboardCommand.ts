@@ -4,29 +4,28 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 
-import {
-  TimeFrameSchema,
-  getGuildLeaderboardPage,
-  getUserGuildLevel,
-  guildUserCountInTimeFrame,
-  timeframeToString,
-  userGuildTimeframeRank,
-} from "@/db/UserLevel/UserLevel.repository";
-import db from "@/infrastructure/database/db";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import Paginator, {
   EmbedModifierFn,
   GetPageFn,
   GetTotalEntriesFn,
 } from "@/shared/presentation/Paginator";
+
 import Color from "@/utils/colors";
 
+import { GetLeaderboardService } from "../../application/GetLeaderboardService";
 import {
-  calculateLevel,
-  calculateLevelProgress,
-} from "../../domain/utils/LevelCalculations";
+  TimeFrame,
+  isValidTimeFrame,
+  timeFrameToString,
+} from "../../domain/value-objects/TimeFrame";
+import { formatLeaderboardPage } from "../views/LeaderboardDisplayView";
 
 export default class LeaderboardCommand extends SlashCommandHandler {
+  constructor(private readonly getLeaderboardService: GetLeaderboardService) {
+    super();
+  }
+
   command = new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("Show the leaderboard for the server.")
@@ -39,19 +38,19 @@ export default class LeaderboardCommand extends SlashCommandHandler {
         .addChoices(
           {
             name: "Day",
-            value: "day",
+            value: TimeFrame.DAY,
           },
           {
             name: "Week",
-            value: "week",
+            value: TimeFrame.WEEK,
           },
           {
             name: "Month",
-            value: "month",
+            value: TimeFrame.MONTH,
           },
           {
             name: "All Time",
-            value: "all_time",
+            value: TimeFrame.ALL_TIME,
           },
         ),
     )
@@ -63,70 +62,45 @@ export default class LeaderboardCommand extends SlashCommandHandler {
     }
 
     const timeframeRaw =
-      interaction.options.getString("timeframe") ?? "all_time";
-    const timeframe = TimeFrameSchema.safeParse(timeframeRaw);
-    if (!timeframe.success) {
+      interaction.options.getString("timeframe") ?? TimeFrame.ALL_TIME;
+
+    if (!isValidTimeFrame(timeframeRaw)) {
       throw new Error("Invalid timeframe");
     }
-
-    const userGuildRank = await userGuildTimeframeRank(
-      db,
-      interaction.guildId,
-      interaction.user.id,
-      timeframe.data,
-    );
-    const userGuildLevel = await getUserGuildLevel(
-      db,
-      interaction.guildId,
-      interaction.user.id,
-    );
+    const timeframe = timeframeRaw as TimeFrame;
 
     const getPageFn: GetPageFn = async (pageIndex, pageSize) => {
-      const pageData = await getGuildLeaderboardPage(
-        db,
+      const leaderboardData = await this.getLeaderboardService.getLeaderboard(
         interaction.guildId,
-        timeframe.data,
+        interaction.user.id,
+        timeframe,
         pageIndex,
         pageSize,
       );
 
-      let desc = "";
-
-      let userInTopList = false;
-      for (const row of pageData) {
-        const level = calculateLevel(BigInt(row.msg_all_time));
-
-        const levelProgress = calculateLevelProgress(BigInt(row.msg_all_time));
-
-        desc += `\`${row.rank}.\` <@${row.user_id}>`;
-        desc += "\n";
-        desc += `┣ Level ${level}`;
-        desc += "\n";
-        desc += `┗ ${levelProgress.nextLevelXpProgress} / ${levelProgress.nextLevelXpRequired} XP to level ${level + 1}`;
-        desc += "\n";
-
-        if (row.user_id === interaction.user.id) {
-          userInTopList = true;
-        }
-      }
-
-      if (!userInTopList && userGuildRank && userGuildLevel) {
-        const userLevel = calculateLevel(BigInt(userGuildLevel.msg_all_time));
-        desc += "~~---~~\n";
-        desc += `\`${userGuildRank.rank}.\` <@${userGuildLevel.user_id}>: Level ${userLevel}`;
-        desc += "\n";
-      }
-
-      return desc;
+      return formatLeaderboardPage(
+        leaderboardData,
+        timeframe,
+        interaction.user.id,
+      );
     };
 
-    const getTotalEntriesFn: GetTotalEntriesFn = () =>
-      guildUserCountInTimeFrame(db, interaction.guildId, timeframe.data);
+    const getTotalEntriesFn: GetTotalEntriesFn = async () => {
+      const leaderboardData = await this.getLeaderboardService.getLeaderboard(
+        interaction.guildId,
+        interaction.user.id,
+        timeframe,
+        0,
+        1,
+      );
+      return leaderboardData.totalCount;
+    };
 
-    const embedModifierFn: EmbedModifierFn = (embed) =>
-      embed
-        .setTitle(`Server Leaderboard - ${timeframeToString(timeframe.data)}`)
+    const embedModifierFn: EmbedModifierFn = (embed) => {
+      return embed
+        .setTitle(`Server Leaderboard - ${timeFrameToString(timeframe)}`)
         .setColor(Color.Info);
+    };
 
     const paginator = new Paginator({
       interaction,

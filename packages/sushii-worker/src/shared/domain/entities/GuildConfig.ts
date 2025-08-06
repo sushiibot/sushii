@@ -164,17 +164,15 @@ export class GuildConfig {
     return config;
   }
 
-  toggleJoinMessage(): GuildConfig {
+  setJoinMessageEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.messageSettings.joinMessageEnabled =
-      !config.messageSettings.joinMessageEnabled;
+    config.messageSettings.joinMessageEnabled = enabled;
     return config;
   }
 
-  toggleLeaveMessage(): GuildConfig {
+  setLeaveMessageEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.messageSettings.leaveMessageEnabled =
-      !config.messageSettings.leaveMessageEnabled;
+    config.messageSettings.leaveMessageEnabled = enabled;
     return config;
   }
 
@@ -199,73 +197,63 @@ export class GuildConfig {
     return config;
   }
 
-  toggleLogging(type: "mod" | "member" | "message"): GuildConfig {
+  setLoggingEnabled(type: "mod" | "member" | "message", enabled: boolean): GuildConfig {
     const config = this.clone();
 
     switch (type) {
       case "mod":
-        config.loggingSettings.modLogEnabled =
-          !config.loggingSettings.modLogEnabled;
+        config.loggingSettings.modLogEnabled = enabled;
         break;
       case "member":
-        config.loggingSettings.memberLogEnabled =
-          !config.loggingSettings.memberLogEnabled;
+        config.loggingSettings.memberLogEnabled = enabled;
         break;
       case "message":
-        config.loggingSettings.messageLogEnabled =
-          !config.loggingSettings.messageLogEnabled;
+        config.loggingSettings.messageLogEnabled = enabled;
         break;
     }
 
     return config;
   }
 
-  toggleModLog(): GuildConfig {
+  setModLogEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.loggingSettings.modLogEnabled =
-      !config.loggingSettings.modLogEnabled;
+    config.loggingSettings.modLogEnabled = enabled;
     return config;
   }
 
-  toggleMemberLog(): GuildConfig {
+  setMemberLogEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.loggingSettings.memberLogEnabled =
-      !config.loggingSettings.memberLogEnabled;
+    config.loggingSettings.memberLogEnabled = enabled;
     return config;
   }
 
-  toggleMessageLog(): GuildConfig {
+  setMessageLogEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.loggingSettings.messageLogEnabled =
-      !config.loggingSettings.messageLogEnabled;
+    config.loggingSettings.messageLogEnabled = enabled;
     return config;
   }
 
-  toggleLookupOptIn(): GuildConfig {
+  setLookupOptInEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.moderationSettings.lookupDetailsOptIn =
-      !config.moderationSettings.lookupDetailsOptIn;
+    config.moderationSettings.lookupDetailsOptIn = enabled;
     return config;
   }
 
-  toggleTimeoutCommandDm(): GuildConfig {
+  setTimeoutCommandDmEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.moderationSettings.timeoutCommandDmEnabled =
-      !config.moderationSettings.timeoutCommandDmEnabled;
+    config.moderationSettings.timeoutCommandDmEnabled = enabled;
     return config;
   }
 
-  toggleTimeoutNativeDm(): GuildConfig {
+  setTimeoutNativeDmEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.moderationSettings.timeoutNativeDmEnabled =
-      !config.moderationSettings.timeoutNativeDmEnabled;
+    config.moderationSettings.timeoutNativeDmEnabled = enabled;
     return config;
   }
 
-  toggleBanDm(): GuildConfig {
+  setBanDmEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
-    config.moderationSettings.banDmEnabled =
-      !config.moderationSettings.banDmEnabled;
+    config.moderationSettings.banDmEnabled = enabled;
     return config;
   }
 }

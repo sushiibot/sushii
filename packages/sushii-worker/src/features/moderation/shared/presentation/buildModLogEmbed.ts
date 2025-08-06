@@ -2,12 +2,12 @@ import { APIEmbedField, EmbedBuilder, TimestampStyles, User } from "discord.js";
 import { Client } from "discord.js";
 import path from "path";
 
+import { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
 import logger from "@/shared/infrastructure/logger";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
 import { ActionType } from "../domain/value-objects/ActionType";
-import { TimeoutChange } from "@/types/TimeoutChange";
 
 interface ModCase {
   case_id: string;
@@ -57,56 +57,65 @@ export default async function buildModLogEmbed(
 
   if (timeoutChange) {
     if (timeoutChange.actionType === ActionType.Timeout) {
-      const newTsR = toTimestamp(
-        timeoutChange.new,
-        TimestampStyles.RelativeTime,
-      );
-      const dur = timeoutChange.duration.humanize();
+      if (timeoutChange.newTimestamp && timeoutChange.duration) {
+        const newTsR = toTimestamp(
+          timeoutChange.newTimestamp,
+          TimestampStyles.RelativeTime,
+        );
+        const dur = timeoutChange.duration.humanize();
 
-      fields.push({
-        name: "Timeout Duration",
-        value: `${dur}\nExpiring ${newTsR}`,
-        inline: false,
-      });
-    }
-
-    if (timeoutChange.actionType === ActionType.TimeoutAdjust) {
-      const newTsR = toTimestamp(
-        timeoutChange.new,
-        TimestampStyles.RelativeTime,
-      );
-      const dur = timeoutChange.duration.humanize();
-
-      const oldTsR = toTimestamp(
-        timeoutChange.old,
-        TimestampStyles.RelativeTime,
-      );
-
-      fields.push(
-        {
+        fields.push({
           name: "Timeout Duration",
           value: `${dur}\nExpiring ${newTsR}`,
           inline: false,
-        },
-        {
-          name: "Previous Timeout",
-          value: `Would have expired ${oldTsR}`,
-          inline: false,
-        },
-      );
+        });
+      }
+    }
+
+    if (timeoutChange.actionType === ActionType.TimeoutAdjust) {
+      if (
+        timeoutChange.newTimestamp &&
+        timeoutChange.oldTimestamp &&
+        timeoutChange.duration
+      ) {
+        const newTsR = toTimestamp(
+          timeoutChange.newTimestamp,
+          TimestampStyles.RelativeTime,
+        );
+        const oldTsR = toTimestamp(
+          timeoutChange.oldTimestamp,
+          TimestampStyles.RelativeTime,
+        );
+        const dur = timeoutChange.duration.humanize();
+
+        fields.push(
+          {
+            name: "Timeout Duration",
+            value: `${dur}\nExpiring ${newTsR}`,
+            inline: false,
+          },
+          {
+            name: "Previous Timeout",
+            value: `Would have expired ${oldTsR}`,
+            inline: false,
+          },
+        );
+      }
     }
 
     if (timeoutChange.actionType === ActionType.TimeoutRemove) {
-      const oldTsR = toTimestamp(
-        timeoutChange.old,
-        TimestampStyles.RelativeTime,
-      );
+      if (timeoutChange.oldTimestamp) {
+        const oldTsR = toTimestamp(
+          timeoutChange.oldTimestamp,
+          TimestampStyles.RelativeTime,
+        );
 
-      fields.push({
-        name: "Removed Timeout",
-        value: `Would have expired ${oldTsR}`,
-        inline: false,
-      });
+        fields.push({
+          name: "Removed Timeout",
+          value: `Would have expired ${oldTsR}`,
+          inline: false,
+        });
+      }
     }
   }
 

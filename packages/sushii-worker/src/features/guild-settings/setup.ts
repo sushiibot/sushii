@@ -2,6 +2,7 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
+import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { DrizzleGuildConfigRepository } from "../../shared/infrastructure/DrizzleGuildConfigRepository";
 import { GuildSettingsService } from "./application/GuildSettingsService";
@@ -79,14 +80,17 @@ export function createGuildSettingsEventHandlers(
 export function setupGuildSettingsFeature({
   db,
   logger,
-}: GuildSettingsDependencies) {
+}: GuildSettingsDependencies): FeatureSetupWithServices<ReturnType<typeof createGuildSettingsServices>> {
   const services = createGuildSettingsServices({ db, logger });
   const commands = createGuildSettingsCommands(services, logger);
   const events = createGuildSettingsEventHandlers(services, logger);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers: events.eventHandlers,
   };
 }

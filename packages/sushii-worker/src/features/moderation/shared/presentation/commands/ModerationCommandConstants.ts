@@ -1,11 +1,8 @@
-import {
-  InteractionContextType,
-  PermissionFlagsBits,
-  SlashCommandBuilder,
-} from "discord.js";
+import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+
+import { ModerationCommandConfig } from "@/features/moderation/actions/presentation/commands/ModerationCommand";
 
 import { ActionType } from "../../domain/value-objects/ActionType";
-import { ModerationCommandConfig } from "../../../actions/presentation/commands/ModerationCommand";
 import {
   addAttachmentOption,
   addDaysToDeleteOption,

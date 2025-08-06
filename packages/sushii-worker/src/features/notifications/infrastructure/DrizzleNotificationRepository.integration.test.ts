@@ -20,15 +20,13 @@ import { DrizzleNotificationRepository } from "./DrizzleNotificationRepository";
 
 describe("DrizzleNotificationRepository (Integration)", () => {
   let testDb: PostgresTestDatabase;
-  let db: ReturnType<typeof import("drizzle-orm/node-postgres").drizzle>;
+  let db: NodePgDatabase<typeof schema>;
   let repo: DrizzleNotificationRepository;
 
   beforeAll(async () => {
     testDb = new PostgresTestDatabase();
     db = await testDb.initialize();
-    repo = new DrizzleNotificationRepository(
-      db as unknown as NodePgDatabase<typeof schema>,
-    );
+    repo = new DrizzleNotificationRepository(db);
   });
 
   beforeEach(async () => {

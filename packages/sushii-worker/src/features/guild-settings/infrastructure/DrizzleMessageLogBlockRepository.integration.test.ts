@@ -17,7 +17,7 @@ import { DrizzleMessageLogBlockRepository } from "./DrizzleMessageLogBlockReposi
 
 describe("DrizzleMessageLogBlockRepository (Integration)", () => {
   let testDb: PostgresTestDatabase;
-  let db: ReturnType<typeof import("drizzle-orm/node-postgres").drizzle>;
+  let db: NodePgDatabase<typeof schema>;
   let repo: DrizzleMessageLogBlockRepository;
   let logger: Logger;
 
@@ -25,10 +25,7 @@ describe("DrizzleMessageLogBlockRepository (Integration)", () => {
     testDb = new PostgresTestDatabase();
     db = await testDb.initialize();
     logger = pino({ level: "silent" }); // Silent logger for tests
-    repo = new DrizzleMessageLogBlockRepository(
-      db as unknown as NodePgDatabase<typeof schema>,
-      logger,
-    );
+    repo = new DrizzleMessageLogBlockRepository(db, logger);
   });
 
   beforeEach(async () => {

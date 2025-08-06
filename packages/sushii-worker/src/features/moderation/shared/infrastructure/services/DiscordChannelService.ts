@@ -1,4 +1,9 @@
-import { ChannelType, Client, DiscordAPIError, GuildTextBasedChannel } from "discord.js";
+import {
+  ChannelType,
+  Client,
+  DiscordAPIError,
+  GuildTextBasedChannel,
+} from "discord.js";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
@@ -17,7 +22,7 @@ export class DiscordChannelService implements ChannelService {
   ): Promise<Result<void, string>> {
     try {
       const channel = await this.client.channels.fetch(channelId);
-      
+
       if (!channel) {
         return Err("Channel not found");
       }
@@ -56,10 +61,12 @@ export class DiscordChannelService implements ChannelService {
     }
   }
 
-  async getSlowmode(channelId: string): Promise<Result<ChannelSlowmode, string>> {
+  async getSlowmode(
+    channelId: string,
+  ): Promise<Result<ChannelSlowmode, string>> {
     try {
       const channel = await this.client.channels.fetch(channelId);
-      
+
       if (!channel) {
         return Err("Channel not found");
       }
@@ -78,10 +85,7 @@ export class DiscordChannelService implements ChannelService {
 
       return Ok(slowmodeResult.val);
     } catch (error) {
-      this.logger.error(
-        { error, channelId },
-        "Failed to get channel slowmode",
-      );
+      this.logger.error({ error, channelId }, "Failed to get channel slowmode");
       return Err(`Failed to get channel slowmode: ${error}`);
     }
   }
@@ -107,7 +111,7 @@ export class DiscordChannelService implements ChannelService {
   async getChannelName(channelId: string): Promise<Result<string, string>> {
     try {
       const channel = await this.client.channels.fetch(channelId);
-      
+
       if (!channel) {
         return Err("Channel not found");
       }
@@ -118,10 +122,7 @@ export class DiscordChannelService implements ChannelService {
 
       return Ok(channel.name || "Unknown Channel");
     } catch (error) {
-      this.logger.error(
-        { error, channelId },
-        "Failed to get channel name",
-      );
+      this.logger.error({ error, channelId }, "Failed to get channel name");
       return Err(`Failed to get channel name: ${error}`);
     }
   }

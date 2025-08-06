@@ -14,7 +14,7 @@ import {
 } from "@/interactions/responses/error";
 
 import { LookupUserService } from "../../application/LookupUserService";
-import { buildUserLookupEmbed } from "../../../shared/presentation/views/UserLookupView";
+import { buildUserLookupEmbed } from "../views/UserLookupView";
 
 export class LookupCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();

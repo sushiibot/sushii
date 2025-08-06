@@ -2,14 +2,19 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
+import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
+import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
+import { LevelRoleService } from "./application/LevelRoleService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
 import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
-import { MessageLevelHandler } from "./presentation/commands/MessageLevelHandler";
+import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
+import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
+import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 import RankCommand from "./presentation/commands/RankCommand";
 
 interface LevelingDependencies {
@@ -28,11 +33,15 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     userLevelRepository,
   );
 
+  const getLeaderboardService = new GetLeaderboardService(userLevelRepository);
+
   const updateUserXpService = new UpdateUserXpService(
     userLevelRepository,
     levelRoleRepository,
     xpBlockRepository,
   );
+
+  const levelRoleService = new LevelRoleService(levelRoleRepository);
 
   return {
     userProfileRepository,
@@ -40,7 +49,9 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     levelRoleRepository,
     xpBlockRepository,
     getUserRankService,
+    getLeaderboardService,
     updateUserXpService,
+    levelRoleService,
   };
 }
 
@@ -48,10 +59,12 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService } = services;
+  const { getUserRankService, getLeaderboardService, levelRoleService } = services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),
+    new LeaderboardCommand(getLeaderboardService),
+    new LevelRoleCommand(levelRoleService),
   ];
 
   return {
@@ -73,14 +86,22 @@ export function createLevelingEventHandlers(
   };
 }
 
-export function setupLevelingFeature({ db, logger }: LevelingDependencies) {
+export function setupLevelingFeature({
+  db,
+  logger,
+}: LevelingDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createLevelingServices>
+> {
   const services = createLevelingServices({ db, logger });
   const commands = createLevelingCommands(services, logger);
   const events = createLevelingEventHandlers(services, logger);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers: events.eventHandlers,
   };
 }

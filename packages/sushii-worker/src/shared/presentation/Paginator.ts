@@ -1,14 +1,15 @@
 import {
   ActionRowBuilder,
   ButtonBuilder,
+  ButtonInteraction,
   ButtonStyle,
   ChatInputCommandInteraction,
   ComponentType,
   EmbedBuilder,
   Message,
-  ButtonInteraction,
 } from "discord.js";
 import type { Logger } from "pino";
+
 import logger from "@/shared/infrastructure/logger";
 
 // Interfaces for testability
@@ -201,6 +202,7 @@ export default class Paginator {
           pageIndex: this.currentPageIndex,
           pageSize: this.pageSize,
           page,
+          pageLength: page.length,
         },
         "Fetched page",
       );
@@ -208,13 +210,35 @@ export default class Paginator {
       const embed = new EmbedBuilder();
 
       if (page.length > 0) {
-        embed.setDescription(page);
+        // Discord has a 4096 character limit for embed descriptions
+        if (page.length > 4096) {
+          this.logger.warn(
+            {
+              pageLength: page.length,
+              pageIndex: this.currentPageIndex,
+            },
+            "Page content exceeds Discord's 4096 character limit for embed descriptions",
+          );
+          embed.setDescription(page.substring(0, 4093) + "...");
+        } else {
+          embed.setDescription(page);
+        }
       } else {
         embed.setDescription(this.config.emptyPageMessage);
       }
 
       return this.embedModifierFn(embed);
     } catch (error) {
+      // Log the full error for debugging
+      this.logger.error(
+        {
+          err: error,
+          pageIndex: this.currentPageIndex,
+          pageSize: this.pageSize,
+        },
+        "Error in paginator",
+      );
+
       throw new PageFetchError(
         `Failed to fetch page ${this.currentPageIndex}: ${error instanceof Error ? error.message : "Unknown error"}`,
         this.currentPageIndex,
@@ -373,7 +397,8 @@ export default class Paginator {
     }
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
-      time: this.config.timeoutMs,
+      // Idle, not time -- wait AFTER inactivity, not just total time
+      idle: this.config.timeoutMs,
     });
 
     collector.on("collect", (i) => this.handleButtonInteraction(i));
@@ -414,27 +439,53 @@ export default class Paginator {
 
     if (this.hideButtonsIfSinglePage && totalPages <= 0) {
       this.logger.debug("no pages, so no buttons");
-      await this.interaction.reply({
-        embeds: [embed],
-      });
+      try {
+        await this.interaction.reply({
+          embeds: [embed],
+        });
+      } catch (error) {
+        this.logger.error(
+          {
+            err: error,
+            embedData: embed.toJSON(),
+          },
+          "Failed to send initial reply (no buttons)",
+        );
+        throw error;
+      }
       return { message: null, shouldContinue: false };
     }
 
     const components = await this.getComponents(false);
-    const response = await this.interaction.reply({
-      embeds: [embed],
-      components,
-    });
+    try {
+      const response = await this.interaction.reply({
+        embeds: [embed],
+        components,
+      });
 
-    // Get the actual message from the interaction response
-    const message = await response.fetch();
+      // Get the actual message from the interaction response
+      const message = await response.fetch();
 
-    if (totalPages < 1) {
-      this.logger.debug({ totalPages }, "no need to listen for button presses");
-      return { message, shouldContinue: false };
+      if (totalPages < 1) {
+        this.logger.debug(
+          { totalPages },
+          "no need to listen for button presses",
+        );
+        return { message, shouldContinue: false };
+      }
+
+      return { message, shouldContinue: true };
+    } catch (error) {
+      this.logger.error(
+        {
+          err: error,
+          embedData: embed.toJSON(),
+          componentsData: components.map((row) => row.toJSON()),
+        },
+        "Failed to send initial reply with buttons",
+      );
+      throw error;
     }
-
-    return { message, shouldContinue: true };
   }
 
   /**

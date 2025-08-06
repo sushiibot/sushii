@@ -2,6 +2,7 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
+import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { NotificationMessageService } from "./application/NotificationMessageService";
 import { NotificationService } from "./application/NotificationService";
@@ -81,14 +82,17 @@ export function createNotificationEventHandlers(
 export function setupNotificationFeature({
   db,
   logger,
-}: NotificationDependencies) {
+}: NotificationDependencies): FeatureSetupWithServices<ReturnType<typeof createNotificationServices>> {
   const services = createNotificationServices({ db, logger });
   const commands = createNotificationCommands(services, logger);
   const events = createNotificationEventHandlers(services, logger);
 
   return {
     services,
-    ...commands,
-    ...events,
+    commands: commands.commands,
+    autocompletes: commands.autocompletes,
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers: events.eventHandlers,
   };
 }

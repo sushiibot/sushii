@@ -10,11 +10,7 @@ export class TempBan {
     private readonly _createdAt: Dayjs = dayjs.utc(),
   ) {}
 
-  static create(
-    userId: string,
-    guildId: string,
-    expiresAt: Dayjs,
-  ): TempBan {
+  static create(userId: string, guildId: string, expiresAt: Dayjs): TempBan {
     if (!userId || !guildId) {
       throw new Error("User ID and Guild ID are required");
     }
@@ -96,9 +92,6 @@ export class TempBan {
   }
 
   equals(other: TempBan): boolean {
-    return (
-      this._userId === other._userId &&
-      this._guildId === other._guildId
-    );
+    return this._userId === other._userId && this._guildId === other._guildId;
   }
 }

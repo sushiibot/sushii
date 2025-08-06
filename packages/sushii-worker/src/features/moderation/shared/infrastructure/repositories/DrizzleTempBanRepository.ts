@@ -3,9 +3,9 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
-import dayjs from "@/shared/domain/dayjs";
 import * as schema from "@/infrastructure/database/schema";
 import { tempBansInAppPublic } from "@/infrastructure/database/schema";
+import dayjs from "@/shared/domain/dayjs";
 
 import { TempBan } from "../../domain/entities/TempBan";
 import { TempBanRepository } from "../../domain/repositories/TempBanRepository";
@@ -47,9 +47,9 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok.EMPTY;
-    } catch (error) {
-      this.logger.error({ error }, "Failed to save temp ban");
-      return Err(`Failed to save temp ban: ${error}`);
+    } catch (err) {
+      this.logger.error({ err }, "Failed to save temp ban");
+      return Err(`Failed to save temp ban: ${err}`);
     }
   }
 
@@ -91,9 +91,9 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok(tempBan);
-    } catch (error) {
-      this.logger.error({ error, guildId, userId }, "Failed to delete temp ban");
-      return Err(`Failed to delete temp ban: ${error}`);
+    } catch (err) {
+      this.logger.error({ err, guildId, userId }, "Failed to delete temp ban");
+      return Err(`Failed to delete temp ban: ${err}`);
     }
   }
 
@@ -118,12 +118,12 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok(tempBans);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId },
+        { err, guildId },
         "Failed to find temp bans by guild ID",
       );
-      return Err(`Failed to find temp bans: ${error}`);
+      return Err(`Failed to find temp bans: ${err}`);
     }
   }
 
@@ -158,12 +158,12 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok(tempBan);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        { error, guildId, userId },
+        { err, guildId, userId },
         "Failed to find temp ban by guild and user ID",
       );
-      return Err(`Failed to find temp ban: ${error}`);
+      return Err(`Failed to find temp ban: ${err}`);
     }
   }
 
@@ -188,9 +188,9 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok(tempBans);
-    } catch (error) {
-      this.logger.error({ error }, "Failed to find expired temp bans");
-      return Err(`Failed to find expired temp bans: ${error}`);
+    } catch (err) {
+      this.logger.error({ err }, "Failed to find expired temp bans");
+      return Err(`Failed to find expired temp bans: ${err}`);
     }
   }
 
@@ -222,9 +222,9 @@ export class DrizzleTempBanRepository implements TempBanRepository {
       );
 
       return Ok(tempBans);
-    } catch (error) {
-      this.logger.error({ error }, "Failed to delete expired temp bans");
-      return Err(`Failed to delete expired temp bans: ${error}`);
+    } catch (err) {
+      this.logger.error({ err }, "Failed to delete expired temp bans");
+      return Err(`Failed to delete expired temp bans: ${err}`);
     }
   }
 }

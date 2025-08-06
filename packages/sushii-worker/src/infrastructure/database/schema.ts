@@ -451,6 +451,16 @@ export const tempBansInAppPublic = appPublic.table(
       .notNull(),
   },
   (table) => [
+    // Critical index for expired temp ban cleanup task
+    index("idx_temp_bans_expires_at").using(
+      "btree",
+      table.expiresAt.asc().nullsLast().op("timestamp_ops"),
+    ),
+    // Index for guild temp ban queries
+    index("idx_temp_bans_guild_id").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+    ),
     primaryKey({
       columns: [table.userId, table.guildId],
       name: "temp_bans_pkey",
@@ -682,6 +692,34 @@ export const modLogsInAppPublic = appPublic.table(
     dmMessageError: text("dm_message_error"),
   },
   (table) => [
+    // Critical index for user history queries (findByUserId)
+    index("idx_mod_logs_user_history").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.userId.asc().nullsLast().op("int8_ops"),
+      table.actionTime.desc().nullsLast().op("timestamp_ops"),
+    ),
+    // Critical index for pending case lookups (findPendingCase)
+    index("idx_mod_logs_pending_cases").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.userId.asc().nullsLast().op("int8_ops"),
+      table.action.asc().nullsLast().op("text_ops"),
+      table.pending.asc().nullsLast().op("bool_ops"),
+      table.actionTime.desc().nullsLast().op("timestamp_ops"),
+    ),
+    // Index for case range queries (findByRange, updateReasonBulk)
+    index("idx_mod_logs_case_range").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.caseId.desc().nullsLast().op("int8_ops"),
+    ),
+    // Index for guild activity queries (findByGuildId)
+    index("idx_mod_logs_guild_activity").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.actionTime.desc().nullsLast().op("timestamp_ops"),
+    ),
     primaryKey({
       columns: [table.guildId, table.caseId],
       name: "mod_logs_pkey",

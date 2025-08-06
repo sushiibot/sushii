@@ -13,7 +13,7 @@ import { Client } from "discord.js";
 import { Selectable } from "kysely";
 import { None, Option, Some } from "ts-results";
 
-import { webhookErr } from "@/core/cluster/webhookLogger";
+import { webhookErr } from "@/core/cluster/discord/webhookLogger";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import { getGuildConfig } from "../../db/GuildConfig/GuildConfig.repository";

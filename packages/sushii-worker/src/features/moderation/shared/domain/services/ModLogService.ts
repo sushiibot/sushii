@@ -11,7 +11,7 @@ import { ActionType } from "../value-objects/ActionType";
 export interface ModLogService {
   /**
    * Posts a moderation action to the guild's configured mod log channel.
-   * 
+   *
    * @param guildId - The guild ID where the action occurred
    * @param actionType - The type of moderation action
    * @param target - The target user of the moderation action
@@ -28,7 +28,7 @@ export interface ModLogService {
   /**
    * Checks if the given action type should be posted to mod log channels.
    * Currently applies to Warn and Note actions.
-   * 
+   *
    * @param actionType - The action type to check
    * @returns true if the action should be posted to mod log
    */

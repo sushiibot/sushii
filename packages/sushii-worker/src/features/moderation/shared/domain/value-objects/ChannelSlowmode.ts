@@ -1,7 +1,7 @@
-import dayjs from "@/shared/domain/dayjs";
 import plugin from "dayjs/plugin/duration";
 import { Err, Ok, Result } from "ts-results";
 
+import dayjs from "@/shared/domain/dayjs";
 import parseDuration from "@/utils/parseDuration";
 
 const RE_ONLY_NUMBERS = /^\d+$/;
@@ -12,7 +12,7 @@ export class ChannelSlowmode {
 
   static fromString(durationStr: string): Result<ChannelSlowmode, string> {
     const trimmed = durationStr.trim();
-    
+
     if (!trimmed) {
       return Err("Duration cannot be empty");
     }
@@ -29,7 +29,9 @@ export class ChannelSlowmode {
     }
 
     if (!duration) {
-      return Err("Invalid duration format. Please use a valid duration like 5s or 1m");
+      return Err(
+        "Invalid duration format. Please use a valid duration like 5s or 1m",
+      );
     }
 
     const seconds = Math.floor(duration.asSeconds());

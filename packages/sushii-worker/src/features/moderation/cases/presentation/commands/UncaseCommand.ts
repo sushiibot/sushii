@@ -13,7 +13,7 @@ import {
   uncaseErrorView,
   uncaseNoCasesView,
   uncaseSuccessView,
-} from "../../../shared/presentation/views/UncaseView";
+} from "../views/UncaseView";
 
 export class UncaseCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()

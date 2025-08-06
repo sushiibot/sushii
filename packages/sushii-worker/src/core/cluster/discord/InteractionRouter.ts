@@ -1,38 +1,39 @@
+import opentelemetry from "@opentelemetry/api";
+import * as Sentry from "@sentry/node";
 import {
-  Collection,
   AnySelectMenuInteraction,
+  ApplicationCommandType,
   AutocompleteFocusedOption,
   AutocompleteInteraction,
   ButtonInteraction,
   ChatInputCommandInteraction,
+  Client,
+  Collection,
+  ComponentType,
   ContextMenuCommandInteraction,
   Interaction,
+  InteractionType,
   MessageFlags,
   ModalSubmitInteraction,
-  Routes,
   RESTPostAPIApplicationCommandsJSONBody,
-  InteractionType,
-  ApplicationCommandType,
-  ComponentType,
-  Client,
+  Routes,
 } from "discord.js";
-import * as Sentry from "@sentry/node";
 import { t } from "i18next";
-import opentelemetry from "@opentelemetry/api";
-import log from "@/shared/infrastructure/logger";
+
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { updateInteractionMetrics } from "@/infrastructure/metrics/interactionMetrics";
 import {
-  SlashCommandHandler,
-  ModalHandler,
-  ButtonHandler,
-  SelectMenuHandler,
   AutocompleteHandler,
+  ButtonHandler,
+  ModalHandler,
+  SelectMenuHandler,
+  SlashCommandHandler,
 } from "@/interactions/handlers";
 import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
+import { config } from "@/shared/infrastructure/config";
+import log from "@/shared/infrastructure/logger";
 import getFullCommandName from "@/utils/getFullCommandName";
 import validationErrorToString from "@/utils/validationErrorToString";
-import { config } from "@/shared/infrastructure/config";
-import { updateInteractionMetrics } from "@/infrastructure/metrics/interactionMetrics";
 
 const tracer = opentelemetry.trace.getTracer("interaction-client");
 

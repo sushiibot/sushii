@@ -22,7 +22,8 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
 
   readonly eventType = Events.MessageCreate;
 
-  async handle(message: Message): Promise<void> {
+  async handle(...data: [Message]): Promise<void> {
+    const [message] = data;
     if (!message.inGuild() || message.author.bot || !message.content) {
       return;
     }

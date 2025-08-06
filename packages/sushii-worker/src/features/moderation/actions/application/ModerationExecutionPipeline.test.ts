@@ -12,8 +12,8 @@ import pino from "pino";
 import { Err, Ok, Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
-import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import { type DMNotificationService } from "../../shared/application/DMNotificationService";
 import {
   BanAction,
   KickAction,
@@ -22,7 +22,6 @@ import {
 } from "../../shared/domain/entities/ModerationAction";
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
-import { TempBan } from "../../shared/domain/entities/TempBan";
 import { type ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { type TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import { type ModLogService } from "../../shared/domain/services/ModLogService";
@@ -137,14 +136,20 @@ const testLogger = pino({ level: "silent" });
 describe("ModerationExecutionPipeline", () => {
   const mockGuildId = "guild-123";
   let pipeline: ModerationExecutionPipeline;
+  let mockDb: NodePgDatabase<typeof schema>;
   let mockCaseRepository: ModerationCaseRepository;
   let mockTempBanRepository: TempBanRepository;
   let mockModLogService: ModLogService;
   let mockDMPolicyService: DMPolicyService;
+  let mockDMNotificationService: DMNotificationService;
   let mockClient: Client;
 
   beforeEach(() => {
     // Create fresh mocks for each test
+    mockDb = {
+      transaction: mock((callback) => callback(mockDb)),
+    } as unknown as NodePgDatabase<typeof schema>;
+
     mockCaseRepository = {
       save: mock(() => Promise.resolve(Ok.EMPTY)),
       update: mock(() => Promise.resolve(Ok.EMPTY)),
@@ -181,13 +186,27 @@ describe("ModerationExecutionPipeline", () => {
       shouldSendDM: mock(() => Promise.resolve(false)),
     } as unknown as DMPolicyService;
 
+    mockDMNotificationService = {
+      sendModerationDM: mock(() =>
+        Promise.resolve(
+          Ok({
+            channelId: "dm-channel-id",
+            messageId: "message-id",
+            error: null,
+          }),
+        ),
+      ),
+    } as unknown as DMNotificationService;
+
     mockClient = createMockClient();
 
     pipeline = new ModerationExecutionPipeline(
+      mockDb,
       mockCaseRepository,
       mockTempBanRepository,
       mockModLogService,
       mockDMPolicyService,
+      mockDMNotificationService,
       mockClient,
       testLogger,
     );
@@ -203,14 +222,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -229,9 +242,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(action, ActionType.Ban, target, tx);
+      const result = await pipeline.execute(action, ActionType.Ban, target);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -249,14 +261,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Kick,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Kick, target);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -281,14 +287,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -310,14 +310,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -339,14 +333,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -366,14 +354,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -392,14 +374,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(true);
       // No specific assertions needed - just ensuring it doesn't fail
@@ -414,9 +390,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(action, ActionType.Ban, target, tx);
+      const result = await pipeline.execute(action, ActionType.Ban, target);
 
       expect(result.ok).toBe(true);
     });
@@ -442,10 +417,12 @@ describe("ModerationExecutionPipeline", () => {
       } as unknown as Client;
 
       const pipelineWithError = new ModerationExecutionPipeline(
+        mockDb,
         mockCaseRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,
+        mockDMNotificationService,
         mockClientWithError,
         testLogger,
       );
@@ -458,13 +435,11 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
       const result = await pipelineWithError.execute(
         action,
         ActionType.Ban,
         target,
-        tx,
       );
 
       expect(result.ok).toBe(false);
@@ -486,14 +461,8 @@ describe("ModerationExecutionPipeline", () => {
       );
 
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.TempBan,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.TempBan, target);
 
       expect(result.ok).toBe(true);
       expect(mockTempBanRepository.save).toHaveBeenCalled();
@@ -515,17 +484,14 @@ describe("ModerationExecutionPipeline", () => {
       );
 
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.TempBan,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.TempBan, target);
 
-      // Should still succeed as temp ban failure doesn't fail the entire operation
-      expect(result.ok).toBe(true);
+      // Should fail as temp ban failure now fails the entire transaction for atomicity
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.val).toContain("Failed to save temp ban");
+      }
     });
   });
 
@@ -539,14 +505,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       expect(result.ok).toBe(true);
       expect(mockModLogService.sendModLog).toHaveBeenCalled();
@@ -566,14 +526,8 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        tx,
-      );
+      const result = await pipeline.execute(action, ActionType.Warn, target);
 
       // Should still succeed as mod log failure doesn't fail the entire operation
       expect(result.ok).toBe(true);
@@ -600,10 +554,12 @@ describe("ModerationExecutionPipeline", () => {
       } as unknown as Client;
 
       const pipelineWithError = new ModerationExecutionPipeline(
+        mockDb,
         mockCaseRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,
+        mockDMNotificationService,
         mockClientWithError,
         testLogger,
       );
@@ -616,13 +572,11 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
       const result = await pipelineWithError.execute(
         action,
         ActionType.Ban,
         target,
-        tx,
       );
 
       expect(result.ok).toBe(false);
@@ -663,10 +617,12 @@ describe("ModerationExecutionPipeline", () => {
       } as unknown as Client;
 
       const pipelineWithError = new ModerationExecutionPipeline(
+        mockDb,
         mockCaseRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,
+        mockDMNotificationService,
         mockClientWithError,
         testLogger,
       );
@@ -679,13 +635,11 @@ describe("ModerationExecutionPipeline", () => {
         "unspecified",
       );
       const target = createMockTarget();
-      const tx = createMockTransaction();
 
       const result = await pipelineWithError.execute(
         action,
         ActionType.Ban,
         target,
-        tx,
       );
 
       expect(result.ok).toBe(false);

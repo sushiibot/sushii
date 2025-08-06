@@ -2,19 +2,21 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from "@testcontainers/postgresql";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import * as fs from "fs";
 import * as path from "path";
 import { Client } from "pg";
 import { Wait } from "testcontainers";
 
+import * as schema from "@/infrastructure/database/schema";
+
 export class PostgresTestDatabase {
   private container: StartedPostgreSqlContainer | null = null;
   private client: Client | null = null;
-  private db: ReturnType<typeof drizzle> | null = null;
+  private db: NodePgDatabase<typeof schema> | null = null;
 
-  async initialize(): Promise<ReturnType<typeof drizzle>> {
+  async initialize(): Promise<NodePgDatabase<typeof schema>> {
     console.log("Creating PostgreSQL test container...");
     // Start PostgreSQL container
     this.container = await new PostgreSqlContainer("postgres:17-bookworm")
@@ -32,7 +34,7 @@ export class PostgresTestDatabase {
     });
     await this.client.connect();
 
-    this.db = drizzle(this.client);
+    this.db = drizzle({ client: this.client, schema });
 
     // Run database initialization seed
     await this.runInitSql();

@@ -5,6 +5,7 @@ import { Err, Ok, Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 
+import { DMNotificationService } from "../../shared/application/DMNotificationService";
 import { ModerationAction } from "../../shared/domain/entities/ModerationAction";
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
@@ -16,16 +17,7 @@ import {
   ActionType,
   actionTypeRequiresDiscordAction,
 } from "../../shared/domain/value-objects/ActionType";
-import { formatActionTypeAsPastTense } from "../../shared/presentation/views/ActionTypeFormatter";
 import { DMPolicyService } from "./DMPolicyService";
-import { 
-  ExecutionContext, 
-  ExecutionContextWithCaseId,
-  CompleteExecutionContext,
-  InitialContext, 
-  CompleteContext,
-  AnyExecutionContext 
-} from "./ExecutionContext";
 
 // Constants
 const DEFAULT_DELETE_MESSAGE_DAYS = 0 as const;
@@ -36,10 +28,12 @@ const DEFAULT_DELETE_MESSAGE_DAYS = 0 as const;
  */
 export class ModerationExecutionPipeline {
   constructor(
+    private readonly db: NodePgDatabase<typeof schema>,
     private readonly caseRepository: ModerationCaseRepository,
     private readonly tempBanRepository: TempBanRepository,
     private readonly modLogService: ModLogService,
     private readonly dmPolicyService: DMPolicyService,
+    private readonly dmNotificationService: DMNotificationService,
     private readonly client: Client,
     private readonly logger: Logger,
   ) {}
@@ -57,10 +51,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     finalActionType: ActionType,
     target: ModerationTarget,
-    tx: NodePgDatabase<typeof schema>,
   ): Promise<Result<ModerationCase, string>> {
-    const context: InitialContext = new ExecutionContext(action, finalActionType, target, tx);
-
     this.logger.info(
       {
         originalActionType: action.actionType,
@@ -72,12 +63,56 @@ export class ModerationExecutionPipeline {
       "Executing moderation action pipeline",
     );
 
+    // Validate action
+    const validationResult = action.validate();
+    if (!validationResult.ok) {
+      this.logger.error(
+        {
+          actionType: action.actionType,
+          targetId: target.id,
+          error: validationResult.val,
+        },
+        "Action validation failed",
+      );
+
+      return Err(`Invalid options: ${validationResult.val}`);
+    }
+
     try {
-      // Type-safe pipeline progression with state transitions
-      const contextWithCase = await this.createCase(context);
-      const contextWithPreDM = await this.sendPreActionDM(contextWithCase);
-      const contextAfterDiscord = await this.executeDiscordAction(contextWithPreDM);
-      const finalContext = await this.handlePostActionTasks(contextAfterDiscord);
+      // 1. Create database records atomically (focused transaction)
+      const createResult = await this.createModerationRecord(
+        action,
+        finalActionType,
+        target,
+      );
+      if (!createResult.ok) {
+        return createResult;
+      }
+
+      const { caseId, moderationCase } = createResult.val;
+
+      // 2. Execute external operations (outside transaction)
+      let currentCase = moderationCase;
+
+      // Send pre-action DM if needed
+      currentCase = await this.handlePreActionDM(
+        action,
+        target,
+        caseId,
+        currentCase,
+      );
+
+      // Execute Discord action
+      await this.handleDiscordAction(action, target, finalActionType);
+
+      // Handle post-action tasks
+      currentCase = await this.handleExternalPostActionTasks(
+        action,
+        target,
+        finalActionType,
+        caseId,
+        currentCase,
+      );
 
       this.logger.info(
         {
@@ -86,228 +121,268 @@ export class ModerationExecutionPipeline {
           targetId: target.id,
           executorId: action.executor.id,
           guildId: action.guildId,
-          caseId: finalContext.getCaseId(), // TypeScript knows this is safe
+          caseId: caseId,
         },
         "Moderation action executed successfully",
       );
 
-      return Ok(finalContext.getModerationCase()); // TypeScript knows this is safe
+      return Ok(currentCase);
     } catch (error) {
-      await this.cleanupOnFailure(context, error);
+      this.logger.error(
+        {
+          err: error,
+          actionType: finalActionType,
+          targetId: target.id,
+          guildId: action.guildId,
+        },
+        "Pipeline execution failed",
+      );
+
       return Err(error instanceof Error ? error.message : String(error));
     }
   }
 
   /**
-   * Stage 1: Create and validate moderation case with row locking.
-   * Returns a context with both case ID and moderation case set.
+   * Creates moderation record and temp ban records atomically in a focused transaction.
+   * This ensures database consistency for the core moderation data.
    */
-  private async createCase(context: InitialContext): Promise<CompleteContext> {
-    const validationResult = context.action.validate();
-    if (!validationResult.ok) {
-      this.logger.error(
-        {
-          actionType: context.action.actionType,
-          targetId: context.target.id,
-          error: validationResult.val,
-        },
-        "Action validation failed",
-      );
-      throw new Error(validationResult.val);
-    }
+  private async createModerationRecord(
+    action: ModerationAction,
+    finalActionType: ActionType,
+    target: ModerationTarget,
+  ): Promise<
+    Result<{ caseId: string; moderationCase: ModerationCase }, string>
+  > {
+    return await this.db.transaction(
+      async (tx: NodePgDatabase<typeof schema>) => {
+        // Get next case number with row locking
+        const caseNumberResult = await this.caseRepository.getNextCaseNumber(
+          action.guildId,
+          tx,
+        );
 
-    // Use the transaction-aware repository to get next case number with locking
-    const caseNumberResult = await this.caseRepository.getNextCaseNumber(
-      context.action.guildId,
-      context.tx,
+        if (!caseNumberResult.ok) {
+          this.logger.error(
+            {
+              actionType: action.actionType,
+              targetId: target.id,
+              error: caseNumberResult.val,
+            },
+            "Failed to get next case number",
+          );
+
+          throw new Error(caseNumberResult.val);
+        }
+
+        const caseId = caseNumberResult.val.toString();
+
+        // Should not be pending for note or warn
+        // Only pending for actions that create an audit-log event
+        const isPending =
+          finalActionType !== ActionType.Note &&
+          finalActionType !== ActionType.Warn;
+
+        // Create moderation case
+        const moderationCase = ModerationCase.create(
+          action.guildId,
+          caseId,
+          finalActionType,
+          target.id,
+          target.tag,
+          action.executor.id,
+          action.reason,
+          undefined,
+          action.attachment ? [action.attachment.url] : [],
+        ).withPending(isPending);
+
+        // Save moderation case
+        const saveCaseResult = await this.caseRepository.save(
+          moderationCase,
+          tx,
+        );
+
+        if (!saveCaseResult.ok) {
+          this.logger.error(
+            {
+              actionType: action.actionType,
+              targetId: target.id,
+              error: saveCaseResult.val,
+            },
+            "Failed to save moderation case",
+          );
+          throw new Error(saveCaseResult.val);
+        }
+
+        // Handle temp ban records atomically
+        const tempBanResult = await this.manageTempBanRecordsTransactional(
+          action,
+          target,
+          tx,
+        );
+
+        if (!tempBanResult.ok) {
+          this.logger.error(
+            {
+              actionType: finalActionType,
+              targetId: target.id,
+              guildId: action.guildId,
+              error: tempBanResult.val,
+            },
+            "Failed to manage temp ban records",
+          );
+          throw new Error(tempBanResult.val);
+        }
+
+        return Ok({ caseId, moderationCase });
+      },
     );
-
-    if (!caseNumberResult.ok) {
-      this.logger.error(
-        {
-          actionType: context.action.actionType,
-          targetId: context.target.id,
-          error: caseNumberResult.val,
-        },
-        "Failed to get next case number",
-      );
-      throw new Error(caseNumberResult.val);
-    }
-
-    const caseId = caseNumberResult.val.toString();
-    const contextWithCaseId = context.setCaseId(caseId);
-
-    const moderationCase = ModerationCase.create(
-      context.action.guildId,
-      caseId,
-      context.actionType,
-      context.target.id,
-      context.target.tag,
-      context.action.executor.id,
-      context.action.reason,
-      undefined,
-      context.action.attachment ? [context.action.attachment.url] : [],
-    );
-
-    const saveCaseResult = await this.caseRepository.save(
-      moderationCase,
-      context.tx,
-    );
-    if (!saveCaseResult.ok) {
-      this.logger.error(
-        {
-          actionType: context.action.actionType,
-          targetId: context.target.id,
-          error: saveCaseResult.val,
-        },
-        "Failed to save moderation case",
-      );
-      throw new Error(saveCaseResult.val);
-    }
-
-    return contextWithCaseId.updateModerationCase(moderationCase);
   }
 
   /**
-   * Stage 2: Send DM before Discord action (for ban actions only).
-   * Returns updated context if DM was sent, otherwise returns the same context.
+   * Handles pre-action DM delivery (simplified version without context)
    */
-  private async sendPreActionDM(context: CompleteContext): Promise<CompleteContext> {
-    const { caseId, moderationCase } = context.getCaseData();
-
-    const dmResult = await this.handleDMDelivery(
+  private async handlePreActionDM(
+    action: ModerationAction,
+    target: ModerationTarget,
+    caseId: string,
+    moderationCase: ModerationCase,
+  ): Promise<ModerationCase> {
+    const shouldSendDM = await this.dmPolicyService.shouldSendDM(
       "before",
-      context.action,
-      context.target,
-      caseId,
-      moderationCase,
-      context.tx,
+      action,
+      target,
+      action.guildId,
     );
 
-    if (dmResult) {
-      return context.updateModerationCase(dmResult);
+    if (!shouldSendDM) {
+      return moderationCase;
     }
 
-    return context;
+    const dmResult = await this.sendDM(action.guildId, caseId, action, target);
+    const updatedCase = moderationCase.withDMResult(dmResult);
+
+    // Update case with DM result in separate small transaction
+    await this.updateCaseWithDMResult(updatedCase);
+
+    return updatedCase;
   }
 
   /**
-   * Stage 3: Execute Discord API action.
-   * Returns the same context since Discord actions don't modify context state.
+   * Handles Discord action execution (simplified version without context)
    */
-  private async executeDiscordAction(context: CompleteContext): Promise<CompleteContext> {
-    if (!actionTypeRequiresDiscordAction(context.actionType)) {
-      return context; // Nothing to do for actions like Warn or Note
+  private async handleDiscordAction(
+    action: ModerationAction,
+    target: ModerationTarget,
+    finalActionType: ActionType,
+  ): Promise<void> {
+    if (!actionTypeRequiresDiscordAction(finalActionType)) {
+      return; // Nothing to do for actions like Warn or Note
     }
 
     const discordResult = await this.performDiscordAction(
-      context.action.guildId,
-      context.action,
-      context.target,
-      context.actionType,
+      action.guildId,
+      action,
+      target,
+      finalActionType,
     );
 
     if (!discordResult.ok) {
       this.logger.error(
         {
-          actionType: context.actionType,
-          targetId: context.target.id,
-          executorId: context.action.executor.id,
-          guildId: context.action.guildId,
+          actionType: finalActionType,
+          targetId: target.id,
+          executorId: action.executor.id,
+          guildId: action.guildId,
           error: discordResult.val,
         },
         "Failed to execute Discord action",
       );
-      throw new Error(`Discord action failed: ${discordResult.val}`);
-    }
 
-    return context;
-  }
-
-  /**
-   * Stage 4: Handle post-action tasks (temp bans, post-DMs, mod logs).
-   * Returns updated context if any operations modify the moderation case.
-   */
-  private async handlePostActionTasks(context: CompleteContext): Promise<CompleteContext> {
-    // Sub-task 1: Manage temp ban records
-    await this.manageTempBanRecords(context);
-
-    // Sub-task 2: Send post-action DM (may update context)
-    const contextAfterDM = await this.sendPostActionDM(context);
-
-    // Sub-task 3: Send mod log for Warn/Note actions
-    await this.sendModLogIfNeeded(contextAfterDM);
-
-    return contextAfterDM;
-  }
-
-  /**
-   * Manages temporary ban database records based on action type.
-   */
-  private async manageTempBanRecords(context: CompleteContext): Promise<void> {
-    const tempBanResult = await this.manageTempBanRecordsInternal(
-      context.action,
-      context.target,
-    );
-
-    if (!tempBanResult.ok) {
-      this.logger.error(
-        {
-          actionType: context.actionType,
-          targetId: context.target.id,
-          guildId: context.action.guildId,
-          error: tempBanResult.val,
-        },
-        "Failed to manage temp ban records",
-      );
-      // Note: We don't fail the entire operation since Discord action succeeded
-      // This is logged as an error but doesn't throw
+      throw new Error("Discord action failed", { cause: discordResult.val });
     }
   }
 
   /**
-   * Sends post-action DM (for non-ban actions).
-   * Returns updated context if DM was sent, otherwise returns the same context.
+   * Handles post-action tasks (simplified version without context)
    */
-  private async sendPostActionDM(context: CompleteContext): Promise<CompleteContext> {
-    const { caseId, moderationCase } = context.getCaseData();
-
-    const dmAfterResult = await this.handleDMDelivery(
-      "after",
-      context.action,
-      context.target,
+  private async handleExternalPostActionTasks(
+    action: ModerationAction,
+    target: ModerationTarget,
+    finalActionType: ActionType,
+    caseId: string,
+    moderationCase: ModerationCase,
+  ): Promise<ModerationCase> {
+    // Send post-action DM (may update context)
+    const currentCase = await this.handlePostActionDM(
+      action,
+      target,
       caseId,
       moderationCase,
-      context.tx,
     );
 
-    if (dmAfterResult) {
-      return context.updateModerationCase(dmAfterResult);
-    }
+    // Send mod log for Warn/Note actions
+    await this.sendModLogForAction(
+      action,
+      target,
+      finalActionType,
+      currentCase,
+    );
 
-    return context;
+    return currentCase;
   }
 
   /**
-   * Sends mod log for Warn/Note actions.
+   * Handles post-action DM delivery
    */
-  private async sendModLogIfNeeded(context: CompleteContext): Promise<void> {
-    if (this.modLogService.shouldPostToModLog(context.actionType)) {
-      const moderationCase = context.getModerationCase();
+  private async handlePostActionDM(
+    action: ModerationAction,
+    target: ModerationTarget,
+    caseId: string,
+    moderationCase: ModerationCase,
+  ): Promise<ModerationCase> {
+    const shouldSendDM = await this.dmPolicyService.shouldSendDM(
+      "after",
+      action,
+      target,
+      action.guildId,
+    );
 
+    if (!shouldSendDM) {
+      return moderationCase;
+    }
+
+    const dmResult = await this.sendDM(action.guildId, caseId, action, target);
+    const updatedCase = moderationCase.withDMResult(dmResult);
+
+    // Update case with DM result in separate small transaction
+    await this.updateCaseWithDMResult(updatedCase);
+
+    return updatedCase;
+  }
+
+  /**
+   * Sends mod log if needed for the action
+   */
+  private async sendModLogForAction(
+    action: ModerationAction,
+    target: ModerationTarget,
+    finalActionType: ActionType,
+    moderationCase: ModerationCase,
+  ): Promise<void> {
+    if (this.modLogService.shouldPostToModLog(finalActionType)) {
       const modLogResult = await this.modLogService.sendModLog(
-        context.action.guildId,
-        context.actionType,
-        context.target,
+        action.guildId,
+        finalActionType,
+        target,
         moderationCase,
       );
 
       if (!modLogResult.ok) {
         this.logger.warn(
           {
-            actionType: context.actionType,
-            targetId: context.target.id,
-            guildId: context.action.guildId,
+            actionType: finalActionType,
+            targetId: target.id,
+            guildId: action.guildId,
             error: modLogResult.val,
           },
           "Failed to send mod log",
@@ -318,116 +393,100 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Comprehensive cleanup on pipeline failure.
-   * Uses runtime checks and type guards since the context might be in any state when failure occurs.
+   * Updates case with DM result in a separate focused transaction
    */
-  private async cleanupOnFailure(
-    context: AnyExecutionContext,
-    error: unknown,
+  private async updateCaseWithDMResult(
+    moderationCase: ModerationCase,
   ): Promise<void> {
-    // Get case ID safely for logging - might not exist if failure was early
-    let caseId: string | undefined;
-    if (context instanceof ExecutionContextWithCaseId || context instanceof CompleteExecutionContext) {
-      caseId = context.getCaseId();
-    }
-
-    this.logger.error(
-      {
-        err: error,
-        actionType: context.actionType,
-        targetId: context.target.id,
-        guildId: context.action.guildId,
-        caseId,
-      },
-      "Pipeline execution failed, starting cleanup",
-    );
-
-    const cleanupTasks: Promise<unknown>[] = [];
-
-    // Clean up DM if it was sent - check if we have a complete context with moderation case
-    if (context instanceof CompleteExecutionContext) {
-      const moderationCase = context.getModerationCase();
-      if (
-        moderationCase.dmResult?.messageId &&
-        moderationCase.dmResult?.channelId
-      ) {
-        cleanupTasks.push(this.cleanupDMOnFailure(moderationCase));
-      }
-    }
-
-    // Delete mod log entry if case was created - check if we have case ID
-    if (context instanceof ExecutionContextWithCaseId || context instanceof CompleteExecutionContext) {
-      const caseIdForDeletion = context.getCaseId();
-      cleanupTasks.push(
-        this.caseRepository.delete(
-          context.action.guildId,
-          caseIdForDeletion,
-          context.tx,
-        ),
-      );
-    }
-
-    // Execute all cleanup operations
-    const results = await Promise.allSettled(cleanupTasks);
-
-    // Log any cleanup failures
-    results.forEach((result, index) => {
-      if (result.status === "rejected") {
-        this.logger.error(
+    await this.db.transaction(async (tx: NodePgDatabase<typeof schema>) => {
+      const updateResult = await this.caseRepository.update(moderationCase, tx);
+      if (!updateResult.ok) {
+        this.logger.warn(
           {
-            err: result.reason,
-            guildId: context.action.guildId,
-            caseId,
+            caseId: moderationCase.caseId,
+            error: updateResult.val,
           },
-          `Cleanup operation ${index} failed during rollback`,
+          "Failed to update case with DM result",
         );
       }
     });
   }
 
   /**
-   * Helper method to handle DM delivery based on timing and policy.
+   * Manages temporary ban database records with transaction support.
    */
-  private async handleDMDelivery(
-    timing: "before" | "after",
+  private async manageTempBanRecordsTransactional(
     action: ModerationAction,
     target: ModerationTarget,
-    caseId: string,
-    moderationCase: ModerationCase,
     tx: NodePgDatabase<typeof schema>,
-  ): Promise<ModerationCase | null> {
-    const shouldSendDM = await this.dmPolicyService.shouldSendDM(
-      timing,
-      action,
-      target,
-      action.guildId,
-    );
+  ): Promise<Result<void, string>> {
+    switch (action.actionType) {
+      case ActionType.TempBan: {
+        if (!action.isTempBanAction()) {
+          return Err("Invalid action type for temp ban database operation");
+        }
 
-    if (!shouldSendDM) {
-      return null;
+        // Create temp ban record with expiration time
+        const expiresAt = action.duration.endTime();
+        const tempBan = TempBan.create(target.id, action.guildId, expiresAt);
+
+        const saveResult = await this.tempBanRepository.save(tempBan, tx);
+        if (!saveResult.ok) {
+          return Err(`Failed to save temp ban: ${saveResult.val}`);
+        }
+
+        this.logger.info(
+          {
+            userId: target.id,
+            guildId: action.guildId,
+            expiresAt: expiresAt.toISOString(),
+          },
+          "Created temp ban database record",
+        );
+        break;
+      }
+
+      case ActionType.BanRemove: {
+        // Delete temp ban record if it exists (user might have been manually unbanned)
+        const deleteResult = await this.tempBanRepository.delete(
+          action.guildId,
+          target.id,
+          tx,
+        );
+        if (!deleteResult.ok) {
+          return Err(`Failed to delete temp ban: ${deleteResult.val}`);
+        }
+
+        if (deleteResult.val) {
+          this.logger.info(
+            {
+              userId: target.id,
+              guildId: action.guildId,
+            },
+            "Deleted temp ban database record",
+          );
+        } else {
+          this.logger.debug(
+            {
+              userId: target.id,
+              guildId: action.guildId,
+            },
+            "No temp ban record found to delete",
+          );
+        }
+        break;
+      }
+
+      default:
+        // No temp ban database operations needed for other action types
+        break;
     }
 
-    const dmResult = await this.sendDM(action.guildId, caseId, action, target);
-    const updatedCase = moderationCase.withDMResult(dmResult);
-
-    const updateResult = await this.caseRepository.update(updatedCase, tx);
-    if (!updateResult.ok) {
-      this.logger.warn(
-        {
-          actionType: action.actionType,
-          targetId: target.id,
-          timing,
-          error: updateResult.val,
-        },
-        "Failed to update case with DM result",
-      );
-    }
-
-    return updatedCase;
+    return Ok.EMPTY;
   }
 
   /**
-   * Helper method to send DM to target user.
+   * Helper method to send DM to target user using the DM notification service.
    */
   private async sendDM(
     guildId: string,
@@ -435,77 +494,58 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
   ): Promise<{ channelId?: string; messageId?: string; error?: string }> {
-    try {
-      const guild = this.client.guilds.cache.get(guildId);
-      const guildName = guild ? guild.name : "Unknown Guild";
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      return { error: "Guild not found" };
+    }
 
-      const dmChannel = await target.user.createDM();
+    // Determine duration end time for temporal actions
+    const durationEnd = action.isTemporalAction()
+      ? action.duration.endTime()
+      : null;
 
-      let dmContent = `You have been ${formatActionTypeAsPastTense(action.actionType)} in **${guildName}**`;
+    // Use the DM notification service
+    const dmResult = await this.dmNotificationService.sendModerationDM(
+      target.user,
+      guild,
+      action.actionType,
+      true, // should DM reason - this is handled by DMPolicyService
+      action.reason,
+      durationEnd,
+    );
 
-      if (action.reason) {
-        dmContent += `\n**Reason:** ${action.reason.value}`;
-      }
-
-      if (action.isTemporalAction()) {
-        dmContent += `\n**Duration:** ${action.duration.originalString}`;
-        dmContent += `\n**Expires:** <t:${Math.floor(action.duration.endTime().unix())}:f>`;
-      }
-
-      const message = await dmChannel.send(dmContent);
-
-      this.logger.info(
-        {
-          caseId: caseId.toString(),
-          targetId: target.id,
-          messageId: message.id,
-        },
-        "DM sent successfully",
-      );
-
-      return {
-        channelId: dmChannel.id,
-        messageId: message.id,
-      };
-    } catch (error) {
+    if (!dmResult.ok) {
       this.logger.warn(
         {
           caseId: caseId.toString(),
           targetId: target.id,
-          err: error,
+          error: dmResult.val,
         },
-        "Failed to send DM",
+        "Failed to send DM via notification service",
       );
 
       return {
-        error: String(error),
+        error: dmResult.val,
       };
     }
-  }
 
-  /**
-   * Helper method to clean up DM on failure.
-   */
-  private async cleanupDMOnFailure(caseWithDM: ModerationCase): Promise<void> {
-    if (!caseWithDM.dmResult?.messageId || !caseWithDM.dmResult?.channelId) {
-      return;
-    }
+    const dmSentResult = dmResult.val;
 
-    try {
-      const dmChannel = await this.client.channels.fetch(
-        caseWithDM.dmResult.channelId,
-      );
+    this.logger.info(
+      {
+        caseId: caseId.toString(),
+        targetId: target.id,
+        messageId: dmSentResult.messageId,
+        channelId: dmSentResult.channelId,
+      },
+      "DM sent successfully via notification service",
+    );
 
-      if (dmChannel?.isTextBased()) {
-        await dmChannel.messages.delete(caseWithDM.dmResult.messageId);
-        this.logger.info("Deleted DM after pipeline failure");
-      }
-    } catch (deleteError) {
-      this.logger.warn(
-        { err: deleteError },
-        "Failed to delete DM after pipeline failure",
-      );
-    }
+    return {
+      channelId: dmSentResult.channelId || undefined,
+      messageId: dmSentResult.messageId || undefined,
+      error: dmSentResult.error || undefined,
+    };
   }
 
   /**
@@ -530,8 +570,11 @@ export class ModerationExecutionPipeline {
           }
           await guild.members.ban(target.id, {
             reason: action.reason?.value || "No reason provided",
-            deleteMessageDays:
-              action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS,
+            deleteMessageSeconds:
+              (action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS) *
+              24 *
+              60 *
+              60,
           });
           break;
         }
@@ -632,78 +675,7 @@ export class ModerationExecutionPipeline {
         "Failed to execute Discord action",
       );
 
-      return Err(`Discord action failed: ${error}`);
+      return Err(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  /**
-   * Helper method to manage temp ban records.
-   */
-  private async manageTempBanRecordsInternal(
-    action: ModerationAction,
-    target: ModerationTarget,
-  ): Promise<Result<void, string>> {
-    switch (action.actionType) {
-      case ActionType.TempBan: {
-        if (!action.isTempBanAction()) {
-          return Err("Invalid action type for temp ban database operation");
-        }
-
-        // Create temp ban record with expiration time
-        const expiresAt = action.duration.endTime();
-        const tempBan = TempBan.create(target.id, action.guildId, expiresAt);
-
-        const saveResult = await this.tempBanRepository.save(tempBan);
-        if (!saveResult.ok) {
-          return Err(`Failed to save temp ban: ${saveResult.val}`);
-        }
-
-        this.logger.info(
-          {
-            userId: target.id,
-            guildId: action.guildId,
-            expiresAt: expiresAt.toISOString(),
-          },
-          "Created temp ban database record",
-        );
-        break;
-      }
-
-      case ActionType.BanRemove: {
-        // Delete temp ban record if it exists (user might have been manually unbanned)
-        const deleteResult = await this.tempBanRepository.delete(
-          action.guildId,
-          target.id,
-        );
-        if (!deleteResult.ok) {
-          return Err(`Failed to delete temp ban: ${deleteResult.val}`);
-        }
-
-        if (deleteResult.val) {
-          this.logger.info(
-            {
-              userId: target.id,
-              guildId: action.guildId,
-            },
-            "Deleted temp ban database record",
-          );
-        } else {
-          this.logger.debug(
-            {
-              userId: target.id,
-              guildId: action.guildId,
-            },
-            "No temp ban record found to delete",
-          );
-        }
-        break;
-      }
-
-      default:
-        // No temp ban database operations needed for other action types
-        break;
-    }
-
-    return Ok.EMPTY;
   }
 }

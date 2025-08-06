@@ -1,9 +1,8 @@
 import { AutocompleteFocusedOption, AutocompleteInteraction } from "discord.js";
 import { Logger } from "pino";
 
-import { AutocompleteHandler } from "@/interactions/handlers";
-
 import { CaseRangeAutocompleteService } from "@/features/moderation/cases/application/CaseRangeAutocompleteService";
+import { AutocompleteHandler } from "@/interactions/handlers";
 
 export class ReasonAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = ["reason", "uncase"];
