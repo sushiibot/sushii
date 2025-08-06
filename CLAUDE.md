@@ -52,6 +52,12 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Migrating 
 
 - When running tests, use this with timeouts and env vars `TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000`
 
+## Documentation References
+
+When working on Discord interactions and components, refer to:
+- **Discord Interactions**: `.claude/discord-interaction-guide.md` - Reply/update/followUp patterns
+- **Components v2**: `.claude/components_v2.md` - Container-based component system with builders
+
 ## Communication Guidelines
 
 - Ask clarifying questions to flesh out more details for all user requests before creating a plan for approval.
