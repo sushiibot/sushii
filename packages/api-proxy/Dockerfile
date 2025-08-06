@@ -1,6 +1,6 @@
 FROM oven/bun:1 AS base
 
-LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii-ts-services
+LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii
 LABEL org.opencontainers.image.description="Discord.js API Proxy"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 

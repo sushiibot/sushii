@@ -1,6 +1,6 @@
 FROM oven/bun:1.2-debian
 
-LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii-ts-services
+LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii
 LABEL org.opencontainers.image.description="sushii bot"
 LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
