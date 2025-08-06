@@ -36,7 +36,7 @@ export class DiscordModLogService implements ModLogService {
 
       // Get guild configuration for mod log channel
       const guildConfig = await getGuildConfig(db, guildId);
-      
+
       if (!guildConfig?.log_mod_enabled || !guildConfig.log_mod) {
         this.logger.debug(
           { guildId, actionType },

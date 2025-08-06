@@ -1,10 +1,15 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+} from "discord.js";
 
-import Color from "@/utils/colors";
+import { ReasonUpdateResult } from "@/features/moderation/cases/application/ReasonUpdateService";
 import customIds from "@/interactions/customIds";
+import Color from "@/utils/colors";
 
 import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
-import { ReasonUpdateResult } from "@/features/moderation/cases/application/ReasonUpdateService";
 
 export function reasonWarningView(
   casesWithReason: ModerationCase[],
@@ -13,7 +18,7 @@ export function reasonWarningView(
   hidePartialUpdateButton: boolean,
 ): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder> } {
   let description = `**${casesWithReason.length} / ${allCasesCount}** of specified cases already have reasons set:\n\n`;
-  
+
   const caseDescriptions = casesWithReason.map((modCase) => {
     let s = `\`#${modCase.caseId}\` - **${modCase.actionType}**`;
     s += ` - <@${modCase.userId}>\n`;
@@ -77,7 +82,9 @@ export function reasonWarningView(
 
   buttons.push(cancelButton);
 
-  const components = new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
+  const components = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...buttons,
+  );
 
   return { embed, components };
 }
@@ -184,10 +191,10 @@ export function reasonInvalidRangeView(): EmbedBuilder {
     .setTitle("Invalid Case Range")
     .setDescription(
       "Please provide a valid case range. Examples:\n" +
-      "• `123` - Single case\n" +
-      "• `100-105` - Range of cases\n" +
-      "• `latest` - Latest case\n" +
-      "• `latest~5` - Latest 5 cases"
+        "• `123` - Single case\n" +
+        "• `100-105` - Range of cases\n" +
+        "• `latest` - Latest case\n" +
+        "• `latest~5` - Latest 5 cases",
     )
     .setColor(Color.Error);
 }

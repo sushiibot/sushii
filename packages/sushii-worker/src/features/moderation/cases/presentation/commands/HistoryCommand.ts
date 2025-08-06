@@ -1,9 +1,9 @@
 import {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
   ChatInputCommandInteraction,
-  PermissionsBitField,
   InteractionContextType,
+  PermissionFlagsBits,
+  PermissionsBitField,
+  SlashCommandBuilder,
 } from "discord.js";
 import { Logger } from "pino";
 
@@ -83,7 +83,10 @@ export class HistoryCommand extends SlashCommandHandler {
     );
 
     log.info(
-      { totalCases: historyResult.val.totalCases, embedCount: historyEmbeds.length },
+      {
+        totalCases: historyResult.val.totalCases,
+        embedCount: historyEmbeds.length,
+      },
       "History command completed successfully",
     );
 

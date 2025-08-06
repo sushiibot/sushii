@@ -10,7 +10,7 @@ import { ActionType } from "../value-objects/ActionType";
 export interface PermissionValidationService {
   /**
    * Validates that the executor can perform the given action on the target user.
-   * 
+   *
    * @param executor - The user executing the moderation action
    * @param executorMember - The executor's guild member object (if in guild)
    * @param target - The target user of the moderation action
@@ -28,7 +28,7 @@ export interface PermissionValidationService {
 
   /**
    * Validates that the executor has the required Discord permissions for the action.
-   * 
+   *
    * @param executorMember - The executor's guild member object
    * @param actionType - The type of moderation action being performed
    * @returns Result indicating success or failure with error message
@@ -40,7 +40,7 @@ export interface PermissionValidationService {
 
   /**
    * Validates role hierarchy - executor must have higher role than target.
-   * 
+   *
    * @param executorMember - The executor's guild member object
    * @param targetMember - The target's guild member object
    * @returns Result indicating success or failure with error message

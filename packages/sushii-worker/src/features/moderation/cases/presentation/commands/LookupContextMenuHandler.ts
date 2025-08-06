@@ -8,12 +8,12 @@ import {
 import { ApplicationCommandType } from "discord.js";
 import { Logger } from "pino";
 
-import { buildUserHistoryEmbeds } from "../views/HistoryView";
-import { buildUserLookupEmbed } from "../views/UserLookupView";
 import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import getUserinfoEmbed from "@/interactions/user/userinfo.service";
 
 import { LookupUserService } from "../../application/LookupUserService";
+import { buildUserHistoryEmbeds } from "../views/HistoryView";
+import { buildUserLookupEmbed } from "../views/UserLookupView";
 
 export class LookupContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
@@ -50,7 +50,10 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
       PermissionFlagsBits.BanMembers,
     );
 
-    const userInfoEmbed = await getUserinfoEmbed(targetUser, targetMember || undefined);
+    const userInfoEmbed = await getUserinfoEmbed(
+      targetUser,
+      targetMember || undefined,
+    );
 
     if (!isModerator) {
       await interaction.reply({
@@ -104,7 +107,7 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
 
     // TODO: Add moderation action buttons (Ban, Kick, Mute, Warn) in the future
     // These would require additional UI for collecting reasons, durations, etc.
-    
+
     await interaction.reply({
       embeds,
       flags: MessageFlags.Ephemeral,
@@ -112,5 +115,4 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
 
     log.info("Context menu displayed with user info, lookup, and history");
   }
-
 }

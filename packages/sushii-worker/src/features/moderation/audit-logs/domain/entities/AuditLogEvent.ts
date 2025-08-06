@@ -114,7 +114,7 @@ export class AuditLogEvent {
   /**
    * Determines if a timeout DM should be sent for this audit log event.
    * Contains the business rules for when native timeout DMs are appropriate.
-   * 
+   *
    * @param hasPendingCase - Whether this timeout was already handled by a command (and DM already sent)
    * @param guildConfig - The guild's configuration for DM preferences
    * @returns true if a DM should be sent to the target user

@@ -1,12 +1,12 @@
 import { EmbedBuilder, GuildMember, User } from "discord.js";
 
+import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import dayjs from "@/shared/domain/dayjs";
 import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getUserString } from "@/utils/userString";
 
-import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
 import {
   formatActionTypeAsSentence,

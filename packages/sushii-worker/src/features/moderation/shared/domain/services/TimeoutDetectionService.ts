@@ -11,7 +11,7 @@ export class TimeoutDetectionService {
   /**
    * Determines if a timeout action should be logged as TimeoutAdjust instead of Timeout.
    * This happens when the target member already has an active timeout.
-   * 
+   *
    * @param incomingActionType - The original action type requested
    * @param target - The target user/member
    * @returns The corrected action type (TimeoutAdjust if adjustment, original otherwise)
@@ -46,7 +46,7 @@ export class TimeoutDetectionService {
 
   /**
    * Checks if a member currently has an active timeout.
-   * 
+   *
    * @param target - The target user/member
    * @returns true if the member has an active timeout
    */
@@ -67,7 +67,7 @@ export class TimeoutDetectionService {
 
   /**
    * Gets the current timeout expiration time for a member.
-   * 
+   *
    * @param target - The target user/member
    * @returns dayjs object of expiration time, or null if no active timeout
    */

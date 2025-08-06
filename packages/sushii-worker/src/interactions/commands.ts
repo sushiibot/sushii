@@ -54,9 +54,7 @@ export default function registerInteractionHandlers(
 
   // ----------------------------------------
   // Buttons
-  interactionRouter.addButtons(
-    new RoleMenuButtonHandler(),
-  );
+  interactionRouter.addButtons(new RoleMenuButtonHandler());
 
   // ----------------------------------------
   // Select menus

@@ -22,7 +22,6 @@ describe("ReasonUpdateService", () => {
   let mockClient: Client;
 
   beforeEach(() => {
-
     mockCaseRepository = {
       save: mock(() => Promise.resolve(Ok.EMPTY)),
       update: mock(() => Promise.resolve(Ok.EMPTY)),

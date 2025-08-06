@@ -1,9 +1,13 @@
 import { EmbedBuilder } from "discord.js";
 
 import Color from "@/utils/colors";
+
 import { PruneResult } from "../../application/PruneMessageService";
 
-function generateRangeDescription(afterMessageID: string | null, beforeMessageID: string | null): string | null {
+function generateRangeDescription(
+  afterMessageID: string | null,
+  beforeMessageID: string | null,
+): string | null {
   if (afterMessageID && beforeMessageID) {
     return `${afterMessageID} to ${beforeMessageID}`;
   }
@@ -20,11 +24,15 @@ function generateRangeDescription(afterMessageID: string | null, beforeMessageID
 }
 
 export function pruneSuccessView(result: PruneResult): EmbedBuilder {
-  const { deletedCount, userDeletedSummary, afterMessageID, beforeMessageID } = result;
+  const { deletedCount, userDeletedSummary, afterMessageID, beforeMessageID } =
+    result;
 
   const fields = [];
 
-  const rangeDescription = generateRangeDescription(afterMessageID, beforeMessageID);
+  const rangeDescription = generateRangeDescription(
+    afterMessageID,
+    beforeMessageID,
+  );
   if (rangeDescription) {
     fields.push({
       name: "Range",

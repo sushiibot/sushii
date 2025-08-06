@@ -10,7 +10,10 @@ import { Logger } from "pino";
 import { SlashCommandHandler } from "@/interactions/handlers";
 
 import { PruneMessageService } from "../../application/PruneMessageService";
-import { PruneAttachmentsOption, PruneBotsOrUsersOption } from "../../domain/value-objects/MessageFilter";
+import {
+  PruneAttachmentsOption,
+  PruneBotsOrUsersOption,
+} from "../../domain/value-objects/MessageFilter";
 import { PruneOptions } from "../../domain/value-objects/PruneOptions";
 import { pruneErrorView, pruneSuccessView } from "../views/PruneView";
 
@@ -117,9 +120,15 @@ export class PruneCommand extends SlashCommandHandler {
     }
 
     // Extract options from interaction
-    const maxDeleteCount = interaction.options.getInteger(PruneOption.MaxDeleteCount);
-    const afterMessageIDStr = interaction.options.getString(PruneOption.AfterMessageID);
-    const beforeMessageIDStr = interaction.options.getString(PruneOption.BeforeMessageID);
+    const maxDeleteCount = interaction.options.getInteger(
+      PruneOption.MaxDeleteCount,
+    );
+    const afterMessageIDStr = interaction.options.getString(
+      PruneOption.AfterMessageID,
+    );
+    const beforeMessageIDStr = interaction.options.getString(
+      PruneOption.BeforeMessageID,
+    );
     const user = interaction.options.getUser(PruneOption.UserOption);
     const skipPinned = interaction.options.getBoolean(PruneOption.SkipPinned);
     const attachments = interaction.options.getString(PruneOption.Attachments);

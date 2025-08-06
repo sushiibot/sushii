@@ -8,12 +8,12 @@ import {
 import { Logger } from "pino";
 import { Err, Ok } from "ts-results";
 
-import { ButtonHandler } from "@/interactions/handlers";
-import customIds from "@/interactions/customIds";
 import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
+import customIds from "@/interactions/customIds";
+import { ButtonHandler } from "@/interactions/handlers";
 
 /**
  * Button handler for setting reasons on moderation cases.
@@ -49,7 +49,9 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       .setStyle(TextInputStyle.Paragraph)
       .setCustomId("reason");
 
-    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(textInput);
+    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(
+      textInput,
+    );
 
     const modal = {
       title: `Case #${caseId}`,
@@ -147,7 +149,9 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
 
     // Update the case with the new reason and executor
     const updatedCase = moderationCase.withReason(reason);
-    const updatedCaseWithExecutor = updatedCase.withExecutor(interaction.user.id);
+    const updatedCaseWithExecutor = updatedCase.withExecutor(
+      interaction.user.id,
+    );
 
     // Save the updated case
     const updateResult = await this.moderationCaseRepository.update(
@@ -216,7 +220,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     if (!interaction.isFromMessage()) {
       throw new Error("Modal should be from a button on a message");
     }
-    
+
     await interaction.message.edit({
       embeds: [newEmbed.toJSON()],
       components,

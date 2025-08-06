@@ -1,8 +1,7 @@
 import { APIEmbed } from "discord.js";
 
-import Color from "@/utils/colors";
-
 import { CaseDeletionResult } from "@/features/moderation/cases/application/CaseDeletionService";
+import Color from "@/utils/colors";
 
 export function uncaseErrorView(error: string): APIEmbed {
   return {
@@ -25,7 +24,7 @@ export function uncaseSuccessView(
   keepLogMessages: boolean,
 ): APIEmbed {
   const caseList = formatDeletedCasesList(result);
-  
+
   const fields = [
     {
       name: "Deleted Cases",
@@ -55,7 +54,7 @@ export function uncaseSuccessView(
 function formatDeletedCasesList(result: CaseDeletionResult): string {
   const maxDisplayCount = 25;
   const cases = result.deletedCases.slice(0, maxDisplayCount);
-  
+
   const caseList = cases
     .map((case_) => `#${case_.caseId} - ${case_.actionType} <@${case_.userId}>`)
     .join("\n");

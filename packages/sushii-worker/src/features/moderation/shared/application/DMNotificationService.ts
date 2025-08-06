@@ -1,6 +1,13 @@
-import { DiscordAPIError, EmbedBuilder, Guild, RESTJSONErrorCodes, TimestampStyles, User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import {
+  DiscordAPIError,
+  EmbedBuilder,
+  Guild,
+  RESTJSONErrorCodes,
+  TimestampStyles,
+  User,
+} from "discord.js";
 import { Logger } from "pino";
+import { Err, Ok, Result } from "ts-results";
 
 import { MODERATION_DM_DEFAULTS } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 import dayjs from "@/shared/domain/dayjs";
@@ -8,7 +15,10 @@ import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
-import { ActionType, actionTypeSupportsDM } from "../domain/value-objects/ActionType";
+import {
+  ActionType,
+  actionTypeSupportsDM,
+} from "../domain/value-objects/ActionType";
 import { Reason } from "../domain/value-objects/Reason";
 
 /**
@@ -153,7 +163,8 @@ export class DMNotificationService {
         }
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return Ok({
         channelId: null,
         messageId: null,
@@ -209,7 +220,10 @@ export class DMNotificationService {
   /**
    * Gets custom DM text from guild configuration.
    */
-  private getGuildCustomDMText(action: ActionType, guildConfig: GuildConfig): string | null {
+  private getGuildCustomDMText(
+    action: ActionType,
+    guildConfig: GuildConfig,
+  ): string | null {
     switch (action) {
       case ActionType.Timeout:
         return guildConfig.moderationSettings.timeoutDmText;

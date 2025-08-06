@@ -1,14 +1,16 @@
 import { GuildMember, PermissionFlagsBits, User } from "discord.js";
 import { Err, Ok, Result } from "ts-results";
 
-import { ActionType } from "../../domain/value-objects/ActionType";
 import { PermissionValidationService } from "../../domain/services/PermissionValidationService";
+import { ActionType } from "../../domain/value-objects/ActionType";
 
 /**
  * Discord.js implementation of permission validation service.
  * Extracted from legacy hasPermissionTargetingMember function.
  */
-export class DiscordPermissionValidationService implements PermissionValidationService {
+export class DiscordPermissionValidationService
+  implements PermissionValidationService
+{
   async canTargetUser(
     executor: User,
     executorMember: GuildMember | null,
@@ -43,7 +45,10 @@ export class DiscordPermissionValidationService implements PermissionValidationS
     }
 
     // Check Discord permissions
-    const permissionResult = this.hasRequiredPermissions(executorMember, actionType);
+    const permissionResult = this.hasRequiredPermissions(
+      executorMember,
+      actionType,
+    );
     if (!permissionResult.ok) {
       return permissionResult;
     }
@@ -62,13 +67,17 @@ export class DiscordPermissionValidationService implements PermissionValidationS
       case ActionType.TempBan:
       case ActionType.BanRemove:
         if (!permissions.has(PermissionFlagsBits.BanMembers)) {
-          return Err("You need the 'Ban Members' permission to perform this action");
+          return Err(
+            "You need the 'Ban Members' permission to perform this action",
+          );
         }
         break;
 
       case ActionType.Kick:
         if (!permissions.has(PermissionFlagsBits.KickMembers)) {
-          return Err("You need the 'Kick Members' permission to perform this action");
+          return Err(
+            "You need the 'Kick Members' permission to perform this action",
+          );
         }
         break;
 
@@ -76,7 +85,9 @@ export class DiscordPermissionValidationService implements PermissionValidationS
       case ActionType.TimeoutAdjust:
       case ActionType.TimeoutRemove:
         if (!permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return Err("You need the 'Timeout Members' permission to perform this action");
+          return Err(
+            "You need the 'Timeout Members' permission to perform this action",
+          );
         }
         break;
 
@@ -108,7 +119,9 @@ export class DiscordPermissionValidationService implements PermissionValidationS
     }
 
     if (targetRolePosition === executorRolePosition) {
-      return Err("You cannot target a member with the same highest role as you");
+      return Err(
+        "You cannot target a member with the same highest role as you",
+      );
     }
 
     return Err("You cannot target a member with a higher role than you");

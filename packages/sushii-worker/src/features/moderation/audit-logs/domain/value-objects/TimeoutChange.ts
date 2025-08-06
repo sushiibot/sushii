@@ -2,9 +2,8 @@ import dayjs, { Dayjs } from "dayjs";
 import { Duration } from "dayjs/plugin/duration";
 import { AuditLogChange, GuildAuditLogsEntry } from "discord.js";
 
-import logger from "@/shared/infrastructure/logger";
-
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import logger from "@/shared/infrastructure/logger";
 
 /**
  * Value object representing a timeout change from Discord audit logs.
@@ -33,14 +32,18 @@ export class TimeoutChange {
   private static findTimeoutChange(
     changes?: AuditLogChange[],
   ): AuditLogChange | undefined {
-    return changes?.find(TimeoutChange.isAPIAuditLogChange("communication_disabled_until"));
+    return changes?.find(
+      TimeoutChange.isAPIAuditLogChange("communication_disabled_until"),
+    );
   }
 
   /**
    * Creates a TimeoutChange from a Discord audit log entry.
    * Returns undefined if the entry is not timeout-related.
    */
-  static fromAuditLogEntry(entry: GuildAuditLogsEntry): TimeoutChange | undefined {
+  static fromAuditLogEntry(
+    entry: GuildAuditLogsEntry,
+  ): TimeoutChange | undefined {
     const timeoutChangeData = TimeoutChange.findTimeoutChange(entry.changes);
     if (!timeoutChangeData) {
       return undefined;
@@ -48,8 +51,10 @@ export class TimeoutChange {
 
     // Validate that the timeout change data has the expected string format
     if (
-      (timeoutChangeData.new !== undefined && typeof timeoutChangeData.new !== "string") ||
-      (timeoutChangeData.old !== undefined && typeof timeoutChangeData.old !== "string")
+      (timeoutChangeData.new !== undefined &&
+        typeof timeoutChangeData.new !== "string") ||
+      (timeoutChangeData.old !== undefined &&
+        typeof timeoutChangeData.old !== "string")
     ) {
       logger.error(
         { timeoutChange: timeoutChangeData },
@@ -89,7 +94,11 @@ export class TimeoutChange {
     }
 
     // Timeout changed - old and new should exist and be different
-    if (oldValue && timeoutChangeData.new && oldValue !== timeoutChangeData.new) {
+    if (
+      oldValue &&
+      timeoutChangeData.new &&
+      oldValue !== timeoutChangeData.new
+    ) {
       const oldDate = dayjs.utc(oldValue);
       const newDate = dayjs(timeoutChangeData.new);
       return new TimeoutChange(
@@ -143,5 +152,4 @@ export class TimeoutChange {
   isTimeoutAdjustment(): boolean {
     return this.actionType === ActionType.TimeoutAdjust;
   }
-
 }

@@ -1,8 +1,7 @@
 import { APIEmbed } from "discord.js";
 
-import Color from "@/utils/colors";
-
 import { TempBanListItem } from "@/features/moderation/management/application/TempBanListService";
+import Color from "@/utils/colors";
 
 export function tempBanListEmptyView(): APIEmbed {
   return {
@@ -61,7 +60,10 @@ export function chunkTempBansByLength(
   for (const tempBan of tempBans) {
     const itemText = `${tempBan.userMention} (ID: \`${tempBan.userId}\`)\n╰ Expires: ${tempBan.expiresTimestamp}\n╰ Started: ${tempBan.startTimestamp}\n\n`;
 
-    if (currentLength + itemText.length > maxLength && currentChunk.length > 0) {
+    if (
+      currentLength + itemText.length > maxLength &&
+      currentChunk.length > 0
+    ) {
       chunks.push(currentChunk);
       currentChunk = [tempBan];
       currentLength = itemText.length;

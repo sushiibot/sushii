@@ -205,5 +205,4 @@ export class PruneMessageService {
       return Err("Unexpected error while deleting messages");
     }
   }
-
 }

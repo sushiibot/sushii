@@ -21,10 +21,7 @@ export class SlowmodeService {
     channelId: string,
     durationStr: string,
   ): Promise<Result<SlowmodeUpdateResult, string>> {
-    this.logger.debug(
-      { channelId, durationStr },
-      "Updating channel slowmode",
-    );
+    this.logger.debug({ channelId, durationStr }, "Updating channel slowmode");
 
     // Parse and validate the duration
     const slowmodeResult = ChannelSlowmode.fromString(durationStr);
@@ -49,7 +46,8 @@ export class SlowmodeService {
     }
 
     // Get current slowmode for comparison
-    const currentSlowmodeResult = await this.channelService.getSlowmode(channelId);
+    const currentSlowmodeResult =
+      await this.channelService.getSlowmode(channelId);
     if (currentSlowmodeResult.err) {
       return currentSlowmodeResult;
     }
@@ -57,7 +55,8 @@ export class SlowmodeService {
     const previousSlowmode = currentSlowmodeResult.val;
 
     // Get channel name for result
-    const channelNameResult = await this.channelService.getChannelName(channelId);
+    const channelNameResult =
+      await this.channelService.getChannelName(channelId);
     if (channelNameResult.err) {
       return channelNameResult;
     }
@@ -65,7 +64,10 @@ export class SlowmodeService {
     const channelName = channelNameResult.val;
 
     // Update the slowmode
-    const updateResult = await this.channelService.setSlowmode(channelId, newSlowmode);
+    const updateResult = await this.channelService.setSlowmode(
+      channelId,
+      newSlowmode,
+    );
     if (updateResult.err) {
       this.logger.error(
         { channelId, error: updateResult.val },
@@ -94,7 +96,12 @@ export class SlowmodeService {
 
   async getCurrentSlowmode(
     channelId: string,
-  ): Promise<Result<{ channelId: string; channelName: string; slowmode: ChannelSlowmode }, string>> {
+  ): Promise<
+    Result<
+      { channelId: string; channelName: string; slowmode: ChannelSlowmode },
+      string
+    >
+  > {
     this.logger.debug({ channelId }, "Getting current channel slowmode");
 
     // Check if channel exists
@@ -114,7 +121,8 @@ export class SlowmodeService {
     }
 
     // Get channel name
-    const channelNameResult = await this.channelService.getChannelName(channelId);
+    const channelNameResult =
+      await this.channelService.getChannelName(channelId);
     if (channelNameResult.err) {
       return channelNameResult;
     }

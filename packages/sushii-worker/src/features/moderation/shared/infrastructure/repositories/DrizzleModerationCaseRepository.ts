@@ -103,7 +103,8 @@ export class DrizzleModerationCaseRepository
             eq(modLogsInAppPublic.userId, BigInt(userId)),
           ),
         )
-        .orderBy(desc(modLogsInAppPublic.actionTime));
+        .orderBy(desc(modLogsInAppPublic.actionTime))
+        .limit(500); // Safety limit to prevent Discord embed failures and performance issues
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
@@ -155,7 +156,7 @@ export class DrizzleModerationCaseRepository
         .where(eq(modLogsInAppPublic.guildId, BigInt(guildId)))
         .orderBy(desc(modLogsInAppPublic.caseId))
         .limit(1)
-        .for('update'); // Row locking for concurrent safety
+        .for("update"); // Row locking for concurrent safety
 
       const nextCaseNumber = result.length > 0 ? result[0].maxCaseId + 1n : 1n;
       return Ok(nextCaseNumber);
@@ -436,13 +437,18 @@ export class DrizzleModerationCaseRepository
   ): Promise<Result<ModerationCase[], string>> {
     const db = tx || this.db;
     try {
+      // Validate prefix contains only digits
+      if (!/^\d+$/.test(prefix)) {
+        return Ok([]); // Invalid numeric prefix
+      }
+
       const results = await db
         .select()
         .from(modLogsInAppPublic)
         .where(
           and(
             eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            sql`${modLogsInAppPublic.caseId}::text LIKE ${prefix + "%"}`,
+            sql`CAST(${modLogsInAppPublic.caseId} AS TEXT) LIKE ${prefix + "%"}`,
           ),
         )
         .orderBy(desc(modLogsInAppPublic.caseId))
@@ -476,10 +482,7 @@ export class DrizzleModerationCaseRepository
       const cases = results.map((row) => this.mapRowToModerationCase(row));
       return Ok(cases);
     } catch (err) {
-      this.logger.error(
-        { err, guildId, limit },
-        "Failed to find recent cases",
-      );
+      this.logger.error({ err, guildId, limit }, "Failed to find recent cases");
       return Err(`Failed to find recent cases: ${err}`);
     }
   }

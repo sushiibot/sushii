@@ -58,8 +58,12 @@ export class CaseDeletionService {
     // Get guild config to check mod log settings
     let modLogChannelId: string;
     try {
-      const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
-      if (!guildConfig?.loggingSettings.modLogChannel || !guildConfig.loggingSettings.modLogEnabled) {
+      const guildConfig =
+        await this.guildConfigRepository.findByGuildId(guildId);
+      if (
+        !guildConfig?.loggingSettings.modLogChannel ||
+        !guildConfig.loggingSettings.modLogEnabled
+      ) {
         return Err("Mod log is not configured or disabled");
       }
 
@@ -70,14 +74,16 @@ export class CaseDeletionService {
 
     // Resolve the case range to actual case IDs
     const getCurrentCaseNumber = async () => {
-      const result = await this.moderationCaseRepository.getNextCaseNumber(guildId);
+      const result =
+        await this.moderationCaseRepository.getNextCaseNumber(guildId);
       if (result.err) {
         throw new Error(result.val);
       }
       return Number(result.val);
     };
 
-    const resolvedRangeResult = await caseRange.resolveToRange(getCurrentCaseNumber);
+    const resolvedRangeResult =
+      await caseRange.resolveToRange(getCurrentCaseNumber);
     if (resolvedRangeResult.err) {
       return resolvedRangeResult;
     }
@@ -182,7 +188,7 @@ export class CaseDeletionService {
         try {
           await modLogChannel.bulkDelete(chunk);
           deletedIds.push(...chunk);
-          
+
           this.logger.debug(
             { modLogChannelId, deletedCount: chunk.length },
             "Deleted mod log messages",
@@ -192,7 +198,7 @@ export class CaseDeletionService {
             { error, modLogChannelId, messageCount: chunk.length },
             "Failed to delete some mod log messages (they may be older than 14 days)",
           );
-          
+
           // Try individual deletion for failed bulk operations
           for (const messageId of chunk) {
             try {

@@ -2,8 +2,8 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 import customIds from "@/interactions/customIds";
 
-import { ActionType } from "../value-objects/ActionType";
 import { ModerationCase } from "../entities/ModerationCase";
+import { ActionType } from "../value-objects/ActionType";
 
 /**
  * Domain service for building mod log message components (buttons).
@@ -41,7 +41,11 @@ export class ModLogComponentBuilder {
    */
   private addDMStatusButtons(row: ActionRowBuilder<ButtonBuilder>): void {
     const dmResult = this.moderationCase.dmResult;
-    if (!dmResult?.channelId || !dmResult?.messageId || !this.moderationCase.reason) {
+    if (
+      !dmResult?.channelId ||
+      !dmResult?.messageId ||
+      !this.moderationCase.reason
+    ) {
       return;
     }
 
@@ -120,7 +124,10 @@ export class ModLogComponentBuilder {
    */
   private shouldShowReasonButton(): boolean {
     // Only show reason button for Ban and Timeout actions
-    if (this.actionType !== ActionType.Ban && this.actionType !== ActionType.Timeout) {
+    if (
+      this.actionType !== ActionType.Ban &&
+      this.actionType !== ActionType.Timeout
+    ) {
       return false;
     }
 

@@ -3,9 +3,9 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
-import dayjs from "@/shared/domain/dayjs";
 import * as schema from "@/infrastructure/database/schema";
 import { tempBansInAppPublic } from "@/infrastructure/database/schema";
+import dayjs from "@/shared/domain/dayjs";
 
 import { TempBan } from "../../domain/entities/TempBan";
 import { TempBanRepository } from "../../domain/repositories/TempBanRepository";

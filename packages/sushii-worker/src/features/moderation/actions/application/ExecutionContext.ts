@@ -93,7 +93,9 @@ export class ExecutionContextWithCaseId implements ContextBase {
    * Updates the moderation case and returns a complete context.
    * Creates a new immutable instance with both case ID and moderation case.
    */
-  updateModerationCase(moderationCase: ModerationCase): CompleteExecutionContext {
+  updateModerationCase(
+    moderationCase: ModerationCase,
+  ): CompleteExecutionContext {
     return new CompleteExecutionContext(
       this.action,
       this.actionType,
@@ -171,7 +173,9 @@ export class CompleteExecutionContext implements ContextBase {
    * Updates the moderation case and returns a new complete context.
    * Useful for when DM results need to be updated.
    */
-  updateModerationCase(moderationCase: ModerationCase): CompleteExecutionContext {
+  updateModerationCase(
+    moderationCase: ModerationCase,
+  ): CompleteExecutionContext {
     return new CompleteExecutionContext(
       this.action,
       this.actionType,
@@ -213,7 +217,7 @@ export type ContextWithCaseId = ExecutionContextWithCaseId;
 export type CompleteContext = CompleteExecutionContext;
 
 // Union type for cleanup operations that might receive any context state
-export type AnyExecutionContext = 
-  | ExecutionContext 
-  | ExecutionContextWithCaseId 
+export type AnyExecutionContext =
+  | ExecutionContext
+  | ExecutionContextWithCaseId
   | CompleteExecutionContext;

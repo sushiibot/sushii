@@ -3,7 +3,7 @@ import { Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 
-import { ModerationCase, DMResult } from "../entities/ModerationCase";
+import { DMResult, ModerationCase } from "../entities/ModerationCase";
 import { ActionType } from "../value-objects/ActionType";
 
 /**

@@ -91,7 +91,8 @@ export class NativeTimeoutDMService {
         "Failed to send timeout DM to user",
       );
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       return Ok({
         channelId: null,

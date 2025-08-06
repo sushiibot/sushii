@@ -4,9 +4,8 @@ import { DeploymentService } from "@/features/deployment/application/DeploymentS
 import { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
 import dayjs from "@/shared/domain/dayjs";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-
-import toTimestamp from "@/utils/toTimestamp";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import toTimestamp from "@/utils/toTimestamp";
 
 export class TempbanTask extends AbstractBackgroundTask {
   readonly name = "Unban expired tempbans";

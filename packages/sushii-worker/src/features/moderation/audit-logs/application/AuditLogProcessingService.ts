@@ -125,7 +125,9 @@ export class AuditLogProcessingService {
     );
 
     if (pendingCaseResult.err) {
-      throw new Error("Failed to find pending case", { cause: pendingCaseResult.val });
+      throw new Error("Failed to find pending case", {
+        cause: pendingCaseResult.val,
+      });
     }
 
     const pendingCase = pendingCaseResult.val;
@@ -177,7 +179,9 @@ export class AuditLogProcessingService {
 
     const createResult = await this.modLogRepository.createCase(newCase);
     if (createResult.err) {
-      throw new Error("Failed to create new mod log case", { cause: createResult.val });
+      throw new Error("Failed to create new mod log case", {
+        cause: createResult.val,
+      });
     }
 
     const createdCase = createResult.val;
