@@ -10,7 +10,7 @@ import {
 } from "discord.js";
 import { Err, Ok, Result } from "ts-results";
 
-import { buildActionResultEmbed } from "@/features/moderation/actions/presentation/views/ModerationActionView";
+import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import {
   BanAction,
   KickAction,
@@ -305,13 +305,13 @@ export class ModerationCommand extends SlashCommandHandler {
     const action = actionResult.val;
     const result = await this.moderationService.executeAction(action, targets);
 
-    const embed = buildActionResultEmbed(
+    const message = buildActionResultMessage(
       this.config.actionType,
       interaction.user,
       targets,
       result,
     );
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply(message);
   }
 }

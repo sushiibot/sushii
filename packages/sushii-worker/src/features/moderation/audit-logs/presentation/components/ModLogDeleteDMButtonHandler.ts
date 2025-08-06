@@ -6,6 +6,7 @@ import {
   ButtonStyle,
   ComponentType,
   EmbedBuilder,
+  MessageFlags,
 } from "discord.js";
 import { Logger } from "pino";
 
@@ -71,41 +72,52 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     const confirmReplyMsg = await interaction.reply({
       embeds: [confirmationEmbed],
       components: [confirmationRow],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
+      // Required to await button interaction
+      withResponse: true,
     });
+
+    if (!confirmReplyMsg.resource?.message) {
+      throw new Error(
+        "Failed to get confirmation message for mod log delete DM button",
+      );
+    }
 
     // Await confirmation with 2 minute timeout
     let confirmButtonInteraction;
     try {
-      confirmButtonInteraction = await confirmReplyMsg.awaitMessageComponent({
-        filter: (i) => i.user.id === interaction.user.id,
-        time: 120_000, // 2 minutes
-        componentType: ComponentType.Button,
-      });
-
-      if (confirmButtonInteraction.customId === "cancel") {
-        await confirmButtonInteraction.update({
-          content: "Cancelled!",
-          components: [],
-          embeds: [],
+      confirmButtonInteraction =
+        await confirmReplyMsg.resource.message.awaitMessageComponent({
+          filter: (i) => i.user.id === interaction.user.id,
+          time: 120_000, // 2 minutes
+          componentType: ComponentType.Button,
         });
 
-        // Wait for 2 seconds before deleting the message
-        await sleep(2000);
-        await confirmButtonInteraction.deleteReply();
+      this.logger.debug(
+        {
+          caseId,
+          userId: confirmButtonInteraction.user.id,
+          guildId: confirmButtonInteraction.guildId,
+          customId: confirmButtonInteraction.customId,
+        },
+        "Received button for mod log delete DM button",
+      );
+
+      if (confirmButtonInteraction.customId === "cancel") {
+        // Just delete the confirmation message
+        // NOTE: We delete the initial button reply, not the confirmation interaction
+        await interaction.deleteReply();
         return;
       }
-
-      await confirmButtonInteraction.deferUpdate();
-      await confirmReplyMsg.delete();
     } catch {
       // Timed out
-      await confirmReplyMsg.delete();
+      await interaction.deleteReply();
       return;
     }
 
     // Proceed with DM deletion
     await this.deleteDMAndUpdateMessage(
+      interaction,
       confirmButtonInteraction,
       caseId,
       channelId,
@@ -114,27 +126,29 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
   }
 
   private async deleteDMAndUpdateMessage(
-    interaction: ButtonInteraction,
+    originalInteraction: ButtonInteraction,
+    confirmationInteraction: ButtonInteraction,
     caseId: string,
     channelId: string,
     messageId: string,
   ): Promise<void> {
-    if (!interaction.inCachedGuild()) {
+    if (!confirmationInteraction.inCachedGuild()) {
       throw new Error("Not a guild interaction");
     }
 
     // Fetch and validate the DM channel
-    const dmChannel = await interaction.client.channels.fetch(channelId);
+    const dmChannel =
+      await confirmationInteraction.client.channels.fetch(channelId);
     if (!dmChannel || !dmChannel.isDMBased() || !dmChannel.isTextBased()) {
       const embed = new EmbedBuilder()
         .setTitle("Failed to delete DM")
         .setDescription("Hmm... couldn't find the channel.")
         .setColor(Color.Error);
 
-      await interaction.followUp({
+      await confirmationInteraction.update({
         embeds: [embed.toJSON()],
-        ephemeral: true,
       });
+
       return;
     }
 
@@ -148,26 +162,19 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
           channelId,
           messageId,
           caseId,
-          interactionId: interaction.id,
+          interactionId: confirmationInteraction.id,
         },
         "Failed to delete DM message",
       );
 
-      const embed = new EmbedBuilder()
-        .setTitle("Failed to delete DM")
-        .setDescription("Hmm... the message is probably already deleted.")
-        .setColor(Color.Error);
-
-      await interaction.followUp({
-        embeds: [embed],
-        ephemeral: true,
-      });
-      return;
+      // Ignore just continue and mark as deleted, since it might just already
+      // be deleted... if it's already deleted then there isn't point telling
+      // the user it failed
     }
 
     // Fetch the moderation case to rebuild components
     const caseResult = await this.moderationCaseRepository.findById(
-      interaction.guildId,
+      confirmationInteraction.guildId,
       caseId,
     );
 
@@ -176,7 +183,7 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
         {
           err: caseResult.val,
           caseId,
-          interactionId: interaction.id,
+          interactionId: confirmationInteraction.id,
         },
         "Failed to find mod case after DM deletion",
       );
@@ -186,33 +193,18 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
         .setDescription("Deleted the DM message")
         .setColor(Color.Success);
 
-      await interaction.followUp({
+      await confirmationInteraction.editReply({
         embeds: [embed],
-        ephemeral: true,
       });
+
       return;
     }
 
     const moderationCase = caseResult.val;
     if (!moderationCase) {
-      this.logger.warn(
-        {
-          caseId,
-          interactionId: interaction.id,
-        },
-        "Failed to find mod case to delete DM - case not found",
+      throw new Error(
+        `Case #${caseId} was not found, it may have been deleted.`,
       );
-
-      const embed = new EmbedBuilder()
-        .setTitle("Deleted DM")
-        .setDescription("Deleted the DM message")
-        .setColor(Color.Success);
-
-      await interaction.followUp({
-        embeds: [embed],
-        ephemeral: true,
-      });
-      return;
     }
 
     // Build updated components showing DM as deleted
@@ -224,27 +216,19 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     const components = modLogComponents.build();
 
     // Update the original mod log message
-    await interaction.message.edit({
-      embeds: interaction.message.embeds,
+    await originalInteraction.editReply({
+      message: originalInteraction.message,
+      embeds: originalInteraction.message.embeds,
       components,
     });
 
-    // Send success message
-    const embed = new EmbedBuilder()
-      .setTitle("Deleted DM")
-      .setDescription("Successfully deleted the DM message")
-      .setColor(Color.Success);
-
-    await interaction.followUp({
-      embeds: [embed],
-      ephemeral: true,
-    });
+    await originalInteraction.deleteReply();
 
     this.logger.info(
       {
         caseId,
-        guildId: interaction.guildId,
-        executorId: interaction.user.id,
+        guildId: confirmationInteraction.guildId,
+        executorId: confirmationInteraction.user.id,
         channelId,
         messageId,
       },

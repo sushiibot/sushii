@@ -149,7 +149,7 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
         .from(schema.giveawaysInAppPublic)
         .where(eq(schema.giveawaysInAppPublic.isEnded, false));
 
-      return Ok(result[0]?.count ?? 0);
+      return Ok(Number(result[0]?.count ?? 0));
     } catch (err) {
       this.logger.error({ err }, "Failed to count active giveaways");
       return Err("Database error");

@@ -221,15 +221,9 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       throw new Error("Modal should be from a button on a message");
     }
 
-    await interaction.message.edit({
+    await interaction.update({
       embeds: [newEmbed.toJSON()],
       components,
-    });
-
-    // Reply to the modal submission
-    await interaction.reply({
-      content: `✅ Reason set for case #${caseId}`,
-      ephemeral: true,
     });
 
     this.logger.info(
