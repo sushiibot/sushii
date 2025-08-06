@@ -137,13 +137,30 @@ export async function runModerationTest(
 
       const firstCall = editCalls[0] as unknown[];
       const replyPayload = firstCall[0] as Record<string, unknown>;
-      const embeds = replyPayload.embeds as {
-        toJSON(): { description: string };
-      }[];
+      
+      // Components v2 format (used by moderation actions)
+      let contentToCheck = "";
+      const components = replyPayload.components as Array<any>;
+      
+      if (components && components.length > 0) {
+        // Check if it's already a plain object or needs toJSON
+        const component = components[0];
+        const componentData = typeof component.toJSON === 'function' 
+          ? component.toJSON() 
+          : component;
+        
+        if (componentData?.components) {
+          // TextDisplayBuilder has type 10 in the actual response
+          const textComponents = componentData.components.filter(
+            (c: any) => c.type === 10 && c.content
+          );
+          contentToCheck = textComponents.map((c: any) => c.content).join("\n");
+        }
+      }
 
       for (const expectedText of testCase.expectations.interaction
         .embedContains) {
-        expect(embeds[0]?.toJSON()?.description).toContain(expectedText);
+        expect(contentToCheck).toContain(expectedText);
       }
     }
   }
