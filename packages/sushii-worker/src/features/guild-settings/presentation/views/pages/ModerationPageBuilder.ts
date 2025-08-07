@@ -9,7 +9,6 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import { MODERATION_DM_DEFAULTS } from "../../../domain/constants/ModerationDefaults";
 import {
   createToggleButton,
   formatMessageSetting,
@@ -69,7 +68,7 @@ export function addModerationContent(
 
   // Timeout Command DM Section
   const timeoutCommandText = new TextDisplayBuilder().setContent(
-    "**⏳ DM on `/timeout` command**\nWhen you run the `/timeout` command, always send them a DM with the reason",
+    "**⏳ DM on `/timeout` command**\nWhen you run the `/timeout` command, send them a DM with the reason",
   );
   const timeoutCommandSection = new SectionBuilder()
     .addTextDisplayComponents(timeoutCommandText)
@@ -83,11 +82,13 @@ export function addModerationContent(
   container.addSectionComponents(timeoutCommandSection);
 
   // Divider
-  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
 
   // Timeout Native DM Section
   const timeoutNativeText = new TextDisplayBuilder().setContent(
-    "**⏳ DM on Discord Timeout**\nWhen you timeout via right-clicking a user, always send them a DM with the reason",
+    "**⏳ DM on Discord Timeout**\nWhen you timeout via right-clicking a user, send them a DM with the reason",
   );
   const timeoutNativeSection = new SectionBuilder()
     .addTextDisplayComponents(timeoutNativeText)
@@ -101,21 +102,24 @@ export function addModerationContent(
   container.addSectionComponents(timeoutNativeSection);
 
   // Divider
-  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
 
   let timeoutMessageContent = "";
   timeoutMessageContent += formatMessageSetting(
     "⏳ Timeout DM Message",
     config.moderationSettings.timeoutDmText,
-    "Custom timeout DM message, sent separately with the reason",
-    MODERATION_DM_DEFAULTS.TIMEOUT_DM_TEXT,
+    "Optional extra message sent with timeouts. Users will always be told they were timed out, but you can add server-specific info like appeal instructions or rule reminders.",
   );
 
   const timeoutMessageText = new TextDisplayBuilder().setContent(
     timeoutMessageContent,
   );
   container.addTextDisplayComponents(timeoutMessageText);
-  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
 
   const timeoutTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -136,8 +140,7 @@ export function addModerationContent(
   warnContent += formatMessageSetting(
     "⚠️ Warn DM Message",
     config.moderationSettings.warnDmText,
-    "Custom warning DM message (along with the reason)",
-    MODERATION_DM_DEFAULTS.WARN_DM_TEXT,
+    "Optional extra message sent with warnings. Users will always be told they received a warning, but you can add helpful info like which rules to review or where to get help.",
   );
 
   const dmText2 = new TextDisplayBuilder().setContent(warnContent);
@@ -174,14 +177,15 @@ export function addModerationContent(
       ),
     );
   container.addSectionComponents(banToggleSection);
-  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
 
   let banMessageContent = "";
   banMessageContent += formatMessageSetting(
     "🔨 Ban DM Message",
     config.moderationSettings.banDmText,
-    "Custom ban DM message, sent separately with the reason. This could be used for an appeal link.",
-    MODERATION_DM_DEFAULTS.BAN_DM_TEXT,
+    "Optional extra message sent with bans. Users will always be told they were banned, but you can add server-specific info like an appeal link.",
   );
 
   const banMessageText = new TextDisplayBuilder().setContent(banMessageContent);

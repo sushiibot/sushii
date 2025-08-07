@@ -8,7 +8,8 @@ import {
   TextInputStyle,
 } from "discord.js";
 
-import { MODERATION_DM_DEFAULTS } from "../../../domain/constants/ModerationDefaults";
+import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
+
 import { SETTINGS_CUSTOM_IDS, SettingsPage } from "./SettingsConstants";
 
 export function createFooter(disabled = false): TextDisplayBuilder {
@@ -224,7 +225,7 @@ export function createTimeoutDmTextModal(
     .setLabel("Timeout DM Text")
     .setStyle(TextInputStyle.Paragraph)
     .setValue(currentText || "")
-    .setPlaceholder(MODERATION_DM_DEFAULTS.TIMEOUT_DM_TEXT)
+    .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.TIMEOUT_DM_TEXT)
     .setRequired(false)
     .setMaxLength(1000);
 
@@ -252,7 +253,7 @@ export function createWarnDmTextModal(
     .setLabel("Warn DM Text")
     .setStyle(TextInputStyle.Paragraph)
     .setValue(currentText || "")
-    .setPlaceholder(MODERATION_DM_DEFAULTS.WARN_DM_TEXT)
+    .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.WARN_DM_TEXT)
     .setRequired(false)
     .setMaxLength(1000);
 
@@ -278,7 +279,7 @@ export function createBanDmTextModal(currentText: string | null): ModalBuilder {
     .setLabel("Ban DM Text")
     .setStyle(TextInputStyle.Paragraph)
     .setValue(currentText || "")
-    .setPlaceholder(MODERATION_DM_DEFAULTS.BAN_DM_TEXT)
+    .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.BAN_DM_TEXT)
     .setRequired(false)
     .setMaxLength(1000);
 

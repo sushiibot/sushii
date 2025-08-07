@@ -126,6 +126,7 @@ export function createModerationServices({
     modLogService,
     dmPolicyService,
     dmNotificationService,
+    guildConfigRepository,
     client,
     logger.child({ module: "moderationExecutionPipeline" }),
   );

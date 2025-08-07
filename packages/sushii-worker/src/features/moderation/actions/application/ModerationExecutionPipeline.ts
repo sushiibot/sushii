@@ -4,6 +4,7 @@ import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
+import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { DMNotificationService } from "../../shared/application/DMNotificationService";
 import { ModerationAction } from "../../shared/domain/entities/ModerationAction";
@@ -34,6 +35,7 @@ export class ModerationExecutionPipeline {
     private readonly modLogService: ModLogService,
     private readonly dmPolicyService: DMPolicyService,
     private readonly dmNotificationService: DMNotificationService,
+    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly client: Client,
     private readonly logger: Logger,
   ) {}
@@ -499,12 +501,15 @@ export class ModerationExecutionPipeline {
       return { error: "Guild not found" };
     }
 
+    // Get guild config for custom DM messages
+    const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
+
     // Determine duration end time for temporal actions
     const durationEnd = action.isTemporalAction()
       ? action.duration.endTime()
       : null;
 
-    // Use the DM notification service
+    // Use the DM notification service with guild config for custom messages
     const dmResult = await this.dmNotificationService.sendModerationDM(
       target.user,
       guild,
@@ -512,6 +517,7 @@ export class ModerationExecutionPipeline {
       true, // should DM reason - this is handled by DMPolicyService
       action.reason,
       durationEnd,
+      guildConfig,
     );
 
     if (!dmResult.ok) {

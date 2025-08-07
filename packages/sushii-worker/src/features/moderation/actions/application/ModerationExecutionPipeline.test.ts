@@ -12,6 +12,8 @@ import pino from "pino";
 import { Err, Ok, Result } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { type DMNotificationService } from "../../shared/application/DMNotificationService";
 import {
@@ -142,6 +144,7 @@ describe("ModerationExecutionPipeline", () => {
   let mockModLogService: ModLogService;
   let mockDMPolicyService: DMPolicyService;
   let mockDMNotificationService: DMNotificationService;
+  let mockGuildConfigRepository: GuildConfigRepository;
   let mockClient: Client;
 
   beforeEach(() => {
@@ -198,6 +201,10 @@ describe("ModerationExecutionPipeline", () => {
       ),
     } as unknown as DMNotificationService;
 
+    mockGuildConfigRepository = {
+      findByGuildId: mock(() => Promise.resolve(GuildConfig.createDefault(mockGuildId))),
+    } as unknown as GuildConfigRepository;
+
     mockClient = createMockClient();
 
     pipeline = new ModerationExecutionPipeline(
@@ -207,6 +214,7 @@ describe("ModerationExecutionPipeline", () => {
       mockModLogService,
       mockDMPolicyService,
       mockDMNotificationService,
+      mockGuildConfigRepository,
       mockClient,
       testLogger,
     );
@@ -423,6 +431,7 @@ describe("ModerationExecutionPipeline", () => {
         mockModLogService,
         mockDMPolicyService,
         mockDMNotificationService,
+        mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
       );
@@ -560,6 +569,7 @@ describe("ModerationExecutionPipeline", () => {
         mockModLogService,
         mockDMPolicyService,
         mockDMNotificationService,
+        mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
       );
@@ -623,6 +633,7 @@ describe("ModerationExecutionPipeline", () => {
         mockModLogService,
         mockDMPolicyService,
         mockDMNotificationService,
+        mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
       );

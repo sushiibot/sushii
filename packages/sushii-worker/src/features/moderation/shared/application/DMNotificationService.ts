@@ -9,7 +9,7 @@ import {
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
-import { MODERATION_DM_DEFAULTS } from "@/features/guild-settings/domain/constants/ModerationDefaults";
+import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 import dayjs from "@/shared/domain/dayjs";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
@@ -60,13 +60,16 @@ export class DMNotificationService {
       });
     }
 
-    // Use custom text if provided, otherwise fall back to defaults
-    let title: string;
+    // Add custom message as an additional field if provided
     if (customText) {
-      title = customText;
-    } else {
-      title = this.getDefaultDMTitle(action);
+      fields.push({
+        name: "Additional Information",
+        value: customText,
+      });
     }
+
+    // Always use the informational title
+    const title = this.getDMTitle(action);
 
     return new EmbedBuilder()
       .setTitle(title)
@@ -174,24 +177,25 @@ export class DMNotificationService {
   }
 
   /**
-   * Gets the default DM title for an action type.
+   * Gets the DM title that is always sent for an action type.
+   * This provides clear information about what action was taken.
    */
-  private getDefaultDMTitle(action: ActionType): string {
+  private getDMTitle(action: ActionType): string {
     switch (action) {
       case ActionType.Timeout:
-        return MODERATION_DM_DEFAULTS.TIMEOUT_DM_TEXT;
+        return "You have been timed out from this server";
       case ActionType.Warn:
-        return MODERATION_DM_DEFAULTS.WARN_DM_TEXT;
+        return "You have received a warning from this server";
       case ActionType.Ban:
-        return MODERATION_DM_DEFAULTS.BAN_DM_TEXT;
+        return "You have been banned from this server";
       case ActionType.TimeoutRemove:
-        return "Your timeout was removed";
+        return "Your timeout from this server has been removed";
       case ActionType.TempBan:
-        return "You have been temporarily banned";
+        return "You have been temporarily banned from this server";
       case ActionType.Kick:
-        return "You have been kicked";
+        return "You have been kicked from this server";
       default:
-        return `You have been ${this.getActionDisplayName(action)}`;
+        return `Moderation action taken: ${this.getActionDisplayName(action)}`;
     }
   }
 
