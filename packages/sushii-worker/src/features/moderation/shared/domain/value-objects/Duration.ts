@@ -42,4 +42,8 @@ export class Duration {
   toString(): string {
     return this._originalString;
   }
+
+  asSeconds(): number {
+    return Math.floor(this._value.asSeconds());
+  }
 }

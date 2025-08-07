@@ -64,6 +64,13 @@
       "when": 1754435494545,
       "tag": "0008_add-moderation-performance-indexes",
       "breakpoints": false
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1754584042085,
+      "tag": "0009_mod-logs-timeout-duration",
+      "breakpoints": false
     }
   ]
 }

@@ -22,6 +22,7 @@ export class ModerationCase {
     private readonly _attachments: string[] = [],
     private readonly _dmResult: DMResult | null = null,
     private readonly _pending: boolean = false,
+    private readonly _timeoutDuration: number | null = null,
   ) {}
 
   static create(
@@ -34,6 +35,7 @@ export class ModerationCase {
     reason: Reason | null,
     msgId?: string,
     attachments?: string[],
+    timeoutDuration?: number | null,
   ): ModerationCase {
     return new ModerationCase(
       guildId,
@@ -46,6 +48,9 @@ export class ModerationCase {
       reason,
       msgId,
       attachments || [],
+      null,
+      false,
+      timeoutDuration || null,
     );
   }
 
@@ -109,6 +114,10 @@ export class ModerationCase {
     return this._dmResult !== null;
   }
 
+  get timeoutDuration(): number | null {
+    return this._timeoutDuration;
+  }
+
   withDMResult(dmResult: DMResult): ModerationCase {
     return new ModerationCase(
       this._guildId,
@@ -123,6 +132,7 @@ export class ModerationCase {
       this._attachments,
       dmResult,
       this._pending,
+      this._timeoutDuration,
     );
   }
 
@@ -140,6 +150,7 @@ export class ModerationCase {
       this._attachments,
       this._dmResult,
       pending,
+      this._timeoutDuration,
     );
   }
 
@@ -157,6 +168,7 @@ export class ModerationCase {
       this._attachments,
       this._dmResult,
       this._pending,
+      this._timeoutDuration,
     );
   }
 
@@ -174,6 +186,7 @@ export class ModerationCase {
       this._attachments,
       this._dmResult,
       this._pending,
+      this._timeoutDuration,
     );
   }
 }

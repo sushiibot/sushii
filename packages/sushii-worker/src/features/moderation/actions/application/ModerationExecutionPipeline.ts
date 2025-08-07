@@ -184,6 +184,12 @@ export class ModerationExecutionPipeline {
           finalActionType !== ActionType.Note &&
           finalActionType !== ActionType.Warn;
 
+        // Extract timeout duration in seconds if applicable
+        let timeoutDuration: number | null = null;
+        if (action.isTimeoutAction()) {
+          timeoutDuration = action.duration.asSeconds();
+        }
+
         // Create moderation case
         const moderationCase = ModerationCase.create(
           action.guildId,
@@ -195,6 +201,7 @@ export class ModerationExecutionPipeline {
           action.reason,
           undefined,
           action.attachment ? [action.attachment.url] : [],
+          timeoutDuration,
         ).withPending(isPending);
 
         // Save moderation case

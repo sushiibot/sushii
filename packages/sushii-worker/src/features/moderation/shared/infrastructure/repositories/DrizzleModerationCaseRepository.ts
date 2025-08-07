@@ -44,6 +44,9 @@ export class DrizzleModerationCaseRepository
         dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
         dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
         dmMessageError: dmResult?.error || null,
+        timeoutDuration: moderationCase.timeoutDuration
+          ? BigInt(moderationCase.timeoutDuration)
+          : null,
       });
 
       return Ok.EMPTY;
@@ -260,6 +263,7 @@ export class DrizzleModerationCaseRepository
       row.attachments || [],
       dmResult,
       row.pending,
+      row.timeoutDuration ? Number(row.timeoutDuration) : null,
     );
   }
 

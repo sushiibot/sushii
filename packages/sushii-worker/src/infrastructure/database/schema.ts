@@ -678,15 +678,25 @@ export const modLogsInAppPublic = appPublic.table(
   {
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     caseId: bigint("case_id", { mode: "bigint" }).notNull(),
+
     action: text().notNull(),
     actionTime: timestamp("action_time", { mode: "date" }).notNull(),
     pending: boolean().notNull(),
+
     userId: bigint("user_id", { mode: "bigint" }).notNull(),
     userTag: text("user_tag").notNull(),
+
     executorId: bigint("executor_id", { mode: "bigint" }),
     reason: text(),
+
+    // Mod log message ID
     msgId: bigint("msg_id", { mode: "bigint" }),
     attachments: text().array().default([""]).notNull(),
+
+    // Timeout duration
+    timeoutDuration: bigint("timeout_duration", { mode: "bigint" }),
+
+    // DM fields
     dmChannelId: bigint("dm_channel_id", { mode: "bigint" }),
     dmMessageId: bigint("dm_message_id", { mode: "bigint" }),
     dmMessageError: text("dm_message_error"),

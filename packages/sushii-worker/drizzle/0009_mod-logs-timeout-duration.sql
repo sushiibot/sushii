@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."mod_logs" ADD COLUMN "timeout_duration" bigint;

@@ -35,9 +35,11 @@ import {
   getErrorMessage,
   getErrorMessageEdit,
 } from "@/interactions/responses/error";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import { ModerationService } from "../../application/ModerationService";
 import { TargetResolutionService } from "../../application/TargetResolutionService";
+import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 export interface ModerationCommandConfig {
   actionType: ActionType;
@@ -66,6 +68,7 @@ export class ModerationCommand extends SlashCommandHandler {
     private readonly config: ModerationCommandConfig,
     private readonly moderationService: ModerationService,
     private readonly targetResolutionService: TargetResolutionService,
+    private readonly guildConfigRepository: GuildConfigRepository,
   ) {
     super();
 
@@ -310,11 +313,18 @@ export class ModerationCommand extends SlashCommandHandler {
     const action = actionResult.val;
     const result = await this.moderationService.executeAction(action, targets);
 
+    // Get guild config for displaying configured DM messages
+    const guildConfig = await this.guildConfigRepository.findByGuildId(
+      action.guildId,
+    );
+
     const message = buildActionResultMessage(
       this.config.actionType,
       interaction.user,
       targets,
       result,
+      guildConfig || GuildConfig.createDefault(action.guildId),
+      action,
     );
 
     await interaction.editReply(message);

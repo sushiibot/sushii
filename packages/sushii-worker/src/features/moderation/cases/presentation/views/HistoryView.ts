@@ -2,6 +2,7 @@ import { EmbedBuilder, GuildMember, User } from "discord.js";
 
 import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
   formatActionTypeAsSentence,
   getActionTypeEmoji,
@@ -44,11 +45,24 @@ export function buildUserHistoryEmbeds(
   // Build case history
   const casesStr = moderationHistory.map((moderationCase) => {
     const actionEmoji = getActionTypeEmoji(moderationCase.actionType);
-    const actionName = formatActionTypeAsSentence(moderationCase.actionType);
+    let actionName = formatActionTypeAsSentence(moderationCase.actionType);
+
+    // Add timeout duration if available for Timeout actions
+    if (
+      moderationCase.timeoutDuration &&
+      moderationCase.actionType === ActionType.Timeout
+    ) {
+      const duration = dayjs.duration(
+        moderationCase.timeoutDuration,
+        "seconds",
+      );
+      actionName += ` (${duration.humanize()})`;
+    }
+
     const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
     let s =
-      `- \`#${moderationCase.caseId}\`` +
+      `\`#${moderationCase.caseId}\`` +
       ` ${actionEmoji} **${actionName}**` +
       ` – <t:${timestamp}:R> `;
 

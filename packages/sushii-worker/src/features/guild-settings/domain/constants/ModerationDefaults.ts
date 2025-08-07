@@ -4,7 +4,7 @@
  * that moderators can configure to add context beyond the standard action message.
  *
  * Moderation DMs have the structure:
- * - Title: Always sent informational message (e.g., "You have been timed out from this server")
+ * - Title: Always sent informational message (e.g., "You have been timed out from")
  * - Reason field: If configured to show reasons
  * - Duration field: For temporary actions
  * - Additional Information field: Custom server messages (these examples)

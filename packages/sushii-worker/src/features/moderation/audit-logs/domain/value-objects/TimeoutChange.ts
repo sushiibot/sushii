@@ -152,4 +152,15 @@ export class TimeoutChange {
   isTimeoutAdjustment(): boolean {
     return this.actionType === ActionType.TimeoutAdjust;
   }
+
+  /**
+   * Gets the timeout duration in seconds.
+   * Returns null if no duration is set.
+   */
+  asSeconds(): number | null {
+    if (!this.duration) {
+      return null;
+    }
+    return Math.floor(this.duration.asSeconds());
+  }
 }

@@ -258,6 +258,7 @@ export function createModerationCommands(
     caseDeletionService,
     reasonUpdateService,
     caseRangeAutocompleteService,
+    guildConfigRepository,
   } = services;
 
   // Iterate over all COMMAND_CONFIGS and build commands
@@ -267,6 +268,7 @@ export function createModerationCommands(
         config,
         moderationService,
         targetResolutionService,
+        guildConfigRepository,
       );
     },
   );

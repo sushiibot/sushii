@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { Result } from "ts-results";
 
+import { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
@@ -16,6 +17,7 @@ import {
   getActionTypeColor,
   getActionTypeEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 
 interface ActionResult {
@@ -23,11 +25,34 @@ interface ActionResult {
   result: Result<ModerationCase, string>;
 }
 
+/**
+ * Gets the configured DM message text for the given action type from guild config.
+ */
+function getConfiguredDMText(
+  actionType: ActionType,
+  guildConfig: GuildConfig,
+): string | null {
+  switch (actionType) {
+    case ActionType.Warn:
+      return guildConfig.moderationSettings.warnDmText;
+    case ActionType.Timeout:
+    case ActionType.TimeoutAdjust:
+      return guildConfig.moderationSettings.timeoutDmText;
+    case ActionType.Ban:
+    case ActionType.TempBan:
+      return guildConfig.moderationSettings.banDmText;
+    default:
+      return null;
+  }
+}
+
 export function buildActionResultMessage(
   actionType: ActionType,
   executor: User,
   targets: ModerationTarget[],
   cases: Result<ModerationCase, string>[],
+  guildConfig: GuildConfig,
+  action?: ModerationAction,
 ): InteractionEditReplyOptions {
   // Map targets and cases together for cleaner data handling
   const results: ActionResult[] = targets.map((target, index) => ({
@@ -85,15 +110,29 @@ export function buildActionResultMessage(
 
     // Add reason if available
     if (firstSuccessfulCase.reason) {
-      fullContent += `### 📝 Reason\n> ${firstSuccessfulCase.reason.value}\n`;
+      fullContent += `### 📝 Reason`;
+      fullContent += `\n> ${firstSuccessfulCase.reason.value}\n`;
+    }
+
+    // Add timeout duration if this is a timeout action
+    if (
+      (actionType === ActionType.Timeout ||
+        actionType === ActionType.TimeoutAdjust) &&
+      action?.isTimeoutAction &&
+      action.isTimeoutAction()
+    ) {
+      fullContent += `### ⏱️ Timeout Duration`;
+      fullContent += ` \n> ${action.duration.originalString}\n`;
     }
 
     // Add attachments if available
     if (firstSuccessfulCase.attachments.length > 0) {
       fullContent += `### 📎 Attachments\n`;
-      for (const attachment of firstSuccessfulCase.attachments) {
-        fullContent += `> ${attachment}\n`;
-      }
+
+      fullContent += "> ";
+      fullContent += firstSuccessfulCase.attachments
+        .map((attachment) => `\`${attachment}\``)
+        .join(", ");
     }
 
     // Add DM status
@@ -102,18 +141,37 @@ export function buildActionResultMessage(
     const dmFailedCount = dmStatuses.filter((c) => c.dmFailed).length;
     const totalDMAttempted = dmSuccessCount + dmFailedCount;
 
-    if (totalDMAttempted > 0) {
-      fullContent += "### User DMs\n";
+    // ------------------------------------------------------------------------
+    // Additional DM message if configured
 
-      if (dmSuccessCount === dmStatuses.length) {
-        fullContent += `📬 Sent reason to all ${dmStatuses.length === 1 ? "user" : `${dmStatuses.length} users`} via DM`;
-      } else if (dmFailedCount === totalDMAttempted) {
-        fullContent += `📭 Could not send reason to any users (privacy settings or bot blocked)`;
-      } else {
-        fullContent += `📭 Sent reason to ${dmSuccessCount} of ${dmStatuses.length} users via DM.`;
-        fullContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
-      }
+    // Even if no DMs were attempted, show the configured message if it exists
+    const configuredDMText = getConfiguredDMText(actionType, guildConfig);
+    if (configuredDMText) {
+      fullContent += `### 📋 Additional DM Message\n`;
+      fullContent += `> ${configuredDMText}\n`;
+      fullContent +=
+        "-# This is always sent to the user as configured in `/settings`";
     }
+
+    // ------------------------------------------------------------------------
+    // DM status
+    let dmEmoji = "";
+    let dmSectionContent = "";
+
+    if (dmSuccessCount === dmStatuses.length) {
+      dmEmoji = "📬";
+      dmSectionContent += `Sent reason to ${dmStatuses.length === 1 ? "user" : `all ${dmStatuses.length} users`} via DM`;
+    } else if (dmFailedCount === totalDMAttempted) {
+      dmEmoji = "📭";
+      dmSectionContent += `Could not send reason to any users (privacy settings or bot blocked)`;
+    } else {
+      dmEmoji = "📭";
+      dmSectionContent += `Sent reason to ${dmSuccessCount} of ${dmStatuses.length} users via DM.`;
+      dmSectionContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
+    }
+
+    fullContent += `### ${dmEmoji} User DMs\n`;
+    fullContent += dmSectionContent;
   }
 
   // Add all text content in a single TextDisplayBuilder

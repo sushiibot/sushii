@@ -182,17 +182,17 @@ export class DMNotificationService {
   private getDMTitle(action: ActionType): string {
     switch (action) {
       case ActionType.Timeout:
-        return "You have been timed out from this server";
+        return "You have been timed out";
       case ActionType.Warn:
-        return "You have received a warning from this server";
+        return "You have received a warning";
       case ActionType.Ban:
-        return "You have been banned from this server";
+        return "You have been banned";
       case ActionType.TimeoutRemove:
-        return "Your timeout from this server has been removed";
+        return "Your timeout has been removed";
       case ActionType.TempBan:
-        return "You have been temporarily banned from this server";
+        return "You have been temporarily banned";
       case ActionType.Kick:
-        return "You have been kicked from this server";
+        return "You have been kicked";
       default:
         return `Moderation action taken: ${this.getActionDisplayName(action)}`;
     }

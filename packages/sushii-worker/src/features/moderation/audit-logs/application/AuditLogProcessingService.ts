@@ -157,6 +157,9 @@ export class AuditLogProcessingService {
     // Create new case if no matching case found
     this.logger.debug("No pending case found, creating new case");
 
+    // Extract timeout duration in seconds if available
+    const timeoutDuration = auditLogEvent.timeoutChange?.asSeconds() ?? null;
+
     // For audit log cases, we need to generate a case ID using the existing pattern
     // Since we don't have access to ModerationCaseRepository here, we'll use the ModLogRepository
     // which handles the case ID generation internally
@@ -175,6 +178,7 @@ export class AuditLogProcessingService {
       [], // No attachments for audit log cases
       null, // No DM result yet
       false, // Not pending since it's from audit log
+      timeoutDuration,
     );
 
     const createResult = await this.modLogRepository.createCase(newCase);
