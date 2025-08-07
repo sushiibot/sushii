@@ -9,7 +9,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import { createToggleButton } from "../components/SettingsComponents";
+import { createToggleButton, formatToggleSetting } from "../components/SettingsComponents";
 import {
   SETTINGS_CUSTOM_IDS,
   SettingsMessageOptions,
@@ -32,13 +32,16 @@ export function addLoggingContent(
   container.addTextDisplayComponents(loggingIntro);
 
   // Mod Logs Section
-  const modLogText = new TextDisplayBuilder().setContent(
-    `**🛡️ Mod Logs**\nLogs moderation actions like bans, kicks, warnings\n${
+  const modLogContent = formatToggleSetting(
+    "🛡️ Mod Logs",
+    config.loggingSettings.modLogEnabled,
+    `Logs moderation actions like bans, kicks, warnings\n${
       config.loggingSettings.modLogChannel
-        ? `> **Channel:** <#${config.loggingSettings.modLogChannel}>`
-        : "> **Channel:** No channel set"
-    }`,
+        ? `**Channel:** <#${config.loggingSettings.modLogChannel}>`
+        : "**Channel:** No channel set"
+    }`
   );
+  const modLogText = new TextDisplayBuilder().setContent(modLogContent);
   const modLogSection = new SectionBuilder()
     .addTextDisplayComponents(modLogText)
     .setButtonAccessory(
@@ -72,13 +75,16 @@ export function addLoggingContent(
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Member Logs Section
-  const memberLogText = new TextDisplayBuilder().setContent(
-    `**👥 Member Logs**\nLogs member joins, leaves, role changes\n${
+  const memberLogContent = formatToggleSetting(
+    "👥 Member Logs",
+    config.loggingSettings.memberLogEnabled,
+    `Logs member joins, leaves, role changes\n${
       config.loggingSettings.memberLogChannel
-        ? `> **Channel:** <#${config.loggingSettings.memberLogChannel}>`
-        : "> **Channel:** No channel set"
-    }`,
+        ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
+        : "**Channel:** No channel set"
+    }`
   );
+  const memberLogText = new TextDisplayBuilder().setContent(memberLogContent);
   const memberLogSection = new SectionBuilder()
     .addTextDisplayComponents(memberLogText)
     .setButtonAccessory(
@@ -110,13 +116,16 @@ export function addLoggingContent(
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Message Logs Section
-  const messageLogText = new TextDisplayBuilder().setContent(
-    `**📝 Message Logs**\nLogs message edits and deletions\n${
+  const messageLogContent = formatToggleSetting(
+    "📝 Message Logs",
+    config.loggingSettings.messageLogEnabled,
+    `Logs message edits and deletions\n${
       config.loggingSettings.messageLogChannel
-        ? `> **Channel:** <#${config.loggingSettings.messageLogChannel}>`
-        : "> **Channel:** No channel set"
-    }`,
+        ? `**Channel:** <#${config.loggingSettings.messageLogChannel}>`
+        : "**Channel:** No channel set"
+    }`
   );
+  const messageLogText = new TextDisplayBuilder().setContent(messageLogContent);
   const messageLogSection = new SectionBuilder()
     .addTextDisplayComponents(messageLogText)
     .setButtonAccessory(
