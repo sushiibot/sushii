@@ -1,18 +1,15 @@
 import {
   ActionRowBuilder,
-  ButtonBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
   ContainerBuilder,
+  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
 } from "discord.js";
 
-import {
-  createToggleButton,
-  formatLogSetting,
-} from "../components/SettingsComponents";
+import { createToggleButton } from "../components/SettingsComponents";
 import {
   SETTINGS_CUSTOM_IDS,
   SettingsMessageOptions,
@@ -29,37 +26,33 @@ export function addLoggingContent(
   container.addTextDisplayComponents(headerText);
 
   // Logging Section
-  let loggingContent = "### Logs\n";
-  loggingContent += "Track moderation, member, and message activity.\n\n";
-
-  loggingContent += formatLogSetting(
-    "🛡️ Mod Logs",
-    config.loggingSettings.modLogChannel,
-    config.loggingSettings.modLogEnabled,
-    "Logs moderation actions like bans, kicks, warnings",
+  const loggingIntro = new TextDisplayBuilder().setContent(
+    "### Logs\nTrack moderation, member, and message activity.\n",
   );
-  loggingContent += "\n";
-  loggingContent += formatLogSetting(
-    "👥 Member Logs",
-    config.loggingSettings.memberLogChannel,
-    config.loggingSettings.memberLogEnabled,
-    "Logs member joins, leaves, role changes",
-  );
-  loggingContent += "\n";
-  loggingContent += formatLogSetting(
-    "📝 Message Logs",
-    config.loggingSettings.messageLogChannel,
-    config.loggingSettings.messageLogEnabled,
-    "Logs message edits and deletions",
-  );
+  container.addTextDisplayComponents(loggingIntro);
 
-  const loggingText = new TextDisplayBuilder().setContent(loggingContent);
-  container.addTextDisplayComponents(loggingText);
+  // Mod Logs Section
+  const modLogText = new TextDisplayBuilder().setContent(
+    `**🛡️ Mod Logs**\nLogs moderation actions like bans, kicks, warnings\n${
+      config.loggingSettings.modLogChannel
+        ? `> **Channel:** <#${config.loggingSettings.modLogChannel}>`
+        : "> **Channel:** No channel set"
+    }`,
+  );
+  const modLogSection = new SectionBuilder()
+    .addTextDisplayComponents(modLogText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.loggingSettings.modLogEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(modLogSection);
 
-  // Channel Selection Row
+  // Mod Log Channel Selection
   const modLogChannelSelectRow =
     new ActionRowBuilder<ChannelSelectMenuBuilder>();
-
   const modLogSelect = new ChannelSelectMenuBuilder()
     .setCustomId(SETTINGS_CUSTOM_IDS.SET_MOD_LOG_CHANNEL)
     .setPlaceholder("Set mod log channel")
@@ -72,11 +65,34 @@ export function addLoggingContent(
     .setMinValues(0)
     .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
     .setDisabled(disabled);
-
-  // We'll rotate through different selects or use a consolidated approach
   modLogChannelSelectRow.addComponents(modLogSelect);
   container.addActionRowComponents(modLogChannelSelectRow);
 
+  // Divider
+  container.addSeparatorComponents(new SeparatorBuilder());
+
+  // Member Logs Section
+  const memberLogText = new TextDisplayBuilder().setContent(
+    `**👥 Member Logs**\nLogs member joins, leaves, role changes\n${
+      config.loggingSettings.memberLogChannel
+        ? `> **Channel:** <#${config.loggingSettings.memberLogChannel}>`
+        : "> **Channel:** No channel set"
+    }`,
+  );
+  const memberLogSection = new SectionBuilder()
+    .addTextDisplayComponents(memberLogText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.loggingSettings.memberLogEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(memberLogSection);
+
+  // Member Log Channel Selection
+  const memberLogChannelSelectRow =
+    new ActionRowBuilder<ChannelSelectMenuBuilder>();
   const memberLogSelect = new ChannelSelectMenuBuilder()
     .setCustomId(SETTINGS_CUSTOM_IDS.SET_MEMBER_LOG_CHANNEL)
     .setPlaceholder("Set member log channel")
@@ -87,12 +103,34 @@ export function addLoggingContent(
     )
     .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
     .setDisabled(disabled);
-
-  const memberLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>();
   memberLogChannelSelectRow.addComponents(memberLogSelect);
   container.addActionRowComponents(memberLogChannelSelectRow);
 
+  // Divider
+  container.addSeparatorComponents(new SeparatorBuilder());
+
+  // Message Logs Section
+  const messageLogText = new TextDisplayBuilder().setContent(
+    `**📝 Message Logs**\nLogs message edits and deletions\n${
+      config.loggingSettings.messageLogChannel
+        ? `> **Channel:** <#${config.loggingSettings.messageLogChannel}>`
+        : "> **Channel:** No channel set"
+    }`,
+  );
+  const messageLogSection = new SectionBuilder()
+    .addTextDisplayComponents(messageLogText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.loggingSettings.messageLogEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(messageLogSection);
+
+  // Message Log Channel Selection
+  const messageLogChannelSelectRow =
+    new ActionRowBuilder<ChannelSelectMenuBuilder>();
   const messageLogSelect = new ChannelSelectMenuBuilder()
     .setCustomId(SETTINGS_CUSTOM_IDS.SET_MESSAGE_LOG_CHANNEL)
     .setPlaceholder("Set message log channel")
@@ -103,34 +141,8 @@ export function addLoggingContent(
     )
     .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
     .setDisabled(disabled);
-
-  const messageLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>();
   messageLogChannelSelectRow.addComponents(messageLogSelect);
   container.addActionRowComponents(messageLogChannelSelectRow);
-
-  // Toggle Buttons Row
-  const toggleRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    createToggleButton(
-      config.loggingSettings.modLogEnabled,
-      "Mod Logs",
-      SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG,
-      disabled,
-    ),
-    createToggleButton(
-      config.loggingSettings.memberLogEnabled,
-      "Member Logs",
-      SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG,
-      disabled,
-    ),
-    createToggleButton(
-      config.loggingSettings.messageLogEnabled,
-      "Message Logs",
-      SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG,
-      disabled,
-    ),
-  );
-  container.addActionRowComponents(toggleRow);
 
   // Separator
   container.addSeparatorComponents(

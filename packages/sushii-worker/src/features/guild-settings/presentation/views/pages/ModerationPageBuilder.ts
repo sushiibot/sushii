@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
@@ -12,7 +13,6 @@ import { MODERATION_DM_DEFAULTS } from "../../../domain/constants/ModerationDefa
 import {
   createToggleButton,
   formatMessageSetting,
-  formatToggleSetting,
 } from "../components/SettingsComponents";
 import {
   SETTINGS_CUSTOM_IDS,
@@ -32,86 +32,82 @@ export function addModerationContent(
   container.addTextDisplayComponents(headerText);
 
   // Lookup Settings Section
-  let moderationContent = "### Lookup Settings\n";
-  moderationContent +=
-    "With the lookup command, you can see bans from other servers. ";
-  moderationContent +=
-    "You can either keep your server name and ban reasons private, or share them with other servers. ";
-  moderationContent +=
-    "In order to see the server name and ban reasons from other servers, you must also share your server name and ban reasons.\n\n";
-
-  moderationContent += formatToggleSetting(
-    "Lookup Data Sharing",
-    config.moderationSettings.lookupDetailsOptIn,
-    config.moderationSettings.lookupDetailsOptIn
-      ? "Sharing server name, ban reasons with other servers"
-      : "Only sharing ban timestamps (server name & reasons hidden)",
+  const lookupIntro = new TextDisplayBuilder().setContent(
+    "### Lookup Settings\nWith the lookup command, you can see bans from other servers. You can either keep your server name and ban reasons private, or share them with other servers. In order to see the server name and ban reasons from other servers, you must also share your server name and ban reasons.\n",
   );
+  container.addTextDisplayComponents(lookupIntro);
 
-  const moderationText = new TextDisplayBuilder().setContent(moderationContent);
-  container.addTextDisplayComponents(moderationText);
-
-  // Lookup Toggle Button
-  const lookupRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    createToggleButton(
-      config.moderationSettings.lookupDetailsOptIn,
-      "Lookup Data Sharing",
-      SETTINGS_CUSTOM_IDS.TOGGLE_LOOKUP_OPT_IN,
-      disabled,
-    ),
+  // Lookup Data Sharing Section
+  const lookupText = new TextDisplayBuilder().setContent(
+    `**Lookup Data Sharing**\n${
+      config.moderationSettings.lookupDetailsOptIn
+        ? "Sharing server name, ban reasons with other servers"
+        : "Only sharing ban timestamps (server name & reasons hidden)"
+    }`,
   );
-  container.addActionRowComponents(lookupRow);
+  const lookupSection = new SectionBuilder()
+    .addTextDisplayComponents(lookupText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.moderationSettings.lookupDetailsOptIn,
+        SETTINGS_CUSTOM_IDS.TOGGLE_LOOKUP_OPT_IN,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(lookupSection);
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
   // DM Settings Section
-  let dmContent = "\n### DM Settings\n";
-  dmContent +=
-    "Configure when DMs are sent to users for moderation actions and customize the message.";
-  dmContent +=
-    "\n**Note**: You can always override these settings by using the dm_reason option when using moderation commands.";
-  dmContent += "\n\n";
+  const dmIntroText =
+    "\n### DM Settings" +
+    "\nChoose when the bot sends DMs to users for moderation actions, including your custom reason." +
+    "\n**Tip:** Override any of these per command using the `dm_reason` option.\n";
+  const dmIntro = new TextDisplayBuilder().setContent(dmIntroText);
+  container.addTextDisplayComponents(dmIntro);
 
-  // Timeout DM Settings
-  dmContent += formatToggleSetting(
-    "⏳ Timeout Command DM",
-    config.moderationSettings.timeoutCommandDmEnabled,
-    "DM the user when they are timed out with the `/timeout` command",
+  // Timeout Command DM Section
+  const timeoutCommandText = new TextDisplayBuilder().setContent(
+    "**⏳ DM on `/timeout` command**\nWhen you run the `/timeout` command, always send them a DM with the reason",
   );
-  dmContent += "\n";
+  const timeoutCommandSection = new SectionBuilder()
+    .addTextDisplayComponents(timeoutCommandText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.moderationSettings.timeoutCommandDmEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_COMMAND_DM,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(timeoutCommandSection);
 
-  dmContent += formatToggleSetting(
-    "⏳ Timeout Native DM",
-    config.moderationSettings.timeoutNativeDmEnabled,
-    "DM the user when they are timed out with Discord's native timeout",
+  // Divider
+  container.addSeparatorComponents(new SeparatorBuilder());
+
+  // Timeout Native DM Section
+  const timeoutNativeText = new TextDisplayBuilder().setContent(
+    "**⏳ DM on Discord Timeout**\nWhen you timeout via right-clicking a user, always send them a DM with the reason",
   );
+  const timeoutNativeSection = new SectionBuilder()
+    .addTextDisplayComponents(timeoutNativeText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.moderationSettings.timeoutNativeDmEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_NATIVE_DM,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(timeoutNativeSection);
 
-  const timeoutToggleText = new TextDisplayBuilder().setContent(dmContent);
-  container.addTextDisplayComponents(timeoutToggleText);
-
-  // Timeout toggle buttons
-  const timeoutToggleRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    createToggleButton(
-      config.moderationSettings.timeoutCommandDmEnabled,
-      "Timeout Command DM",
-      SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_COMMAND_DM,
-      disabled,
-    ),
-    createToggleButton(
-      config.moderationSettings.timeoutNativeDmEnabled,
-      "Timeout Native DM",
-      SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_NATIVE_DM,
-      disabled,
-    ),
-  );
-  container.addActionRowComponents(timeoutToggleRow);
+  // Divider
+  container.addSeparatorComponents(new SeparatorBuilder());
 
   let timeoutMessageContent = "";
   timeoutMessageContent += formatMessageSetting(
     "⏳ Timeout DM Message",
     config.moderationSettings.timeoutDmText,
-    "Custom timeout DM message (along with the reason)",
+    "Custom timeout DM message, sent separately with the reason",
     MODERATION_DM_DEFAULTS.TIMEOUT_DM_TEXT,
   );
 
@@ -163,33 +159,28 @@ export function addModerationContent(
   );
 
   // Ban DM Settings
-  let banToggleContent = "";
-  banToggleContent += formatToggleSetting(
-    "🔨 Ban DM",
-    config.moderationSettings.banDmEnabled,
-    "DM the user when banned. Note that this will ONLY work if you use the `/ban` command, not Discord's native ban action as bots cannot DM users that are no longer in the server.",
+  const banToggleText = new TextDisplayBuilder().setContent(
+    "**🔨 Ban DM**\nAlways DM the user when banned." +
+      "\n**Note** This will ONLY work if you use the `/ban` command, " +
+      "not Discord's native ban action as bots cannot DM users that are no longer in the server.",
   );
-
-  const banToggleText = new TextDisplayBuilder().setContent(banToggleContent);
-  container.addTextDisplayComponents(banToggleText);
+  const banToggleSection = new SectionBuilder()
+    .addTextDisplayComponents(banToggleText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.moderationSettings.banDmEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_BAN_DM,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(banToggleSection);
   container.addSeparatorComponents(new SeparatorBuilder());
-
-  // Ban DM toggle button
-  const banToggleRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    createToggleButton(
-      config.moderationSettings.banDmEnabled,
-      "Ban DM",
-      SETTINGS_CUSTOM_IDS.TOGGLE_BAN_DM,
-      disabled,
-    ),
-  );
-  container.addActionRowComponents(banToggleRow);
 
   let banMessageContent = "";
   banMessageContent += formatMessageSetting(
     "🔨 Ban DM Message",
     config.moderationSettings.banDmText,
-    "Custom ban DM message (along with the reason)",
+    "Custom ban DM message, sent separately with the reason. This could be used for an appeal link.",
     MODERATION_DM_DEFAULTS.BAN_DM_TEXT,
   );
 

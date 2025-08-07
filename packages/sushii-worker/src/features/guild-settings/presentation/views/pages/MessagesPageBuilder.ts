@@ -5,6 +5,7 @@ import {
   ChannelSelectMenuBuilder,
   ChannelType,
   ContainerBuilder,
+  SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
 } from "discord.js";
@@ -78,23 +79,26 @@ export function addMessagesContent(
   const joinMessageText = new TextDisplayBuilder().setContent(
     joinMessageContent,
   );
-  container.addTextDisplayComponents(joinMessageText);
+  const joinMessageSection = new SectionBuilder()
+    .addTextDisplayComponents(joinMessageText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.messageSettings.joinMessageEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_JOIN_MSG,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(joinMessageSection);
 
-  // Join Message Controls
-  const joinControlsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Join Message Edit Button
+  const joinEditRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_JOIN_MESSAGE)
       .setLabel("Edit Join Message")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),
-    createToggleButton(
-      config.messageSettings.joinMessageEnabled,
-      "Join Messages",
-      SETTINGS_CUSTOM_IDS.TOGGLE_JOIN_MSG,
-      disabled,
-    ),
   );
-  container.addActionRowComponents(joinControlsRow);
+  container.addActionRowComponents(joinEditRow);
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
@@ -109,21 +113,24 @@ export function addMessagesContent(
   const leaveMessageText = new TextDisplayBuilder().setContent(
     leaveMessageContent,
   );
-  container.addTextDisplayComponents(leaveMessageText);
+  const leaveMessageSection = new SectionBuilder()
+    .addTextDisplayComponents(leaveMessageText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.messageSettings.leaveMessageEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLE_LEAVE_MSG,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(leaveMessageSection);
 
-  // Leave Message Controls
-  const leaveControlsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Leave Message Edit Button
+  const leaveEditRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_LEAVE_MESSAGE)
       .setLabel("Edit Leave Message")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),
-    createToggleButton(
-      config.messageSettings.leaveMessageEnabled,
-      "Leave Messages",
-      SETTINGS_CUSTOM_IDS.TOGGLE_LEAVE_MSG,
-      disabled,
-    ),
   );
-  container.addActionRowComponents(leaveControlsRow);
+  container.addActionRowComponents(leaveEditRow);
 }

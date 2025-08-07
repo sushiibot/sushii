@@ -142,7 +142,6 @@ export function formatToggleSetting(
 
 export function createToggleButton(
   currentlyEnabled: boolean,
-  name: string,
   customId: string,
   disabled = false,
 ): ButtonBuilder {
@@ -150,7 +149,7 @@ export function createToggleButton(
 
   return new ButtonBuilder()
     .setCustomId(customId)
-    .setLabel(`${action} ${name}`)
+    .setLabel(`${action}`)
     .setStyle(currentlyEnabled ? ButtonStyle.Secondary : ButtonStyle.Success)
     .setDisabled(disabled);
 }

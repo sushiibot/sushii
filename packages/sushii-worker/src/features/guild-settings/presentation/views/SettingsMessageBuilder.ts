@@ -47,12 +47,6 @@ export function createSettingsMessage(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  let navigationContent = `### Settings Page`;
-  navigationContent += `\nUse the buttons below to switch between settings pages.`;
-
-  const navigationText = new TextDisplayBuilder().setContent(navigationContent);
-  container.addTextDisplayComponents(navigationText);
-
   const navigationRow = createNavigationRow(options.page, options.disabled);
   container.addActionRowComponents(navigationRow);
 
