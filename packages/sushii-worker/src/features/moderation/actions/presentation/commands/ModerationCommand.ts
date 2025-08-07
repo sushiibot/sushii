@@ -95,7 +95,11 @@ export class ModerationCommand extends SlashCommandHandler {
   }
 
   private parseReason(interaction: ChatInputCommandInteraction): Reason | null {
-    const reasonString = interaction.options.getString(OPTION_NAMES.REASON);
+    // For note commands, check the "note" option, otherwise check "reason"
+    const reasonString =
+      this.config.actionType === ActionType.Note
+        ? interaction.options.getString(OPTION_NAMES.NOTE)
+        : interaction.options.getString(OPTION_NAMES.REASON);
     const result = Reason.create(reasonString);
     return result.ok ? result.val : null;
   }
@@ -239,8 +243,9 @@ export class ModerationCommand extends SlashCommandHandler {
 
         case ActionType.Note: {
           if (!options.reason) {
-            return Err("Reason is required for notes");
+            return Err("Note is required for notes");
           }
+
           return Ok(
             new NoteAction(
               base.guildId,

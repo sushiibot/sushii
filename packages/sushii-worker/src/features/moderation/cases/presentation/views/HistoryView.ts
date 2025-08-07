@@ -10,6 +10,7 @@ import dayjs from "@/shared/domain/dayjs";
 import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
+import { getCleanFilename } from "@/utils/url";
 import { getUserString } from "@/utils/userString";
 
 export function buildUserHistoryEmbeds(
@@ -37,7 +38,7 @@ export function buildUserHistoryEmbeds(
 
   const summary = buildCaseSummary(moderationHistory);
   const summaryStr = Array.from(summary.entries()).map(
-    ([action, num]) => `**${action}** - ${num}`,
+    ([action, num]) => `**${action}** – ${num}`,
   );
 
   // Build case history
@@ -47,17 +48,33 @@ export function buildUserHistoryEmbeds(
     const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
     let s =
-      `${actionEmoji} ` +
-      `\`#${moderationCase.caseId}\` - ` +
-      `**${actionName}** ` +
-      `<t:${timestamp}:R> `;
+      `- \`#${moderationCase.caseId}\`` +
+      ` ${actionEmoji} **${actionName}**` +
+      ` – <t:${timestamp}:R> `;
 
-    if (moderationCase.reason && moderationCase.executorId) {
-      s += `\n┣ **By:** <@${moderationCase.executorId}>`;
+    const hasExecutor = moderationCase.executorId;
+    const hasReason = moderationCase.reason;
+    const hasAttachments =
+      moderationCase.attachments && moderationCase.attachments.length > 0;
+
+    if (hasExecutor) {
+      s += `\n> **By:** <@${moderationCase.executorId}>`;
     }
 
-    if (moderationCase.reason) {
-      s += `\n┗ **Reason:** ${moderationCase.reason.value}`;
+    if (hasReason) {
+      s += `\n> **Reason:** ${moderationCase.reason.value}`;
+    }
+
+    if (hasAttachments) {
+      const validAttachments = moderationCase.attachments.filter(
+        (a): a is string => !!a,
+      );
+      if (validAttachments.length > 0) {
+        const attachmentLinks = validAttachments
+          .map((a) => `[${getCleanFilename(a)}](${a})`)
+          .join(", ");
+        s += `\n> 📎 ${attachmentLinks}`;
+      }
     }
 
     return s;

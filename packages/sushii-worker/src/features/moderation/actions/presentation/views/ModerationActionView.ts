@@ -88,6 +88,14 @@ export function buildActionResultMessage(
       fullContent += `### 📝 Reason\n> ${firstSuccessfulCase.reason.value}\n`;
     }
 
+    // Add attachments if available
+    if (firstSuccessfulCase.attachments.length > 0) {
+      fullContent += `### 📎 Attachments\n`;
+      for (const attachment of firstSuccessfulCase.attachments) {
+        fullContent += `> ${attachment}\n`;
+      }
+    }
+
     // Add DM status
     const dmStatuses = successful.map((s) => s.result.val as ModerationCase);
     const dmSuccessCount = dmStatuses.filter((c) => c.dmSuccess).length;

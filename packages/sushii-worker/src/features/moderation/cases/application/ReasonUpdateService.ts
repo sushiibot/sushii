@@ -187,10 +187,7 @@ export class ReasonUpdateService {
 
     // Update each mod log message
     for (const modCase of updatedCases) {
-      const error = await this.updateModLogMessage(
-        modCase,
-        modLogChannel,
-      );
+      const error = await this.updateModLogMessage(modCase, modLogChannel);
 
       if (error) {
         errors.push(error);

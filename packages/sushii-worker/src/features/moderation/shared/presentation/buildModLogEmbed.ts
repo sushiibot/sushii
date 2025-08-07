@@ -1,11 +1,11 @@
 import { APIEmbedField, EmbedBuilder, TimestampStyles, User } from "discord.js";
 import { Client } from "discord.js";
-import path from "path";
 
 import { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
 import logger from "@/shared/infrastructure/logger";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
+import { getCleanFilename } from "@/utils/url";
 
 import { ActionType } from "../domain/value-objects/ActionType";
 
@@ -125,7 +125,7 @@ export default async function buildModLogEmbed(
     fields.push({
       name: "Attachments",
       value: attachments
-        .map((a) => `[${path.basename(a)}](${a})`)
+        .map((a) => `[${getCleanFilename(a)}](${a})`)
         .join("\n")
         .slice(0, 1024),
       inline: false,

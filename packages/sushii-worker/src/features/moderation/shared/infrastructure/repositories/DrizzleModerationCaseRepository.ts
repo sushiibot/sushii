@@ -1,4 +1,4 @@
-import { and, between, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, between, desc, eq, isNull, sql } from "drizzle-orm";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
@@ -103,7 +103,8 @@ export class DrizzleModerationCaseRepository
             eq(modLogsInAppPublic.userId, BigInt(userId)),
           ),
         )
-        .orderBy(desc(modLogsInAppPublic.actionTime))
+        // Oldest first
+        .orderBy(asc(modLogsInAppPublic.actionTime))
         .limit(500); // Safety limit to prevent Discord embed failures and performance issues
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));
