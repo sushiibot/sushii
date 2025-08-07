@@ -52,6 +52,9 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Migrating 
 
 - When running tests, use this with timeouts and env vars `TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000`
 
+## Best Practices
+- when creating new response messages or interaction responses, always use components v2 instead of embeds
+
 ## Documentation References
 
 When working on Discord interactions and components, refer to:
