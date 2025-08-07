@@ -42,13 +42,6 @@ export function buildActionResultMessage(
   const emoji = getActionTypeEmoji(actionType);
   const actionName = formatActionTypeAsSentence(actionType);
 
-  // Build the unified target list
-  const targetList = formatTargetResults(results);
-  const summary =
-    successful.length === results.length
-      ? `Successfully ${verb} ${results.length} ${results.length === 1 ? "user" : "users"}`
-      : `${verb} ${successful.length} of ${results.length} ${results.length === 1 ? "user" : "users"}`;
-
   // Determine title and color based on results
   let title: string;
   let color: number;
@@ -67,28 +60,33 @@ export function buildActionResultMessage(
   // Create container with accent color
   const container = new ContainerBuilder().setAccentColor(color);
 
-  // Add title and summary
-  const headerText = new TextDisplayBuilder()
-    .setContent(`## ${title}\n\n**${summary}**`);
-  container.addTextDisplayComponents(headerText);
+  // Build header and user list
+  const summary = `Successfully ${verb} ${results.length} ${results.length === 1 ? "user" : "users"}`;
+  let fullContent = `### ${title}\n**${summary}**\n`;
 
-  // Add target list
-  const targetText = new TextDisplayBuilder().setContent(targetList);
-  container.addTextDisplayComponents(targetText);
+  // Format users in order with failure indicators
+  for (const result of results) {
+    const failureIcon = !result.result.ok ? "❌ " : "";
+    fullContent += `> ${failureIcon}<@${result.target.id}> — \`${result.target.user.username}\` — \`${result.target.id}\`\n`;
+
+    if (!result.result.ok) {
+      fullContent += `> -# Error: ${result.result.val}\n`;
+    } else {
+      // Add DM failure indicator for successful moderation cases
+      const moderationCase = result.result.val as ModerationCase;
+      if (moderationCase.dmFailed) {
+        fullContent += `> -# \\↪ 📭 DM Failed (privacy settings or bot blocked)\n`;
+      }
+    }
+  }
 
   if (successful.length > 0) {
     const firstSuccessfulCase = successful[0].result.val as ModerationCase;
 
-    // Build metadata fields section
-    let metadataContent = "";
-
     // Add reason if available
     if (firstSuccessfulCase.reason) {
-      metadataContent += `### 📝 Reason\n${firstSuccessfulCase.reason.value}\n\n`;
+      fullContent += `### 📝 Reason\n> ${firstSuccessfulCase.reason.value}\n`;
     }
-
-    // Add executor
-    metadataContent += `### 👤 Moderator\n${executor}\n\n`;
 
     // Add DM status
     const dmStatuses = successful.map((s) => s.result.val as ModerationCase);
@@ -96,97 +94,22 @@ export function buildActionResultMessage(
     const dmFailedCount = dmStatuses.filter((c) => c.dmFailed).length;
     const totalDMAttempted = dmSuccessCount + dmFailedCount;
 
-    let dmStatusText: string;
-    let dmStatusTitle: string;
+    if (totalDMAttempted > 0) {
+      fullContent += "### User DMs\n";
 
-    if (totalDMAttempted === 0) {
-      dmStatusTitle = "📬 Direct Message Status";
-      dmStatusText = "No DMs were sent to users";
-    } else if (dmSuccessCount === dmStatuses.length) {
-      dmStatusTitle = "✅ Direct Messages Sent";
-      dmStatusText = `Successfully notified all ${dmStatuses.length} ${dmStatuses.length === 1 ? "user" : "users"} via DM`;
-    } else if (dmFailedCount === totalDMAttempted) {
-      dmStatusTitle = "❌ Direct Messages Failed";
-      dmStatusText = `Could not DM ${totalDMAttempted} ${totalDMAttempted === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
-    } else {
-      dmStatusTitle = "⚠️ Direct Messages Partial";
-      dmStatusText = `**Sent:** ${dmSuccessCount} ${dmSuccessCount === 1 ? "user" : "users"}\n**Failed:** ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)\n**Total:** ${dmStatuses.length} ${dmStatuses.length === 1 ? "user" : "users"}`;
+      if (dmSuccessCount === dmStatuses.length) {
+        fullContent += `📬 Sent reason to all ${dmStatuses.length === 1 ? "user" : `${dmStatuses.length} users`} via DM`;
+      } else if (dmFailedCount === totalDMAttempted) {
+        fullContent += `📭 Could not send reason to any users (privacy settings or bot blocked)`;
+      } else {
+        fullContent += `📭 Sent reason to ${dmSuccessCount} of ${dmStatuses.length} users via DM.`;
+        fullContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
+      }
     }
-
-    metadataContent += `### ${dmStatusTitle}\n${dmStatusText}`;
-
-    const metadataText = new TextDisplayBuilder().setContent(metadataContent);
-    container.addTextDisplayComponents(metadataText);
   }
 
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
-}
-
-function formatTargetResults(results: ActionResult[]): string {
-  if (results.length === 0) {
-    return "No users targeted";
-  }
-
-  if (results.length === 1) {
-    const result = results[0];
-    const status = result.result.ok ? "✅" : "❌";
-    const errorMsg = !result.result.ok
-      ? `\n> **Error:** ${result.result.val}`
-      : "";
-
-    return `${status} <@${result.target.id}> (\`${result.target.user.username}\`)${errorMsg}`;
-  }
-
-  // Group by success/failure for multiple users
-  const successful = results.filter((r) => r.result.ok);
-  const failed = results.filter((r) => !r.result.ok);
-
-  let output = "";
-
-  if (successful.length > 0) {
-    output += "**✅ Successful:**\n";
-    output += successful
-      .map((r) => `• <@${r.target.id}> (\`${r.target.user.username}\`)`)
-      .join("\n");
-  }
-
-  if (failed.length > 0) {
-    if (output) {
-      output += "\n\n";
-    }
-
-    output += "**❌ Failed:**\n";
-    output += failed
-      .map((r) => `• <@${r.target.id}> - ${r.result.val}`)
-      .join("\n");
-  }
-
-  return output;
-}
-
-export function buildDMStatusMessage(
-  moderationCase: ModerationCase,
-): InteractionEditReplyOptions {
-  let color: number;
-  let content: string;
-
-  if (moderationCase.dmSuccess) {
-    color = Color.Success;
-    content = "## DM Status\n\n✅ Successfully sent DM to user";
-  } else if (moderationCase.dmFailed) {
-    color = Color.Warning;
-    content = `## DM Status\n\n⚠️ Failed to send DM: ${moderationCase.dmResult?.error}`;
-  } else {
-    color = Color.Info;
-    content = "## DM Status\n\nℹ️ No DM was sent";
-  }
-
-  const container = new ContainerBuilder().setAccentColor(color);
-  const text = new TextDisplayBuilder().setContent(content);
+  // Add all text content in a single TextDisplayBuilder
+  const text = new TextDisplayBuilder().setContent(fullContent);
   container.addTextDisplayComponents(text);
 
   return {
