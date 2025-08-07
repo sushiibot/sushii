@@ -12,35 +12,6 @@ import type { Logger } from "pino";
 
 import logger from "@/shared/infrastructure/logger";
 
-// Interfaces for testability
-interface IDiscordMessage {
-  createMessageComponentCollector(options: {
-    componentType: ComponentType;
-    time: number;
-  }): IComponentCollector;
-  edit(options: {
-    components: ActionRowBuilder<ButtonBuilder>[];
-  }): Promise<void>;
-}
-
-interface IComponentCollector {
-  on(
-    event: "collect",
-    listener: (interaction: IButtonInteraction) => void,
-  ): void;
-  on(event: "end", listener: () => void): void;
-}
-
-interface IButtonInteraction {
-  user: { id: string };
-  customId: string;
-  reply(options: { content: string; ephemeral: boolean }): Promise<void>;
-  update(options: {
-    embeds: EmbedBuilder[];
-    components: ActionRowBuilder<ButtonBuilder>[];
-  }): Promise<void>;
-}
-
 // Configuration interface
 interface PaginationConfig {
   timeoutMs: number;

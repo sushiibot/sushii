@@ -41,7 +41,11 @@ describe("parseDuration", () => {
             throw new Error("duration is not null but expected null");
           }
 
-          expect(dur!.asSeconds()).toEqual(expectedDuration.asSeconds());
+          if (!dur) {
+            throw new Error("duration is unexpectedly null");
+          }
+
+          expect(dur.asSeconds()).toEqual(expectedDuration.asSeconds());
         }
       });
     },

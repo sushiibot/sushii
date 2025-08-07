@@ -1,9 +1,10 @@
 import {
-  ComponentType,
   ButtonComponent,
   ButtonInteraction,
+  ComponentType,
   StringSelectMenuComponent,
 } from "discord.js";
+
 import customIds from "../customIds";
 
 interface MenuRoleData {
@@ -85,9 +86,15 @@ export function getRoleMenuMessageButtonRoles(
         )
         .map((button) => {
           if (!button.customId) {
+            throw new Error(
+              `Button with label "${button.label}" has no custom ID`,
+            );
+          }
+
+          if (!button.customId) {
             return {
               roleId: null,
-              label: button.label!,
+              label: button.label,
             };
           }
 
@@ -95,7 +102,7 @@ export function getRoleMenuMessageButtonRoles(
 
           return {
             roleId: match ? match.roleId : null,
-            label: button.label!,
+            label: button.label,
           };
         })
         .filter((button): button is MenuRoleData => !!button.roleId);

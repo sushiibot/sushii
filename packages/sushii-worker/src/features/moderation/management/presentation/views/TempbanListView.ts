@@ -22,7 +22,7 @@ export function tempBanListErrorView(): APIEmbed {
 export function tempBanListView(
   tempBans: TempBanListItem[],
   pageIndex: number = 0,
-  totalPages: number = 1,
+  _totalPages: number = 1,
 ): APIEmbed {
   const title =
     pageIndex === 0

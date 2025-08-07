@@ -19,7 +19,7 @@ import * as schema from "@/infrastructure/database/schema";
 
 import { Notification } from "../domain/entities/Notification";
 import { NotificationRepository } from "../domain/repositories/NotificationRepository";
-import { MessageParser } from "../domain/services/MessageParser";
+import { extractKeywords } from "../domain/services/MessageParser";
 
 export class DrizzleNotificationRepository implements NotificationRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
@@ -158,7 +158,7 @@ export class DrizzleNotificationRepository implements NotificationRepository {
     authorId: string,
     messageContent: string,
   ): Promise<Notification[]> {
-    const keywords = MessageParser.extractKeywords(messageContent);
+    const keywords = extractKeywords(messageContent);
 
     const blockConditions = [
       eq(notificationBlocksInAppPublic.blockId, BigInt(authorId)),

@@ -9,7 +9,6 @@ import {
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
-import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 import dayjs from "@/shared/domain/dayjs";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";

@@ -1,4 +1,5 @@
 import {
+  Channel,
   ChannelType,
   Client,
   DiscordAPIError,
@@ -127,7 +128,7 @@ export class DiscordChannelService implements ChannelService {
     }
   }
 
-  private isTextChannel(channel: any): channel is GuildTextBasedChannel {
+  private isTextChannel(channel: Channel): channel is GuildTextBasedChannel {
     return (
       channel.type === ChannelType.GuildText ||
       channel.type === ChannelType.GuildAnnouncement ||

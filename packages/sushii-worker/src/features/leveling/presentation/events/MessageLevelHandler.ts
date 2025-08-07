@@ -90,7 +90,11 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
 
       await tracer.startActiveSpan("update_member_roles", async (span) => {
         try {
-          await msg.member!.roles.set(
+          if (!msg.member) {
+            throw new Error("Member not found for message");
+          }
+
+          await msg.member.roles.set(
             [...newRoles],
             `Level role ${result.newLevel}`,
           );

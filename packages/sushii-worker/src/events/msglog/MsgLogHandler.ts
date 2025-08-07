@@ -56,7 +56,7 @@ function buildDeleteEmbed(
   let description = `${SushiiEmoji.MessageDelete} **Message deleted in <#${event.channel_id}>**\n`;
 
   // lol
-  const msg = message.msg as any as APIMessage;
+  const msg = message.msg as unknown as APIMessage;
 
   if (message.content) {
     description += msg.content;
@@ -96,12 +96,13 @@ function buildDeleteEmbed(
 
   if (msg.referenced_message) {
     const replied = msg.referenced_message.id;
-    // Guild ID will always exist, checked in parent handler
-    const repliedURL = messageLink(
-      message.channel_id,
-      replied,
-      event.guild_id!,
-    );
+
+    if (!event.guild_id) {
+      // Guild ID will always exist, checked in parent handler
+      throw new Error("Guild ID is required for replied message link");
+    }
+
+    const repliedURL = messageLink(message.channel_id, replied, event.guild_id);
 
     fields.push({
       name: "Replied to",
@@ -147,7 +148,7 @@ function buildEditEmbed(
   }
 
   // Is this Partial<API.Message>?
-  const msg = message.msg as any as APIMessage;
+  const msg = message.msg as unknown as APIMessage;
 
   let description = `${SushiiEmoji.MessageEdit} **Message edited in <#${event.channel_id}>**\n`;
   description += "**Before:**";
@@ -190,7 +191,7 @@ function buildBulkDeleteEmbed(
       msgStr += `${m.content}`;
     }
 
-    const msg = m.msg as any as APIMessage;
+    const msg = m.msg as unknown as APIMessage;
 
     if (msg.sticker_items && msg.sticker_items.length > 0) {
       const sticker = msg.sticker_items[0];

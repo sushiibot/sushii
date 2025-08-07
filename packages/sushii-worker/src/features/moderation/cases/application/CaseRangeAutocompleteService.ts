@@ -1,6 +1,5 @@
 import { APIApplicationCommandOptionChoice } from "discord.js";
 import { Logger } from "pino";
-import { Result } from "ts-results";
 
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
@@ -57,7 +56,7 @@ export class CaseRangeAutocompleteService {
 
       switch (caseRange.data.type) {
         case "latest":
-          return this.getLatestCaseSuggestions(guildId, caseRange);
+          return this.getLatestCaseSuggestions(guildId);
 
         case "range":
           return this.getRangeCaseSuggestions(guildId, caseRange);
@@ -79,7 +78,6 @@ export class CaseRangeAutocompleteService {
 
   private async getLatestCaseSuggestions(
     guildId: string,
-    caseRange: CaseRange,
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
     const recentCasesResult = await this.moderationCaseRepository.findRecent(
       guildId,

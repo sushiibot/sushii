@@ -1,17 +1,16 @@
 import { EmbedBuilder, GuildMember, User } from "discord.js";
 
 import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
+import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import {
+  formatActionTypeAsSentence,
+  getActionTypeEmoji,
+} from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import dayjs from "@/shared/domain/dayjs";
 import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getUserString } from "@/utils/userString";
-
-import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
-import {
-  formatActionTypeAsSentence,
-  getActionTypeEmoji,
-} from "../../../shared/presentation/views/ActionTypeFormatter";
 
 export function buildUserHistoryEmbeds(
   targetUser: User,

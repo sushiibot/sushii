@@ -50,12 +50,14 @@ interface MockInteraction {
 // Mock factories
 const createMockLogger = (): Logger =>
   ({
+    /* eslint-disable @typescript-eslint/no-empty-function*/
     debug: mock(() => {}),
     error: mock(() => {}),
     info: mock(() => {}),
     warn: mock(() => {}),
     fatal: mock(() => {}),
     trace: mock(() => {}),
+    /* eslint-enable @typescript-eslint/no-empty-function*/
     child: mock(() => createMockLogger()),
     level: "debug",
     silent: false,
@@ -76,6 +78,7 @@ const createMockButtonInteraction = (
 });
 
 const createMockComponentCollector = (): MockComponentCollector => ({
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   on: mock(() => {}),
 });
 
@@ -104,7 +107,7 @@ const createMockInteraction = (userId: string = "user123"): MockInteraction => {
 const createMockGetPageFn = (
   pages: string[] = ["Page 1", "Page 2", "Page 3"],
 ): GetPageFn => {
-  return mock((pageIndex: number, pageSize: number) => {
+  return mock((pageIndex: number, _pageSize: number) => {
     const page = pages[pageIndex] || "";
     return Promise.resolve(page);
   });
@@ -301,7 +304,6 @@ describe("Paginator", () => {
     let paginator: Paginator;
     let mockMessage: MockMessage;
     let mockCollector: MockComponentCollector;
-    let endHandler: () => void;
 
     beforeEach(() => {
       mockMessage = createMockMessage();
@@ -312,7 +314,6 @@ describe("Paginator", () => {
       mockCollector.on = mock(
         (event: string, handler: (arg?: unknown) => void) => {
           if (event === "end") {
-            endHandler = handler;
             // End the collector after a short delay to allow test assertions
             setTimeout(() => handler(), 1);
           }

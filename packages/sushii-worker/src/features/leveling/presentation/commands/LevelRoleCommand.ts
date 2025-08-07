@@ -9,7 +9,11 @@ import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 
 import { LevelRoleService } from "../../application/LevelRoleService";
-import { LevelRoleView } from "../views/LevelRoleView";
+import {
+  formatCreateSuccess,
+  formatDeleteSuccess,
+  formatList,
+} from "../views/LevelRoleView";
 
 enum CommandName {
   LevelRoleNew = "new",
@@ -121,7 +125,7 @@ export default class LevelRoleCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.reply(LevelRoleView.formatCreateSuccess(result.val));
+    await interaction.reply(formatCreateSuccess(result.val));
   }
 
   private async deleteLevelRoleHandler(
@@ -139,7 +143,7 @@ export default class LevelRoleCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.reply(LevelRoleView.formatDeleteSuccess(role.id));
+    await interaction.reply(formatDeleteSuccess(role.id));
   }
 
   private async listLevelRoleHandler(
@@ -149,6 +153,6 @@ export default class LevelRoleCommand extends SlashCommandHandler {
       interaction.guildId,
     );
 
-    await interaction.reply(LevelRoleView.formatList(levelRoles));
+    await interaction.reply(formatList(levelRoles));
   }
 }

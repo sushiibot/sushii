@@ -1,2 +1,2 @@
-export * from "../../../management/presentation/views/SlowmodeView";
-export * from "../../../management/presentation/views/TempbanListView";
+export * from "@/features/moderation/management/presentation/views/SlowmodeView";
+export * from "@/features/moderation/management/presentation/views/TempbanListView";

@@ -1,6 +1,7 @@
 import { Logger } from "pino";
 
-import { DeploymentConfig } from "../../../shared/infrastructure/config/config";
+import { DeploymentConfig } from "@/shared/infrastructure/config/config";
+
 import { Deployment, DeploymentName } from "../domain/entities/Deployment";
 import { DeploymentChanged } from "../domain/events/DeploymentChanged";
 import { DeploymentRepository } from "../domain/repositories/DeploymentRepository";

@@ -12,8 +12,8 @@ import { ModalMessageModalSubmitInteraction } from "discord.js";
 import { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
+import { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 
-import { ToggleableSetting } from "../../../../shared/domain/entities/GuildConfig";
 import { GuildSettingsService } from "../../application/GuildSettingsService";
 import { MessageLogService } from "../../application/MessageLogService";
 import {

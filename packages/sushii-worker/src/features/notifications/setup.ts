@@ -47,7 +47,7 @@ export function createNotificationServices({
 
 export function createNotificationCommands(
   services: ReturnType<typeof createNotificationServices>,
-  logger: Logger,
+  _logger: Logger,
 ) {
   const { notificationService } = services;
 
@@ -63,7 +63,7 @@ export function createNotificationCommands(
 
 export function createNotificationEventHandlers(
   services: ReturnType<typeof createNotificationServices>,
-  logger: Logger,
+  _logger: Logger,
 ) {
   const { notificationMessageService, notificationService } = services;
 
@@ -82,7 +82,9 @@ export function createNotificationEventHandlers(
 export function setupNotificationFeature({
   db,
   logger,
-}: NotificationDependencies): FeatureSetupWithServices<ReturnType<typeof createNotificationServices>> {
+}: NotificationDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createNotificationServices>
+> {
   const services = createNotificationServices({ db, logger });
   const commands = createNotificationCommands(services, logger);
   const events = createNotificationEventHandlers(services, logger);

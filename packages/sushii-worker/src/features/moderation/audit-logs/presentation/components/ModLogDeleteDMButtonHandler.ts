@@ -1,4 +1,3 @@
-import { sleep } from "bun";
 import {
   ActionRowBuilder,
   ButtonBuilder,

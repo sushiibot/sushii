@@ -1,15 +1,14 @@
 import { EmbedBuilder, GuildMember, User } from "discord.js";
 
 import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
-import Color from "@/utils/colors";
-import timestampToUnixTime from "@/utils/timestampToUnixTime";
-
-import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
-import { UserInfo } from "../../../shared/domain/types/UserInfo";
+import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
 import {
   formatActionTypeAsSentence,
   getActionTypeEmoji,
-} from "../../../shared/presentation/views/ActionTypeFormatter";
+} from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import Color from "@/utils/colors";
+import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 interface LookupOptions {
   botHasBanPermission: boolean;

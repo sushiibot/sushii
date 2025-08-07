@@ -1,9 +1,10 @@
 import {
-  SlashCommandBuilder,
-  EmbedBuilder,
   ChatInputCommandInteraction,
+  EmbedBuilder,
+  SlashCommandBuilder,
 } from "discord.js";
 import { t } from "i18next";
+
 import Color from "../../utils/colors";
 import { SlashCommandHandler } from "../handlers";
 
@@ -65,7 +66,7 @@ export default class AvatarCommand extends SlashCommandHandler {
 
           embeds.push(memberEmbed);
         }
-      } catch (err) {
+      } catch {
         // Ignore error
       }
     }

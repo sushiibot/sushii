@@ -6,10 +6,9 @@ import {
 } from "discord.js";
 
 import { ReasonUpdateResult } from "@/features/moderation/cases/application/ReasonUpdateService";
+import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import customIds from "@/interactions/customIds";
 import Color from "@/utils/colors";
-
-import { ModerationCase } from "../../../shared/domain/entities/ModerationCase";
 
 export function reasonWarningView(
   casesWithReason: ModerationCase[],

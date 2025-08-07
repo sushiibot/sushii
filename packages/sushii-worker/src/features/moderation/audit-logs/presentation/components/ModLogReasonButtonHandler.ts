@@ -6,7 +6,6 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { Logger } from "pino";
-import { Err, Ok } from "ts-results";
 
 import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
@@ -68,7 +67,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
         time: 300_000, // 5 minutes
         filter: (i) => i.user.id === interaction.user.id,
       });
-    } catch (error) {
+    } catch {
       // Modal timed out or was dismissed - no need to respond
       this.logger.debug(
         {

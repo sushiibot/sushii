@@ -68,8 +68,8 @@ export function createGuildSettingsCommands(
 }
 
 export function createGuildSettingsEventHandlers(
-  services: ReturnType<typeof createGuildSettingsServices>,
-  logger: Logger,
+  _services: ReturnType<typeof createGuildSettingsServices>,
+  _logger: Logger,
 ) {
   // Guild settings feature doesn't have event handlers currently
   return {
@@ -80,7 +80,9 @@ export function createGuildSettingsEventHandlers(
 export function setupGuildSettingsFeature({
   db,
   logger,
-}: GuildSettingsDependencies): FeatureSetupWithServices<ReturnType<typeof createGuildSettingsServices>> {
+}: GuildSettingsDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createGuildSettingsServices>
+> {
   const services = createGuildSettingsServices({ db, logger });
   const commands = createGuildSettingsCommands(services, logger);
   const events = createGuildSettingsEventHandlers(services, logger);

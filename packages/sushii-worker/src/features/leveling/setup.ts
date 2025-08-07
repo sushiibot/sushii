@@ -14,15 +14,15 @@ import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
 import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
-import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 import RankCommand from "./presentation/commands/RankCommand";
+import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 
 interface LevelingDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
 }
 
-export function createLevelingServices({ db, logger }: LevelingDependencies) {
+export function createLevelingServices({ db }: LevelingDependencies) {
   const userProfileRepository = new UserProfileRepository(db);
   const userLevelRepository = new UserLevelRepository(db);
   const levelRoleRepository = new LevelRoleRepositoryImpl(db);
@@ -59,7 +59,8 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService, getLeaderboardService, levelRoleService } = services;
+  const { getUserRankService, getLeaderboardService, levelRoleService } =
+    services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),
@@ -75,7 +76,7 @@ export function createLevelingCommands(
 
 export function createLevelingEventHandlers(
   services: ReturnType<typeof createLevelingServices>,
-  logger: Logger,
+  _logger: Logger,
 ) {
   const { updateUserXpService } = services;
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Match } from "path-to-regexp";
 
 import customIds from "./customIds";
 
@@ -32,7 +33,11 @@ describe("customIds", () => {
         const match = customIds.roleMenuButton.match(customID);
 
         if (wantMatch) {
-          expect(match).toEqual(wantMatch as any);
+          expect(match).toEqual(
+            wantMatch as unknown as Match<{
+              roleId: string;
+            }>,
+          );
         } else {
           // Failure!
           expect(match).toBeFalse();

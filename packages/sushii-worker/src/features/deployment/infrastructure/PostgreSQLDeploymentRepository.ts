@@ -4,8 +4,9 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import { Logger } from "pino";
 
-import { activeDeploymentInAppPrivate } from "../../../infrastructure/database/schema";
-import { EventBus } from "../../../shared/interfaces";
+import { activeDeploymentInAppPrivate } from "@/infrastructure/database/schema";
+import { EventBus } from "@/shared/interfaces";
+
 import { Deployment, DeploymentName } from "../domain/entities/Deployment";
 import { DeploymentChanged } from "../domain/events/DeploymentChanged";
 import { DeploymentRepository } from "../domain/repositories/DeploymentRepository";

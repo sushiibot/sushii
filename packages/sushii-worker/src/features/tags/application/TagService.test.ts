@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { Logger } from "pino";
+import pino, { Logger } from "pino";
 
 import { Tag, TagData } from "../domain/entities/Tag";
 import { TagRepository } from "../domain/repositories/TagRepository";
@@ -29,11 +29,11 @@ class MockTagRepository implements TagRepository {
     return this.tags.get(key) || null;
   }
 
-  async findByFilters(filters: TagFilters, limit: number): Promise<Tag[]> {
+  async findByFilters(_filters: TagFilters, _limit: number): Promise<Tag[]> {
     return Array.from(this.tags.values());
   }
 
-  async findRandomByFilters(filters: TagFilters): Promise<Tag | null> {
+  async findRandomByFilters(_filters: TagFilters): Promise<Tag | null> {
     const allTags = Array.from(this.tags.values());
     return allTags.length > 0 ? allTags[0] : null;
   }
@@ -64,7 +64,7 @@ class MockTagRepository implements TagRepository {
 
   async deleteAllByOwner(guildId: string, ownerId: string): Promise<number> {
     const toDelete = Array.from(this.tags.entries()).filter(
-      ([key, tag]) =>
+      ([_key, tag]) =>
         tag.getGuildId() === guildId && tag.getOwnerId() === ownerId,
     );
     toDelete.forEach(([key]) => this.tags.delete(key));
@@ -114,16 +114,6 @@ class MockTagRepository implements TagRepository {
   }
 }
 
-const createSilentLogger = (): Logger =>
-  ({
-    trace: () => {},
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    fatal: () => {},
-  }) as any;
-
 describe("TagService", () => {
   let tagService: TagService;
   let mockRepository: MockTagRepository;
@@ -136,7 +126,7 @@ describe("TagService", () => {
 
   beforeEach(() => {
     mockRepository = new MockTagRepository();
-    logger = createSilentLogger();
+    logger = pino({ level: "silent" });
     tagService = new TagService(mockRepository, logger);
   });
 
@@ -300,8 +290,13 @@ describe("TagService", () => {
       const tag = await tagService.getTag(testName, testGuildId);
 
       expect(tag).not.toBe(null);
-      expect(tag!.getName().getValue()).toBe(testName);
-      expect(tag!.getContent()).toBe(testContent);
+
+      if (!tag) {
+        throw new Error("Tag should not be null");
+      }
+
+      expect(tag.getName().getValue()).toBe(testName);
+      expect(tag.getContent()).toBe(testContent);
     });
 
     it("should return null for non-existent tag", async () => {
@@ -364,10 +359,9 @@ describe("TagService", () => {
 
   describe("updateTag", () => {
     const anotherUserId = "111111111";
-    let existingTag: Tag;
 
     beforeEach(() => {
-      existingTag = mockRepository.addTag({
+      mockRepository.addTag({
         name: testName,
         content: testContent,
         attachment: null,
@@ -480,10 +474,9 @@ describe("TagService", () => {
   describe("renameTag", () => {
     const anotherUserId = "111111111";
     const newName = "renamed-tag";
-    let existingTag: Tag;
 
     beforeEach(() => {
-      existingTag = mockRepository.addTag({
+      mockRepository.addTag({
         name: testName,
         content: testContent,
         attachment: null,
@@ -606,10 +599,9 @@ describe("TagService", () => {
 
   describe("deleteTag", () => {
     const anotherUserId = "111111111";
-    let existingTag: Tag;
 
     beforeEach(() => {
-      existingTag = mockRepository.addTag({
+      mockRepository.addTag({
         name: testName,
         content: testContent,
         attachment: null,

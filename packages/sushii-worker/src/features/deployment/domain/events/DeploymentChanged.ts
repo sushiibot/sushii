@@ -1,4 +1,5 @@
-import { DomainEvent } from "../../../../shared/domain/DomainEvent";
+import { DomainEvent } from "@/shared/domain/DomainEvent";
+
 import { DeploymentName } from "../entities/Deployment";
 
 export class DeploymentChanged extends DomainEvent {

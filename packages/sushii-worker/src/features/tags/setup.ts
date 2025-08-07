@@ -102,8 +102,8 @@ export function createTagCommands(
 }
 
 export function createTagEventHandlers(
-  services: ReturnType<typeof createTagServices>,
-  logger: Logger,
+  _services: ReturnType<typeof createTagServices>,
+  _logger: Logger,
 ) {
   // Tags feature doesn't have event handlers currently
   return {
@@ -111,10 +111,12 @@ export function createTagEventHandlers(
   };
 }
 
-export function setupTagFeature({ 
-  db, 
-  logger 
-}: TagDependencies): FeatureSetupWithServices<ReturnType<typeof createTagServices>> {
+export function setupTagFeature({
+  db,
+  logger,
+}: TagDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createTagServices>
+> {
   const services = createTagServices({ db, logger });
   const commands = createTagCommands(services, logger);
   const events = createTagEventHandlers(services, logger);

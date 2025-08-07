@@ -23,6 +23,6 @@ export default abstract class InteractionHandler {
    */
   abstract handler(
     interaction: BaseInteraction,
-    data?: any, // Any additional data to pass
+    data?: unknown, // Any additional data to pass
   ): Promise<void>;
 }

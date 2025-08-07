@@ -47,8 +47,11 @@ describe("parseDuration", () => {
           if (expectedDuration === null) {
             throw new Error("duration is not null but expected null");
           }
+          if (dur === null) {
+            throw new Error("duration is null but expected not null");
+          }
 
-          const durRoundedSec = Math.ceil(dur!.asSeconds());
+          const durRoundedSec = Math.ceil(dur.asSeconds());
           expect(durRoundedSec).toEqual(expectedDuration.asSeconds());
         }
       });

@@ -2,8 +2,8 @@ import { eq } from "drizzle-orm";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "@/infrastructure/database/schema";
+import { usersInAppPublic } from "@/infrastructure/database/schema";
 
-import { usersInAppPublic } from "../../../infrastructure/database/schema";
 import { UserProfile } from "../domain/entities/UserProfile";
 import { UserProfileRepository as UserProfileRepositoryI } from "../domain/repositories/UserProfileRepository";
 

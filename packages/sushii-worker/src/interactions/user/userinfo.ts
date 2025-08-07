@@ -1,5 +1,7 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
+import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+
 import logger from "@/shared/infrastructure/logger";
+
 import { SlashCommandHandler } from "../handlers";
 import getUserinfoEmbed from "./userinfo.service";
 
@@ -30,7 +32,7 @@ export default class UserinfoHandler extends SlashCommandHandler {
       if (interaction.inCachedGuild()) {
         member = await interaction.guild.members.fetch(target.id);
       }
-    } catch (err) {
+    } catch {
       // Ignore
     }
 

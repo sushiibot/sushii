@@ -2,8 +2,6 @@ import { Events, Guild, GuildAuditLogsEntry } from "discord.js";
 import { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-import { EventHandlerFn } from "@/events/EventHandler";
-import { GuildSettingsService } from "@/features/guild-settings/application/GuildSettingsService";
 
 import { DiscordAuditLogService } from "../../infrastructure";
 

@@ -9,7 +9,7 @@ import {
 import { Channel } from "discord.js";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
-import { Err, Ok, Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
@@ -202,7 +202,9 @@ describe("ModerationExecutionPipeline", () => {
     } as unknown as DMNotificationService;
 
     mockGuildConfigRepository = {
-      findByGuildId: mock(() => Promise.resolve(GuildConfig.createDefault(mockGuildId))),
+      findByGuildId: mock(() =>
+        Promise.resolve(GuildConfig.createDefault(mockGuildId)),
+      ),
     } as unknown as GuildConfigRepository;
 
     mockClient = createMockClient();

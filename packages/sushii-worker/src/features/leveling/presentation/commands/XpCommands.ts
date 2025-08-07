@@ -22,12 +22,9 @@ enum XpGroupName {
 }
 
 enum XpCommandName {
-  BlockChannel = "channel",
-  BlockRole = "role",
+  Channel = "channel",
+  Role = "role",
   BlockList = "list",
-
-  UnblockChannel = "channel",
-  UnblockRole = "role",
 }
 
 enum XpOption {
@@ -49,7 +46,7 @@ export default class XpCommand extends SlashCommandHandler {
         .setDescription("Block channel or roles from gaining xp.")
         .addSubcommand((c) =>
           c
-            .setName(XpCommandName.BlockChannel)
+            .setName(XpCommandName.Channel)
             .setDescription("Block a channel from gaining xp.")
             .addChannelOption((o) =>
               o
@@ -60,7 +57,7 @@ export default class XpCommand extends SlashCommandHandler {
         )
         .addSubcommand((c) =>
           c
-            .setName(XpCommandName.BlockRole)
+            .setName(XpCommandName.Role)
             .setDescription("Block a role from gaining xp.")
             .addRoleOption((o) =>
               o
@@ -81,7 +78,7 @@ export default class XpCommand extends SlashCommandHandler {
         .setDescription("Unblock channel or roles from gaining xp.")
         .addSubcommand((c) =>
           c
-            .setName(XpCommandName.UnblockChannel)
+            .setName(XpCommandName.Channel)
             .setDescription("Unblock a channel from gaining xp.")
             .addChannelOption((o) =>
               o
@@ -92,7 +89,7 @@ export default class XpCommand extends SlashCommandHandler {
         )
         .addSubcommand((c) =>
           c
-            .setName(XpCommandName.UnblockRole)
+            .setName(XpCommandName.Role)
             .setDescription("Unblock a role from gaining xp.")
             .addRoleOption((o) =>
               o
@@ -115,9 +112,9 @@ export default class XpCommand extends SlashCommandHandler {
     switch (subgroup) {
       case XpGroupName.Block:
         switch (subcommand) {
-          case XpCommandName.BlockChannel:
+          case XpCommandName.Channel:
             return this.blockChannelHandler(interaction);
-          case XpCommandName.BlockRole:
+          case XpCommandName.Role:
             return this.blockRoleHandler(interaction);
           case XpCommandName.BlockList:
             return this.listBlocksHandler(interaction);
@@ -128,9 +125,9 @@ export default class XpCommand extends SlashCommandHandler {
         }
       case XpGroupName.Unblock:
         switch (subcommand) {
-          case XpCommandName.UnblockChannel:
+          case XpCommandName.Channel:
             return this.unblockChannelHandler(interaction);
-          case XpCommandName.UnblockRole:
+          case XpCommandName.Role:
             return this.unblockRoleHandler(interaction);
           default:
             throw new Error(

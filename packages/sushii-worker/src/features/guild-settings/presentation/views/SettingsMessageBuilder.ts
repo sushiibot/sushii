@@ -4,7 +4,6 @@ import {
   MessageFlags,
   SeparatorBuilder,
   SeparatorSpacingSize,
-  TextDisplayBuilder,
 } from "discord.js";
 
 import Color from "@/utils/colors";

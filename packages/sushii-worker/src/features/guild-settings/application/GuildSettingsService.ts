@@ -3,8 +3,8 @@ import { Logger } from "pino";
 import {
   GuildConfig,
   ToggleableSetting,
-} from "../../../shared/domain/entities/GuildConfig";
-import { GuildConfigRepository } from "../../../shared/domain/repositories/GuildConfigRepository";
+} from "@/shared/domain/entities/GuildConfig";
+import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 export class GuildSettingsService {
   constructor(
