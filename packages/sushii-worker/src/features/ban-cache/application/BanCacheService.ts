@@ -3,7 +3,8 @@ import { Guild } from "discord.js";
 import { Logger } from "pino";
 import { Err, Ok, Result } from "ts-results";
 
-import { BanRepository, GuildBan } from "../domain";
+import { BanRepository } from "../domain/repositories/BanRepository";
+import { GuildBan } from "../domain/entities/GuildBan";
 
 /**
  * Application service for ban cache operations.

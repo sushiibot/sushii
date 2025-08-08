@@ -6,7 +6,8 @@ import { Err, Ok, Result } from "ts-results";
 import { guildBansInAppPublic } from "@/infrastructure/database/schema";
 import * as schema from "@/infrastructure/database/schema";
 
-import { BanRepository, GuildBan } from "../domain";
+import { BanRepository } from "../domain/repositories/BanRepository";
+import { GuildBan } from "../domain/entities/GuildBan";
 
 /**
  * Drizzle ORM implementation of the BanRepository.
