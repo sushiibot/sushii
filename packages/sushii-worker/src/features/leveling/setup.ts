@@ -8,6 +8,7 @@ import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
 import { LevelRoleService } from "./application/LevelRoleService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
+import { XpBlockService } from "./application/XpBlockService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
 import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
@@ -15,6 +16,7 @@ import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
 import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
 import RankCommand from "./presentation/commands/RankCommand";
+import XpCommand from "./presentation/commands/XpCommands";
 import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 
 interface LevelingDependencies {
@@ -22,7 +24,7 @@ interface LevelingDependencies {
   logger: Logger;
 }
 
-export function createLevelingServices({ db }: LevelingDependencies) {
+export function createLevelingServices({ db, logger }: LevelingDependencies) {
   const userProfileRepository = new UserProfileRepository(db);
   const userLevelRepository = new UserLevelRepository(db);
   const levelRoleRepository = new LevelRoleRepositoryImpl(db);
@@ -43,6 +45,11 @@ export function createLevelingServices({ db }: LevelingDependencies) {
 
   const levelRoleService = new LevelRoleService(levelRoleRepository);
 
+  const xpBlockService = new XpBlockService(
+    xpBlockRepository,
+    logger.child({ module: "XpBlockService" }),
+  );
+
   return {
     userProfileRepository,
     userLevelRepository,
@@ -52,6 +59,7 @@ export function createLevelingServices({ db }: LevelingDependencies) {
     getLeaderboardService,
     updateUserXpService,
     levelRoleService,
+    xpBlockService,
   };
 }
 
@@ -59,13 +67,14 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService, getLeaderboardService, levelRoleService } =
+  const { getUserRankService, getLeaderboardService, levelRoleService, xpBlockService } =
     services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),
     new LeaderboardCommand(getLeaderboardService),
     new LevelRoleCommand(levelRoleService),
+    new XpCommand(xpBlockService),
   ];
 
   return {

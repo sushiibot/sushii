@@ -6,15 +6,11 @@ import {
 } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
-import {
-  deleteXpBlock,
-  getXpBlocks,
-  upsertXpBlock,
-} from "@//db/XpBlock/XpBlock.repository";
-import db from "@//infrastructure/database/db";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import Color from "@/utils/colors";
+
+import { XpBlockService } from "../../application/XpBlockService";
 
 enum XpGroupName {
   Block = "block",
@@ -35,6 +31,10 @@ enum XpOption {
 }
 
 export default class XpCommand extends SlashCommandHandler {
+  constructor(private readonly xpBlockService: XpBlockService) {
+    super();
+  }
+
   command = new SlashCommandBuilder()
     .setName("xp")
     .setDescription("Configure xp options and level roles.")
@@ -83,7 +83,7 @@ export default class XpCommand extends SlashCommandHandler {
             .addChannelOption((o) =>
               o
                 .setName(XpOption.Channel)
-                .setDescription("The channel unblock.")
+                .setDescription("The channel to unblock.")
                 .setRequired(true),
             ),
         )
@@ -147,14 +147,12 @@ export default class XpCommand extends SlashCommandHandler {
       throw new Error("Missing channel");
     }
 
-    const newBlock = await upsertXpBlock(
-      db,
+    const success = await this.xpBlockService.blockChannel(
       interaction.guildId,
       channel.id,
-      "channel",
     );
 
-    if (!newBlock) {
+    if (!success) {
       await interactionReplyErrorPlainMessage(
         interaction,
         `Channel <#${channel.id}> is already blocked`,
@@ -188,14 +186,12 @@ export default class XpCommand extends SlashCommandHandler {
       throw new Error("Missing role");
     }
 
-    const newBlock = await upsertXpBlock(
-      db,
+    const success = await this.xpBlockService.blockRole(
       interaction.guildId,
       role.id,
-      "role",
     );
 
-    if (!newBlock) {
+    if (!success) {
       await interactionReplyErrorPlainMessage(
         interaction,
         `Role <@&${role.id}> is already blocked`,
@@ -224,9 +220,12 @@ export default class XpCommand extends SlashCommandHandler {
   private async listBlocksHandler(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const allBlocks = await getXpBlocks(db, interaction.guildId);
+    const [channelBlockIds, roleBlockIds] = await Promise.all([
+      this.xpBlockService.getChannelBlocks(interaction.guildId),
+      this.xpBlockService.getRoleBlocks(interaction.guildId),
+    ]);
 
-    if (allBlocks.length === 0) {
+    if (channelBlockIds.length === 0 && roleBlockIds.length === 0) {
       await interaction.reply({
         embeds: [
           new EmbedBuilder()
@@ -240,13 +239,8 @@ export default class XpCommand extends SlashCommandHandler {
       return;
     }
 
-    const channelBlocks = allBlocks
-      .filter((block) => block.block_type === "channel")
-      .map((block) => `<#${block.block_id}>`);
-
-    const roleBlocks = allBlocks
-      .filter((block) => block.block_type === "role")
-      .map((block) => `<@&${block.block_id}>`);
+    const channelBlocks = channelBlockIds.map((id) => `<#${id}>`);
+    const roleBlocks = roleBlockIds.map((id) => `<@&${id}>`); 
 
     await interaction.reply({
       embeds: [
@@ -278,9 +272,12 @@ export default class XpCommand extends SlashCommandHandler {
       throw new Error("Missing channel");
     }
 
-    const res = await deleteXpBlock(db, interaction.guildId, channel.id);
+    const success = await this.xpBlockService.unblock(
+      interaction.guildId,
+      channel.id,
+    );
 
-    if (!res) {
+    if (!success) {
       await interactionReplyErrorPlainMessage(
         interaction,
         `No XP block was found for <#${channel.id}>`,
@@ -314,9 +311,12 @@ export default class XpCommand extends SlashCommandHandler {
       throw new Error("Missing role");
     }
 
-    const res = await deleteXpBlock(db, interaction.guildId, role.id);
+    const success = await this.xpBlockService.unblock(
+      interaction.guildId,
+      role.id,
+    );
 
-    if (!res) {
+    if (!success) {
       await interactionReplyErrorPlainMessage(
         interaction,
         `No XP block was found for <@&${role.id}>`,

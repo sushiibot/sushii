@@ -1,6 +1,5 @@
 import InteractionClient from "@/core/cluster/discord/InteractionRouter";
 
-import XpCommand from "../features/leveling/presentation/commands/XpCommands";
 import StatusCommand from "../features/status/presentation/StatusCommand";
 import EmojiStatsCommand from "./emojis/EmojiStatsCommands";
 import ReminderDeleteAutocomplete from "./reminders/ReminderAutocomplete";
@@ -36,9 +35,6 @@ export default function registerInteractionHandlers(
 
     // Roles
     new RoleMenuCommand(),
-
-    // XP
-    new XpCommand(),
   );
 
   // ----------------------------------------

@@ -43,7 +43,7 @@ export function addModerationContent(
     config.moderationSettings.lookupDetailsOptIn,
     config.moderationSettings.lookupDetailsOptIn
       ? "Sharing server name, ban reasons with other servers"
-      : "Only sharing ban timestamps (server name & reasons hidden)"
+      : "Only sharing ban timestamps (server name & reasons hidden)",
   );
 
   const lookupText = new TextDisplayBuilder().setContent(lookupTextContent);
@@ -73,9 +73,11 @@ export function addModerationContent(
   const timeoutCommandContent = formatToggleSetting(
     "⏳ DM on `/timeout` command",
     config.moderationSettings.timeoutCommandDmEnabled,
-    "When you run the `/timeout` command, send them a DM with the reason"
+    "> When you run the `/timeout` command, send them a DM with the reason",
   );
-  const timeoutCommandText = new TextDisplayBuilder().setContent(timeoutCommandContent);
+  const timeoutCommandText = new TextDisplayBuilder().setContent(
+    timeoutCommandContent,
+  );
   const timeoutCommandSection = new SectionBuilder()
     .addTextDisplayComponents(timeoutCommandText)
     .setButtonAccessory(
@@ -96,9 +98,11 @@ export function addModerationContent(
   const timeoutNativeContent = formatToggleSetting(
     "⏳ DM on Discord Timeout",
     config.moderationSettings.timeoutNativeDmEnabled,
-    "When you timeout via right-clicking a user, send them a DM with the reason"
+    "> When you timeout via right-clicking a user, send them a DM with the reason",
   );
-  const timeoutNativeText = new TextDisplayBuilder().setContent(timeoutNativeContent);
+  const timeoutNativeText = new TextDisplayBuilder().setContent(
+    timeoutNativeContent,
+  );
   const timeoutNativeSection = new SectionBuilder()
     .addTextDisplayComponents(timeoutNativeText)
     .setButtonAccessory(
@@ -174,7 +178,8 @@ export function addModerationContent(
   const banToggleContent = formatToggleSetting(
     "🔨 Ban DM",
     config.moderationSettings.banDmEnabled,
-    "Always DM the user when banned. Note: This will ONLY work if you use the `/ban` command, not Discord's native ban action as bots cannot DM users that are no longer in the server."
+    "> Always DM the user when banned." +
+      "\n> **Note:** This will ONLY work if you use the `/ban` command, not Discord's native ban action as bots cannot DM users that are no longer in the server.",
   );
   const banToggleText = new TextDisplayBuilder().setContent(banToggleContent);
   const banToggleSection = new SectionBuilder()
