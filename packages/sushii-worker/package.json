@@ -39,7 +39,7 @@
     "i18next-fs-backend": "^2.6.0",
     "kysely": "^0.28.2",
     "node-gyp": "^11.2.0",
-    "parse-duration": "^1.1.2",
+    "parse-duration": "^2.1.4",
     "path-to-regexp": "^8.2.0",
     "pg": "^8.16.2",
     "pg-cursor": "^2.15.2",
