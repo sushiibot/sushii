@@ -45,17 +45,17 @@ export class BannerCommand extends SlashCommandHandler {
         }
       }
 
-      const embedsResult = createBannerEmbeds(user, member || undefined);
+      const result = createBannerEmbeds(user, member || undefined);
 
-      if ("error" in embedsResult) {
+      if (!result.success) {
         await interaction.reply({
-          embeds: [embedsResult.error],
+          embeds: [result.errorEmbed],
         });
         return;
       }
 
       await interaction.reply({
-        embeds: embedsResult,
+        embeds: result.embeds,
       });
     } catch (error) {
       this.logger.error(
