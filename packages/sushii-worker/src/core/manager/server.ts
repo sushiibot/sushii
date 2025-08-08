@@ -1,7 +1,8 @@
-import { Server } from "bun";
-import { Child, ClusterManager } from "discord-hybrid-sharding";
-import { RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
-import { Hono, MiddlewareHandler } from "hono";
+import type { Server } from "bun";
+import type { Child, ClusterManager } from "discord-hybrid-sharding";
+import type { RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
+import type { MiddlewareHandler } from "hono";
+import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
 import { register } from "prom-client";

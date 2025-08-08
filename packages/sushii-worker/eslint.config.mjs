@@ -21,6 +21,7 @@ export default tseslint.config(
   // },
   {
     rules: {
+      "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-inferrable-types": "off",
       "@typescript-eslint/no-non-null-assertion": "warn",
       "@typescript-eslint/no-unused-vars": [

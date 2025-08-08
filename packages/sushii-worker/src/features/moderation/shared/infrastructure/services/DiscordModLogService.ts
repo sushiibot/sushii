@@ -1,15 +1,16 @@
-import { Client } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Client } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { getGuildConfig } from "@/db/GuildConfig/GuildConfig.repository";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import db from "@/infrastructure/database/db";
 
-import { ModerationCase } from "../../domain/entities/ModerationCase";
-import { ModerationTarget } from "../../domain/entities/ModerationTarget";
+import type { ModerationCase } from "../../domain/entities/ModerationCase";
+import type { ModerationTarget } from "../../domain/entities/ModerationTarget";
 import { ModLogComponentBuilder } from "../../domain/services/ModLogComponentBuilder";
-import { ModLogService } from "../../domain/services/ModLogService";
+import type { ModLogService } from "../../domain/services/ModLogService";
 import { ActionType } from "../../domain/value-objects/ActionType";
 
 /**

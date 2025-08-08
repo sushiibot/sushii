@@ -1,4 +1,4 @@
-import { UserProfile } from "../entities/UserProfile";
+import type { UserProfile } from "../entities/UserProfile";
 
 export interface UserProfileRepository {
   getById(id: string): Promise<UserProfile | null>;

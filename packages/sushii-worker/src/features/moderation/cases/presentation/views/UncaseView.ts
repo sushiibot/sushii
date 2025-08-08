@@ -1,6 +1,6 @@
-import { APIEmbed } from "discord.js";
+import type { APIEmbed } from "discord.js";
 
-import { CaseDeletionResult } from "@/features/moderation/cases/application/CaseDeletionService";
+import type { CaseDeletionResult } from "@/features/moderation/cases/application/CaseDeletionService";
 import Color from "@/utils/colors";
 
 export function uncaseErrorView(error: string): APIEmbed {

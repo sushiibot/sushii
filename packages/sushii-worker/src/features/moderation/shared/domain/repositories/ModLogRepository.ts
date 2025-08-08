@@ -1,10 +1,10 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { DMResult, ModerationCase } from "../entities/ModerationCase";
-import { ActionType } from "../value-objects/ActionType";
+import type { DMResult, ModerationCase } from "../entities/ModerationCase";
+import type { ActionType } from "../value-objects/ActionType";
 
 /**
  * Repository interface for mod log specific operations.

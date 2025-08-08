@@ -1,19 +1,20 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   EmbedBuilder,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
 import { t } from "i18next";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorMessage } from "@/interactions/responses/error";
 import Paginator from "@/shared/presentation/Paginator";
 import Color from "@/utils/colors";
 
-import { TagSearchService } from "../../application/TagSearchService";
-import { TagService } from "../../application/TagService";
+import type { TagSearchService } from "../../application/TagSearchService";
+import type { TagService } from "../../application/TagService";
 import { NAME_CONTAINS, NAME_STARTS_WITH } from "../TagConstants";
 import {
   createTagErrorEmbed,

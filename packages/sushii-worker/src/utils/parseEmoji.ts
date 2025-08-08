@@ -1,4 +1,4 @@
-import { APIPartialEmoji } from "discord.js";
+import type { APIPartialEmoji } from "discord.js";
 
 const RE_EMOJI = /<(?<animated>a?)?:(?<name>\w+):(?<id>\d{17,20})>/;
 const RE_EMOJI_UNICODE = /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu;

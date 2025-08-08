@@ -1,5 +1,5 @@
-import { InferSelectModel, InferInsertModel } from "drizzle-orm";
-import { cachedUsersInAppPublic } from "@/infrastructure/database/schema";
+import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import type { cachedUsersInAppPublic } from "@/infrastructure/database/schema";
 
 export type CachedUser = InferSelectModel<typeof cachedUsersInAppPublic>;
 export type NewCachedUser = InferInsertModel<typeof cachedUsersInAppPublic>;

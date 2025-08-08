@@ -1,9 +1,9 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 
 import * as schema from "@/infrastructure/database/schema";
 import { UserProfile } from "../domain/entities/UserProfile";
-import { UserProfileRepository } from "../domain/repositories/UserProfileRepository";
+import type { UserProfileRepository } from "../domain/repositories/UserProfileRepository";
 
 export class DrizzleUserProfileRepository implements UserProfileRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}

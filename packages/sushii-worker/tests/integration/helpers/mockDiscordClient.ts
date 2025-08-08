@@ -1,15 +1,18 @@
-import { Mock, mock } from "bun:test";
-import {
+import type { Mock} from "bun:test";
+import { mock } from "bun:test";
+import type {
   Client,
-  Collection,
   DMChannel,
   Guild,
   GuildBan,
   GuildMember,
-  User,
+  User} from "discord.js";
+import {
+  Collection
 } from "discord.js";
 
-import { MockUserData, getMockUserById } from "./mockUsers";
+import type { MockUserData} from "./mockUsers";
+import { getMockUserById } from "./mockUsers";
 
 export interface DiscordAPISpies {
   ban: Mock<(userId: string, options?: unknown) => Promise<GuildMember | User>>;

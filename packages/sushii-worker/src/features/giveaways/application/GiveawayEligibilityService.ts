@@ -1,10 +1,11 @@
-import { GuildMember } from "discord.js";
-import { Ok, Err, Result } from "ts-results";
-import { Logger } from "pino";
+import type { GuildMember } from "discord.js";
+import type { Result } from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { Logger } from "pino";
 
-import { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 
-import { Giveaway, GiveawayEligibility } from "../domain/entities/Giveaway";
+import type { Giveaway, GiveawayEligibility } from "../domain/entities/Giveaway";
 
 export class GiveawayEligibilityService {
   constructor(

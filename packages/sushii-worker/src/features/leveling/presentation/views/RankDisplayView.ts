@@ -4,9 +4,9 @@ import {
   SectionBuilder,
   TextDisplayBuilder,
 } from "discord.js";
-import { InteractionReplyOptions } from "discord.js";
+import type { InteractionReplyOptions } from "discord.js";
 
-import { UserRankData } from "../../application/GetUserRankService";
+import type { UserRankData } from "../../application/GetUserRankService";
 
 export function formatRankCard(
   data: UserRankData,

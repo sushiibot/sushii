@@ -1,11 +1,13 @@
-import opentelemetry, { Span } from "@opentelemetry/api";
+import type { Span } from "@opentelemetry/api";
+import opentelemetry from "@opentelemetry/api";
 import * as Sentry from "@sentry/node";
-import {
+import type {
   Client,
   ClientEvents,
+  GatewayDispatchPayload} from "discord.js";
+import {
   Events,
-  GatewayDispatchEvents,
-  GatewayDispatchPayload,
+  GatewayDispatchEvents
 } from "discord.js";
 
 import webhookLog, {
@@ -16,7 +18,7 @@ import {
   emojiStatsMsgHandler,
   emojiStatsReactHandler,
 } from "@/events/EmojiStatsHandler";
-import { EventHandlerFn } from "@/events/EventHandler";
+import type { EventHandlerFn } from "@/events/EventHandler";
 import legacyModLogNotifierHandler from "@/events/GuildBanAdd/LegacyModLogNotifier";
 import {
   memberJoinMessageHandler,
@@ -29,15 +31,15 @@ import {
 // Legacy mod log handler removed - migrated to DDD architecture
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { CacheFeature } from "@/features/cache/setup";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { CacheFeature } from "@/features/cache/setup";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 import { StatName, updateStat } from "@/tasks/StatsTask";
 import Color from "@/utils/colors";
 
-import InteractionClient from "./InteractionRouter";
+import type InteractionClient from "./InteractionRouter";
 
 // import { mentionTagHandler } from "./events/TagsMention";
 

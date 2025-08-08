@@ -1,5 +1,5 @@
-import { ClientEvents, Events, GatewayDispatchPayload } from "discord.js";
-import { Client } from "discord.js";
+import type { ClientEvents, Events, GatewayDispatchPayload } from "discord.js";
+import type { Client } from "discord.js";
 
 export type RawEventHandlerFn<T extends Events> = (
   client: Client,

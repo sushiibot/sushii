@@ -1,9 +1,10 @@
 import { sleep } from "bun";
-import { Guild } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Guild } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { BanRepository } from "../domain/repositories/BanRepository";
+import type { BanRepository } from "../domain/repositories/BanRepository";
 import { GuildBan } from "../domain/entities/GuildBan";
 
 /**

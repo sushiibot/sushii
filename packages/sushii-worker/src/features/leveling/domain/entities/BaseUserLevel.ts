@@ -1,10 +1,11 @@
+import type {
+  LevelProgress} from "@/shared/domain/utils/LevelCalculations";
 import {
-  LevelProgress,
   calculateLevel,
   calculateLevelProgress,
 } from "@/shared/domain/utils/LevelCalculations";
 import { ProgressBar } from "../value-objects/ProgressBar";
-import { XpAmount } from "../value-objects/XpAmount";
+import type { XpAmount } from "../value-objects/XpAmount";
 
 export abstract class BaseUserLevel {
   constructor(

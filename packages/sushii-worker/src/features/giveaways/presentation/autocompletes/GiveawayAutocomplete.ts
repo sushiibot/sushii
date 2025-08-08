@@ -1,16 +1,17 @@
 import dayjs from "@/shared/domain/dayjs";
-import {
+import type {
   AutocompleteFocusedOption,
   AutocompleteInteraction,
-  APIApplicationCommandOptionChoice,
+  APIApplicationCommandOptionChoice} from "discord.js";
+import {
   ApplicationCommandOptionType,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { getDurationFromNow } from "@/utils/getDuration";
 import { AutocompleteHandler } from "@/interactions/handlers";
 
-import { GiveawayService } from "../../application/GiveawayService";
+import type { GiveawayService } from "../../application/GiveawayService";
 
 enum GiveawaySubcommand {
   Delete = "delete",

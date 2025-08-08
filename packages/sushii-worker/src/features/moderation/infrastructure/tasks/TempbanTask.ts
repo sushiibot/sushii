@@ -1,7 +1,7 @@
-import { Client } from "discord.js";
+import type { Client } from "discord.js";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { TempBanRepository } from "@/features/moderation/shared/domain/repositories/TempBanRepository";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 import toTimestamp from "@/utils/toTimestamp";

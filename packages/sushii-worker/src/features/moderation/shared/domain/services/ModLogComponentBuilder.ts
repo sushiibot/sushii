@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 import customIds from "@/interactions/customIds";
 
-import { ModerationCase } from "../entities/ModerationCase";
+import type { ModerationCase } from "../entities/ModerationCase";
 import { ActionType } from "../value-objects/ActionType";
 
 /**

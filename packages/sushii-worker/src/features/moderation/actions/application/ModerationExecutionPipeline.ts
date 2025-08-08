@@ -1,24 +1,25 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type * as schema from "@/infrastructure/database/schema";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import { DMNotificationService } from "../../shared/application/DMNotificationService";
-import { ModerationAction } from "../../shared/domain/entities/ModerationAction";
+import type { DMNotificationService } from "../../shared/application/DMNotificationService";
+import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
+import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { TempBan } from "../../shared/domain/entities/TempBan";
-import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
-import { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
-import { ModLogService } from "../../shared/domain/services/ModLogService";
+import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
+import type { ModLogService } from "../../shared/domain/services/ModLogService";
 import {
   ActionType,
   actionTypeRequiresDiscordAction,
 } from "../../shared/domain/value-objects/ActionType";
-import { DMPolicyService } from "./DMPolicyService";
+import type { DMPolicyService } from "./DMPolicyService";
 
 // Constants
 const DEFAULT_DELETE_MESSAGE_DAYS = 0 as const;

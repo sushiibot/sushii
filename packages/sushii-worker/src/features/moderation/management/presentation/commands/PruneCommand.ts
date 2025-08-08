@@ -1,15 +1,16 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
-import { PruneMessageService } from "../../application/PruneMessageService";
+import type { PruneMessageService } from "../../application/PruneMessageService";
 import {
   PruneAttachmentsOption,
   PruneBotsOrUsersOption,

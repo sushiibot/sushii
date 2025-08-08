@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 import path from "path";
 
 export interface DockerContainerInfo {

@@ -1,4 +1,4 @@
-import InteractionClient from "@/core/cluster/discord/InteractionRouter";
+import type InteractionClient from "@/core/cluster/discord/InteractionRouter";
 
 import StatusCommand from "../features/status/presentation/StatusCommand";
 import EmojiStatsCommand from "./emojis/EmojiStatsCommands";

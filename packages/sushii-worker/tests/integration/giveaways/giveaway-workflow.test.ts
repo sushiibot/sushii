@@ -6,15 +6,16 @@ import {
   expect,
   test,
 } from "bun:test";
-import { Message } from "discord.js";
+import type { Message } from "discord.js";
 
 import {
   giveawayEntriesInAppPublic,
   giveawaysInAppPublic,
 } from "@/infrastructure/database/schema";
 
+import type {
+  IntegrationTestServices} from "../helpers/integrationTestSetup";
 import {
-  IntegrationTestServices,
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";

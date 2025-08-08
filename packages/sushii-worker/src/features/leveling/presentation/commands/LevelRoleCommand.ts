@@ -1,5 +1,6 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
@@ -8,7 +9,7 @@ import { PermissionFlagsBits } from "discord.js";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 
-import { LevelRoleService } from "../../application/LevelRoleService";
+import type { LevelRoleService } from "../../application/LevelRoleService";
 import {
   formatCreateSuccess,
   formatDeleteSuccess,

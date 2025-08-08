@@ -5,7 +5,7 @@ import { DeploymentConfig } from "@/shared/infrastructure/config/config";
 
 import { Deployment } from "../domain/entities/Deployment";
 import { DeploymentChanged } from "../domain/events/DeploymentChanged";
-import { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
+import type { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
 import { DeploymentService } from "./DeploymentService";
 
 // Mock repository for testing

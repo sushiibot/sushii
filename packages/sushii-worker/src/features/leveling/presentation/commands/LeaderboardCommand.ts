@@ -1,19 +1,21 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
-import Paginator, {
+import type {
   EmbedModifierFn,
   GetPageFn,
   GetTotalEntriesFn,
 } from "@/shared/presentation/Paginator";
+import Paginator from "@/shared/presentation/Paginator";
 
 import Color from "@/utils/colors";
 
-import { GetLeaderboardService } from "../../application/GetLeaderboardService";
+import type { GetLeaderboardService } from "../../application/GetLeaderboardService";
 import {
   TimeFrame,
   isValidTimeFrame,

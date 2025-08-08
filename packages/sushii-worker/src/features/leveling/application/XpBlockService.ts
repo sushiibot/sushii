@@ -1,7 +1,7 @@
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { XpBlock } from "../domain/entities/XpBlock";
-import { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
+import type { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
 
 export class XpBlockService {
   constructor(

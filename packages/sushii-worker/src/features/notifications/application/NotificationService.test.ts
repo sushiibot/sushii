@@ -1,8 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { NotificationBlock } from "../domain/entities/NotificationBlock";
-import { NotificationBlockRepository } from "../domain/repositories/NotificationBlockRepository";
+import type { NotificationBlockRepository } from "../domain/repositories/NotificationBlockRepository";
 import { NotificationService } from "./NotificationService";
 
 describe("NotificationService", () => {

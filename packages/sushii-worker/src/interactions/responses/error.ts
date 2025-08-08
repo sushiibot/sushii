@@ -1,10 +1,11 @@
-import {
-  EmbedBuilder,
+import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
   InteractionReplyOptions,
   ModalSubmitInteraction,
-  InteractionEditReplyOptions,
+  InteractionEditReplyOptions} from "discord.js";
+import {
+  EmbedBuilder
 } from "discord.js";
 import { MessageFlags } from "discord.js";
 import { t } from "i18next";

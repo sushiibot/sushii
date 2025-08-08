@@ -1,9 +1,10 @@
-import { Events, Guild, GuildAuditLogsEntry } from "discord.js";
-import { Logger } from "pino";
+import type { Guild, GuildAuditLogsEntry } from "discord.js";
+import { Events } from "discord.js";
+import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import { DiscordAuditLogService } from "../../infrastructure";
+import type { DiscordAuditLogService } from "../../infrastructure";
 
 /**
  * Presentation layer event handler for Discord audit log entries.

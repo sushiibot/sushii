@@ -1,4 +1,5 @@
-import { Err, Ok, Result } from "ts-results";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { TagName } from "../value-objects/TagName";
 

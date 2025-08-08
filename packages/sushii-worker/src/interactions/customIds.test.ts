@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Match } from "path-to-regexp";
+import type { Match } from "path-to-regexp";
 
 import customIds from "./customIds";
 

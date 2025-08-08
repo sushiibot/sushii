@@ -10,11 +10,11 @@ import {
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
+import type { IntegrationTestServices } from "../helpers/integrationTestSetup";
 import {
-  IntegrationTestServices,
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";
@@ -27,9 +27,13 @@ describe("ModLog Reason Button Integration", () => {
 
   // Helper function to setup guild config with mod log enabled
   const setupGuildConfig = async () => {
-    const config = GuildConfig.createDefault(guildId)
-      .updateLogChannel("mod", modLogChannelId);
-    await services.moderationFeature.services.guildConfigRepository.save(config);
+    const config = GuildConfig.createDefault(guildId).updateLogChannel(
+      "mod",
+      modLogChannelId,
+    );
+    await services.moderationFeature.services.guildConfigRepository.save(
+      config,
+    );
   };
 
   beforeAll(async () => {
@@ -80,10 +84,11 @@ describe("ModLog Reason Button Integration", () => {
 
       // Test the button handler logic by directly calling the service methods
       // First verify case exists
-      const caseResult = await services.moderationFeature.services.moderationCaseRepository.findById(
-        guildId,
-        "1"
-      );
+      const caseResult =
+        await services.moderationFeature.services.moderationCaseRepository.findById(
+          guildId,
+          "1",
+        );
       if (caseResult.err) {
         throw caseResult.val;
       }
@@ -104,21 +109,25 @@ describe("ModLog Reason Button Integration", () => {
 
       // Update the case with the new reason (simulating what the button handler does)
       const updatedCase = caseResult.val.withReason(reasonResult.val);
-      const updatedCaseWithExecutor = updatedCase.withExecutor(MOCK_USERS.MODERATOR_1.id);
+      const updatedCaseWithExecutor = updatedCase.withExecutor(
+        MOCK_USERS.MODERATOR_1.id,
+      );
 
       // Save the updated case
-      const updateResult = await services.moderationFeature.services.moderationCaseRepository.update(
-        updatedCaseWithExecutor,
-      );
+      const updateResult =
+        await services.moderationFeature.services.moderationCaseRepository.update(
+          updatedCaseWithExecutor,
+        );
       if (updateResult.err) {
         throw updateResult.val;
       }
 
       // Verify the case was updated
-      const finalCaseResult = await services.moderationFeature.services.moderationCaseRepository.findById(
-        guildId,
-        "1"
-      );
+      const finalCaseResult =
+        await services.moderationFeature.services.moderationCaseRepository.findById(
+          guildId,
+          "1",
+        );
       if (finalCaseResult.err) {
         throw finalCaseResult.val;
       }
@@ -164,10 +173,11 @@ describe("ModLog Reason Button Integration", () => {
       );
 
       // Get the case
-      const caseResult = await services.moderationFeature.services.moderationCaseRepository.findById(
-        guildId,
-        "2"
-      );
+      const caseResult =
+        await services.moderationFeature.services.moderationCaseRepository.findById(
+          guildId,
+          "2",
+        );
       if (caseResult.err) {
         throw caseResult.val;
       }
@@ -186,21 +196,25 @@ describe("ModLog Reason Button Integration", () => {
 
       // Update the case with the new reason
       const updatedCase = caseResult.val.withReason(newReasonResult.val);
-      const updatedCaseWithExecutor = updatedCase.withExecutor(MOCK_USERS.MODERATOR_1.id);
+      const updatedCaseWithExecutor = updatedCase.withExecutor(
+        MOCK_USERS.MODERATOR_1.id,
+      );
 
       // Save the updated case
-      const updateResult = await services.moderationFeature.services.moderationCaseRepository.update(
-        updatedCaseWithExecutor,
-      );
+      const updateResult =
+        await services.moderationFeature.services.moderationCaseRepository.update(
+          updatedCaseWithExecutor,
+        );
       if (updateResult.err) {
         throw updateResult.val;
       }
 
       // Verify the case was updated
-      const finalCaseResult = await services.moderationFeature.services.moderationCaseRepository.findById(
-        guildId,
-        "2"
-      );
+      const finalCaseResult =
+        await services.moderationFeature.services.moderationCaseRepository.findById(
+          guildId,
+          "2",
+        );
       if (finalCaseResult.err) {
         throw finalCaseResult.val;
       }
@@ -222,7 +236,7 @@ describe("ModLog Reason Button Integration", () => {
       expect(emptyReasonResult.val).toBeNull();
 
       // Test reason validation with null
-      const nullReasonResult = Reason.create(null);  
+      const nullReasonResult = Reason.create(null);
       if (nullReasonResult.err) {
         throw nullReasonResult.val;
       }
@@ -240,11 +254,12 @@ describe("ModLog Reason Button Integration", () => {
 
     test("should handle case not found scenario", async () => {
       // Try to find a case that doesn't exist (using valid numeric format)
-      const caseResult = await services.moderationFeature.services.moderationCaseRepository.findById(
-        guildId,
-        "999999"
-      );
-      
+      const caseResult =
+        await services.moderationFeature.services.moderationCaseRepository.findById(
+          guildId,
+          "999999",
+        );
+
       // This should return successfully but with null value (case not found)
       if (caseResult.err) {
         throw caseResult.val;
@@ -256,21 +271,26 @@ describe("ModLog Reason Button Integration", () => {
   describe("Domain Logic", () => {
     test("should create moderation case with proper value objects", async () => {
       // Test creating a case with various action types and reasons
-      const actionTypes = [ActionType.Ban, ActionType.Kick, ActionType.Warn, ActionType.Note];
-      
+      const actionTypes = [
+        ActionType.Ban,
+        ActionType.Kick,
+        ActionType.Warn,
+        ActionType.Note,
+      ];
+
       for (let i = 0; i < actionTypes.length; i++) {
         const actionType = actionTypes[i];
         const caseId = (i + 1).toString();
-        
+
         const reasonResult = Reason.create(`Test reason for ${actionType}`);
         if (reasonResult.err) {
           throw reasonResult.val;
         }
-        
+
         const moderationCase = ModerationCase.create(
           guildId,
           caseId,
-          actionType!,
+          actionType,
           MOCK_USERS.MEMBER_1.id,
           MOCK_USERS.MEMBER_1.tag,
           MOCK_USERS.MODERATOR_1.id,
@@ -281,7 +301,9 @@ describe("ModLog Reason Button Integration", () => {
         expect(moderationCase.actionType).toBe(actionType);
         expect(moderationCase.userId).toBe(MOCK_USERS.MEMBER_1.id);
         expect(moderationCase.executorId).toBe(MOCK_USERS.MODERATOR_1.id);
-        expect(moderationCase.reason?.value).toBe(`Test reason for ${actionType}`);
+        expect(moderationCase.reason?.value).toBe(
+          `Test reason for ${actionType}`,
+        );
       }
     });
 
@@ -314,7 +336,7 @@ describe("ModLog Reason Button Integration", () => {
 
       expect(updatedCase.executorId).toBe(MOCK_USERS.MODERATOR_2.id);
       expect(updatedCase.reason?.value).toBe("Added by different mod");
-      
+
       // Original case should be unchanged
       expect(originalCase.executorId).toBe(MOCK_USERS.MODERATOR_1.id);
       expect(originalCase.reason).toBeNull();

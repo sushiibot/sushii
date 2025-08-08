@@ -1,6 +1,7 @@
+import type {
+  AnySelectMenuInteraction} from "discord.js";
 import {
   EmbedBuilder,
-  AnySelectMenuInteraction,
   DiscordAPIError,
 } from "discord.js";
 import { MessageFlags } from "discord.js";

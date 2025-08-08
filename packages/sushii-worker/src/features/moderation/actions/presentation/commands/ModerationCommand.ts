@@ -1,20 +1,23 @@
-import {
+import type {
   Attachment,
   ChatInputCommandInteraction,
   GuildMember,
-  InteractionContextType,
   PermissionFlagsBits,
   RESTPostAPIApplicationCommandsJSONBody,
-  SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder,
+  SlashCommandOptionsOnlyBuilder} from "discord.js";
+import {
+  InteractionContextType,
+  SlashCommandBuilder
 } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
+import type {
+  ModerationAction} from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
   KickAction,
-  ModerationAction,
   NoteAction,
   TempBanAction,
   TimeoutAction,
@@ -23,8 +26,9 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import type {
+  DMChoice} from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import {
-  DMChoice,
   dmChoiceFromString,
 } from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
@@ -37,9 +41,9 @@ import {
 } from "@/interactions/responses/error";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
-import { ModerationService } from "../../application/ModerationService";
-import { TargetResolutionService } from "../../application/TargetResolutionService";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { ModerationService } from "../../application/ModerationService";
+import type { TargetResolutionService } from "../../application/TargetResolutionService";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 export interface ModerationCommandConfig {
   actionType: ActionType;

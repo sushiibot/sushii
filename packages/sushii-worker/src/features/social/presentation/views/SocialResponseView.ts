@@ -1,7 +1,7 @@
 import { EmbedBuilder } from "discord.js";
-import dayjs from "@/shared/domain/dayjs";
+import type dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
-import { FishyResult, RepResult } from "../../domain";
+import type { FishyResult, RepResult } from "../../domain";
 
 export function createFishySuccessEmbed(
   result: FishyResult,

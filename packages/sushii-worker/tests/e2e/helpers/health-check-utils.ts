@@ -1,5 +1,5 @@
 import { sleep } from "bun";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 export interface HealthCheckResponse {
   status: "healthy" | "unhealthy" | "unknown";

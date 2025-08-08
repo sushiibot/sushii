@@ -1,6 +1,7 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
   ChannelType,
-  ChatInputCommandInteraction,
   EmbedBuilder,
   InteractionContextType,
   MessageFlags,
@@ -11,7 +12,7 @@ import { t } from "i18next";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import Color from "@/utils/colors";
 
-import { NotificationService } from "../../application/NotificationService";
+import type { NotificationService } from "../../application/NotificationService";
 
 const ID_REGEX = /\d{17,20}/g;
 

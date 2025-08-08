@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { User } from "discord.js";
+import type { User } from "discord.js";
 
 import { PruneOptions } from "./PruneOptions";
 

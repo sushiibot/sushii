@@ -1,4 +1,4 @@
-import { MessageLogBlock } from "../entities/MessageLogBlock";
+import type { MessageLogBlock } from "../entities/MessageLogBlock";
 
 export interface MessageLogBlockRepository {
   findByGuildId(guildId: string): Promise<MessageLogBlock[]>;

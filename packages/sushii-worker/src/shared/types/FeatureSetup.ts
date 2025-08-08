@@ -1,13 +1,13 @@
-import { ClientEvents } from "discord.js";
+import type { ClientEvents } from "discord.js";
 
-import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-import {
+import type { EventHandler } from "@/core/cluster/presentation/EventHandler";
+import type {
   AutocompleteHandler,
   ButtonHandler,
   SlashCommandHandler,
 } from "@/interactions/handlers";
-import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
+import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 /**
  * Type aliases for handler collections

@@ -1,7 +1,8 @@
-import { APIEmbedField, EmbedBuilder, TimestampStyles, User } from "discord.js";
-import { Client } from "discord.js";
+import type { APIEmbedField, User } from "discord.js";
+import { EmbedBuilder, TimestampStyles } from "discord.js";
+import type { Client } from "discord.js";
 
-import { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
+import type { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
 import logger from "@/shared/infrastructure/logger";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";

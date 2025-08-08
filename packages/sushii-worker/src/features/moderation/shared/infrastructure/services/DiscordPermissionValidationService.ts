@@ -1,7 +1,9 @@
-import { GuildMember, PermissionFlagsBits, User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { GuildMember, User } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { PermissionValidationService } from "../../domain/services/PermissionValidationService";
+import type { PermissionValidationService } from "../../domain/services/PermissionValidationService";
 import { ActionType } from "../../domain/value-objects/ActionType";
 
 /**

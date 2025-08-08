@@ -1,8 +1,9 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  MessageFlags,
-  ChatInputCommandInteraction,
+  MessageFlags
 } from "discord.js";
 import dayjs from "@/shared/domain/dayjs";
 import { t } from "i18next";

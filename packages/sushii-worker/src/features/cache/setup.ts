@@ -1,5 +1,5 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import * as schema from "@/infrastructure/database/schema";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/infrastructure/database/schema";
 import { CacheService } from "./application";
 import { DrizzleCachedGuildRepository, DrizzleCachedUserRepository } from "./infrastructure";
 import { 

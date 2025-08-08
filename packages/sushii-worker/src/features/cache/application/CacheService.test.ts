@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 import { Ok } from "ts-results";
 import { CacheService } from "./CacheService";
-import { CachedGuildRepository, CachedUserRepository, CachedGuildEntity, CachedUserEntity } from "../domain";
+import type { CachedGuildRepository, CachedUserRepository, CachedGuildEntity, CachedUserEntity } from "../domain";
 
 // Mock repositories
 const mockGuildRepository: CachedGuildRepository = {

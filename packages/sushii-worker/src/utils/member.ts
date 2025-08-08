@@ -1,4 +1,4 @@
-import {
+import type {
   APIGuildMember,
   APIInteractionDataResolvedGuildMember,
 } from "discord.js";

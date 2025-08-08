@@ -1,8 +1,9 @@
-import { EmbedBuilder, GuildMember, User } from "discord.js";
+import type { GuildMember, User } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 
-import { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
+import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
 import {
   formatActionTypeAsSentence,
   getActionTypeEmoji,

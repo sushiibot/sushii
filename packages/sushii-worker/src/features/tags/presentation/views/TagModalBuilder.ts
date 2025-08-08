@@ -5,7 +5,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 
-import { Tag } from "../../domain/entities/Tag";
+import type { Tag } from "../../domain/entities/Tag";
 import { MODAL_FIELDS, MODAL_IDS } from "../TagConstants";
 
 export function createEditContentModal(tag: Tag): ModalBuilder {

@@ -1,8 +1,9 @@
-import { ChatInputCommandInteraction, Role } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { ChatInputCommandInteraction, Role } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { LevelRole } from "../domain/entities/LevelRole";
-import { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
+import type { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
 
 export class LevelRoleService {
   constructor(private readonly levelRoleRepository: LevelRoleRepository) {}

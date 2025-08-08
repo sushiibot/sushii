@@ -1,20 +1,21 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
-import { TagService } from "../../application/TagService";
+import type { TagService } from "../../application/TagService";
 import {
   createTagErrorEmbed,
   createTagNotFoundEmbed,
 } from "../views/TagMessageBuilder";
-import { TagEditInteractionHandler } from "./TagEditInteractionHandler";
+import type { TagEditInteractionHandler } from "./TagEditInteractionHandler";
 
 export class TagEditCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()

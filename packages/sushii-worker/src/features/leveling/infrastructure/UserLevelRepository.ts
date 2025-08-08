@@ -1,14 +1,14 @@
 import { and, count, desc, eq, sql, sum } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { userLevelsInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
 import { GlobalUserLevel } from "../domain/entities/GlobalUserLevel";
 import { LeaderboardEntry } from "../domain/entities/LeaderboardEntry";
 import { UserLevel } from "../domain/entities/UserLevel";
 import { UserRank } from "../domain/entities/UserRank";
-import { UserLevelRepository as IUserLevelRepository } from "../domain/repositories/UserLevelRepository";
+import type { UserLevelRepository as IUserLevelRepository } from "../domain/repositories/UserLevelRepository";
 import { TimeFrame } from "../domain/value-objects/TimeFrame";
 
 export type DrizzleDB = NodePgDatabase<typeof schema>;

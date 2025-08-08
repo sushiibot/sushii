@@ -1,16 +1,17 @@
-import { ChannelType, Client, GuildTextBasedChannel } from "discord.js";
+import type { Client, GuildTextBasedChannel } from "discord.js";
+import { ChannelType } from "discord.js";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import {
   activeGiveawaysGauge,
   endedGiveawaysCounter,
 } from "@/infrastructure/metrics/metrics";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
-import { GiveawayService } from "@/features/giveaways/application/GiveawayService";
-import { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
-import { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
-import { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
+import type { GiveawayService } from "@/features/giveaways/application/GiveawayService";
+import type { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
+import type { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
+import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
 import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
 import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";

@@ -1,11 +1,11 @@
 import { and, eq, inArray, or } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { xpBlocksInAppPublic } from "@/infrastructure/database/schema";
 
 import { XpBlock } from "../domain/entities/XpBlock";
-import { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
+import type { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
 
 export class XpBlockRepositoryImpl implements XpBlockRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}

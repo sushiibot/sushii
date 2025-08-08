@@ -6,13 +6,13 @@ import {
   expect,
   test,
 } from "bun:test";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import {
   notificationBlocksInAppPublic,
   notificationsInAppPublic,
 } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
 import { Notification } from "../domain/entities/Notification";

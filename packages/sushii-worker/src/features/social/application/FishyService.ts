@@ -1,17 +1,18 @@
-import dayjs from "@/shared/domain/dayjs";
-import { User } from "discord.js";
-import { UserProfileRepository } from "@/features/user-profile";
+import type dayjs from "@/shared/domain/dayjs";
+import type { User } from "discord.js";
+import type { UserProfileRepository } from "@/features/user-profile";
 import logger from "@/shared/infrastructure/logger";
+import type {
+  FishyResult} from "../domain";
 import {
   CatchableType,
-  FishyResult,
   FISHY_VALUE_RANGES,
   FISH_PROBABILITIES,
   NORMAL_FISH_TYPES,
   SCALED_FISH_TYPES,
   SCALED_FISH_WEIGHTS,
 } from "../domain";
-import { CooldownService } from "./CooldownService";
+import type { CooldownService } from "./CooldownService";
 
 export class FishyService {
   constructor(

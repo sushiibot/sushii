@@ -1,16 +1,17 @@
+import type {
+  ChatInputCommandInteraction,
+  GuildTextBasedChannel} from "discord.js";
 import {
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
   PermissionFlagsBits,
   EmbedBuilder,
   messageLink,
   MessageFlags,
   DiscordAPIError,
   RESTJSONErrorCodes,
-  InteractionContextType,
-  GuildTextBasedChannel,
+  InteractionContextType
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import dayjs from "@/shared/domain/dayjs";
 import { SlashCommandHandler } from "@/interactions/handlers";
@@ -19,9 +20,10 @@ import parseDuration from "@/utils/parseDuration";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
-import { Giveaway, GiveawayData } from "../../domain/entities/Giveaway";
-import { GiveawayService } from "../../application/GiveawayService";
-import { GiveawayDrawService } from "../../application/GiveawayDrawService";
+import type { GiveawayData } from "../../domain/entities/Giveaway";
+import { Giveaway } from "../../domain/entities/Giveaway";
+import type { GiveawayService } from "../../application/GiveawayService";
+import type { GiveawayDrawService } from "../../application/GiveawayDrawService";
 import { buildGiveawayEmbed } from "../views/GiveawayEmbedBuilder";
 import { buildGiveawayComponents } from "../views/GiveawayComponentBuilder";
 

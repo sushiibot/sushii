@@ -1,10 +1,11 @@
-import { Attachment, GuildMember, User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { Attachment, GuildMember, User } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { ActionType } from "../value-objects/ActionType";
-import { DMChoice } from "../value-objects/DMChoice";
-import { Duration } from "../value-objects/Duration";
-import { Reason } from "../value-objects/Reason";
+import type { DMChoice } from "../value-objects/DMChoice";
+import type { Duration } from "../value-objects/Duration";
+import type { Reason } from "../value-objects/Reason";
 
 export abstract class ModerationAction {
   protected constructor(

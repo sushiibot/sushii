@@ -1,5 +1,6 @@
-import { Result, Ok, Err } from "ts-results";
-import { CachedGuildRepository, CachedUserRepository, NewCachedGuild, NewCachedUser } from "../domain";
+import type { Result} from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { CachedGuildRepository, CachedUserRepository, NewCachedGuild, NewCachedUser } from "../domain";
 import logger from "@/shared/infrastructure/logger";
 
 interface CacheServiceConfig {

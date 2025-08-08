@@ -1,16 +1,18 @@
+import type {
+  Guild,
+  User} from "discord.js";
 import {
   DiscordAPIError,
   EmbedBuilder,
-  Guild,
   RESTJSONErrorCodes,
-  TimestampStyles,
-  User,
+  TimestampStyles
 } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import dayjs from "@/shared/domain/dayjs";
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type dayjs from "@/shared/domain/dayjs";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
@@ -18,7 +20,7 @@ import {
   ActionType,
   actionTypeSupportsDM,
 } from "../domain/value-objects/ActionType";
-import { Reason } from "../domain/value-objects/Reason";
+import type { Reason } from "../domain/value-objects/Reason";
 
 /**
  * Application service for building and sending DM notifications for moderation actions.

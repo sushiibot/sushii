@@ -1,4 +1,4 @@
-import { Deployment } from "../entities/Deployment";
+import type { Deployment } from "../entities/Deployment";
 
 export interface DeploymentRepository {
   getActive(): Promise<Deployment>;

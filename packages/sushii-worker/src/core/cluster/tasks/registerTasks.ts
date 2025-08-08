@@ -1,10 +1,10 @@
 import * as Sentry from "@sentry/node";
 import { CronJob } from "cron";
-import { Client } from "discord.js";
+import type { Client } from "discord.js";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import logger from "@/shared/infrastructure/logger";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 import { DeleteOldMessagesTask } from "@/tasks/DeleteOldMessagesTask";
 import { DeleteStaleEmojiStatsRateLimit } from "@/tasks/DeleteStaleEmojiStatsRateLimit";
 import { RemindersTask } from "@/tasks/RemindersTask";

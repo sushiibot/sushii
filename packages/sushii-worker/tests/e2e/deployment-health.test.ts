@@ -6,9 +6,10 @@ import {
   afterAll,
   beforeEach,
 } from "bun:test";
+import type {
+  E2ETestEnvironment} from "./helpers/deployment-setup";
 import {
-  DeploymentSetup,
-  E2ETestEnvironment,
+  DeploymentSetup
 } from "./helpers/deployment-setup";
 
 describe("Deployment Health and Metrics E2E Tests", () => {

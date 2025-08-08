@@ -1,7 +1,7 @@
-import { Client } from "discord.js";
-import { Logger } from "pino";
+import type { Client } from "discord.js";
+import type { Logger } from "pino";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 
 export abstract class AbstractBackgroundTask {
   abstract readonly name: string;

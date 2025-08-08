@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
 export default defineConfig({
   out: "./drizzle",
   schema: "./src/infrastructure/database/schema.ts",
@@ -10,6 +14,6 @@ export default defineConfig({
   // DDL alteration statements in one transaction
   breakpoints: false,
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    url: process.env.DATABASE_URL,
   },
 });

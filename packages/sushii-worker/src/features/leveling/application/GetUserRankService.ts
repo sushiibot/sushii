@@ -1,12 +1,13 @@
-import { User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { User } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { GlobalUserLevel } from "../domain/entities/GlobalUserLevel";
-import { UserLevel } from "../domain/entities/UserLevel";
-import { UserProfile } from "../domain/entities/UserProfile";
-import { UserRank } from "../domain/entities/UserRank";
-import { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
-import { UserProfileRepository } from "../domain/repositories/UserProfileRepository";
+import type { GlobalUserLevel } from "../domain/entities/GlobalUserLevel";
+import type { UserLevel } from "../domain/entities/UserLevel";
+import type { UserProfile } from "../domain/entities/UserProfile";
+import type { UserRank } from "../domain/entities/UserRank";
+import type { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
+import type { UserProfileRepository } from "../domain/repositories/UserProfileRepository";
 
 export interface UserRankData {
   user: User;

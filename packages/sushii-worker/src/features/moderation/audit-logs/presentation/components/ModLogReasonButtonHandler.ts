@@ -1,13 +1,14 @@
+import type {
+  ButtonInteraction,
+  ModalSubmitInteraction} from "discord.js";
 import {
   ActionRowBuilder,
-  ButtonInteraction,
-  ModalSubmitInteraction,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";

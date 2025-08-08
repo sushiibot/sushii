@@ -1,8 +1,8 @@
-import { GlobalUserLevel } from "../entities/GlobalUserLevel";
-import { LeaderboardEntry } from "../entities/LeaderboardEntry";
-import { UserLevel } from "../entities/UserLevel";
-import { UserRank } from "../entities/UserRank";
-import { TimeFrame } from "../value-objects/TimeFrame";
+import type { GlobalUserLevel } from "../entities/GlobalUserLevel";
+import type { LeaderboardEntry } from "../entities/LeaderboardEntry";
+import type { UserLevel } from "../entities/UserLevel";
+import type { UserRank } from "../entities/UserRank";
+import type { TimeFrame } from "../value-objects/TimeFrame";
 
 export interface UserLevelRepository {
   findByUserAndGuild(

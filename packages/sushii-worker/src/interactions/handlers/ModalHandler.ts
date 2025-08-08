@@ -1,5 +1,5 @@
-import { ModalSubmitInteraction } from "discord.js";
-import { match } from "path-to-regexp";
+import type { ModalSubmitInteraction } from "discord.js";
+import type { match } from "path-to-regexp";
 
 export default abstract class ModalHandler {
   /**

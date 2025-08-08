@@ -1,10 +1,12 @@
-import {
+import type {
   ChatInputCommandInteraction,
-  Collection,
   GuildMember,
-  User,
+  User} from "discord.js";
+import {
+  Collection
 } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { OPTION_NAMES } from "../../shared/presentation/commands/ModerationCommandConstants";

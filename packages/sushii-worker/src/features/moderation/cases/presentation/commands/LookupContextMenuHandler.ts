@@ -1,17 +1,18 @@
+import type {
+  ContextMenuCommandInteraction} from "discord.js";
 import {
   ContextMenuCommandBuilder,
-  ContextMenuCommandInteraction,
   EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
 import { ApplicationCommandType } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 
-import { LookupUserService } from "../../application/LookupUserService";
+import type { LookupUserService } from "../../application/LookupUserService";
 import { buildUserHistoryEmbeds } from "../views/HistoryView";
 import { buildUserLookupEmbed } from "../views/UserLookupView";
 

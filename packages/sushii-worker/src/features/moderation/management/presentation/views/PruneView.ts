@@ -2,7 +2,7 @@ import { EmbedBuilder } from "discord.js";
 
 import Color from "@/utils/colors";
 
-import { PruneResult } from "../../application/PruneMessageService";
+import type { PruneResult } from "../../application/PruneMessageService";
 
 function generateRangeDescription(
   afterMessageID: string | null,

@@ -1,8 +1,9 @@
-import { Ok, Err, Result } from "ts-results";
-import { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { Logger } from "pino";
 
 import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
-import { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
 
 export class GiveawayEntryService {
   constructor(

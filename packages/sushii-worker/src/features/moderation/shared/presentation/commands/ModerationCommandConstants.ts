@@ -1,6 +1,7 @@
-import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import type { SlashCommandBuilder } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
 
-import { ModerationCommandConfig } from "@/features/moderation/actions/presentation/commands/ModerationCommand";
+import type { ModerationCommandConfig } from "@/features/moderation/actions/presentation/commands/ModerationCommand";
 
 import { ActionType } from "../../domain/value-objects/ActionType";
 import {

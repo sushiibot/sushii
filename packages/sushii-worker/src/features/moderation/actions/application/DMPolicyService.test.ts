@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { GuildMember, User } from "discord.js";
+import type { GuildMember, User } from "discord.js";
 
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import {
   BanAction,

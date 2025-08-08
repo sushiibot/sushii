@@ -1,7 +1,7 @@
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { MessageLogBlock } from "../domain/entities/MessageLogBlock";
-import { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
+import type { MessageLogBlock } from "../domain/entities/MessageLogBlock";
+import type { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
 
 export class MessageLogService {
   constructor(

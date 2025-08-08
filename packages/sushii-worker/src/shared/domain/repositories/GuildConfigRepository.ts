@@ -1,4 +1,4 @@
-import { GuildConfig } from "../entities/GuildConfig";
+import type { GuildConfig } from "../entities/GuildConfig";
 
 export interface GuildConfigRepository {
   findByGuildId(guildId: string): Promise<GuildConfig>;

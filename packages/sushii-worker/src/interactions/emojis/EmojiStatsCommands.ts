@@ -1,10 +1,11 @@
-import {
-  SlashCommandBuilder,
+import type {
   ChatInputCommandInteraction,
-  EmbedBuilder,
   GuildEmoji,
   Sticker,
-  Collection,
+  Collection} from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
   InteractionContextType,
 } from "discord.js";
 
@@ -12,7 +13,7 @@ import { SlashCommandHandler } from "../handlers";
 import db from "../../infrastructure/database/db";
 import Color from "../../utils/colors";
 import logger from "@/shared/infrastructure/logger";
-import { AppPublicGuildAssetType } from "../../infrastructure/database/dbTypes";
+import type { AppPublicGuildAssetType } from "../../infrastructure/database/dbTypes";
 import Paginator from "@/shared/presentation/Paginator";
 
 enum CommandOption {

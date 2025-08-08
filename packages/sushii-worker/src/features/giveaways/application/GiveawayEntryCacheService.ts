@@ -1,8 +1,8 @@
-import { Message } from "discord.js";
-import { Logger } from "pino";
+import type { Message } from "discord.js";
+import type { Logger } from "pino";
 
 import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
-import { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
 
 interface GiveawayCacheEntry {
   users: string[];

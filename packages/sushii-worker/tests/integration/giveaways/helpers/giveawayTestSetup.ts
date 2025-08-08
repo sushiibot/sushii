@@ -1,5 +1,5 @@
 import dayjs from "@/shared/domain/dayjs";
-import { GiveawayData } from "@/features/giveaways/domain/entities/Giveaway";
+import type { GiveawayData } from "@/features/giveaways/domain/entities/Giveaway";
 
 /**
  * Simple test utilities for giveaway integration tests

@@ -1,4 +1,4 @@
-import { XpBlock } from "../entities/XpBlock";
+import type { XpBlock } from "../entities/XpBlock";
 
 export interface XpBlockRepository {
   findActiveBlocks(

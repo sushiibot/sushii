@@ -10,8 +10,9 @@ import { AuditLogEvent } from "discord.js";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
+import type {
+  IntegrationTestServices} from "../helpers/integrationTestSetup";
 import {
-  IntegrationTestServices,
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";

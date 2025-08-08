@@ -1,5 +1,5 @@
-import { InferSelectModel, InferInsertModel } from "drizzle-orm";
-import { cachedGuildsInAppPublic } from "@/infrastructure/database/schema";
+import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import type { cachedGuildsInAppPublic } from "@/infrastructure/database/schema";
 
 export type CachedGuild = InferSelectModel<typeof cachedGuildsInAppPublic>;
 export type NewCachedGuild = InferInsertModel<typeof cachedGuildsInAppPublic>;

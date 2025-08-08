@@ -1,6 +1,7 @@
-import { TimestampStyles, TimestampStylesString } from "discord.js";
+import type { TimestampStylesString } from "discord.js";
+import { TimestampStyles } from "discord.js";
 
-import dayjs from "@/shared/domain/dayjs";
+import type dayjs from "@/shared/domain/dayjs";
 
 export default function toTimestamp(
   date: dayjs.Dayjs,

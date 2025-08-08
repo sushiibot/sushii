@@ -1,12 +1,15 @@
-import { Client, DiscordAPIError, Message, TextBasedChannel } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Client, Message, TextBasedChannel } from "discord.js";
+import { DiscordAPIError } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
+import type {
+  MessageFilterCriteria} from "../domain/value-objects/MessageFilter";
 import {
-  MessageFilter,
-  MessageFilterCriteria,
+  MessageFilter
 } from "../domain/value-objects/MessageFilter";
-import { PruneOptions } from "../domain/value-objects/PruneOptions";
+import type { PruneOptions } from "../domain/value-objects/PruneOptions";
 
 export interface PruneResult {
   deletedCount: number;

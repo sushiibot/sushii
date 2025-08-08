@@ -1,8 +1,10 @@
+import type {
+  StartedPostgreSqlContainer} from "@testcontainers/postgresql";
 import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
+  PostgreSqlContainer
 } from "@testcontainers/postgresql";
-import { NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase} from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import * as fs from "fs";
 import * as path from "path";

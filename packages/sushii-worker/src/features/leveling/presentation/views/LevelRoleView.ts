@@ -1,8 +1,9 @@
-import { EmbedBuilder, InteractionReplyOptions } from "discord.js";
+import type { InteractionReplyOptions } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 
 import Color from "@/utils/colors";
 
-import { LevelRole } from "../../domain/entities/LevelRole";
+import type { LevelRole } from "../../domain/entities/LevelRole";
 
 export function formatCreateSuccess(
   levelRole: LevelRole,

@@ -5,8 +5,8 @@ import {
   EmbedBuilder,
 } from "discord.js";
 
-import { ReasonUpdateResult } from "@/features/moderation/cases/application/ReasonUpdateService";
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ReasonUpdateResult } from "@/features/moderation/cases/application/ReasonUpdateService";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import customIds from "@/interactions/customIds";
 import Color from "@/utils/colors";
 

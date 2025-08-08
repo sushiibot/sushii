@@ -1,5 +1,5 @@
-import { Result } from "ts-results";
-import { GuildBan } from "../entities/GuildBan";
+import type { Result } from "ts-results";
+import type { GuildBan } from "../entities/GuildBan";
 
 /**
  * Repository interface for guild ban operations.

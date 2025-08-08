@@ -1,5 +1,5 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -7,13 +7,14 @@ import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { createLevelingServices } from "@/features/leveling/setup";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
-import { DeploymentConfig } from "@/shared/infrastructure/config/config";
+import type { DeploymentConfig } from "@/shared/infrastructure/config/config";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
+import type {
+  MockDiscordClient} from "./mockDiscordClient";
 import {
-  MockDiscordClient,
   createMockDiscordClient,
 } from "./mockDiscordClient";
 

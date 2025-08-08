@@ -1,6 +1,6 @@
-import { Kysely } from "kysely";
-import { DB } from "../../infrastructure/database/dbTypes";
-import {
+import type { Kysely } from "kysely";
+import type { DB } from "../../infrastructure/database/dbTypes";
+import type {
   InsertableRoleMenuRoleRow,
   InsertableRoleMenuRow,
   RoleMenuRoleRow,

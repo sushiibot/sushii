@@ -1,16 +1,17 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   EmbedBuilder,
   InteractionContextType,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 import Color from "@/utils/colors";
 
-import { TagAdminService } from "../../application/TagAdminService";
+import type { TagAdminService } from "../../application/TagAdminService";
 
 enum TagAdminSubcommand {
   Delete = "delete",

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Attachment, Collection, Message, User } from "discord.js";
+import type { Attachment, Message, User } from "discord.js";
+import { Collection } from "discord.js";
 
 import {
   MessageFilter,

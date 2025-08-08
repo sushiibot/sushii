@@ -1,6 +1,6 @@
 import dayjs from "@/shared/domain/dayjs";
 
-import { ModerationTarget } from "../entities/ModerationTarget";
+import type { ModerationTarget } from "../entities/ModerationTarget";
 import { ActionType } from "../value-objects/ActionType";
 
 /**

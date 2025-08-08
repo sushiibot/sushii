@@ -3,7 +3,7 @@ import dayjs from "@/shared/domain/dayjs";
 import toTimestamp from "@/utils/toTimestamp";
 import Color from "@/utils/colors";
 
-import { Giveaway } from "../../domain/entities/Giveaway";
+import type { Giveaway } from "../../domain/entities/Giveaway";
 
 export function buildGiveawayEmbed(
   giveaway: Giveaway,

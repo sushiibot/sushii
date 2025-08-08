@@ -1,6 +1,6 @@
-import { Result } from "ts-results";
+import type { Result } from "ts-results";
 
-import { ChannelSlowmode } from "../value-objects/ChannelSlowmode";
+import type { ChannelSlowmode } from "../value-objects/ChannelSlowmode";
 
 export interface ChannelService {
   /**

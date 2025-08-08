@@ -1,7 +1,7 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
@@ -13,11 +13,11 @@ import { setupSocialFeature } from "@/features/social/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { createCacheFeature } from "@/features/cache/setup";
 import { createBanCacheServices } from "@/features/ban-cache/setup";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
-import InteractionRouter from "../discord/InteractionRouter";
-import { EventHandler } from "../presentation/EventHandler";
+import type InteractionRouter from "../discord/InteractionRouter";
+import type { EventHandler } from "../presentation/EventHandler";
 import { registerTasks } from "../tasks/registerTasks";
 
 export function registerFeatures(

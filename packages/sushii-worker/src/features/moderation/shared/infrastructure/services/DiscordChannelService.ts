@@ -1,14 +1,16 @@
-import {
+import type {
   Channel,
-  ChannelType,
   Client,
-  DiscordAPIError,
-  GuildTextBasedChannel,
+  GuildTextBasedChannel} from "discord.js";
+import {
+  ChannelType,
+  DiscordAPIError
 } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { ChannelService } from "../../domain/services/ChannelService";
+import type { ChannelService } from "../../domain/services/ChannelService";
 import { ChannelSlowmode } from "../../domain/value-objects/ChannelSlowmode";
 
 export class DiscordChannelService implements ChannelService {

@@ -1,5 +1,6 @@
 import opentelemetry from "@opentelemetry/api";
-import { Events, Message } from "discord.js";
+import type { Message } from "discord.js";
+import { Events } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import {
@@ -7,8 +8,8 @@ import {
   sentNotificationsCounter,
 } from "@/infrastructure/metrics/metrics";
 
-import { NotificationMessageService } from "../../application/NotificationMessageService";
-import { NotificationService } from "../../application/NotificationService";
+import type { NotificationMessageService } from "../../application/NotificationMessageService";
+import type { NotificationService } from "../../application/NotificationService";
 
 const tracer = opentelemetry.trace.getTracer("notification-handler");
 

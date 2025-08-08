@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type {
+  DMChannel} from "discord.js";
 import {
   type Client,
-  DMChannel,
   type Guild,
   type GuildMember,
   type User,
 } from "discord.js";
-import { Channel } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Channel } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 

@@ -1,10 +1,11 @@
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { DeploymentConfig } from "@/shared/infrastructure/config/config";
+import type { DeploymentConfig } from "@/shared/infrastructure/config/config";
 
-import { Deployment, DeploymentName } from "../domain/entities/Deployment";
-import { DeploymentChanged } from "../domain/events/DeploymentChanged";
-import { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
+import type { DeploymentName } from "../domain/entities/Deployment";
+import { Deployment } from "../domain/entities/Deployment";
+import type { DeploymentChanged } from "../domain/events/DeploymentChanged";
+import type { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
 
 export class DeploymentService {
   private currentDeployment: Deployment | null = null;

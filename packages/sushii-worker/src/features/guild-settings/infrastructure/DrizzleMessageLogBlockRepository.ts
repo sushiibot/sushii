@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
 import { msgLogBlocksInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
 import { MessageLogBlock } from "../domain/entities/MessageLogBlock";
-import { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
+import type { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
 
 export class DrizzleMessageLogBlockRepository
   implements MessageLogBlockRepository

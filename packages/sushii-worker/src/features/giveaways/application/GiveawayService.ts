@@ -1,8 +1,9 @@
-import { Result } from "ts-results";
-import { Logger } from "pino";
+import type { Result } from "ts-results";
+import type { Logger } from "pino";
 
-import { Giveaway, GiveawayData } from "../domain/entities/Giveaway";
-import { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
+import type { GiveawayData } from "../domain/entities/Giveaway";
+import { Giveaway } from "../domain/entities/Giveaway";
+import type { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
 
 export class GiveawayService {
   constructor(

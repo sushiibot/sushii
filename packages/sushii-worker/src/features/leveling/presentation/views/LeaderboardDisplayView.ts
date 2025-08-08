@@ -1,5 +1,5 @@
-import { LeaderboardData } from "../../application/GetLeaderboardService";
-import { UserRank } from "../../domain/entities/UserRank";
+import type { LeaderboardData } from "../../application/GetLeaderboardService";
+import type { UserRank } from "../../domain/entities/UserRank";
 import {
   calculateLevel,
   calculateLevelProgress,

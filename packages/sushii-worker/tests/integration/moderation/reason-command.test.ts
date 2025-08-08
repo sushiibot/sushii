@@ -1,5 +1,4 @@
 import {
-  Mock,
   afterAll,
   beforeAll,
   beforeEach,
@@ -7,7 +6,8 @@ import {
   expect,
   test,
 } from "bun:test";
-import { Embed, PermissionFlagsBits } from "discord.js";
+import type { Embed } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
 
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
@@ -15,8 +15,8 @@ import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
+import type { IntegrationTestServices } from "../helpers/integrationTestSetup";
 import {
-  IntegrationTestServices,
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";

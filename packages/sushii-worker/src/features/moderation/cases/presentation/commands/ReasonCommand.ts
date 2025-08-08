@@ -1,19 +1,20 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   ComponentType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import customIds from "@/interactions/customIds";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 
-import { ReasonUpdateService } from "../../application/ReasonUpdateService";
+import type { ReasonUpdateService } from "../../application/ReasonUpdateService";
 import {
   reasonCancelledView,
   reasonErrorView,

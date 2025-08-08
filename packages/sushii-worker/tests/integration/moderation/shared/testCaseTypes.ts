@@ -1,8 +1,8 @@
-import { AuditLogEvent } from "discord.js";
+import type { AuditLogEvent } from "discord.js";
 
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import type { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
-import { MockUserData } from "../../helpers/mockUsers";
+import type { MockUserData } from "../../helpers/mockUsers";
 
 export interface ModerationTestCase {
   name: string;

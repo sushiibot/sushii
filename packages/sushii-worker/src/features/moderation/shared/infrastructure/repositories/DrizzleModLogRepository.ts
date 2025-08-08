@@ -1,16 +1,19 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import dayjs from "@/shared/domain/dayjs";
 
-import { DMResult, ModerationCase } from "../../domain/entities/ModerationCase";
-import { ModLogRepository } from "../../domain/repositories/ModLogRepository";
+import type { DMResult} from "../../domain/entities/ModerationCase";
+import { ModerationCase } from "../../domain/entities/ModerationCase";
+import type { ModLogRepository } from "../../domain/repositories/ModLogRepository";
+import type {
+  ActionType} from "../../domain/value-objects/ActionType";
 import {
-  ActionType,
   actionTypeFromString,
 } from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";

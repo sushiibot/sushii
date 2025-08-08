@@ -1,7 +1,7 @@
-import { GuildMember, User } from "discord.js";
-import { Result } from "ts-results";
+import type { GuildMember, User } from "discord.js";
+import type { Result } from "ts-results";
 
-import { ActionType } from "../value-objects/ActionType";
+import type { ActionType } from "../value-objects/ActionType";
 
 /**
  * Domain service for validating moderation permissions.

@@ -1,14 +1,15 @@
-import {
+import type {
   ButtonInteraction,
-  ChatInputCommandInteraction,
+  ChatInputCommandInteraction} from "discord.js";
+import {
   ComponentType,
   MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { TagService } from "../../application/TagService";
-import { Tag } from "../../domain/entities/Tag";
+import type { TagService } from "../../application/TagService";
+import type { Tag } from "../../domain/entities/Tag";
 import {
   CUSTOM_IDS,
   DELETE_CONFIRMATION_TIMEOUT,

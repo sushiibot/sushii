@@ -1,8 +1,9 @@
+import type {
+  ContainerBuilder} from "discord.js";
 import {
   ActionRowBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
-  ContainerBuilder,
   SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
@@ -10,9 +11,10 @@ import {
 } from "discord.js";
 
 import { createToggleButton, formatToggleSetting } from "../components/SettingsComponents";
+import type {
+  SettingsMessageOptions} from "../components/SettingsConstants";
 import {
-  SETTINGS_CUSTOM_IDS,
-  SettingsMessageOptions,
+  SETTINGS_CUSTOM_IDS
 } from "../components/SettingsConstants";
 
 export function addLoggingContent(

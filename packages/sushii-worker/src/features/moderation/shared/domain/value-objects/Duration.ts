@@ -1,5 +1,6 @@
-import { Duration as DayjsDuration } from "dayjs/plugin/duration";
-import { Err, Ok, Result } from "ts-results";
+import type { Duration as DayjsDuration } from "dayjs/plugin/duration";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import dayjs from "@/shared/domain/dayjs";
 import parseDuration from "@/utils/parseDuration";

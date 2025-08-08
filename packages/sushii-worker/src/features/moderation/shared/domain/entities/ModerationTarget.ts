@@ -1,4 +1,4 @@
-import { GuildMember, User } from "discord.js";
+import type { GuildMember, User } from "discord.js";
 
 export class ModerationTarget {
   constructor(

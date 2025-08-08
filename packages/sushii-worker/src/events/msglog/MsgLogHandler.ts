@@ -1,29 +1,31 @@
-import {
+import type {
   APIMessage,
   AnyThreadChannel,
-  EmbedBuilder,
   Events,
-  GatewayDispatchEvents,
   GatewayMessageDeleteBulkDispatchData,
   GatewayMessageDeleteDispatchData,
-  GatewayMessageUpdateDispatchData,
+  GatewayMessageUpdateDispatchData} from "discord.js";
+import {
+  EmbedBuilder,
+  GatewayDispatchEvents,
   messageLink,
 } from "discord.js";
-import { Client } from "discord.js";
-import { Selectable } from "kysely";
-import { None, Option, Some } from "ts-results";
+import type { Client } from "discord.js";
+import type { Selectable } from "kysely";
+import type { Option} from "ts-results";
+import { None, Some } from "ts-results";
 
 import { webhookErr } from "@/core/cluster/discord/webhookLogger";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import { getGuildConfig } from "../../db/GuildConfig/GuildConfig.repository";
 import db from "../../infrastructure/database/db";
-import { AppPublicMessages } from "../../infrastructure/database/dbTypes";
+import type { AppPublicMessages } from "../../infrastructure/database/dbTypes";
 import SushiiEmoji from "../../shared/presentation/SushiiEmoji";
 import { getAPIUserTag } from "../../utils/APIUser";
 import buildChunks from "../../utils/buildChunks";
 import Color from "../../utils/colors";
-import { EventHandlerFn } from "../EventHandler";
+import type { EventHandlerFn } from "../EventHandler";
 
 const log = newModuleLogger("MsgLogHandler");
 

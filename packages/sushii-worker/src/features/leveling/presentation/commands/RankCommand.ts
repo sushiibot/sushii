@@ -1,14 +1,15 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { getErrorMessage } from "@/interactions/responses/error";
 
-import { GetUserRankService } from "../../application/GetUserRankService";
+import type { GetUserRankService } from "../../application/GetUserRankService";
 import { formatRankCard } from "../views/RankDisplayView";
 
 export default class RankCommand extends SlashCommandHandler {

@@ -1,10 +1,10 @@
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import {
+import type {
   GuildConfig,
   ToggleableSetting,
 } from "@/shared/domain/entities/GuildConfig";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 export class GuildSettingsService {
   constructor(

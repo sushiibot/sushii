@@ -4,7 +4,8 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-node";
-import { Tracer, Span, SpanStatusCode } from "@opentelemetry/api";
+import type { Tracer, Span} from "@opentelemetry/api";
+import { SpanStatusCode } from "@opentelemetry/api";
 import logger from "../../shared/infrastructure/logger";
 import { config } from "@/shared/infrastructure/config";
 

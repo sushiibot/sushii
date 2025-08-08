@@ -1,8 +1,9 @@
+import type {
+  ContainerBuilder} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ContainerBuilder,
   SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
@@ -14,9 +15,10 @@ import {
   formatMessageSetting,
   formatToggleSetting,
 } from "../components/SettingsComponents";
+import type {
+  SettingsMessageOptions} from "../components/SettingsConstants";
 import {
-  SETTINGS_CUSTOM_IDS,
-  SettingsMessageOptions,
+  SETTINGS_CUSTOM_IDS
 } from "../components/SettingsConstants";
 
 export function addModerationContent(

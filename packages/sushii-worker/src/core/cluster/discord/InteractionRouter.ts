@@ -1,35 +1,36 @@
 import opentelemetry from "@opentelemetry/api";
 import * as Sentry from "@sentry/node";
-import {
+import type {
   AnySelectMenuInteraction,
-  ApplicationCommandType,
   AutocompleteFocusedOption,
   AutocompleteInteraction,
   ButtonInteraction,
   ChatInputCommandInteraction,
   Client,
-  Collection,
-  ComponentType,
   ContextMenuCommandInteraction,
   Interaction,
+  ModalSubmitInteraction,
+  RESTPostAPIApplicationCommandsJSONBody} from "discord.js";
+import {
+  ApplicationCommandType,
+  Collection,
+  ComponentType,
   InteractionType,
   MessageFlags,
-  ModalSubmitInteraction,
-  RESTPostAPIApplicationCommandsJSONBody,
   Routes,
 } from "discord.js";
 import { t } from "i18next";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { updateInteractionMetrics } from "@/infrastructure/metrics/interactionMetrics";
-import {
+import type {
   AutocompleteHandler,
   ButtonHandler,
   ModalHandler,
   SelectMenuHandler,
   SlashCommandHandler,
 } from "@/interactions/handlers";
-import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
+import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 import getFullCommandName from "@/utils/getFullCommandName";

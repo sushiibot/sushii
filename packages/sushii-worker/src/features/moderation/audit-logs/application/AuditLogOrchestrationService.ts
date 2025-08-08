@@ -1,14 +1,15 @@
-import { Guild, GuildAuditLogsEntry, User } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Guild, GuildAuditLogsEntry, User } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import { AuditLogEvent } from "../domain/entities";
-import { AuditLogProcessingService } from "./AuditLogProcessingService";
-import { ModLogPostingService } from "./ModLogPostingService";
-import { NativeTimeoutDMService } from "./NativeTimeoutDMService";
+import type { AuditLogEvent } from "../domain/entities";
+import type { AuditLogProcessingService } from "./AuditLogProcessingService";
+import type { ModLogPostingService } from "./ModLogPostingService";
+import type { NativeTimeoutDMService } from "./NativeTimeoutDMService";
 
 /**
  * Application service that orchestrates the complete audit log processing workflow.

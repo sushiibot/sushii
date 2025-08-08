@@ -1,13 +1,15 @@
 import { and, asc, between, desc, eq, isNull, sql } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
-import { DMResult, ModerationCase } from "../../domain/entities/ModerationCase";
-import { ModerationCaseRepository } from "../../domain/repositories/ModerationCaseRepository";
+import type { DMResult} from "../../domain/entities/ModerationCase";
+import { ModerationCase } from "../../domain/entities/ModerationCase";
+import type { ModerationCaseRepository } from "../../domain/repositories/ModerationCaseRepository";
 import { actionTypeFromString } from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";
 

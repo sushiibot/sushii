@@ -1,9 +1,9 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { ModerationCase } from "../entities/ModerationCase";
+import type { ModerationCase } from "../entities/ModerationCase";
 
 export interface ModerationCaseRepository {
   save(

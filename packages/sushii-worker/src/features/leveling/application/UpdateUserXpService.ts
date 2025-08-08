@@ -1,7 +1,7 @@
 import { UserLevel } from "../domain/entities/UserLevel";
-import { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
-import { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
-import { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
+import type { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
+import type { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
+import type { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
 
 export interface UpdateUserXpResult {
   oldLevel: number | null;

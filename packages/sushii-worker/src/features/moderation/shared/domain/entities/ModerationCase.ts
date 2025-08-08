@@ -1,5 +1,5 @@
-import { ActionType } from "../value-objects/ActionType";
-import { Reason } from "../value-objects/Reason";
+import type { ActionType } from "../value-objects/ActionType";
+import type { Reason } from "../value-objects/Reason";
 
 export interface DMResult {
   channelId?: string;

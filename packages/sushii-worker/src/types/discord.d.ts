@@ -1,4 +1,4 @@
-import { ClusterClient } from "discord-hybrid-sharding";
+import type { ClusterClient } from "discord-hybrid-sharding";
 
 declare module "discord.js" {
   interface Client {

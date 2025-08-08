@@ -1,8 +1,8 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
-import * as schema from "@/infrastructure/database/schema";
-import { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
+import type * as schema from "@/infrastructure/database/schema";
+import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { DrizzleGuildConfigRepository } from "../../shared/infrastructure/DrizzleGuildConfigRepository";
 import { GuildSettingsService } from "./application/GuildSettingsService";

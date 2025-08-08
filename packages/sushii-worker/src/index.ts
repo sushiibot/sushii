@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/bun";
+import type {
+  Child} from "discord-hybrid-sharding";
 import {
-  Child,
   ClusterManager,
   HeartbeatManager,
 } from "discord-hybrid-sharding";

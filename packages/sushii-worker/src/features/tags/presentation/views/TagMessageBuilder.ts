@@ -1,12 +1,13 @@
-import {
+import type {
   APIEmbedField,
+  InteractionReplyOptions} from "discord.js";
+import {
   ActionRowBuilder,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
   EmbedBuilder,
-  InteractionReplyOptions,
   MessageFlags,
   SeparatorBuilder,
   TextDisplayBuilder,
@@ -16,7 +17,7 @@ import { t } from "i18next";
 import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
-import { Tag } from "../../domain/entities/Tag";
+import type { Tag } from "../../domain/entities/Tag";
 import { CUSTOM_IDS } from "../TagConstants";
 
 export interface TagUpdateData {

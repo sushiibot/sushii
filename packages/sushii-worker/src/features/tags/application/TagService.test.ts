@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import pino, { Logger } from "pino";
+import type { Logger } from "pino";
+import pino from "pino";
 
-import { Tag, TagData } from "../domain/entities/Tag";
-import { TagRepository } from "../domain/repositories/TagRepository";
-import { TagFilters } from "../domain/value-objects/TagFilters";
-import { TagName } from "../domain/value-objects/TagName";
-import {
+import type { TagData } from "../domain/entities/Tag";
+import { Tag } from "../domain/entities/Tag";
+import type { TagRepository } from "../domain/repositories/TagRepository";
+import type { TagFilters } from "../domain/value-objects/TagFilters";
+import type { TagName } from "../domain/value-objects/TagName";
+import type {
   CreateTagParams,
   DeleteTagParams,
   RenameTagParams,
-  TagService,
-  UpdateTagParams,
+  UpdateTagParams} from "./TagService";
+import {
+  TagService
 } from "./TagService";
 
 class MockTagRepository implements TagRepository {

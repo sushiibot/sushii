@@ -1,16 +1,17 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
   ChannelType,
-  ChatInputCommandInteraction,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
-import { SlowmodeService } from "../../application/SlowmodeService";
+import type { SlowmodeService } from "../../application/SlowmodeService";
 import { slowmodeErrorView, slowmodeSuccessView } from "../views/SlowmodeView";
 
 enum SlowmodeOption {

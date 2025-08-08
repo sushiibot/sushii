@@ -1,9 +1,10 @@
+import type {
+  Events,
+  GuildMember,
+  PartialGuildMember} from "discord.js";
 import {
   DiscordAPIError,
   EmbedBuilder,
-  Events,
-  GuildMember,
-  PartialGuildMember,
   RESTJSONErrorCodes,
   TimestampStyles,
 } from "discord.js";
@@ -18,7 +19,7 @@ import {
 import db from "../infrastructure/database/db";
 import Color from "../utils/colors";
 import toTimestamp from "../utils/toTimestamp";
-import { EventHandlerFn } from "./EventHandler";
+import type { EventHandlerFn } from "./EventHandler";
 
 const log = newModuleLogger("MemberLog");
 

@@ -1,8 +1,9 @@
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { Tag } from "../domain/entities/Tag";
-import { TagRepository } from "../domain/repositories/TagRepository";
+import type { Tag } from "../domain/entities/Tag";
+import type { TagRepository } from "../domain/repositories/TagRepository";
 import { TagName } from "../domain/value-objects/TagName";
 
 export interface AdminDeleteTagParams {

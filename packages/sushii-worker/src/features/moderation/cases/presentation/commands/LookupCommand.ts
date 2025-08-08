@@ -1,11 +1,12 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   PermissionFlagsBits,
   PermissionsBitField,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 import {
@@ -13,7 +14,7 @@ import {
   getErrorMessageEdit,
 } from "@/interactions/responses/error";
 
-import { LookupUserService } from "../../application/LookupUserService";
+import type { LookupUserService } from "../../application/LookupUserService";
 import { buildUserLookupEmbed } from "../views/UserLookupView";
 
 export class LookupCommand extends SlashCommandHandler {

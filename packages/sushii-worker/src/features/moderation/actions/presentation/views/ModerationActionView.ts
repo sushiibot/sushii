@@ -1,15 +1,16 @@
+import type {
+  InteractionEditReplyOptions,
+  User} from "discord.js";
 import {
   ContainerBuilder,
-  InteractionEditReplyOptions,
   MessageFlags,
-  TextDisplayBuilder,
-  User,
+  TextDisplayBuilder
 } from "discord.js";
-import { Result } from "ts-results";
+import type { Result } from "ts-results";
 
-import { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
+import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
   formatActionTypeAsPastTense,
@@ -17,7 +18,7 @@ import {
   getActionTypeColor,
   getActionTypeEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 
 interface ActionResult {

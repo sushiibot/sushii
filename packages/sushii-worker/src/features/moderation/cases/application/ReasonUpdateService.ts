@@ -1,11 +1,12 @@
-import { Client, TextChannel, User } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Client, TextChannel, User } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 import buildModLogEmbed from "../../shared/presentation/buildModLogEmbed";
 

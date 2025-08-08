@@ -1,9 +1,11 @@
-import { Result, Ok, Err } from "ts-results";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result} from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { cachedUsersInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
-import { CachedUserRepository, CachedUserEntity, NewCachedUser } from "../domain";
+import type * as schema from "@/infrastructure/database/schema";
+import type { CachedUserRepository, NewCachedUser } from "../domain";
+import { CachedUserEntity } from "../domain";
 
 export class DrizzleCachedUserRepository implements CachedUserRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}

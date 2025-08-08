@@ -1,7 +1,7 @@
-import { AutocompleteFocusedOption, AutocompleteInteraction } from "discord.js";
-import { Logger } from "pino";
+import type { AutocompleteFocusedOption, AutocompleteInteraction } from "discord.js";
+import type { Logger } from "pino";
 
-import { CaseRangeAutocompleteService } from "@/features/moderation/cases/application/CaseRangeAutocompleteService";
+import type { CaseRangeAutocompleteService } from "@/features/moderation/cases/application/CaseRangeAutocompleteService";
 import { AutocompleteHandler } from "@/interactions/handlers";
 
 export class ReasonAutocomplete extends AutocompleteHandler {

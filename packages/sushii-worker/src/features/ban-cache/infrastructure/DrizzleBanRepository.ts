@@ -1,13 +1,14 @@
 import { and, eq } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { guildBansInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { BanRepository } from "../domain/repositories/BanRepository";
-import { GuildBan } from "../domain/entities/GuildBan";
+import type { BanRepository } from "../domain/repositories/BanRepository";
+import type { GuildBan } from "../domain/entities/GuildBan";
 
 /**
  * Drizzle ORM implementation of the BanRepository.

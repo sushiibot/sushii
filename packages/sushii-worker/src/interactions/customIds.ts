@@ -1,12 +1,13 @@
-import {
+import type {
   MatchFunction,
   MatchResult,
-  PathFunction,
+  PathFunction} from "path-to-regexp";
+import {
   compile,
   match,
 } from "path-to-regexp";
 
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import type { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
 enum Paths {
   RoleMenuButton = "/rolemenu/button/:roleId",

@@ -1,14 +1,15 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
-import { TagService } from "../../application/TagService";
+import type { TagService } from "../../application/TagService";
 import { createTagNotFoundEmbed } from "../views/TagMessageBuilder";
 
 export class TagGetCommand extends SlashCommandHandler {

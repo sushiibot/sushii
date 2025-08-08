@@ -1,6 +1,7 @@
-import { Kysely, sql } from "kysely";
-import { DB } from "../../infrastructure/database/dbTypes";
-import { ReminderRow } from "./Reminder.table";
+import type { Kysely} from "kysely";
+import { sql } from "kysely";
+import type { DB } from "../../infrastructure/database/dbTypes";
+import type { ReminderRow } from "./Reminder.table";
 
 export function insertReminder(
   db: Kysely<DB>,

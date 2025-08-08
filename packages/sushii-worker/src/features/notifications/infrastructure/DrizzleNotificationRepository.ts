@@ -9,16 +9,16 @@ import {
   not,
   or,
 } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import {
   notificationBlocksInAppPublic,
   notificationsInAppPublic,
 } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
 import { Notification } from "../domain/entities/Notification";
-import { NotificationRepository } from "../domain/repositories/NotificationRepository";
+import type { NotificationRepository } from "../domain/repositories/NotificationRepository";
 import { extractKeywords } from "../domain/services/MessageParser";
 
 export class DrizzleNotificationRepository implements NotificationRepository {

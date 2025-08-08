@@ -10,7 +10,8 @@ import {
 
 import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 
-import { SETTINGS_CUSTOM_IDS, SettingsPage } from "./SettingsConstants";
+import type { SettingsPage } from "./SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "./SettingsConstants";
 
 export function createFooter(disabled = false): TextDisplayBuilder {
   let footerContent: string;

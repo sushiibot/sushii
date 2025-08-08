@@ -1,13 +1,14 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type * as schema from "@/infrastructure/database/schema";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 
 export interface CaseDeletionResult {

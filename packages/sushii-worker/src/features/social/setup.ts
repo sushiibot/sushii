@@ -1,9 +1,9 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
-import * as schema from "@/infrastructure/database/schema";
-import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
+import type * as schema from "@/infrastructure/database/schema";
+import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 import { DrizzleUserProfileRepository } from "@/features/user-profile/infrastructure/DrizzleUserProfileRepository";
 
 import { CooldownService, FishyService, ReputationService } from "./application";

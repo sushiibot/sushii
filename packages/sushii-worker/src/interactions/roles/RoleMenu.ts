@@ -1,3 +1,6 @@
+import type {
+  ChatInputCommandInteraction,
+  Role} from "discord.js";
 import {
   SlashCommandBuilder,
   EmbedBuilder,
@@ -6,17 +9,16 @@ import {
   RoleSelectMenuBuilder,
   UserSelectMenuBuilder,
   ChannelType,
-  ChatInputCommandInteraction,
   ButtonStyle,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   DiscordAPIError,
-  Role,
   InteractionContextType,
 } from "discord.js";
 import { t } from "i18next";
-import { None, Option, Some } from "ts-results";
+import type { Option} from "ts-results";
+import { None, Some } from "ts-results";
 import logger from "@/shared/infrastructure/logger";
 import Color from "../../utils/colors";
 import parseEmoji from "../../utils/parseEmoji";
@@ -39,7 +41,7 @@ import {
   upsertRoleMenuRole,
 } from "../../db/RoleMenu/ModLog.repository";
 import db from "../../infrastructure/database/db";
-import { RoleMenuRow } from "../../db/RoleMenu/RoleMenu.table";
+import type { RoleMenuRow } from "../../db/RoleMenu/RoleMenu.table";
 
 const RE_ROLE = /(?:<@&)?(\d{17,20})>?/g;
 

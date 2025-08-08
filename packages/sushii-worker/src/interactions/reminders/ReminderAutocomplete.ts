@@ -1,8 +1,9 @@
 import dayjs from "@/shared/domain/dayjs";
-import {
+import type {
   AutocompleteFocusedOption,
   AutocompleteInteraction,
-  APIApplicationCommandOptionChoice,
+  APIApplicationCommandOptionChoice} from "discord.js";
+import {
   ApplicationCommandOptionType,
 } from "discord.js";
 import { getDurationFromNow } from "../../utils/getDuration";

@@ -1,10 +1,11 @@
-import { GuildTextBasedChannel } from "discord.js";
-import { Ok, Err, Result } from "ts-results";
-import { Logger } from "pino";
+import type { GuildTextBasedChannel } from "discord.js";
+import type { Result } from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { Logger } from "pino";
 
-import { Giveaway } from "../domain/entities/Giveaway";
-import { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
-import { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
+import type { Giveaway } from "../domain/entities/Giveaway";
+import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import type { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
 
 export interface DrawResult {
   winnerIds: string[];

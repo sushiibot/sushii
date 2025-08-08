@@ -1,5 +1,6 @@
-import { ChatInputCommandInteraction, GuildMember, User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { ChatInputCommandInteraction, GuildMember, User } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 export default async function hasPermissionTargetingMember(
   interaction: ChatInputCommandInteraction,

@@ -1,4 +1,4 @@
-import { NotificationBlock } from "../entities/NotificationBlock";
+import type { NotificationBlock } from "../entities/NotificationBlock";
 
 export interface NotificationBlockRepository {
   add(block: NotificationBlock): Promise<boolean>;

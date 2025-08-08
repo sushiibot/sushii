@@ -1,8 +1,8 @@
-import { APIApplicationCommandOptionChoice } from "discord.js";
-import { Logger } from "pino";
+import type { APIApplicationCommandOptionChoice } from "discord.js";
+import type { Logger } from "pino";
 
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 
 const MAX_CHOICE_NAME_LEN = 100;

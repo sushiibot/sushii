@@ -1,15 +1,15 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { ModerationAction } from "../../shared/domain/entities/ModerationAction";
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
-import { PermissionValidationService } from "../../shared/domain/services/PermissionValidationService";
-import { TimeoutDetectionService } from "../../shared/domain/services/TimeoutDetectionService";
-import { ModerationExecutionPipeline } from "./ModerationExecutionPipeline";
+import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
+import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
+import type { PermissionValidationService } from "../../shared/domain/services/PermissionValidationService";
+import type { TimeoutDetectionService } from "../../shared/domain/services/TimeoutDetectionService";
+import type { ModerationExecutionPipeline } from "./ModerationExecutionPipeline";
 
 export class ModerationService {
   constructor(

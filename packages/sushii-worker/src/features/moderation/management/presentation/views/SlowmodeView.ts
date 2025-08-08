@@ -1,6 +1,6 @@
-import { APIEmbed } from "discord.js";
+import type { APIEmbed } from "discord.js";
 
-import { SlowmodeUpdateResult } from "@/features/moderation/management/application/SlowmodeService";
+import type { SlowmodeUpdateResult } from "@/features/moderation/management/application/SlowmodeService";
 import Color from "@/utils/colors";
 
 export function slowmodeErrorView(error: string): APIEmbed {

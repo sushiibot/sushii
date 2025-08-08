@@ -1,19 +1,20 @@
-import {
+import type {
   ButtonInteraction,
+  InteractionResponse} from "discord.js";
+import {
   MessageFlags,
-  EmbedBuilder,
-  InteractionResponse,
+  EmbedBuilder
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { ButtonHandler } from "@/interactions/handlers";
 import customIds from "@/interactions/customIds";
 import Color from "@/utils/colors";
 
-import { GiveawayService } from "../../application/GiveawayService";
-import { GiveawayEntryService } from "../../application/GiveawayEntryService";
-import { GiveawayEntryCacheService } from "../../application/GiveawayEntryCacheService";
-import { GiveawayEligibilityService } from "../../application/GiveawayEligibilityService";
+import type { GiveawayService } from "../../application/GiveawayService";
+import type { GiveawayEntryService } from "../../application/GiveawayEntryService";
+import type { GiveawayEntryCacheService } from "../../application/GiveawayEntryCacheService";
+import type { GiveawayEligibilityService } from "../../application/GiveawayEligibilityService";
 import { buildRemoveEntryComponents } from "../views/GiveawayComponentBuilder";
 
 export class GiveawayButtonHandler extends ButtonHandler {

@@ -1,15 +1,16 @@
+import type {
+  ButtonInteraction} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonInteraction,
   ButtonStyle,
   ComponentType,
   EmbedBuilder,
   MessageFlags,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/interactions/handlers";

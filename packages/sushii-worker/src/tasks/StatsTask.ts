@@ -1,6 +1,6 @@
-import { Client } from "discord.js";
+import type { Client } from "discord.js";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { guildGauge, membersGauge } from "@/infrastructure/metrics/metrics";
 import logger from "@/shared/infrastructure/logger";
 import { newModuleLogger } from "@/shared/infrastructure/logger";

@@ -1,5 +1,5 @@
-import { EventBus } from "../interfaces/EventBus";
-import { DomainEvent } from "../domain/DomainEvent";
+import type { EventBus } from "../interfaces/EventBus";
+import type { DomainEvent } from "../domain/DomainEvent";
 
 export class SimpleEventBus implements EventBus {
   private readonly handlers = new Map<

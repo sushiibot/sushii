@@ -1,10 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
-import { DiscordAPIError, Message, RESTJSONErrorCodes } from "discord.js";
-import { Logger } from "pino";
+import type { Message} from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
+import type { Logger } from "pino";
 
 import { Notification } from "../domain/entities/Notification";
 import { NotificationMessageService } from "./NotificationMessageService";
-import { NotificationService } from "./NotificationService";
+import type { NotificationService } from "./NotificationService";
 
 describe("NotificationMessageService", () => {
   const mockNotificationService = {

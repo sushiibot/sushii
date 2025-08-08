@@ -1,4 +1,4 @@
-import { User } from "discord.js";
+import type { User } from "discord.js";
 
 export interface MockUserData
   extends Partial<Omit<User, "toString" | "valueOf">> {

@@ -1,4 +1,4 @@
-import { Duration } from "dayjs/plugin/duration";
+import type { Duration } from "dayjs/plugin/duration";
 import parse from "parse-duration";
 
 import dayjs from "@/shared/domain/dayjs";

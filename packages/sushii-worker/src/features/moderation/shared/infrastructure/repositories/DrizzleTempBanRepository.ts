@@ -1,14 +1,15 @@
 import { and, eq, lte } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { tempBansInAppPublic } from "@/infrastructure/database/schema";
 import dayjs from "@/shared/domain/dayjs";
 
 import { TempBan } from "../../domain/entities/TempBan";
-import { TempBanRepository } from "../../domain/repositories/TempBanRepository";
+import type { TempBanRepository } from "../../domain/repositories/TempBanRepository";
 
 export class DrizzleTempBanRepository implements TempBanRepository {
   constructor(

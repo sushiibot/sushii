@@ -1,9 +1,10 @@
-import { Events, Guild, GuildBan } from "discord.js";
-import { Logger } from "pino";
+import type { Guild, GuildBan } from "discord.js";
+import { Events } from "discord.js";
+import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import { BanCacheService } from "../../application";
+import type { BanCacheService } from "../../application";
 
 /**
  * Event handler for guild ban add events.

@@ -1,11 +1,11 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
-import { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import type { Client } from "discord.js";
 
-import * as schema from "@/infrastructure/database/schema";
-import { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
+import type * as schema from "@/infrastructure/database/schema";
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Application services
 import { GiveawayService } from "./application/GiveawayService";

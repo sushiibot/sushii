@@ -1,5 +1,6 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  ChatInputCommandInteraction,
   EmbedBuilder,
   InteractionContextType,
   SlashCommandBuilder,
@@ -10,7 +11,7 @@ import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import Color from "@/utils/colors";
 
-import { XpBlockService } from "../../application/XpBlockService";
+import type { XpBlockService } from "../../application/XpBlockService";
 
 enum XpGroupName {
   Block = "block",

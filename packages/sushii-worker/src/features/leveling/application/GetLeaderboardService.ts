@@ -1,8 +1,8 @@
-import { LeaderboardEntry } from "../domain/entities/LeaderboardEntry";
-import { UserLevel } from "../domain/entities/UserLevel";
-import { UserRank } from "../domain/entities/UserRank";
-import { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
-import { TimeFrame } from "../domain/value-objects/TimeFrame";
+import type { LeaderboardEntry } from "../domain/entities/LeaderboardEntry";
+import type { UserLevel } from "../domain/entities/UserLevel";
+import type { UserRank } from "../domain/entities/UserRank";
+import type { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
+import type { TimeFrame } from "../domain/value-objects/TimeFrame";
 
 export interface LeaderboardData {
   entries: LeaderboardEntry[];

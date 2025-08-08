@@ -1,5 +1,5 @@
-import { Insertable, Selectable, Updateable } from "kysely";
-import {
+import type { Insertable, Selectable, Updateable } from "kysely";
+import type {
   AppPublicRoleMenuRoles,
   AppPublicRoleMenus,
 } from "../../infrastructure/database/dbTypes";

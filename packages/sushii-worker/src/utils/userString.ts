@@ -1,4 +1,5 @@
-import { GuildMember, User } from "discord.js";
+import type { User } from "discord.js";
+import { GuildMember } from "discord.js";
 
 export function getUsernameString(user: User): string {
   return `${user.displayName} (@${user.tag})`;

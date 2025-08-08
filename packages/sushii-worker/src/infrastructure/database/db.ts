@@ -4,7 +4,7 @@ import Cursor from "pg-cursor";
 import { Kysely, PostgresDialect } from "kysely";
 import { drizzle } from "drizzle-orm/node-postgres";
 import logger from "@/shared/infrastructure/logger";
-import { DB } from "./dbTypes";
+import type { DB } from "./dbTypes";
 import { config } from "@/shared/infrastructure/config";
 import * as schema from "./schema";
 

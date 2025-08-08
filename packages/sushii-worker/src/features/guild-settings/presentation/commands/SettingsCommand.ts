@@ -1,21 +1,22 @@
 import { sleep } from "bun";
-import {
+import type {
   ButtonInteraction,
   ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
+  MessageComponentInteraction} from "discord.js";
+import {
   InteractionContextType,
-  MessageComponentInteraction,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { ModalMessageModalSubmitInteraction } from "discord.js";
-import { Logger } from "pino";
+import type { ModalMessageModalSubmitInteraction } from "discord.js";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
-import { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
+import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 
-import { GuildSettingsService } from "../../application/GuildSettingsService";
-import { MessageLogService } from "../../application/MessageLogService";
+import type { GuildSettingsService } from "../../application/GuildSettingsService";
+import type { MessageLogService } from "../../application/MessageLogService";
 import {
   createSettingsMessage,
   formatButtonRejectionResponse,
@@ -27,9 +28,10 @@ import {
   createTimeoutDmTextModal,
   createWarnDmTextModal,
 } from "../views/components/SettingsComponents";
+import type {
+  SettingsPage} from "../views/components/SettingsConstants";
 import {
-  SETTINGS_CUSTOM_IDS,
-  SettingsPage,
+  SETTINGS_CUSTOM_IDS
 } from "../views/components/SettingsConstants";
 
 export default class SettingsCommand extends SlashCommandHandler {

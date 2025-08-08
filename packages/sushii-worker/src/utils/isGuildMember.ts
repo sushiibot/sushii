@@ -1,4 +1,5 @@
-import { APIInteractionDataResolvedGuildMember, GuildMember } from "discord.js";
+import type { APIInteractionDataResolvedGuildMember} from "discord.js";
+import { GuildMember } from "discord.js";
 
 export default function isGuildMember(
   m: GuildMember | APIInteractionDataResolvedGuildMember,

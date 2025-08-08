@@ -1,7 +1,7 @@
-import { Events, Message } from "discord.js";
+import type { Events, Message } from "discord.js";
 import opentelemetry from "@opentelemetry/api";
-import { EventHandlerFn } from "@/events/EventHandler";
-import { CacheService } from "../../application";
+import type { EventHandlerFn } from "@/events/EventHandler";
+import type { CacheService } from "../../application";
 
 const tracer = opentelemetry.trace.getTracer("cache-user-handler");
 

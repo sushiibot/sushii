@@ -1,12 +1,13 @@
-import {
-  ApplicationCommandOptionType,
+import type {
   AutocompleteFocusedOption,
-  AutocompleteInteraction,
+  AutocompleteInteraction} from "discord.js";
+import {
+  ApplicationCommandOptionType
 } from "discord.js";
 
 import { AutocompleteHandler } from "@/interactions/handlers";
 
-import { NotificationService } from "../../application/NotificationService";
+import type { NotificationService } from "../../application/NotificationService";
 
 export class NotificationAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = "notification.delete";

@@ -1,4 +1,4 @@
-import { BaseInteraction, PermissionsBitField } from "discord.js";
+import type { BaseInteraction, PermissionsBitField } from "discord.js";
 
 /**
  * Response of a command check, a message will only exist on pass = false

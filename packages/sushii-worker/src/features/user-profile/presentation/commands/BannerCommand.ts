@@ -1,9 +1,10 @@
-import {
+import type {
   ChatInputCommandInteraction,
-  Client,
+  Client} from "discord.js";
+import {
   SlashCommandBuilder,
 } from "discord.js";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 

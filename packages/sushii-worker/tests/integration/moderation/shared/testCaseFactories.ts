@@ -1,7 +1,7 @@
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
 import { MOCK_USERS } from "../../helpers/mockUsers";
-import { ModerationTestCase } from "./testCaseTypes";
+import type { ModerationTestCase } from "./testCaseTypes";
 
 const DEFAULT_GUILD_ID = "123456789012345678";
 

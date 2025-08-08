@@ -1,12 +1,13 @@
-import { Guild, User } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Guild, User } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
-import { DMNotificationService } from "../../shared/application/DMNotificationService";
+import type { DMNotificationService } from "../../shared/application/DMNotificationService";
 import { Reason } from "../../shared/domain/value-objects/Reason";
-import { AuditLogEvent } from "../domain/entities";
+import type { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for sending DM notifications for native Discord timeouts.

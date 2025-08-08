@@ -1,6 +1,7 @@
-import dayjs, { Dayjs } from "dayjs";
-import { Duration } from "dayjs/plugin/duration";
-import { AuditLogChange, GuildAuditLogsEntry } from "discord.js";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
+import type { Duration } from "dayjs/plugin/duration";
+import type { AuditLogChange, GuildAuditLogsEntry } from "discord.js";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import logger from "@/shared/infrastructure/logger";

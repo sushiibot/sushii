@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
 import { guildConfigsInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
 import { GuildConfig } from "../domain/entities/GuildConfig";
-import { GuildConfigRepository } from "../domain/repositories/GuildConfigRepository";
+import type { GuildConfigRepository } from "../domain/repositories/GuildConfigRepository";
 
 export class DrizzleGuildConfigRepository implements GuildConfigRepository {
   constructor(

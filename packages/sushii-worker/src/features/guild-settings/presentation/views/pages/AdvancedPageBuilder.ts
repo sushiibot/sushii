@@ -1,6 +1,7 @@
-import { ContainerBuilder, TextDisplayBuilder } from "discord.js";
+import type { ContainerBuilder} from "discord.js";
+import { TextDisplayBuilder } from "discord.js";
 
-import { SettingsMessageOptions } from "../components/SettingsConstants";
+import type { SettingsMessageOptions } from "../components/SettingsConstants";
 
 export function addAdvancedContent(
   container: ContainerBuilder,

@@ -1,5 +1,5 @@
 import opentelemetry from "@opentelemetry/api";
-import {
+import type {
   Client,
   Events,
   GuildEmoji,
@@ -10,19 +10,19 @@ import {
   Sticker,
   User,
 } from "discord.js";
-import { InsertObject } from "kysely/dist/cjs/parser/insert-values-parser";
+import type { InsertObject } from "kysely/dist/cjs/parser/insert-values-parser";
 
 import dayjs from "@/shared/domain/dayjs";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 import { startCaughtActiveSpan } from "@/shared/infrastructure/tracing";
 
 import db from "../infrastructure/database/db";
-import {
+import type {
   AppPublicEmojiStickerActionType,
   AppPublicGuildAssetType,
   DB,
 } from "../infrastructure/database/dbTypes";
-import { EventHandlerFn } from "./EventHandler";
+import type { EventHandlerFn } from "./EventHandler";
 
 const logger = newModuleLogger("EmojiStatsHandler");
 

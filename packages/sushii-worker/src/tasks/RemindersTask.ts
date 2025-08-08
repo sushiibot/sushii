@@ -1,6 +1,7 @@
-import { Client, EmbedBuilder } from "discord.js";
+import type { Client} from "discord.js";
+import { EmbedBuilder } from "discord.js";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import {
   pendingRemindersGauge,
   sentRemindersCounter,

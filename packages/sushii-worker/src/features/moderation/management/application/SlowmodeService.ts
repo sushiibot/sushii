@@ -1,7 +1,8 @@
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { ChannelService } from "../../shared/domain/services/ChannelService";
+import type { ChannelService } from "../../shared/domain/services/ChannelService";
 import { ChannelSlowmode } from "../../shared/domain/value-objects/ChannelSlowmode";
 
 export interface SlowmodeUpdateResult {

@@ -1,17 +1,19 @@
-import { Mock, mock } from "bun:test";
-import {
-  ApplicationCommandType,
+import type { Mock} from "bun:test";
+import { mock } from "bun:test";
+import type {
   AuditLogEvent,
   ChatInputCommandInteraction,
-  Collection,
   Guild,
   GuildAuditLogsEntry,
   GuildMember,
   GuildMemberRoleManager,
-  InteractionType,
   Role,
   Snowflake,
-  User,
+  User} from "discord.js";
+import {
+  ApplicationCommandType,
+  Collection,
+  InteractionType
 } from "discord.js";
 
 import { createMockGuildMember } from "./mockDiscordClient";

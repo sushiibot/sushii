@@ -1,5 +1,6 @@
-import { User } from "discord.js";
-import { Err, Ok, Result } from "ts-results";
+import type { User } from "discord.js";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 const RE_MESSAGE_ID = /^\d{17,21}$/;
 const RE_MESSAGE_ID_FROM_URL = /channels\/\d{17,21}\/\d{17,21}\/(\d{17,21})$/;

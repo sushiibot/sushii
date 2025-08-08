@@ -1,6 +1,6 @@
-import { APIEmbed } from "discord.js";
+import type { APIEmbed } from "discord.js";
 
-import { TempBanListItem } from "@/features/moderation/management/application/TempBanListService";
+import type { TempBanListItem } from "@/features/moderation/management/application/TempBanListService";
 import Color from "@/utils/colors";
 
 export function tempBanListEmptyView(): APIEmbed {

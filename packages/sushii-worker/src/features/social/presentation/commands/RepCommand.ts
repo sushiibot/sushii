@@ -1,10 +1,11 @@
+import type {
+  ChatInputCommandInteraction} from "discord.js";
 import {
-  SlashCommandBuilder,
-  ChatInputCommandInteraction,
+  SlashCommandBuilder
 } from "discord.js";
 import { isDayjs } from "dayjs";
 import { SlashCommandHandler } from "@/interactions/handlers";
-import { ReputationService } from "../../application";
+import type { ReputationService } from "../../application";
 import { 
   createRepSuccessEmbed, 
   createRepCooldownEmbed 

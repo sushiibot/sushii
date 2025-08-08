@@ -1,5 +1,5 @@
 import dayjs from "@/shared/domain/dayjs";
-import { UserProfile } from "@/features/user-profile";
+import type { UserProfile } from "@/features/user-profile";
 import { SOCIAL_COOLDOWN_HOURS } from "../domain";
 
 export class CooldownService {

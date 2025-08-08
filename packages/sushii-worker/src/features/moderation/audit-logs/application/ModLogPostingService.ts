@@ -1,12 +1,13 @@
-import { Guild, User } from "discord.js";
-import { Logger } from "pino";
-import { Err, Ok, Result } from "ts-results";
+import type { Guild, User } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
-import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 
-import { AuditLogEvent } from "../domain/entities";
+import type { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for posting mod log messages to Discord channels.

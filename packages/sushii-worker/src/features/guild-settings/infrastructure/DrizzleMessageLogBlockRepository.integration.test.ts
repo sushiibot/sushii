@@ -6,11 +6,12 @@ import {
   expect,
   test,
 } from "bun:test";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import pino, { Logger } from "pino";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
+import pino from "pino";
 
 import { msgLogBlocksInAppPublic } from "@/infrastructure/database/schema";
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
 import { DrizzleMessageLogBlockRepository } from "./DrizzleMessageLogBlockRepository";

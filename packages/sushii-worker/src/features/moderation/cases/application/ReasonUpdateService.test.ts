@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { Client } from "discord.js";
+import type { Client } from "discord.js";
 import pino from "pino";
 import { Ok } from "ts-results";
 
-import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
-import { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import { ActionType } from "../../shared/domain/value-objects/ActionType";
 import { Reason } from "../../shared/domain/value-objects/Reason";
 import { ReasonUpdateService } from "./ReasonUpdateService";

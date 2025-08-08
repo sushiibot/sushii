@@ -1,8 +1,9 @@
-import { Logger } from "pino";
+import type { Logger } from "pino";
 
-import { Tag } from "../domain/entities/Tag";
-import { TagRepository } from "../domain/repositories/TagRepository";
-import { TagFilters, TagFiltersData } from "../domain/value-objects/TagFilters";
+import type { Tag } from "../domain/entities/Tag";
+import type { TagRepository } from "../domain/repositories/TagRepository";
+import type { TagFiltersData } from "../domain/value-objects/TagFilters";
+import { TagFilters } from "../domain/value-objects/TagFilters";
 
 export class TagSearchService {
   constructor(

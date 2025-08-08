@@ -1,12 +1,14 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { Ok, Err, Result } from "ts-results";
-import { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Ok, Err } from "ts-results";
+import type { Logger } from "pino";
 
 import * as schema from "@/infrastructure/database/schema";
 
-import { GiveawayEntry, GiveawayEntryData } from "../domain/entities/GiveawayEntry";
-import { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import type { GiveawayEntryData } from "../domain/entities/GiveawayEntry";
+import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
+import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
 
 export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
   constructor(

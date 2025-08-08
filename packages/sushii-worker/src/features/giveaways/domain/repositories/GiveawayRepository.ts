@@ -1,9 +1,9 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Result } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result } from "ts-results";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { Giveaway } from "../entities/Giveaway";
+import type { Giveaway } from "../entities/Giveaway";
 
 export interface GiveawayRepository {
   /**

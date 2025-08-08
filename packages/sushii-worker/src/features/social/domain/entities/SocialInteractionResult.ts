@@ -1,4 +1,4 @@
-import { CatchableType } from "../constants";
+import type { CatchableType } from "../constants";
 
 export interface FishyResult {
   caughtAmount: number;

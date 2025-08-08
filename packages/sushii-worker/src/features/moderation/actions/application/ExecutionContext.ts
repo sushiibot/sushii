@@ -1,11 +1,11 @@
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import * as schema from "@/infrastructure/database/schema";
+import type * as schema from "@/infrastructure/database/schema";
 
-import { ModerationAction } from "../../shared/domain/entities/ModerationAction";
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
-import { ActionType } from "../../shared/domain/value-objects/ActionType";
+import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
+import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
+import type { ActionType } from "../../shared/domain/value-objects/ActionType";
 
 /**
  * Base interface for all execution contexts.

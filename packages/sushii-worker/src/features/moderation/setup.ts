@@ -1,12 +1,12 @@
-import { Client } from "discord.js";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Logger } from "pino";
+import type { Client } from "discord.js";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
-import { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import * as schema from "@/infrastructure/database/schema";
-import { SlashCommandHandler } from "@/interactions/handlers";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type * as schema from "@/infrastructure/database/schema";
+import type { SlashCommandHandler } from "@/interactions/handlers";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
-import { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
+import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Actions sub-feature
 import {

@@ -1,10 +1,11 @@
+import type {
+  ContainerBuilder} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelSelectMenuBuilder,
   ChannelType,
-  ContainerBuilder,
   SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
@@ -15,9 +16,10 @@ import {
   createToggleButton,
   formatToggleMessageSetting,
 } from "../components/SettingsComponents";
+import type {
+  SettingsMessageOptions} from "../components/SettingsConstants";
 import {
-  SETTINGS_CUSTOM_IDS,
-  SettingsMessageOptions,
+  SETTINGS_CUSTOM_IDS
 } from "../components/SettingsConstants";
 
 export function addMessagesContent(

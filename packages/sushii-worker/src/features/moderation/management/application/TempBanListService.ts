@@ -1,8 +1,9 @@
-import { Logger } from "pino";
-import { Ok, Result } from "ts-results";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Ok } from "ts-results";
 
-import { TempBan } from "../../shared/domain/entities/TempBan";
-import { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
+import type { TempBan } from "../../shared/domain/entities/TempBan";
+import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 
 export interface TempBanListItem {
   userId: string;

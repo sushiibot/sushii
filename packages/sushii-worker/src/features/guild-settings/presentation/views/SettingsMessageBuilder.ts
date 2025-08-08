@@ -1,6 +1,7 @@
+import type {
+  InteractionReplyOptions} from "discord.js";
 import {
   ContainerBuilder,
-  InteractionReplyOptions,
   MessageFlags,
   SeparatorBuilder,
   SeparatorSpacingSize,
@@ -12,7 +13,7 @@ import {
   createFooter,
   createNavigationRow,
 } from "./components/SettingsComponents";
-import { SettingsMessageOptions } from "./components/SettingsConstants";
+import type { SettingsMessageOptions } from "./components/SettingsConstants";
 import { addAdvancedContent } from "./pages/AdvancedPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
 import { addMessagesContent } from "./pages/MessagesPageBuilder";

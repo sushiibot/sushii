@@ -1,6 +1,7 @@
+import type {
+  ButtonInteraction} from "discord.js";
 import {
   EmbedBuilder,
-  ButtonInteraction,
   DiscordAPIError,
   RESTJSONErrorCodes,
 } from "discord.js";

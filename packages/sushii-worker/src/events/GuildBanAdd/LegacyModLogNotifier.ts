@@ -1,7 +1,8 @@
-import { EmbedBuilder, Events, GuildBan } from "discord.js";
+import type { Events, GuildBan } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 import logger from "@/shared/infrastructure/logger";
 import Color from "../../utils/colors";
-import { EventHandlerFn } from "../EventHandler";
+import type { EventHandlerFn } from "../EventHandler";
 import db from "../../infrastructure/database/db";
 import { getGuildConfig } from "../../db/GuildConfig/GuildConfig.repository";
 

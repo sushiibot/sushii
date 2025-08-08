@@ -3,16 +3,13 @@ import { expect } from "bun:test";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
-import {
-  IntegrationTestServices,
-} from "../../helpers/integrationTestSetup";
+import type { IntegrationTestServices } from "../../helpers/integrationTestSetup";
 import {
   createMockAuditLogEntry,
   createMockGuild,
   createMockSlashCommandInteraction,
 } from "../../helpers/mockFactories";
-
-import { ModerationTestCase } from "./testCaseTypes";
+import type { ModerationTestCase } from "./testCaseTypes";
 
 /**
  * Executes a single moderation test case through the complete pipeline
@@ -35,7 +32,9 @@ export async function runModerationTest(
     }
 
     if (testCase.setup.guildConfig.timeoutCommandDmEnabled !== undefined) {
-      config = config.setTimeoutCommandDmEnabled(testCase.setup.guildConfig.timeoutCommandDmEnabled);
+      config = config.setTimeoutCommandDmEnabled(
+        testCase.setup.guildConfig.timeoutCommandDmEnabled,
+      );
     }
 
     if (testCase.setup.guildConfig.modLogChannel) {
@@ -137,22 +136,23 @@ export async function runModerationTest(
 
       const firstCall = editCalls[0] as unknown[];
       const replyPayload = firstCall[0] as Record<string, unknown>;
-      
+
       // Components v2 format (used by moderation actions)
       let contentToCheck = "";
-      const components = replyPayload.components as Array<any>;
-      
+      const components = replyPayload.components as any[];
+
       if (components && components.length > 0) {
         // Check if it's already a plain object or needs toJSON
         const component = components[0];
-        const componentData = typeof component.toJSON === 'function' 
-          ? component.toJSON() 
-          : component;
-        
+        const componentData =
+          typeof component.toJSON === "function"
+            ? component.toJSON()
+            : component;
+
         if (componentData?.components) {
           // TextDisplayBuilder has type 10 in the actual response
           const textComponents = componentData.components.filter(
-            (c: any) => c.type === 10 && c.content
+            (c: any) => c.type === 10 && c.content,
           );
           contentToCheck = textComponents.map((c: any) => c.content).join("\n");
         }

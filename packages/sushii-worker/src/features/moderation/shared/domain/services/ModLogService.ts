@@ -1,8 +1,8 @@
-import { Result } from "ts-results";
+import type { Result } from "ts-results";
 
-import { ModerationCase } from "../entities/ModerationCase";
-import { ModerationTarget } from "../entities/ModerationTarget";
-import { ActionType } from "../value-objects/ActionType";
+import type { ModerationCase } from "../entities/ModerationCase";
+import type { ModerationTarget } from "../entities/ModerationTarget";
+import type { ActionType } from "../value-objects/ActionType";
 
 /**
  * Domain service for posting moderation logs to guild channels.

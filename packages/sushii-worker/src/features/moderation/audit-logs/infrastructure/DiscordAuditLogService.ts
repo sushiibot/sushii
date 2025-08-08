@@ -1,8 +1,8 @@
-import { Guild, GuildAuditLogsEntry } from "discord.js";
-import { Logger } from "pino";
-import { Result } from "ts-results";
+import type { Guild, GuildAuditLogsEntry } from "discord.js";
+import type { Logger } from "pino";
+import type { Result } from "ts-results";
 
-import { AuditLogOrchestrationService } from "../application";
+import type { AuditLogOrchestrationService } from "../application";
 
 /**
  * Infrastructure service that handles Discord.js integration for audit log processing.

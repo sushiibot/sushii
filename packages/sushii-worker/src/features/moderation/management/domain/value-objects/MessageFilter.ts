@@ -1,4 +1,4 @@
-import { Message, User } from "discord.js";
+import type { Message, User } from "discord.js";
 
 export enum PruneAttachmentsOption {
   WithAttachments = "with_attachments",
