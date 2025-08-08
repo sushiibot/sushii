@@ -1,0 +1,55 @@
+import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+} from "discord.js";
+import { isDayjs } from "dayjs";
+import { SlashCommandHandler } from "@/interactions/handlers";
+import { FishyService } from "../../application";
+import { 
+  createFishySuccessEmbed, 
+  createFishyCooldownEmbed 
+} from "../views";
+
+export class FishyCommand extends SlashCommandHandler {
+  command = new SlashCommandBuilder()
+    .setName("fishy")
+    .setDescription("Catch some fish!")
+    .addUserOption((o) =>
+      o
+        .setName("user")
+        .setDescription("Who to fishy for or yourself if you have no friends")
+        .setRequired(true),
+    )
+    .toJSON();
+
+  constructor(private readonly fishyService: FishyService) {
+    super();
+  }
+
+  async handler(interaction: ChatInputCommandInteraction): Promise<void> {
+    const target = interaction.options.getUser("user", true);
+    
+    try {
+      const result = await this.fishyService.fishyForUser(interaction.user, target);
+
+      let embed;
+      if (isDayjs(result)) {
+        embed = createFishyCooldownEmbed(result);
+      } else {
+        embed = createFishySuccessEmbed(result, target.username);
+      }
+
+      await interaction.reply({
+        embeds: [embed.toJSON()],
+      });
+    } catch (error) {
+      // Log error for debugging
+      console.error("Fishy command error:", error);
+      
+      await interaction.reply({
+        content: "Something went wrong while fishing! Please try again later.",
+        ephemeral: true,
+      });
+    }
+  }
+}
