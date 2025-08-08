@@ -1,5 +1,4 @@
-import type {
-  ContainerBuilder} from "discord.js";
+import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -16,15 +15,28 @@ import {
   createToggleButton,
   formatToggleMessageSetting,
 } from "../components/SettingsComponents";
-import type {
-  SettingsMessageOptions} from "../components/SettingsConstants";
-import {
-  SETTINGS_CUSTOM_IDS
-} from "../components/SettingsConstants";
+import type { SettingsMessageOptions } from "../components/SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
+
+function renderMessagePreview(
+  template: string | null,
+  interaction?: Interaction<CacheType>,
+): string | null {
+  if (!template || !interaction || !interaction.guild) {
+    return null;
+  }
+
+  return template
+    .replace(/<mention>/g, `<@${interaction.user.id}>`)
+    .replace(/<username>/g, interaction.user.username) // Keep for backward compat
+    .replace(/<server>/g, interaction.guild.name)
+    .replace(/<member_number>/g, interaction.guild.memberCount.toString());
+}
 
 export function addMessagesContent(
   container: ContainerBuilder,
   options: SettingsMessageOptions,
+  interaction?: Interaction<CacheType>,
 ): void {
   const { config, disabled = false } = options;
 
@@ -38,7 +50,11 @@ export function addMessagesContent(
   let headerContent = "### Join/Leave Messages";
   headerContent += "\n";
   headerContent +=
-    "Send custom messages when members join or leave the server.\n\n";
+    "Send custom messages when members join or leave the server.\n";
+  headerContent += "\n📄 **Available placeholders:**\n";
+  headerContent += "- `<mention>` - Mentions the user (@username)\n";
+  headerContent += "- `<server>` - Your server's name\n";
+  headerContent += "- `<member_number>` - What number member they are\n\n";
 
   // Current Channel Display
   if (config.messageSettings.messageChannel) {
@@ -47,7 +63,7 @@ export function addMessagesContent(
     headerContent += "🗨️ **Channel:** No channel set";
   }
 
-  headerContent += `\n> The channel join and leave messages will be sent to.`;
+  headerContent += `\n> 💡 Choose a public channel where you want welcome/goodbye messages to appear.`;
 
   const headerText2 = new TextDisplayBuilder().setContent(headerContent);
   container.addTextDisplayComponents(headerText2);
@@ -72,11 +88,34 @@ export function addMessagesContent(
   );
 
   // Join Message Section
+  const joinPreview = renderMessagePreview(
+    config.messageSettings.joinMessage,
+    interaction,
+  );
+  const exampleJoinTemplate =
+    "Welcome <mention> to <server>! You are member #<member_number>";
+  const exampleJoinPreview = renderMessagePreview(
+    exampleJoinTemplate,
+    interaction,
+  );
+
+  let joinDescription = "Message sent when new members join";
+  if (config.messageSettings.joinMessage && joinPreview) {
+    // User has custom message - show only their preview
+    joinDescription += `\n**Your Message Preview:**\n${joinPreview}`;
+  } else {
+    // No custom message - show example template and its preview
+    joinDescription += `\n**Example:**\n${exampleJoinTemplate}`;
+    if (exampleJoinPreview) {
+      joinDescription += `\n**Example Preview:**\n${exampleJoinPreview}`;
+    }
+  }
+
   const joinMessageContent = formatToggleMessageSetting(
     "👋 Join Message",
     config.messageSettings.joinMessage,
     config.messageSettings.joinMessageEnabled,
-    "Message sent when new members join",
+    joinDescription,
   );
   const joinMessageText = new TextDisplayBuilder().setContent(
     joinMessageContent,
@@ -106,11 +145,33 @@ export function addMessagesContent(
   );
 
   // Leave Message Section
+  const leavePreview = renderMessagePreview(
+    config.messageSettings.leaveMessage,
+    interaction,
+  );
+  const exampleLeaveTemplate = "<mention> has left <server>";
+  const exampleLeavePreview = renderMessagePreview(
+    exampleLeaveTemplate,
+    interaction,
+  );
+
+  let leaveDescription = "Message sent when members leave";
+  if (config.messageSettings.leaveMessage && leavePreview) {
+    // User has custom message - show only their preview
+    leaveDescription += `\n**Your Message Preview:**\n${leavePreview}`;
+  } else {
+    // No custom message - show example template and its preview
+    leaveDescription += `\n**Example:**\n${exampleLeaveTemplate}`;
+    if (exampleLeavePreview) {
+      leaveDescription += `\n**Example Preview:**\n${exampleLeavePreview}`;
+    }
+  }
+
   const leaveMessageContent = formatToggleMessageSetting(
     "🚪 Leave Message",
     config.messageSettings.leaveMessage,
     config.messageSettings.leaveMessageEnabled,
-    "Message sent when members leave",
+    leaveDescription,
   );
   const leaveMessageText = new TextDisplayBuilder().setContent(
     leaveMessageContent,
@@ -134,5 +195,6 @@ export function addMessagesContent(
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),
   );
+
   container.addActionRowComponents(leaveEditRow);
 }

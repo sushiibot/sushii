@@ -1,4 +1,4 @@
-import type { ContainerBuilder} from "discord.js";
+import type { CacheType, ContainerBuilder, Interaction} from "discord.js";
 import { TextDisplayBuilder } from "discord.js";
 
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
@@ -6,6 +6,7 @@ import type { SettingsMessageOptions } from "../components/SettingsConstants";
 export function addAdvancedContent(
   container: ContainerBuilder,
   options: SettingsMessageOptions,
+  _interaction?: Interaction<CacheType>,
 ): void {
   const { config } = options;
 
@@ -16,10 +17,10 @@ export function addAdvancedContent(
   container.addTextDisplayComponents(headerText);
 
   // Legacy Settings
-  let advancedContent = "**Legacy Settings**\n";
+  let advancedContent = "**Old Command Prefix** (rarely needed)\n";
   advancedContent += `**Prefix:** \`${config.prefix || "None set"}\`\n`;
   advancedContent +=
-    "╰ Only used for legacy commands not yet migrated to slash commands\n\n";
+    "╰ Only needed if you have very old custom commands. Most servers can ignore this.\n\n";
 
   const advancedText = new TextDisplayBuilder().setContent(advancedContent);
   container.addTextDisplayComponents(advancedText);

@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 
 import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
+import { quoteMarkdownString } from "@/utils/markdown";
 
 import type { SettingsPage } from "./SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "./SettingsConstants";
@@ -137,7 +138,7 @@ export function formatToggleSetting(
 ): string {
   let s = `**${name}** — `;
   s += enabled ? "`✅ Enabled`" : "`❌ Disabled`";
-  s += `\n> ${description}`;
+  s += `\n${quoteMarkdownString(description)}`;
 
   return s;
 }
@@ -169,7 +170,7 @@ export function createJoinMessageModal(
     .setStyle(TextInputStyle.Paragraph)
     .setValue(currentMessage || "")
     .setPlaceholder(
-      "Welcome <username> to <server>! You are member #<member_number>",
+      "Welcome <mention> to <server>! You are member #<member_number>",
     )
     .setRequired(false)
     .setMaxLength(1000);
@@ -198,7 +199,7 @@ export function createLeaveMessageModal(
     .setLabel("Leave Message")
     .setStyle(TextInputStyle.Paragraph)
     .setValue(currentMessage || "")
-    .setPlaceholder("<username> has left <server>")
+    .setPlaceholder("<mention> has left <server>")
     .setRequired(false)
     .setMaxLength(1000);
 

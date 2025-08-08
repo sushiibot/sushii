@@ -1,5 +1,4 @@
-import type {
-  ContainerBuilder} from "discord.js";
+import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -15,15 +14,13 @@ import {
   formatMessageSetting,
   formatToggleSetting,
 } from "../components/SettingsComponents";
-import type {
-  SettingsMessageOptions} from "../components/SettingsConstants";
-import {
-  SETTINGS_CUSTOM_IDS
-} from "../components/SettingsConstants";
+import type { SettingsMessageOptions } from "../components/SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
 export function addModerationContent(
   container: ContainerBuilder,
   options: SettingsMessageOptions,
+  _interaction?: Interaction<CacheType>,
 ): void {
   const { config, disabled = false } = options;
 
@@ -35,7 +32,10 @@ export function addModerationContent(
 
   // Lookup Settings Section
   const lookupIntro = new TextDisplayBuilder().setContent(
-    "### Lookup Settings\nWith the lookup command, you can see bans from other servers. You can either keep your server name and ban reasons private, or share them with other servers. In order to see the server name and ban reasons from other servers, you must also share your server name and ban reasons.\n",
+    "### Lookup Settings\nWhen using `/lookup` to check user bans:" +
+      "\n- **Share Details**: See other servers' names and ban reasons (recommended for better moderation)" +
+      "\n- **Keep Private**: Only see ban dates (no server names or reasons)" +
+      "\n💡 **Note**: To see details from other servers, you must also share yours.\n",
   );
   container.addTextDisplayComponents(lookupIntro);
 
@@ -44,8 +44,8 @@ export function addModerationContent(
     "🔍 Lookup Data Sharing",
     config.moderationSettings.lookupDetailsOptIn,
     config.moderationSettings.lookupDetailsOptIn
-      ? "Sharing server name, ban reasons with other servers"
-      : "Only sharing ban timestamps (server name & reasons hidden)",
+      ? "Sharing server name and ban reasons with other servers"
+      : "Keeping server name and ban reasons private",
   );
 
   const lookupText = new TextDisplayBuilder().setContent(lookupTextContent);
@@ -66,8 +66,8 @@ export function addModerationContent(
   // DM Settings Section
   const dmIntroText =
     "\n### Default DM Settings" +
-    "\nChoose when the bot sends DMs to users by default for moderation actions, including your custom reason." +
-    "\n**Tip:** Override any of these per command using the `dm_reason` option.\n";
+    "\nChoose when the bot sends DMs to users for moderation actions." +
+    "\n💡 **Tip:** You can override these per command using the `dm_reason` option.\n";
   const dmIntro = new TextDisplayBuilder().setContent(dmIntroText);
   container.addTextDisplayComponents(dmIntro);
 
@@ -75,7 +75,7 @@ export function addModerationContent(
   const timeoutCommandContent = formatToggleSetting(
     "⏳ DM on `/timeout` command",
     config.moderationSettings.timeoutCommandDmEnabled,
-    "> When you run the `/timeout` command, send them a DM with the reason",
+    "When you use the `/timeout` command, send them a DM with the reason",
   );
   const timeoutCommandText = new TextDisplayBuilder().setContent(
     timeoutCommandContent,
@@ -100,7 +100,7 @@ export function addModerationContent(
   const timeoutNativeContent = formatToggleSetting(
     "⏳ DM on Discord Timeout",
     config.moderationSettings.timeoutNativeDmEnabled,
-    "> When you timeout via right-clicking a user, send them a DM with the reason",
+    "When you right-click a user → Timeout, send them a DM with the reason",
   );
   const timeoutNativeText = new TextDisplayBuilder().setContent(
     timeoutNativeContent,
@@ -125,7 +125,7 @@ export function addModerationContent(
   timeoutMessageContent += formatMessageSetting(
     "⏳ Timeout DM Message",
     config.moderationSettings.timeoutDmText,
-    "Optional extra message sent with timeouts. Users will always be told they were timed out, but you can add server-specific info like appeal instructions or rule reminders.",
+    "Optional extra message added to timeout DMs. Users always see the timeout reason, but you can add server rules or appeal info here.",
   );
 
   const timeoutMessageText = new TextDisplayBuilder().setContent(
@@ -155,7 +155,7 @@ export function addModerationContent(
   warnContent += formatMessageSetting(
     "⚠️ Warn DM Message",
     config.moderationSettings.warnDmText,
-    "Optional extra message sent with warnings. Users will always be told they received a warning, but you can add helpful info like which rules to review or where to get help.",
+    "Optional extra message added to warning DMs. Users always see the warning reason, but you can add rule reminders or support info here.",
   );
 
   const dmText2 = new TextDisplayBuilder().setContent(warnContent);
@@ -180,8 +180,8 @@ export function addModerationContent(
   const banToggleContent = formatToggleSetting(
     "🔨 Ban DM",
     config.moderationSettings.banDmEnabled,
-    "> Always DM the user when banned." +
-      "\n> **Note:** This will ONLY work if you use the `/ban` command, not Discord's native ban action as bots cannot DM users that are no longer in the server.",
+    "Always DM the user when banned." +
+      "\n ⚠️ **Important:** Only works with `/ban` command. Right-click bans can't send DMs.",
   );
   const banToggleText = new TextDisplayBuilder().setContent(banToggleContent);
   const banToggleSection = new SectionBuilder()
@@ -202,7 +202,7 @@ export function addModerationContent(
   banMessageContent += formatMessageSetting(
     "🔨 Ban DM Message",
     config.moderationSettings.banDmText,
-    "Optional extra message sent with bans. Users will always be told they were banned, but you can add server-specific info like an appeal link.",
+    "Optional extra message added to ban DMs. Users always see the ban reason, but you can add appeal links or final instructions here.",
   );
 
   const banMessageText = new TextDisplayBuilder().setContent(banMessageContent);

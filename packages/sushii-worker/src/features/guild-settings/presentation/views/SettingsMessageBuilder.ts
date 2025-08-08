@@ -1,5 +1,4 @@
-import type {
-  InteractionReplyOptions} from "discord.js";
+import type { CacheType, Interaction, InteractionReplyOptions } from "discord.js";
 import {
   ContainerBuilder,
   MessageFlags,
@@ -21,6 +20,7 @@ import { addModerationContent } from "./pages/ModerationPageBuilder";
 
 export function createSettingsMessage(
   options: SettingsMessageOptions,
+  interaction?: Interaction<CacheType>,
 ): InteractionReplyOptions & {
   flags: MessageFlags.IsComponentsV2;
 } {
@@ -29,16 +29,16 @@ export function createSettingsMessage(
   // Add page-specific content
   switch (options.page) {
     case "logging":
-      addLoggingContent(container, options);
+      addLoggingContent(container, options, interaction);
       break;
     case "moderation":
-      addModerationContent(container, options);
+      addModerationContent(container, options, interaction);
       break;
     case "messages":
-      addMessagesContent(container, options);
+      addMessagesContent(container, options, interaction);
       break;
     case "advanced":
-      addAdvancedContent(container, options);
+      addAdvancedContent(container, options, interaction);
       break;
   }
 
@@ -68,7 +68,7 @@ export function formatButtonRejectionResponse(): {
   ephemeral: boolean;
 } {
   return {
-    content: "These buttons aren't for you! 😡",
+    content: "Only the person who ran the command can use these buttons.",
     ephemeral: true,
   };
 }

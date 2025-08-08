@@ -70,12 +70,15 @@ export default class SettingsCommand extends SlashCommandHandler {
 
     let currentPage: SettingsPage = "logging";
 
-    const settingsMessage = createSettingsMessage({
-      page: currentPage,
-      config,
-      messageLogBlocks,
-      disabled: false,
-    });
+    const settingsMessage = createSettingsMessage(
+      {
+        page: currentPage,
+        config,
+        messageLogBlocks,
+        disabled: false,
+      },
+      interaction,
+    );
 
     const msg = await interaction.reply(settingsMessage);
 
@@ -126,12 +129,15 @@ export default class SettingsCommand extends SlashCommandHandler {
           interaction.guildId,
         );
 
-        const disabledMessage = createSettingsMessage({
-          page: currentPage,
-          config: currentConfig,
-          messageLogBlocks: currentBlocks,
-          disabled: true,
-        });
+        const disabledMessage = createSettingsMessage(
+          {
+            page: currentPage,
+            config: currentConfig,
+            messageLogBlocks: currentBlocks,
+            disabled: true,
+          },
+          interaction,
+        );
 
         await msg.edit(disabledMessage);
       } catch (err) {
@@ -200,12 +206,15 @@ export default class SettingsCommand extends SlashCommandHandler {
     const updatedBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
 
-    const updatedMessage = createSettingsMessage({
-      page: "logging",
-      config: updatedConfig,
-      messageLogBlocks: updatedBlocks,
-      disabled: false,
-    });
+    const updatedMessage = createSettingsMessage(
+      {
+        page: "logging",
+        config: updatedConfig,
+        messageLogBlocks: updatedBlocks,
+        disabled: false,
+      },
+      interaction,
+    );
 
     await interaction.update(updatedMessage);
   }
@@ -254,12 +263,15 @@ export default class SettingsCommand extends SlashCommandHandler {
     const updatedBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
 
-    const updatedMessage = createSettingsMessage({
-      page: currentPage,
-      config: updatedConfig,
-      messageLogBlocks: updatedBlocks,
-      disabled: false,
-    });
+    const updatedMessage = createSettingsMessage(
+      {
+        page: currentPage,
+        config: updatedConfig,
+        messageLogBlocks: updatedBlocks,
+        disabled: false,
+      },
+      interaction,
+    );
 
     await interaction.update(updatedMessage);
     return currentPage;
@@ -280,12 +292,15 @@ export default class SettingsCommand extends SlashCommandHandler {
       const messageLogBlocks =
         await this.messageLogService.getIgnoredChannels(guildId);
 
-      const updatedMessage = createSettingsMessage({
-        page: navigationPage,
-        config: currentConfig,
-        messageLogBlocks,
-        disabled: false,
-      });
+      const updatedMessage = createSettingsMessage(
+        {
+          page: navigationPage,
+          config: currentConfig,
+          messageLogBlocks,
+          disabled: false,
+        },
+        interaction,
+      );
 
       await interaction.update(updatedMessage);
       return navigationPage;
@@ -453,12 +468,15 @@ export default class SettingsCommand extends SlashCommandHandler {
     const messageLogBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
 
-    const updatedMessage = createSettingsMessage({
-      page,
-      config: updatedConfig,
-      messageLogBlocks,
-      disabled: false,
-    });
+    const updatedMessage = createSettingsMessage(
+      {
+        page,
+        config: updatedConfig,
+        messageLogBlocks,
+        disabled: false,
+      },
+      interaction,
+    );
 
     await interaction.update(updatedMessage);
     return page;
@@ -555,12 +573,15 @@ export default class SettingsCommand extends SlashCommandHandler {
     const messageLogBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
 
-    const updatedMessage = createSettingsMessage({
-      page: targetPage,
-      config: updatedConfig,
-      messageLogBlocks,
-      disabled: false,
-    });
+    const updatedMessage = createSettingsMessage(
+      {
+        page: targetPage,
+        config: updatedConfig,
+        messageLogBlocks,
+        disabled: false,
+      },
+      interaction,
+    );
 
     await interaction.update(updatedMessage);
   }

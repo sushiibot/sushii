@@ -1,5 +1,4 @@
-import type {
-  ContainerBuilder} from "discord.js";
+import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
 import {
   ActionRowBuilder,
   ChannelSelectMenuBuilder,
@@ -10,16 +9,17 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import { createToggleButton, formatToggleSetting } from "../components/SettingsComponents";
-import type {
-  SettingsMessageOptions} from "../components/SettingsConstants";
 import {
-  SETTINGS_CUSTOM_IDS
-} from "../components/SettingsConstants";
+  createToggleButton,
+  formatToggleSetting,
+} from "../components/SettingsComponents";
+import type { SettingsMessageOptions } from "../components/SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
 export function addLoggingContent(
   container: ContainerBuilder,
   options: SettingsMessageOptions,
+  _interaction?: Interaction<CacheType>,
 ): void {
   const { config, disabled = false } = options;
 
@@ -29,7 +29,7 @@ export function addLoggingContent(
 
   // Logging Section
   const loggingIntro = new TextDisplayBuilder().setContent(
-    "### Logs\nTrack moderation, member, and message activity.\n",
+    "### Logs\nTrack moderation, member, and message activity.\n💡 **Tip:** Bot needs 'Send Messages' permission in channels you select.\n",
   );
   container.addTextDisplayComponents(loggingIntro);
 
@@ -37,11 +37,11 @@ export function addLoggingContent(
   const modLogContent = formatToggleSetting(
     "🛡️ Mod Logs",
     config.loggingSettings.modLogEnabled,
-    `Logs moderation actions like bans, kicks, warnings\n${
+    `Logs staff actions like bans, kicks, timeouts, and warnings\n${
       config.loggingSettings.modLogChannel
         ? `**Channel:** <#${config.loggingSettings.modLogChannel}>`
         : "**Channel:** No channel set"
-    }`
+    }`,
   );
   const modLogText = new TextDisplayBuilder().setContent(modLogContent);
   const modLogSection = new SectionBuilder()
@@ -84,7 +84,7 @@ export function addLoggingContent(
       config.loggingSettings.memberLogChannel
         ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
         : "**Channel:** No channel set"
-    }`
+    }`,
   );
   const memberLogText = new TextDisplayBuilder().setContent(memberLogContent);
   const memberLogSection = new SectionBuilder()
@@ -125,7 +125,7 @@ export function addLoggingContent(
       config.loggingSettings.messageLogChannel
         ? `**Channel:** <#${config.loggingSettings.messageLogChannel}>`
         : "**Channel:** No channel set"
-    }`
+    }`,
   );
   const messageLogText = new TextDisplayBuilder().setContent(messageLogContent);
   const messageLogSection = new SectionBuilder()
@@ -161,9 +161,8 @@ export function addLoggingContent(
   );
 
   let msgLogContent = "### Message Log Ignored Channels\n";
-  msgLogContent += "Some channels being too noisy in your message logs?\n";
   msgLogContent +=
-    "You can ignore channels you don't want to show up in your message logs.\n\n";
+    "Select busy channels to skip logging there and reduce spam.\n";
 
   if (options.messageLogBlocks && options.messageLogBlocks.length > 0) {
     msgLogContent +=
@@ -188,7 +187,7 @@ export function addLoggingContent(
     new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(SETTINGS_CUSTOM_IDS.MESSAGE_LOG_IGNORE_CHANNELS)
-        .setPlaceholder("Select channels to ignore for message logs")
+        .setPlaceholder("Add channels to ignore")
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setMinValues(0)
         .setMaxValues(25) // Discord's limit
