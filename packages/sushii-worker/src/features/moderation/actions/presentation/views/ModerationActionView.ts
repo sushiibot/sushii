@@ -1,11 +1,5 @@
-import type {
-  InteractionEditReplyOptions,
-  User} from "discord.js";
-import {
-  ContainerBuilder,
-  MessageFlags,
-  TextDisplayBuilder
-} from "discord.js";
+import type { InteractionEditReplyOptions, User } from "discord.js";
+import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
 import type { Result } from "ts-results";
 
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
@@ -20,6 +14,7 @@ import {
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
+import { getCleanFilename } from "@/utils/url";
 
 interface ActionResult {
   target: ModerationTarget;
@@ -132,8 +127,10 @@ export function buildActionResultMessage(
 
       fullContent += "> ";
       fullContent += firstSuccessfulCase.attachments
-        .map((attachment) => `\`${attachment}\``)
+        .map((a) => `[${getCleanFilename(a)}](${a})`)
         .join(", ");
+
+      fullContent += "\n";
     }
 
     // Add DM status
