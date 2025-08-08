@@ -32,14 +32,10 @@ import {
   memberLogLeaveHandler,
 } from "@/events/MemberLog";
 // Legacy mod log handler removed - migrated to DDD architecture
-import {
-  cacheGuildCreateHandler,
-  cacheGuildUpdateHandler,
-} from "@/events/cache/cacheGuild";
-import { cacheUserHandler } from "@/events/cache/cacheUser";
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { CacheFeature } from "@/features/cache/setup";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
@@ -121,6 +117,7 @@ export default function registerEventHandlers(
   client: Client,
   interactionHandler: InteractionClient,
   deploymentService: DeploymentService,
+  cacheFeature: CacheFeature,
 ): void {
   client.once(Events.ClientReady, async (c) => {
     logger.info(
@@ -260,7 +257,7 @@ export default function registerEventHandlers(
         await handleEvent(
           Events.GuildCreate,
           {
-            cacheGuildCreate: cacheGuildCreateHandler,
+            cacheGuildCreate: cacheFeature.handlers.cacheGuildCreate,
           },
           guild,
         );
@@ -281,7 +278,7 @@ export default function registerEventHandlers(
         await handleEvent(
           Events.GuildUpdate,
           {
-            cacheGuildUpdate: cacheGuildUpdateHandler,
+            cacheGuildUpdate: cacheFeature.handlers.cacheGuildUpdate,
           },
           oldGuild,
           newGuild,
@@ -419,7 +416,7 @@ export default function registerEventHandlers(
           Events.MessageCreate,
           {
             emojiStats: emojiStatsMsgHandler,
-            cacheUser: cacheUserHandler,
+            cacheUser: cacheFeature.handlers.cacheUser,
           },
           msg,
         );

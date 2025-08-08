@@ -83,6 +83,20 @@ export class UserProfile {
     });
   }
 
+  updateLastFishiesTimestamp(): UserProfile {
+    return new UserProfile({
+      ...this.data,
+      lastFishies: new Date(),
+    });
+  }
+
+  updateLastRepTimestamp(): UserProfile {
+    return new UserProfile({
+      ...this.data,
+      lastRep: new Date(),
+    });
+  }
+
   updatePatronStatus(isPatron: boolean, patronEmoji?: string | null): UserProfile {
     return new UserProfile({
       ...this.data,

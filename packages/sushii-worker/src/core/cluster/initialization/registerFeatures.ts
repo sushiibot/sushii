@@ -9,7 +9,9 @@ import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupTagFeature } from "@/features/tags/setup";
+import { setupSocialFeature } from "@/features/social/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
+import { createCacheFeature } from "@/features/cache/setup";
 import * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -26,6 +28,9 @@ export function registerFeatures(
   // --------------------------------------------------------------------------
   // Build commands
 
+  // Cache feature
+  const cacheFeature = createCacheFeature({ db });
+
   // Leveling feature
   const levelingFeature = setupLevelingFeature({ db, logger });
 
@@ -34,6 +39,9 @@ export function registerFeatures(
 
   // User profile feature
   const userProfileFeature = setupUserProfileFeature({ db, client, logger });
+
+  // Social feature
+  const socialFeature = setupSocialFeature({ db, client, logger });
 
   // Notification feature
   const notificationFeature = setupNotificationFeature({ db, logger });
@@ -63,6 +71,7 @@ export function registerFeatures(
     ...levelingFeature.commands,
     ...tagFeature.commands,
     ...userProfileFeature.commands,
+    ...socialFeature.commands,
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
     ...moderationFeature.commands,
@@ -72,6 +81,7 @@ export function registerFeatures(
     ...levelingFeature.autocompletes,
     ...tagFeature.autocompletes,
     ...userProfileFeature.autocompletes,
+    ...socialFeature.autocompletes,
     ...notificationFeature.autocompletes,
     ...guildSettingsFeature.autocompletes,
     ...moderationFeature.autocompletes,
@@ -88,6 +98,7 @@ export function registerFeatures(
     ...levelingFeature.buttonHandlers,
     ...tagFeature.buttonHandlers,
     ...userProfileFeature.buttonHandlers,
+    ...socialFeature.buttonHandlers,
     ...notificationFeature.buttonHandlers,
     ...guildSettingsFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
@@ -196,6 +207,7 @@ export function registerFeatures(
 
   // Return services for backwards compatibility (can be removed later)
   return {
+    cacheFeature,
     giveawayServices: {
       giveawayService: giveawayFeature.services.giveawayService,
       giveawayDrawService: giveawayFeature.services.giveawayDrawService,

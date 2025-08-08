@@ -1,0 +1,7 @@
+import { Result } from "ts-results";
+import { CachedUserEntity, NewCachedUser } from "../entities";
+
+export interface CachedUserRepository {
+  upsert(userData: NewCachedUser): Promise<Result<CachedUserEntity, string>>;
+  batchUpsert(usersData: NewCachedUser[]): Promise<Result<CachedUserEntity[], string>>;
+}
