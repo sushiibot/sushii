@@ -1,0 +1,1 @@
+export { BanRepository } from "./BanRepository";

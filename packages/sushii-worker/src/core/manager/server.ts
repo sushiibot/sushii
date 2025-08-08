@@ -112,7 +112,6 @@ function createMonitoringServer(
           channelID: config.deployment.ownerChannelId,
         },
         tracingSamplePercentage: config.tracing.samplePercentage,
-        disableBanFetchOnReady: config.features.disableBanFetchOnReady,
       },
       clusters: manager.clusters.values().map((cluster) => ({
         id: cluster.id,

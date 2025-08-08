@@ -104,7 +104,6 @@ export class DeploymentConfig {
 
 export class FeatureFlags {
   constructor(
-    readonly disableBanFetchOnReady: boolean,
     readonly skipCommandRegistration: boolean,
   ) {}
 }
@@ -170,7 +169,6 @@ export class Config {
       env.E2E_WEBHOOK_URL,
     );
     this.features = new FeatureFlags(
-      env.DISABLE_BAN_FETCH_ON_READY,
       env.SKIP_COMMAND_REGISTRATION,
     );
     this.build = new BuildConfig(

@@ -12,11 +12,6 @@ import webhookLog, {
   webhookActivity,
 } from "@/core/cluster/discord/webhookLogger";
 import {
-  banCacheBanHandler,
-  banCacheUnbanHandler,
-  banReadyHandler,
-} from "@/events/BanCache";
-import {
   emojiAndStickerStatsReadyHandler,
   emojiStatsMsgHandler,
   emojiStatsReactHandler,
@@ -160,7 +155,6 @@ export default function registerEventHandlers(
           await handleEvent(
             Events.ClientReady,
             {
-              banReady: banReadyHandler,
               emojiAndStickerStatsReady: emojiAndStickerStatsReadyHandler,
             },
             client,
@@ -375,7 +369,6 @@ export default function registerEventHandlers(
       async (span: Span) => {
         const handlers: Record<string, EventHandlerFn<Events.GuildBanAdd>> = {
           legacyModLogNotifier: legacyModLogNotifierHandler,
-          banCache: banCacheBanHandler,
         };
 
         await handleEvent(Events.GuildBanAdd, handlers, guildBan);
@@ -385,7 +378,7 @@ export default function registerEventHandlers(
     );
   });
 
-  client.on(Events.GuildBanRemove, async (guildBan) => {
+  client.on(Events.GuildBanRemove, async (_guildBan) => {
     if (!deploymentService.isCurrentDeploymentActive()) {
       return;
     }
@@ -393,11 +386,8 @@ export default function registerEventHandlers(
     await tracer.startActiveSpan(
       prefixSpanName(Events.GuildBanRemove),
       async (span: Span) => {
-        await handleEvent(
-          Events.GuildBanRemove,
-          { banCacheUnban: banCacheUnbanHandler },
-          guildBan,
-        );
+        // No legacy handlers for ban remove
+        // Ban cache is now handled by the DDD ban cache feature
 
         span.end();
       },

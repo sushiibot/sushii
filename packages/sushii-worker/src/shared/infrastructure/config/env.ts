@@ -53,10 +53,6 @@ const envSchema = z.object({
     .default(0.05), // 5%
 
   // Settings
-  DISABLE_BAN_FETCH_ON_READY: z
-    .preprocess((x) => x === "true", z.boolean())
-    .optional()
-    .default(false),
   SKIP_COMMAND_REGISTRATION: z
     .preprocess((x) => x === "true", z.boolean())
     .optional()

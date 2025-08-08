@@ -12,6 +12,7 @@ import { setupTagFeature } from "@/features/tags/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { createCacheFeature } from "@/features/cache/setup";
+import { createBanCacheServices } from "@/features/ban-cache/setup";
 import * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -30,6 +31,9 @@ export function registerFeatures(
 
   // Cache feature
   const cacheFeature = createCacheFeature({ db });
+
+  // Ban cache feature
+  const banCacheFeature = createBanCacheServices({ db, logger });
 
   // Leveling feature
   const levelingFeature = setupLevelingFeature({ db, logger });
@@ -119,6 +123,9 @@ export function registerFeatures(
     deploymentHandler,
     ...notificationFeature.eventHandlers,
     ...moderationFeature.eventHandlers,
+    banCacheFeature.handlers.banAdd,
+    banCacheFeature.handlers.banRemove,
+    banCacheFeature.handlers.guildJoin,
   ];
 
   // ---------------------------------------------------------------------------
