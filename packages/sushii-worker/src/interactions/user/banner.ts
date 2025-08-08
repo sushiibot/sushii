@@ -1,12 +1,12 @@
 import {
-  SlashCommandBuilder,
-  EmbedBuilder,
   ChatInputCommandInteraction,
+  EmbedBuilder,
+  SlashCommandBuilder,
 } from "discord.js";
 
 import Color from "../../utils/colors";
-import { SlashCommandHandler } from "../handlers";
 import { getUserString } from "../../utils/userString";
+import { SlashCommandHandler } from "../handlers";
 
 export default class BannerCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -19,22 +19,27 @@ export default class BannerCommand extends SlashCommandHandler {
     )
     .toJSON();
 
-   
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
-    const target =
+    const targetUser =
       interaction.options.getUser("user", false) || interaction.user;
 
-    // TODO: Member banners in Discord.js v15
-    // https://github.com/discordjs/discord.js/pull/10384
+    // Refetch via user ID to get the banner
+    const user = await interaction.client.users.fetch(targetUser.id);
 
-    const userBannerURL = target.bannerURL({
+    const member = await interaction.guild?.members.fetch(user.id);
+
+    const userBannerURL = user.bannerURL({
+      size: 4096,
+    });
+
+    const memberBannerURL = member?.bannerURL({
       size: 4096,
     });
 
     if (!userBannerURL) {
       const embed = new EmbedBuilder()
         .setColor(Color.Error)
-        .setDescription(`${target.toString()} doesn't have a banner set.`);
+        .setDescription(`${user.toString()} doesn't have a banner set.`);
 
       await interaction.reply({
         embeds: [embed],
@@ -43,15 +48,29 @@ export default class BannerCommand extends SlashCommandHandler {
       return;
     }
 
+    const embeds = [];
+
     const embed = new EmbedBuilder()
-      .setTitle(getUserString(target))
+      .setTitle(getUserString(user))
       .setURL(userBannerURL)
       .setImage(userBannerURL)
-      .setColor(Color.Success)
-      .toJSON();
+      .setColor(Color.Success);
+
+    embeds.push(embed);
+
+    if (memberBannerURL) {
+      // New embed
+      const memberEmbed = new EmbedBuilder()
+        .setTitle("Server Banner")
+        .setURL(memberBannerURL)
+        .setImage(memberBannerURL)
+        .setColor(Color.Success);
+
+      embeds.push(memberEmbed);
+    }
 
     await interaction.reply({
-      embeds: [embed],
+      embeds,
     });
   }
 }
