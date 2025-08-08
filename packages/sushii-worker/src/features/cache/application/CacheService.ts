@@ -65,13 +65,24 @@ export class CacheService {
     if (this.userQueue.length === 0) return;
 
     const batch = this.userQueue.splice(0);
-    logger.info({ count: batch.length }, "Flushing user cache batch");
+    
+    // Deduplicate by user ID, keeping the most recent entry
+    const deduplicatedMap = new Map<bigint, NewCachedUser>();
+    for (const user of batch) {
+      deduplicatedMap.set(user.id, user);
+    }
+    const deduplicatedBatch = Array.from(deduplicatedMap.values());
+    
+    logger.info({ 
+      originalCount: batch.length, 
+      deduplicatedCount: deduplicatedBatch.length 
+    }, "Flushing user cache batch");
 
-    const result = await this.userRepository.batchUpsert(batch);
+    const result = await this.userRepository.batchUpsert(deduplicatedBatch);
     if (result.err) {
-      logger.error({ err: result.val, count: batch.length }, "Failed to flush user cache batch");
+      logger.error({ err: result.val, count: deduplicatedBatch.length }, "Failed to flush user cache batch");
       // Re-queue failed items for retry
-      this.userQueue.unshift(...batch);
+      this.userQueue.unshift(...deduplicatedBatch);
     }
   }
 }
