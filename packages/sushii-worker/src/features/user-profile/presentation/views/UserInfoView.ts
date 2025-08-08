@@ -1,13 +1,14 @@
 import { EmbedBuilder, GuildMember, User } from "discord.js";
 import { APIEmbed } from "discord.js";
-import Color from "../../utils/colors";
-import { getCreatedTimestampSeconds } from "../../utils/snowflake";
-import timestampToUnixTime from "../../utils/timestampToUnixTime";
 
-export default async function getUserinfoEmbed(
+import Color from "@/utils/colors";
+import { getCreatedTimestampSeconds } from "@/utils/snowflake";
+import timestampToUnixTime from "@/utils/timestampToUnixTime";
+
+export function createUserInfoEmbed(
   user: User,
   member: GuildMember | undefined,
-): Promise<APIEmbed> {
+): APIEmbed {
   let authorName = `${user.displayName} (@${user.username})`;
   if (member?.nickname) {
     authorName = `${user.displayName} (@${user.username}) ~ ${member.nickname}`;
@@ -30,7 +31,6 @@ export default async function getUserinfoEmbed(
 
   const createdTimestamp = getCreatedTimestampSeconds(user.id);
 
-  // Creation times
   embed = embed.addFields([
     {
       name: "Account Created",

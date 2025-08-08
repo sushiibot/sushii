@@ -8,23 +8,11 @@ import RoleMenuCommand from "./roles/RoleMenu";
 import RoleMenuAutocomplete from "./roles/RoleMenuAutocomplete";
 import RoleMenuButtonHandler from "./roles/RoleMenuButtonHandler";
 import RoleMenuSelectMenuHandler from "./roles/RoleMenuSelectMenuHandler";
-import AvatarCommand from "./user/avatar";
-import BannerCommand from "./user/banner";
-import FishyCommand from "./user/fishy";
-import RepCommand from "./user/rep";
-import UserInfoCommand from "./user/userinfo";
 
 export default function registerInteractionHandlers(
   interactionRouter: InteractionClient,
 ): void {
   interactionRouter.addCommands(
-    // User
-    new UserInfoCommand(),
-    new FishyCommand(),
-    new RepCommand(),
-    new AvatarCommand(),
-    new BannerCommand(),
-
     // Meta
     new StatusCommand(),
 

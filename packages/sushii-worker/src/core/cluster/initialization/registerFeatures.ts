@@ -9,6 +9,7 @@ import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupTagFeature } from "@/features/tags/setup";
+import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -30,6 +31,9 @@ export function registerFeatures(
 
   // Tags feature
   const tagFeature = setupTagFeature({ db, logger });
+
+  // User profile feature
+  const userProfileFeature = setupUserProfileFeature({ db, client, logger });
 
   // Notification feature
   const notificationFeature = setupNotificationFeature({ db, logger });
@@ -58,6 +62,7 @@ export function registerFeatures(
   interactionRouter.addCommands(
     ...levelingFeature.commands,
     ...tagFeature.commands,
+    ...userProfileFeature.commands,
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
     ...moderationFeature.commands,
@@ -66,6 +71,7 @@ export function registerFeatures(
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
     ...tagFeature.autocompletes,
+    ...userProfileFeature.autocompletes,
     ...notificationFeature.autocompletes,
     ...guildSettingsFeature.autocompletes,
     ...moderationFeature.autocompletes,
@@ -81,6 +87,7 @@ export function registerFeatures(
   interactionRouter.addButtons(
     ...levelingFeature.buttonHandlers,
     ...tagFeature.buttonHandlers,
+    ...userProfileFeature.buttonHandlers,
     ...notificationFeature.buttonHandlers,
     ...guildSettingsFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,

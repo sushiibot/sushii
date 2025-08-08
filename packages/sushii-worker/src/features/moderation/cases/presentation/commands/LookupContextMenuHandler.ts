@@ -9,7 +9,7 @@ import { ApplicationCommandType } from "discord.js";
 import { Logger } from "pino";
 
 import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
-import getUserinfoEmbed from "@/interactions/user/userinfo.service";
+import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 
 import { LookupUserService } from "../../application/LookupUserService";
 import { buildUserHistoryEmbeds } from "../views/HistoryView";
@@ -50,7 +50,7 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
       PermissionFlagsBits.BanMembers,
     );
 
-    const userInfoEmbed = await getUserinfoEmbed(
+    const userInfoEmbed = createUserInfoEmbed(
       targetUser,
       targetMember || undefined,
     );
