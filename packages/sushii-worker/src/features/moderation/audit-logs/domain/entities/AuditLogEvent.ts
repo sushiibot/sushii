@@ -1,8 +1,5 @@
-import type {
-  GuildAuditLogsEntry} from "discord.js";
-import {
-  AuditLogEvent as DiscordAuditLogEvent
-} from "discord.js";
+import type { GuildAuditLogsEntry } from "discord.js";
+import { AuditLogEvent as DiscordAuditLogEvent } from "discord.js";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";

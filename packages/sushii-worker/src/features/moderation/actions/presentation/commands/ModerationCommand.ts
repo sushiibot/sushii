@@ -4,17 +4,14 @@ import type {
   GuildMember,
   PermissionFlagsBits,
   RESTPostAPIApplicationCommandsJSONBody,
-  SlashCommandOptionsOnlyBuilder} from "discord.js";
-import {
-  InteractionContextType,
-  SlashCommandBuilder
+  SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
-import type {
-  ModerationAction} from "@/features/moderation/shared/domain/entities/ModerationAction";
+import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
   KickAction,
@@ -26,11 +23,8 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
-import type {
-  DMChoice} from "@/features/moderation/shared/domain/value-objects/DMChoice";
-import {
-  dmChoiceFromString,
-} from "@/features/moderation/shared/domain/value-objects/DMChoice";
+import type { DMChoice } from "@/features/moderation/shared/domain/value-objects/DMChoice";
+import { dmChoiceFromString } from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
@@ -40,10 +34,10 @@ import {
   getErrorMessageEdit,
 } from "@/interactions/responses/error";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationService } from "../../application/ModerationService";
 import type { TargetResolutionService } from "../../application/TargetResolutionService";
-import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 export interface ModerationCommandConfig {
   actionType: ActionType;

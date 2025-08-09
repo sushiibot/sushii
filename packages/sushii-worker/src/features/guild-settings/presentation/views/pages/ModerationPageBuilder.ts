@@ -155,7 +155,7 @@ export function addModerationContent(
   warnContent += formatMessageSetting(
     "⚠️ Warn DM Message",
     config.moderationSettings.warnDmText,
-    "Optional extra message added to warning DMs. Users always see the warning reason, but you can add rule reminders or support info here.",
+    "Optional extra message added to warning DMs. Users always see the warning reason, so this could be additional rule reminders or information here.",
   );
 
   const dmText2 = new TextDisplayBuilder().setContent(warnContent);

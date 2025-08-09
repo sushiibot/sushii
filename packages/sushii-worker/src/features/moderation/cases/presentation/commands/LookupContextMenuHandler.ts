@@ -1,5 +1,4 @@
-import type {
-  ContextMenuCommandInteraction} from "discord.js";
+import type { ContextMenuCommandInteraction } from "discord.js";
 import {
   ContextMenuCommandBuilder,
   EmbedBuilder,
@@ -9,11 +8,10 @@ import {
 import { ApplicationCommandType } from "discord.js";
 import type { Logger } from "pino";
 
-import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
+import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 
 import type { LookupUserService } from "../../application/LookupUserService";
-import { buildUserHistoryEmbeds } from "../views/HistoryView";
 import { buildUserLookupEmbed } from "../views/UserLookupView";
 
 export class LookupContextMenuHandler extends ContextMenuHandler {
@@ -91,14 +89,6 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
         },
       );
       embeds.push(lookupEmbed);
-
-      // Add history embeds
-      const historyEmbeds = buildUserHistoryEmbeds(
-        targetUser,
-        targetMember,
-        lookupResult.val,
-      );
-      embeds.push(...historyEmbeds);
     } else {
       log.error(
         { error: lookupResult.val, targetUserId: targetUser.id },
@@ -114,6 +104,6 @@ export class LookupContextMenuHandler extends ContextMenuHandler {
       flags: MessageFlags.Ephemeral,
     });
 
-    log.info("Context menu displayed with user info, lookup, and history");
+    log.info("Context menu displayed with user info and lookup");
   }
 }

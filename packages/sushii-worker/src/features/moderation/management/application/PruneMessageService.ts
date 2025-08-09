@@ -4,11 +4,8 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type {
-  MessageFilterCriteria} from "../domain/value-objects/MessageFilter";
-import {
-  MessageFilter
-} from "../domain/value-objects/MessageFilter";
+import type { MessageFilterCriteria } from "../domain/value-objects/MessageFilter";
+import { MessageFilter } from "../domain/value-objects/MessageFilter";
 import type { PruneOptions } from "../domain/value-objects/PruneOptions";
 
 export interface PruneResult {

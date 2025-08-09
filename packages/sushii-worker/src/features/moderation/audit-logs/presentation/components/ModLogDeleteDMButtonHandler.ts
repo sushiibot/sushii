@@ -1,5 +1,4 @@
-import type {
-  ButtonInteraction} from "discord.js";
+import type { ButtonInteraction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,

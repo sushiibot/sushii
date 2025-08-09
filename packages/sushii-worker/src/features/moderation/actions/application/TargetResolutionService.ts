@@ -1,10 +1,9 @@
 import type {
   ChatInputCommandInteraction,
   GuildMember,
-  User} from "discord.js";
-import {
-  Collection
+  User,
 } from "discord.js";
+import { Collection } from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 

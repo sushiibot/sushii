@@ -7,7 +7,7 @@ import { Err, Ok } from "ts-results";
 import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
-import type { DMResult} from "../../domain/entities/ModerationCase";
+import type { DMResult } from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import type { ModerationCaseRepository } from "../../domain/repositories/ModerationCaseRepository";
 import { actionTypeFromString } from "../../domain/value-objects/ActionType";

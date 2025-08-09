@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type {
-  DMChannel} from "discord.js";
+import type { DMChannel } from "discord.js";
 import {
   type Client,
   type Guild,

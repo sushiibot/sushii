@@ -1,11 +1,5 @@
-import type {
-  Channel,
-  Client,
-  GuildTextBasedChannel} from "discord.js";
-import {
-  ChannelType,
-  DiscordAPIError
-} from "discord.js";
+import type { Channel, Client, GuildTextBasedChannel } from "discord.js";
+import { ChannelType, DiscordAPIError } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";

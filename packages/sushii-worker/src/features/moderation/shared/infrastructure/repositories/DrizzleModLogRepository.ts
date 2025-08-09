@@ -8,14 +8,11 @@ import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import dayjs from "@/shared/domain/dayjs";
 
-import type { DMResult} from "../../domain/entities/ModerationCase";
+import type { DMResult } from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import type { ModLogRepository } from "../../domain/repositories/ModLogRepository";
-import type {
-  ActionType} from "../../domain/value-objects/ActionType";
-import {
-  actionTypeFromString,
-} from "../../domain/value-objects/ActionType";
+import type { ActionType } from "../../domain/value-objects/ActionType";
+import { actionTypeFromString } from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";
 
 export class DrizzleModLogRepository implements ModLogRepository {

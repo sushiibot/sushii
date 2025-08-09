@@ -4,12 +4,10 @@ import { EmbedBuilder } from "discord.js";
 import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
-import {
-  formatActionTypeAsSentence,
-  getActionTypeEmoji,
-} from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
+
+import { formatModerationCase } from "./HistoryView";
 
 interface LookupOptions {
   botHasBanPermission: boolean;
@@ -122,18 +120,7 @@ function addModerationHistory(
 ): void {
   const recentCases = moderationHistory.slice(0, 5);
 
-  const historyValue = recentCases
-    .map((moderationCase) => {
-      const actionEmoji = getActionTypeEmoji(moderationCase.actionType);
-      const actionName = formatActionTypeAsSentence(moderationCase.actionType);
-      const timestamp = Math.floor(
-        new Date(moderationCase.actionTime).getTime() / 1000,
-      );
-      const reason = moderationCase.reason?.value || "No reason provided";
-
-      return `${actionEmoji} **${actionName}** <t:${timestamp}:R>\n${reason}`;
-    })
-    .join("\n\n");
+  const historyValue = recentCases.map(formatModerationCase).join("\n\n");
 
   embed.addFields({
     name: `Recent Moderation History (${recentCases.length}/${moderationHistory.length})`,

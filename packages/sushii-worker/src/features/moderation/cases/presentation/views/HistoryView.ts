@@ -15,6 +15,54 @@ import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getCleanFilename } from "@/utils/url";
 import { getUserString } from "@/utils/userString";
 
+export function formatModerationCase(moderationCase: ModerationCase): string {
+  const actionEmoji = getActionTypeEmoji(moderationCase.actionType);
+  let actionName = formatActionTypeAsSentence(moderationCase.actionType);
+
+  // Add timeout duration if available for Timeout actions
+  if (
+    moderationCase.timeoutDuration &&
+    moderationCase.actionType === ActionType.Timeout
+  ) {
+    const duration = dayjs.duration(moderationCase.timeoutDuration, "seconds");
+    actionName += ` (${duration.humanize()})`;
+  }
+
+  const timestamp = dayjs.utc(moderationCase.actionTime).unix();
+
+  let s =
+    `\`#${moderationCase.caseId}\`` +
+    ` ${actionEmoji} **${actionName}**` +
+    ` – <t:${timestamp}:R> `;
+
+  const hasExecutor = moderationCase.executorId;
+  const hasReason = moderationCase.reason;
+  const hasAttachments =
+    moderationCase.attachments && moderationCase.attachments.length > 0;
+
+  if (hasExecutor) {
+    s += `\n> **By:** <@${moderationCase.executorId}>`;
+  }
+
+  if (hasReason) {
+    s += `\n> **Reason:** ${moderationCase.reason.value}`;
+  }
+
+  if (hasAttachments) {
+    const validAttachments = moderationCase.attachments.filter(
+      (a): a is string => !!a,
+    );
+    if (validAttachments.length > 0) {
+      const attachmentLinks = validAttachments
+        .map((a) => `[${getCleanFilename(a)}](${a})`)
+        .join(", ");
+      s += `\n> 📎 ${attachmentLinks}`;
+    }
+  }
+
+  return s;
+}
+
 export function buildUserHistoryEmbeds(
   targetUser: User,
   member: GuildMember | null,
@@ -44,56 +92,7 @@ export function buildUserHistoryEmbeds(
   );
 
   // Build case history
-  const casesStr = moderationHistory.map((moderationCase) => {
-    const actionEmoji = getActionTypeEmoji(moderationCase.actionType);
-    let actionName = formatActionTypeAsSentence(moderationCase.actionType);
-
-    // Add timeout duration if available for Timeout actions
-    if (
-      moderationCase.timeoutDuration &&
-      moderationCase.actionType === ActionType.Timeout
-    ) {
-      const duration = dayjs.duration(
-        moderationCase.timeoutDuration,
-        "seconds",
-      );
-      actionName += ` (${duration.humanize()})`;
-    }
-
-    const timestamp = dayjs.utc(moderationCase.actionTime).unix();
-
-    let s =
-      `\`#${moderationCase.caseId}\`` +
-      ` ${actionEmoji} **${actionName}**` +
-      ` – <t:${timestamp}:R> `;
-
-    const hasExecutor = moderationCase.executorId;
-    const hasReason = moderationCase.reason;
-    const hasAttachments =
-      moderationCase.attachments && moderationCase.attachments.length > 0;
-
-    if (hasExecutor) {
-      s += `\n> **By:** <@${moderationCase.executorId}>`;
-    }
-
-    if (hasReason) {
-      s += `\n> **Reason:** ${moderationCase.reason.value}`;
-    }
-
-    if (hasAttachments) {
-      const validAttachments = moderationCase.attachments.filter(
-        (a): a is string => !!a,
-      );
-      if (validAttachments.length > 0) {
-        const attachmentLinks = validAttachments
-          .map((a) => `[${getCleanFilename(a)}](${a})`)
-          .join(", ");
-        s += `\n> 📎 ${attachmentLinks}`;
-      }
-    }
-
-    return s;
-  });
+  const casesStr = moderationHistory.map(formatModerationCase);
 
   const descChunks = buildChunks(casesStr, "\n", 4096);
 

@@ -56,7 +56,7 @@ export const COMMAND_METADATA = {
   },
   NOTE: {
     name: "note",
-    description: "Add an internal note to users",
+    description: "Add a private note to users, only visible to staff",
   },
 } as const;
 

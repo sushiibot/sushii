@@ -1,11 +1,9 @@
-import type {
-  Guild,
-  User} from "discord.js";
+import type { Guild, User } from "discord.js";
 import {
   DiscordAPIError,
   EmbedBuilder,
   RESTJSONErrorCodes,
-  TimestampStyles
+  TimestampStyles,
 } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";

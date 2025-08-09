@@ -1,11 +1,5 @@
-import type {
-  ButtonInteraction,
-  ModalSubmitInteraction} from "discord.js";
-import {
-  ActionRowBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-} from "discord.js";
+import type { ButtonInteraction, ModalSubmitInteraction } from "discord.js";
+import { ActionRowBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import type { Logger } from "pino";
 
 import type { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
