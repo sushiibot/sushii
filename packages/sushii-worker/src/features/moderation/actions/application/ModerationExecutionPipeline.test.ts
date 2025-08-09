@@ -455,7 +455,7 @@ describe("ModerationExecutionPipeline", () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.val).toContain("Discord action failed");
+        expect(result.val).toContain("Discord API error");
       }
     });
   });
@@ -593,7 +593,7 @@ describe("ModerationExecutionPipeline", () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.val).toContain("Discord action failed");
+        expect(result.val).toContain("Discord API error");
       }
 
       // Case should be created but cleanup logic may not be working as expected

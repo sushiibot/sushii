@@ -106,7 +106,10 @@ export class ModerationExecutionPipeline {
       );
 
       // Execute Discord action
-      await this.handleDiscordAction(action, target, finalActionType);
+      const discordActionResult = await this.handleDiscordAction(action, target, finalActionType);
+      if (!discordActionResult.ok) {
+        return discordActionResult;
+      }
 
       // Handle post-action tasks
       currentCase = await this.handleExternalPostActionTasks(
@@ -284,9 +287,9 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     finalActionType: ActionType,
-  ): Promise<void> {
+  ): Promise<Result<void, string>> {
     if (!actionTypeRequiresDiscordAction(finalActionType)) {
-      return; // Nothing to do for actions like Warn or Note
+      return Ok.EMPTY; // Nothing to do for actions like Warn or Note
     }
 
     const discordResult = await this.performDiscordAction(
@@ -308,8 +311,10 @@ export class ModerationExecutionPipeline {
         "Failed to execute Discord action",
       );
 
-      throw new Error("Discord action failed", { cause: discordResult.val });
+      return discordResult;
     }
+
+    return Ok.EMPTY;
   }
 
   /**
@@ -597,6 +602,7 @@ export class ModerationExecutionPipeline {
           if (!action.isTempBanAction()) {
             return Err("Invalid action type for temp ban operation");
           }
+
           await guild.members.ban(target.id, {
             reason: action.reason?.value || "No reason provided",
             deleteMessageDays:
@@ -612,13 +618,15 @@ export class ModerationExecutionPipeline {
               action.reason?.value || "No reason provided",
             );
           } catch (error) {
-            // Check if the error is because the user is not banned
+            // Check if the error is because the user is not banned for clearer
+            // error for executor
             if (
               error instanceof DiscordAPIError &&
               error.code === RESTJSONErrorCodes.UnknownBan
             ) {
               return Err("User is not banned");
             }
+
             // Re-throw other errors
             throw error;
           }
