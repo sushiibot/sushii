@@ -1,4 +1,4 @@
-import type { CacheType, ContainerBuilder, Interaction} from "discord.js";
+import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
 import { TextDisplayBuilder } from "discord.js";
 
 import type { SettingsMessageOptions } from "../components/SettingsConstants";

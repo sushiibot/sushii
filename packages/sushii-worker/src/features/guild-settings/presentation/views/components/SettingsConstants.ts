@@ -1,12 +1,15 @@
 import type { MessageLogBlock } from "@/features/guild-settings/domain/entities/MessageLogBlock";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
+import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
+
 export type SettingsPage = "logging" | "moderation" | "messages" | "advanced";
 
 export interface SettingsMessageOptions {
   page: SettingsPage;
   config: GuildConfig;
   messageLogBlocks?: MessageLogBlock[];
+  channelPermissions?: ChannelPermissionsMap;
   disabled?: boolean;
 }
 

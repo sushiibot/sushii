@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import { SeparatorSpacingSize } from "discord.js";
 
+import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
   createToggleButton,
   formatToggleMessageSetting,
@@ -59,6 +60,16 @@ export function addMessagesContent(
   // Current Channel Display
   if (config.messageSettings.messageChannel) {
     headerContent += `🗨️ **Channel:** <#${config.messageSettings.messageChannel}>`;
+
+    // Add permission warning if needed
+    if (options.channelPermissions?.[config.messageSettings.messageChannel]) {
+      const warning = formatPermissionWarning(
+        options.channelPermissions[config.messageSettings.messageChannel],
+      );
+      if (warning) {
+        headerContent += `\n${warning}`;
+      }
+    }
   } else {
     headerContent += "🗨️ **Channel:** No channel set";
   }

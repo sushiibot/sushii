@@ -1,4 +1,8 @@
-import type { CacheType, Interaction, InteractionReplyOptions } from "discord.js";
+import type {
+  CacheType,
+  Interaction,
+  InteractionReplyOptions,
+} from "discord.js";
 import {
   ContainerBuilder,
   MessageFlags,

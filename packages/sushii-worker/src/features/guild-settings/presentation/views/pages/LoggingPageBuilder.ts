@@ -9,6 +9,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
+import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
   createToggleButton,
   formatToggleSetting,
@@ -34,14 +35,29 @@ export function addLoggingContent(
   container.addTextDisplayComponents(loggingIntro);
 
   // Mod Logs Section
+  let modLogDescription = `Logs staff actions like bans, kicks, timeouts, and warnings\n${
+    config.loggingSettings.modLogChannel
+      ? `**Channel:** <#${config.loggingSettings.modLogChannel}>`
+      : "**Channel:** No channel set"
+  }`;
+
+  // Add permission warning if needed
+  if (
+    config.loggingSettings.modLogChannel &&
+    options.channelPermissions?.[config.loggingSettings.modLogChannel]
+  ) {
+    const warning = formatPermissionWarning(
+      options.channelPermissions[config.loggingSettings.modLogChannel],
+    );
+    if (warning) {
+      modLogDescription += `\n${warning}`;
+    }
+  }
+
   const modLogContent = formatToggleSetting(
     "🛡️ Mod Logs",
     config.loggingSettings.modLogEnabled,
-    `Logs staff actions like bans, kicks, timeouts, and warnings\n${
-      config.loggingSettings.modLogChannel
-        ? `**Channel:** <#${config.loggingSettings.modLogChannel}>`
-        : "**Channel:** No channel set"
-    }`,
+    modLogDescription,
   );
   const modLogText = new TextDisplayBuilder().setContent(modLogContent);
   const modLogSection = new SectionBuilder()
@@ -77,14 +93,29 @@ export function addLoggingContent(
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Member Logs Section
+  let memberLogDescription = `Logs member joins, leaves, role changes\n${
+    config.loggingSettings.memberLogChannel
+      ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
+      : "**Channel:** No channel set"
+  }`;
+
+  // Add permission warning if needed
+  if (
+    config.loggingSettings.memberLogChannel &&
+    options.channelPermissions?.[config.loggingSettings.memberLogChannel]
+  ) {
+    const warning = formatPermissionWarning(
+      options.channelPermissions[config.loggingSettings.memberLogChannel],
+    );
+    if (warning) {
+      memberLogDescription += `\n${warning}`;
+    }
+  }
+
   const memberLogContent = formatToggleSetting(
     "👥 Member Logs",
     config.loggingSettings.memberLogEnabled,
-    `Logs member joins, leaves, role changes\n${
-      config.loggingSettings.memberLogChannel
-        ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
-        : "**Channel:** No channel set"
-    }`,
+    memberLogDescription,
   );
   const memberLogText = new TextDisplayBuilder().setContent(memberLogContent);
   const memberLogSection = new SectionBuilder()
@@ -118,14 +149,29 @@ export function addLoggingContent(
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Message Logs Section
+  let messageLogDescription = `Logs message edits and deletions\n${
+    config.loggingSettings.messageLogChannel
+      ? `**Channel:** <#${config.loggingSettings.messageLogChannel}>`
+      : "**Channel:** No channel set"
+  }`;
+
+  // Add permission warning if needed
+  if (
+    config.loggingSettings.messageLogChannel &&
+    options.channelPermissions?.[config.loggingSettings.messageLogChannel]
+  ) {
+    const warning = formatPermissionWarning(
+      options.channelPermissions[config.loggingSettings.messageLogChannel],
+    );
+    if (warning) {
+      messageLogDescription += `\n${warning}`;
+    }
+  }
+
   const messageLogContent = formatToggleSetting(
     "📝 Message Logs",
     config.loggingSettings.messageLogEnabled,
-    `Logs message edits and deletions\n${
-      config.loggingSettings.messageLogChannel
-        ? `**Channel:** <#${config.loggingSettings.messageLogChannel}>`
-        : "**Channel:** No channel set"
-    }`,
+    messageLogDescription,
   );
   const messageLogText = new TextDisplayBuilder().setContent(messageLogContent);
   const messageLogSection = new SectionBuilder()

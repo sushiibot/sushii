@@ -3,7 +3,8 @@ import type {
   ButtonInteraction,
   ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
-  MessageComponentInteraction} from "discord.js";
+  MessageComponentInteraction,
+} from "discord.js";
 import {
   InteractionContextType,
   PermissionFlagsBits,
@@ -14,9 +15,14 @@ import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { GuildSettingsService } from "../../application/GuildSettingsService";
 import type { MessageLogService } from "../../application/MessageLogService";
+import {
+  type ChannelPermissionsMap,
+  checkMultipleChannelsPermissions,
+} from "../utils/PermissionChecker";
 import {
   createSettingsMessage,
   formatButtonRejectionResponse,
@@ -28,11 +34,8 @@ import {
   createTimeoutDmTextModal,
   createWarnDmTextModal,
 } from "../views/components/SettingsComponents";
-import type {
-  SettingsPage} from "../views/components/SettingsConstants";
-import {
-  SETTINGS_CUSTOM_IDS
-} from "../views/components/SettingsConstants";
+import type { SettingsPage } from "../views/components/SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "../views/components/SettingsConstants";
 
 export default class SettingsCommand extends SlashCommandHandler {
   constructor(
@@ -58,6 +61,37 @@ export default class SettingsCommand extends SlashCommandHandler {
     return this.showSettingsPanel(interaction);
   }
 
+  private getChannelPermissions(
+    interaction:
+      | ChatInputCommandInteraction<"cached">
+      | MessageComponentInteraction<"cached">
+      | ModalMessageModalSubmitInteraction<"cached">,
+    config: GuildConfig,
+  ): ChannelPermissionsMap {
+    const channelIds: string[] = [];
+
+    // Collect all log channel IDs that are configured
+    if (config.loggingSettings.modLogChannel) {
+      channelIds.push(config.loggingSettings.modLogChannel);
+    }
+    if (config.loggingSettings.memberLogChannel) {
+      channelIds.push(config.loggingSettings.memberLogChannel);
+    }
+    if (config.loggingSettings.messageLogChannel) {
+      channelIds.push(config.loggingSettings.messageLogChannel);
+    }
+    if (config.messageSettings.messageChannel) {
+      channelIds.push(config.messageSettings.messageChannel);
+    }
+
+    // Remove duplicates and check permissions
+    const uniqueChannelIds = [...new Set(channelIds)];
+    return checkMultipleChannelsPermissions(
+      interaction.guild,
+      uniqueChannelIds,
+    );
+  }
+
   private async showSettingsPanel(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
@@ -69,12 +103,14 @@ export default class SettingsCommand extends SlashCommandHandler {
     );
 
     let currentPage: SettingsPage = "logging";
+    const channelPermissions = this.getChannelPermissions(interaction, config);
 
     const settingsMessage = createSettingsMessage(
       {
         page: currentPage,
         config,
         messageLogBlocks,
+        channelPermissions,
         disabled: false,
       },
       interaction,
@@ -128,12 +164,17 @@ export default class SettingsCommand extends SlashCommandHandler {
         const currentBlocks = await this.messageLogService.getIgnoredChannels(
           interaction.guildId,
         );
+        const currentChannelPermissions = this.getChannelPermissions(
+          interaction,
+          currentConfig,
+        );
 
         const disabledMessage = createSettingsMessage(
           {
             page: currentPage,
             config: currentConfig,
             messageLogBlocks: currentBlocks,
+            channelPermissions: currentChannelPermissions,
             disabled: true,
           },
           interaction,
@@ -205,12 +246,17 @@ export default class SettingsCommand extends SlashCommandHandler {
       await this.guildSettingsService.getGuildSettings(guildId);
     const updatedBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
 
     const updatedMessage = createSettingsMessage(
       {
         page: "logging",
         config: updatedConfig,
         messageLogBlocks: updatedBlocks,
+        channelPermissions: updatedChannelPermissions,
         disabled: false,
       },
       interaction,
@@ -262,12 +308,17 @@ export default class SettingsCommand extends SlashCommandHandler {
       await this.guildSettingsService.getGuildSettings(guildId);
     const updatedBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
 
     const updatedMessage = createSettingsMessage(
       {
         page: currentPage,
         config: updatedConfig,
         messageLogBlocks: updatedBlocks,
+        channelPermissions: updatedChannelPermissions,
         disabled: false,
       },
       interaction,
@@ -291,12 +342,17 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (navigationPage) {
       const messageLogBlocks =
         await this.messageLogService.getIgnoredChannels(guildId);
+      const currentChannelPermissions = this.getChannelPermissions(
+        interaction,
+        currentConfig,
+      );
 
       const updatedMessage = createSettingsMessage(
         {
           page: navigationPage,
           config: currentConfig,
           messageLogBlocks,
+          channelPermissions: currentChannelPermissions,
           disabled: false,
         },
         interaction,
@@ -467,12 +523,17 @@ export default class SettingsCommand extends SlashCommandHandler {
     );
     const messageLogBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
 
     const updatedMessage = createSettingsMessage(
       {
         page,
         config: updatedConfig,
         messageLogBlocks,
+        channelPermissions: updatedChannelPermissions,
         disabled: false,
       },
       interaction,
@@ -572,12 +633,17 @@ export default class SettingsCommand extends SlashCommandHandler {
       await this.guildSettingsService.getGuildSettings(guildId);
     const messageLogBlocks =
       await this.messageLogService.getIgnoredChannels(guildId);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
 
     const updatedMessage = createSettingsMessage(
       {
         page: targetPage,
         config: updatedConfig,
         messageLogBlocks,
+        channelPermissions: updatedChannelPermissions,
         disabled: false,
       },
       interaction,
