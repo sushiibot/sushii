@@ -30,7 +30,7 @@ export function addLoggingContent(
 
   // Logging Section
   const loggingIntro = new TextDisplayBuilder().setContent(
-    "### Logs\nTrack moderation, member, and message activity.\n💡 **Tip:** Bot needs 'Send Messages' permission in channels you select.\n",
+    "### Logs\nTrack moderation, member, and message activity.",
   );
   container.addTextDisplayComponents(loggingIntro);
 
