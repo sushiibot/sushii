@@ -168,8 +168,11 @@ export function buildActionResultMessage(
       dmSectionContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
     }
 
-    fullContent += `### ${dmEmoji} User DMs\n`;
-    fullContent += dmSectionContent;
+    // Don't show User DMs section for Note actions as they are private
+    if (actionType !== ActionType.Note) {
+      fullContent += `### ${dmEmoji} User DMs\n`;
+      fullContent += dmSectionContent;
+    }
   }
 
   // Add all text content in a single TextDisplayBuilder

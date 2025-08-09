@@ -1,4 +1,4 @@
-import type { Client } from "discord.js";
+import { type Client, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
@@ -606,10 +606,22 @@ export class ModerationExecutionPipeline {
         }
 
         case ActionType.BanRemove: {
-          await guild.members.unban(
-            target.id,
-            action.reason?.value || "No reason provided",
-          );
+          try {
+            await guild.members.unban(
+              target.id,
+              action.reason?.value || "No reason provided",
+            );
+          } catch (error) {
+            // Check if the error is because the user is not banned
+            if (
+              error instanceof DiscordAPIError &&
+              error.code === RESTJSONErrorCodes.UnknownBan
+            ) {
+              return Err("User is not banned");
+            }
+            // Re-throw other errors
+            throw error;
+          }
           break;
         }
 
