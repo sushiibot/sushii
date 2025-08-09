@@ -134,10 +134,10 @@ export function buildActionResultMessage(
     }
 
     // Add DM status
-    const dmStatuses = successful.map((s) => s.result.val as ModerationCase);
-    const dmSuccessCount = dmStatuses.filter((c) => c.dmSuccess).length;
-    const dmFailedCount = dmStatuses.filter((c) => c.dmFailed).length;
-    const totalDMAttempted = dmSuccessCount + dmFailedCount;
+    const successfulCases = successful.map((s) => s.result.val as ModerationCase);
+    const dmAttemptedCount = successfulCases.filter((c) => c.dmAttempted).length;
+    const dmSuccessCount = successfulCases.filter((c) => c.dmSuccess).length;
+    const dmFailedCount = successfulCases.filter((c) => c.dmFailed).length;
 
     // ------------------------------------------------------------------------
     // Additional DM message if configured
@@ -148,7 +148,7 @@ export function buildActionResultMessage(
       fullContent += `### 📋 Additional DM Message\n`;
       fullContent += `> ${configuredDMText}\n`;
       fullContent +=
-        "-# This is always sent to the user as configured in `/settings`";
+        "-# This is always sent to the user as configured in `/settings`\n";
     }
 
     // ------------------------------------------------------------------------
@@ -156,15 +156,23 @@ export function buildActionResultMessage(
     let dmEmoji = "";
     let dmSectionContent = "";
 
-    if (dmSuccessCount === dmStatuses.length) {
+    // Determine DM status message based on outcomes
+    if (dmAttemptedCount === 0) {
+      // No DM attempts were made (user not in server or policy prevented)
+      dmEmoji = "📭";
+      dmSectionContent += `No DM sent (user not in server)`;
+    } else if (dmSuccessCount === dmAttemptedCount) {
+      // All attempted DMs sent successfully
       dmEmoji = "📬";
-      dmSectionContent += `Sent reason to ${dmStatuses.length === 1 ? "user" : `all ${dmStatuses.length} users`} via DM`;
-    } else if (dmFailedCount === totalDMAttempted) {
+      dmSectionContent += `Sent reason to ${successfulCases.length === 1 ? "user" : `all ${successfulCases.length} users`} via DM`;
+    } else if (dmSuccessCount === 0 && dmFailedCount === dmAttemptedCount) {
+      // All DM attempts failed
       dmEmoji = "📭";
       dmSectionContent += `Could not send reason to any users (privacy settings or bot blocked)`;
     } else {
+      // Mixed results - some succeeded, some failed
       dmEmoji = "📭";
-      dmSectionContent += `Sent reason to ${dmSuccessCount} of ${dmStatuses.length} users via DM.`;
+      dmSectionContent += `Sent reason to ${dmSuccessCount} of ${dmAttemptedCount} users via DM.`;
       dmSectionContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
     }
 
