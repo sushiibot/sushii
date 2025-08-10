@@ -115,7 +115,7 @@ export function buildActionResultMessage(
   const container = new ContainerBuilder().setAccentColor(color);
 
   // Build header and user list
-  const summary = `Successfully ${verb} ${results.length} ${results.length === 1 ? "user" : "users"}`;
+  const summary = `${results.length} ${results.length === 1 ? "user" : "users"} processed`;
   let fullContent = `### ${title}\n**${summary}**\n`;
 
   // Format users in order with failure indicators
