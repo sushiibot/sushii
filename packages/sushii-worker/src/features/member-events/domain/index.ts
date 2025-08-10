@@ -1,0 +1,1 @@
+export { MessageTemplateService } from "./services/MessageTemplateService";

@@ -6,6 +6,7 @@ import { DeploymentEventHandler } from "@/features/deployment/presentation/Deplo
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
+import { setupMemberEventsFeature } from "@/features/member-events/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupTagFeature } from "@/features/tags/setup";
@@ -52,6 +53,9 @@ export function registerFeatures(
 
   // Guild settings feature
   const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
+
+  // Member events feature
+  const memberEventsFeature = setupMemberEventsFeature({ db, logger });
 
   // Moderation feature
   const moderationFeature = setupModerationFeature({
@@ -122,6 +126,7 @@ export function registerFeatures(
     ...levelingFeature.eventHandlers,
     deploymentHandler,
     ...notificationFeature.eventHandlers,
+    ...memberEventsFeature.eventHandlers,
     ...moderationFeature.eventHandlers,
     banCacheFeature.handlers.banAdd,
     banCacheFeature.handlers.banRemove,

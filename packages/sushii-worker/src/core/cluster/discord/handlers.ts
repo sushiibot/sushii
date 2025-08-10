@@ -1,14 +1,8 @@
 import type { Span } from "@opentelemetry/api";
 import opentelemetry from "@opentelemetry/api";
 import * as Sentry from "@sentry/node";
-import type {
-  Client,
-  ClientEvents,
-  GatewayDispatchPayload} from "discord.js";
-import {
-  Events,
-  GatewayDispatchEvents
-} from "discord.js";
+import type { Client, ClientEvents, GatewayDispatchPayload } from "discord.js";
+import { Events, GatewayDispatchEvents } from "discord.js";
 
 import webhookLog, {
   webhookActivity,
@@ -20,19 +14,12 @@ import {
 } from "@/events/EmojiStatsHandler";
 import type { EventHandlerFn } from "@/events/EventHandler";
 import legacyModLogNotifierHandler from "@/events/GuildBanAdd/LegacyModLogNotifier";
-import {
-  memberJoinMessageHandler,
-  memberLeaveMessageHandler,
-} from "@/events/JoinLeaveMessage";
-import {
-  memberLogJoinHandler,
-  memberLogLeaveHandler,
-} from "@/events/MemberLog";
+// Member event handlers migrated to DDD architecture (member-events feature)
 // Legacy mod log handler removed - migrated to DDD architecture
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
-import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { CacheFeature } from "@/features/cache/setup";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
@@ -301,50 +288,6 @@ export default function registerEventHandlers(
     );
   });
 
-  client.on(Events.GuildMemberAdd, async (member) => {
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildMemberAdd),
-      async (span: Span) => {
-        await handleEvent(
-          Events.GuildMemberAdd,
-          {
-            memberLogJoin: memberLogJoinHandler,
-            memberjoinMsg: memberJoinMessageHandler,
-          },
-          member,
-        );
-
-        span.end();
-      },
-    );
-  });
-
-  client.on(Events.GuildMemberRemove, async (member) => {
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildMemberRemove),
-      async (span: Span) => {
-        await handleEvent(
-          Events.GuildMemberRemove,
-          {
-            memberLogLeave: memberLogLeaveHandler,
-            memberLeaveMsg: memberLeaveMessageHandler,
-          },
-          member,
-        );
-
-        span.end();
-      },
-    );
-  });
-
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!deploymentService.isCurrentDeploymentActive(interaction.channelId)) {
       return;
@@ -374,22 +317,6 @@ export default function registerEventHandlers(
         };
 
         await handleEvent(Events.GuildBanAdd, handlers, guildBan);
-
-        span.end();
-      },
-    );
-  });
-
-  client.on(Events.GuildBanRemove, async (_guildBan) => {
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildBanRemove),
-      async (span: Span) => {
-        // No legacy handlers for ban remove
-        // Ban cache is now handled by the DDD ban cache feature
 
         span.end();
       },
