@@ -92,7 +92,6 @@ export function buildActionResultMessage(
   const successful = results.filter((r) => r.result.ok);
   const failed = results.filter((r) => !r.result.ok);
 
-  const verb = formatActionTypeAsPastTense(actionType);
   const emoji = getActionTypeEmoji(actionType);
   const actionName = formatActionTypeAsSentence(actionType);
 
