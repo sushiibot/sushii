@@ -159,6 +159,13 @@ export class ModerationExecutionPipeline {
   ): Promise<
     Result<{ caseId: string; moderationCase: ModerationCase }, string>
   > {
+    // Determine DM intent before creating the case
+    const dmPolicyDecision = await this.dmPolicyService.shouldSendDM(
+      action.isBanOrTempBanAction() ? "before" : "after",
+      action,
+      target,
+      action.guildId,
+    );
     return await this.db.transaction(
       async (tx: NodePgDatabase<typeof schema>) => {
         // Get next case number with row locking
@@ -194,7 +201,7 @@ export class ModerationExecutionPipeline {
           timeoutDuration = action.duration.asSeconds();
         }
 
-        // Create moderation case
+        // Create moderation case with DM intent
         const moderationCase = ModerationCase.create(
           action.guildId,
           caseId,
@@ -206,7 +213,12 @@ export class ModerationExecutionPipeline {
           undefined,
           action.attachment ? [action.attachment.url] : [],
           timeoutDuration,
-        ).withPending(isPending);
+        ).withPending(isPending)
+         .withDMIntent(
+           dmPolicyDecision.should,
+           dmPolicyDecision.source,
+           !target.member && dmPolicyDecision.should ? 'user_not_in_guild' : undefined
+         );
 
         // Save moderation case
         const saveCaseResult = await this.caseRepository.save(
@@ -260,14 +272,13 @@ export class ModerationExecutionPipeline {
     caseId: string,
     moderationCase: ModerationCase,
   ): Promise<ModerationCase> {
-    const shouldSendDM = await this.dmPolicyService.shouldSendDM(
-      "before",
-      action,
-      target,
-      action.guildId,
-    );
-
-    if (!shouldSendDM) {
+    // Check if we should send DM based on the stored intent
+    if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
+      return moderationCase;
+    }
+    
+    // For non-ban actions, DMs are sent after
+    if (!action.isBanOrTempBanAction()) {
       return moderationCase;
     }
 
@@ -355,14 +366,13 @@ export class ModerationExecutionPipeline {
     caseId: string,
     moderationCase: ModerationCase,
   ): Promise<ModerationCase> {
-    const shouldSendDM = await this.dmPolicyService.shouldSendDM(
-      "after",
-      action,
-      target,
-      action.guildId,
-    );
-
-    if (!shouldSendDM) {
+    // Check if we should send DM based on the stored intent
+    if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
+      return moderationCase;
+    }
+    
+    // For ban actions, DMs are sent before
+    if (action.isBanOrTempBanAction()) {
       return moderationCase;
     }
 

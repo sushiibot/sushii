@@ -700,6 +700,13 @@ export const modLogsInAppPublic = appPublic.table(
     dmChannelId: bigint("dm_channel_id", { mode: "bigint" }),
     dmMessageId: bigint("dm_message_id", { mode: "bigint" }),
     dmMessageError: text("dm_message_error"),
+    
+    // DM intent tracking
+    dmIntended: boolean("dm_intended").default(false).notNull(),
+    dmIntentSource: text("dm_intent_source").default("unknown").notNull(),
+    dmAttempted: boolean("dm_attempted").default(false).notNull(),
+    dmNotAttemptedReason: text("dm_not_attempted_reason"),
+    dmFailureReason: text("dm_failure_reason"),
   },
   (table) => [
     // Critical index for user history queries (findByUserId)

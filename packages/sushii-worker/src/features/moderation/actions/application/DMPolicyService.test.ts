@@ -112,7 +112,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
 
     test("returns false for unsupported action types", async () => {
@@ -132,7 +132,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
   });
 
@@ -154,7 +154,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
 
     test("returns false for ban actions with 'after' timing", async () => {
@@ -174,7 +174,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
 
     test("returns true for ban actions with 'before' timing", async () => {
@@ -194,7 +194,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
     });
   });
 
@@ -216,7 +216,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
   });
 
@@ -238,7 +238,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
     });
   });
 
@@ -260,7 +260,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
     });
 
     test("returns false when dmChoice is 'no_dm'", async () => {
@@ -280,7 +280,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
   });
 
@@ -302,7 +302,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
   });
 
@@ -325,7 +325,7 @@ describe("DMPolicyService", () => {
         target,
         "guild123",
       );
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
 
       // Test with ban DM disabled
       mockGuildConfigRepository.setBanDmEnabled(false);
@@ -335,7 +335,7 @@ describe("DMPolicyService", () => {
         target,
         "guild123",
       );
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
 
     test("uses guild timeout DM setting for timeout actions", async () => {
@@ -358,7 +358,7 @@ describe("DMPolicyService", () => {
         target,
         "guild123",
       );
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
 
       // Test with timeout DM disabled
       mockGuildConfigRepository.setTimeoutCommandDmEnabled(false);
@@ -368,7 +368,7 @@ describe("DMPolicyService", () => {
         target,
         "guild123",
       );
-      expect(result).toBe(false);
+      expect(result.should).toBe(false);
     });
 
     test("defaults to true for other action types", async () => {
@@ -388,7 +388,7 @@ describe("DMPolicyService", () => {
         "guild123",
       );
 
-      expect(result).toBe(true);
+      expect(result.should).toBe(true);
     });
   });
 });

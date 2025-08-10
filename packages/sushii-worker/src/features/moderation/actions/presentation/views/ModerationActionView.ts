@@ -22,6 +22,39 @@ interface ActionResult {
 }
 
 /**
+ * Determines if DMs were intended to be sent based on executor choice and guild settings.
+ */
+function wereDMsIntended(
+  action: ModerationAction | undefined,
+  actionType: ActionType,
+  guildConfig: GuildConfig,
+): boolean {
+  // If executor explicitly chose no_dm, DMs were not intended
+  if (action?.dmChoice === "no_dm") {
+    return false;
+  }
+  
+  // If executor explicitly chose yes_dm, DMs were intended
+  if (action?.dmChoice === "yes_dm") {
+    return true;
+  }
+  
+  // Otherwise check guild settings
+  switch (actionType) {
+    case ActionType.Ban:
+    case ActionType.TempBan:
+      return guildConfig.moderationSettings.banDmEnabled;
+    case ActionType.Timeout:
+    case ActionType.TimeoutAdjust:
+      return guildConfig.moderationSettings.timeoutCommandDmEnabled;
+    case ActionType.Warn:
+      return true; // Warns always DM
+    default:
+      return false;
+  }
+}
+
+/**
  * Gets the configured DM message text for the given action type from guild config.
  */
 function getConfiguredDMText(
@@ -153,32 +186,54 @@ export function buildActionResultMessage(
 
     // ------------------------------------------------------------------------
     // DM status
-    let dmEmoji = "";
     let dmSectionContent = "";
 
     // Determine DM status message based on outcomes
     if (dmAttemptedCount === 0) {
-      // No DM attempts were made (user not in server or policy prevented)
-      dmEmoji = "📭";
-      dmSectionContent += `No DM sent (user not in server)`;
+      // No DM attempts were made
+      const dmsIntended = wereDMsIntended(action, actionType, guildConfig);
+      const usersInGuild = successful.filter((r) => r.target.isInGuild).length;
+      const usersNotInGuild = successful.filter((r) => !r.target.isInGuild).length;
+      
+      // Determine the reason for not sending DMs
+      if (!dmsIntended) {
+        // DMs were intentionally not sent (executor choice or guild settings)
+        dmSectionContent += `➖ **Not sent**`;
+      } else if (usersNotInGuild > 0 && usersInGuild === 0) {
+        // All users are not in server
+        dmSectionContent += `➖ **Not sent** — ${usersNotInGuild === 1 ? "User" : "Users"} not in server`;
+      } else if (usersNotInGuild > 0 && usersInGuild > 0) {
+        // Mixed: some in server, some not (this shouldn't happen in practice since DMs would be attempted for those in server)
+        dmSectionContent += `➖ **Not sent** — ${usersNotInGuild} of ${successful.length} users not in server`;
+      } else {
+        // All users are in server but no DMs sent (shouldn't happen if dmsIntended is true)
+        dmSectionContent += `➖ **Not sent**`;
+      }
     } else if (dmSuccessCount === dmAttemptedCount) {
       // All attempted DMs sent successfully
-      dmEmoji = "📬";
-      dmSectionContent += `Sent reason to ${successfulCases.length === 1 ? "user" : `all ${successfulCases.length} users`} via DM`;
-    } else if (dmSuccessCount === 0 && dmFailedCount === dmAttemptedCount) {
-      // All DM attempts failed
-      dmEmoji = "📭";
-      dmSectionContent += `Could not send reason to any users (privacy settings or bot blocked)`;
+      dmSectionContent += `✅ **Sent successfully** — Delivered to ${dmAttemptedCount === 1 ? "user" : `all ${dmAttemptedCount} users`}`;
+    } else if (dmSuccessCount === 0) {
+      // All DM attempts failed - check failure reasons
+      const failureReasons = successfulCases
+        .filter(c => c.dmFailureReason)
+        .map(c => c.dmFailureReason);
+      
+      const allUserCannotReceive = failureReasons.every(r => r === 'user_cannot_receive');
+      
+      if (allUserCannotReceive) {
+        dmSectionContent += `❌ **Failed to send** — Could not deliver to any users (privacy settings or bot blocked)`;
+      } else {
+        dmSectionContent += `❌ **Failed to send**`;
+      }
     } else {
       // Mixed results - some succeeded, some failed
-      dmEmoji = "📭";
-      dmSectionContent += `Sent reason to ${dmSuccessCount} of ${dmAttemptedCount} users via DM.`;
-      dmSectionContent += `\n**Could not send reason to ${dmFailedCount} users (privacy settings or bot blocked)**`;
+      dmSectionContent += `⚠️ **Partially sent** — Delivered to ${dmSuccessCount} of ${dmAttemptedCount} users`;
+      dmSectionContent += `\n> ❌ Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
     }
 
     // Don't show User DMs section for Note actions as they are private
     if (actionType !== ActionType.Note) {
-      fullContent += `### ${dmEmoji} User DMs\n`;
+      fullContent += `### 📨 DM Notifications\n`;
       fullContent += dmSectionContent;
     }
   }

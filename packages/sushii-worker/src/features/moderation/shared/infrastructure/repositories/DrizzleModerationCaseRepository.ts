@@ -7,7 +7,7 @@ import { Err, Ok } from "ts-results";
 import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
-import type { DMResult } from "../../domain/entities/ModerationCase";
+import type { DMFailureReason, DMIntentSource, DMNotAttemptedReason, DMResult } from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import type { ModerationCaseRepository } from "../../domain/repositories/ModerationCaseRepository";
 import { actionTypeFromString } from "../../domain/value-objects/ActionType";
@@ -46,6 +46,11 @@ export class DrizzleModerationCaseRepository
         dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
         dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
         dmMessageError: dmResult?.error || null,
+        dmIntended: moderationCase.dmIntended,
+        dmIntentSource: moderationCase.dmIntentSource,
+        dmAttempted: moderationCase.dmAttempted,
+        dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+        dmFailureReason: moderationCase.dmFailureReason,
         timeoutDuration: moderationCase.timeoutDuration
           ? BigInt(moderationCase.timeoutDuration)
           : null,
@@ -196,6 +201,11 @@ export class DrizzleModerationCaseRepository
           dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
           dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
           dmMessageError: dmResult?.error || null,
+          dmIntended: moderationCase.dmIntended,
+          dmIntentSource: moderationCase.dmIntentSource,
+          dmAttempted: moderationCase.dmAttempted,
+          dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+          dmFailureReason: moderationCase.dmFailureReason,
         })
         .where(
           and(
@@ -266,6 +276,11 @@ export class DrizzleModerationCaseRepository
       dmResult,
       row.pending,
       row.timeoutDuration ? Number(row.timeoutDuration) : null,
+      row.dmIntended,
+      row.dmIntentSource as DMIntentSource,
+      row.dmAttempted,
+      row.dmNotAttemptedReason as DMNotAttemptedReason | null,
+      row.dmFailureReason as DMFailureReason | null,
     );
   }
 

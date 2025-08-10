@@ -31,6 +31,7 @@ import { ActionType } from "../../shared/domain/value-objects/ActionType";
 import { Duration } from "../../shared/domain/value-objects/Duration";
 import { Reason } from "../../shared/domain/value-objects/Reason";
 import { type DMPolicyService } from "./DMPolicyService";
+import type { DMIntentSource } from "../../shared/domain/entities/ModerationCase";
 import {
   CompleteExecutionContext,
   ExecutionContext,
@@ -186,7 +187,7 @@ describe("ModerationExecutionPipeline", () => {
     };
 
     mockDMPolicyService = {
-      shouldSendDM: mock(() => Promise.resolve(false)),
+      shouldSendDM: mock(() => Promise.resolve({ should: false, source: 'guild_default' as DMIntentSource })),
     } as unknown as DMPolicyService;
 
     mockDMNotificationService = {
@@ -333,7 +334,7 @@ describe("ModerationExecutionPipeline", () => {
   describe("DM handling", () => {
     test("should send DM when policy allows", async () => {
       // Override mock for this test
-      mockDMPolicyService.shouldSendDM = mock(() => Promise.resolve(true));
+      mockDMPolicyService.shouldSendDM = mock(() => Promise.resolve({ should: true, source: 'guild_default' as DMIntentSource }));
 
       const action = new WarnAction(
         mockGuildId,
