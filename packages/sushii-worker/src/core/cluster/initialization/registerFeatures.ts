@@ -15,6 +15,7 @@ import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { createCacheFeature } from "@/features/cache/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
+import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -81,6 +82,9 @@ export function registerFeatures(
     deploymentService 
   });
 
+  // Legacy audit logs feature
+  const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({ logger });
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -138,6 +142,7 @@ export function registerFeatures(
     ...cacheFeature.eventHandlers,
     ...banCacheFeature.eventHandlers,
     ...webhookLoggingFeature.eventHandlers,
+    ...legacyAuditLogsFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------

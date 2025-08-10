@@ -4,15 +4,12 @@ import type {
   Events,
   GatewayMessageDeleteBulkDispatchData,
   GatewayMessageDeleteDispatchData,
-  GatewayMessageUpdateDispatchData} from "discord.js";
-import {
-  EmbedBuilder,
-  GatewayDispatchEvents,
-  messageLink,
+  GatewayMessageUpdateDispatchData,
 } from "discord.js";
+import { EmbedBuilder, GatewayDispatchEvents, messageLink } from "discord.js";
 import type { Client } from "discord.js";
 import type { Selectable } from "kysely";
-import type { Option} from "ts-results";
+import type { Option } from "ts-results";
 import { None, Some } from "ts-results";
 
 import { reportCriticalError } from "@/features/webhook-logging/infrastructure/criticalError";

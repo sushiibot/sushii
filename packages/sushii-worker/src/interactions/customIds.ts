@@ -1,11 +1,5 @@
-import type {
-  MatchFunction,
-  MatchResult,
-  PathFunction} from "path-to-regexp";
-import {
-  compile,
-  match,
-} from "path-to-regexp";
+import type { MatchFunction, MatchResult, PathFunction } from "path-to-regexp";
+import { compile, match } from "path-to-regexp";
 
 import type { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 

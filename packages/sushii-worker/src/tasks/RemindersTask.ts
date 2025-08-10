@@ -1,4 +1,4 @@
-import type { Client} from "discord.js";
+import type { Client } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";

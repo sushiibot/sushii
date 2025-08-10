@@ -10,9 +10,8 @@ import {
   emojiStatsReactHandler,
 } from "@/events/EmojiStatsHandler";
 import type { EventHandlerFn } from "@/events/EventHandler";
-import legacyModLogNotifierHandler from "@/events/GuildBanAdd/LegacyModLogNotifier";
 // Member event handlers migrated to DDD architecture (member-events feature)
-// Legacy mod log handler removed - migrated to DDD architecture
+// Legacy mod log handler migrated to DDD architecture (legacy-audit-logs feature)
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -138,24 +137,7 @@ export default function registerEventHandlers(
     );
   });
 
-  client.on(Events.GuildBanAdd, async (guildBan) => {
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildBanAdd),
-      async (span: Span) => {
-        const handlers: Record<string, EventHandlerFn<Events.GuildBanAdd>> = {
-          legacyModLogNotifier: legacyModLogNotifierHandler,
-        };
-
-        await handleEvent(Events.GuildBanAdd, handlers, guildBan);
-
-        span.end();
-      },
-    );
-  });
+  // GuildBanAdd events are now handled in DDD architecture (legacy-audit-logs feature)
 
   client.on(Events.MessageCreate, async (msg) => {
     if (!deploymentService.isCurrentDeploymentActive(msg.channelId)) {
