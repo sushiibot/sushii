@@ -12,8 +12,11 @@ import { GuildLeaveHandler } from "./presentation/events/GuildLeaveHandler";
 import { ShardDisconnectHandler } from "./presentation/events/ShardDisconnectHandler";
 import { ShardErrorHandler } from "./presentation/events/ShardErrorHandler";
 import { ShardReadyHandler } from "./presentation/events/ShardReadyHandler";
-import { ShardReconnectingHandler } from "./presentation/events/ShardReconnectingHandler";
-import { ShardResumeHandler } from "./presentation/events/ShardResumeHandler";
+import { 
+  createDebugHandler, 
+  createShardReconnectingHandler, 
+  createShardResumeHandler 
+} from "./presentation/events/SimpleEventHandlers";
 
 interface WebhookLoggingDependencies {
   logger: Logger;
@@ -40,10 +43,11 @@ export function setupWebhookLoggingFeature({
     new ShardReadyHandler(webhookService, logger),
     new ShardDisconnectHandler(webhookService, logger),
     new ShardErrorHandler(webhookService, logger),
-    new ShardReconnectingHandler(logger),
-    new ShardResumeHandler(logger),
+    createShardReconnectingHandler(logger),
+    createShardResumeHandler(logger),
     new GuildJoinHandler(webhookService, logger, deploymentService),
     new GuildLeaveHandler(webhookService, logger),
+    createDebugHandler(logger),
   ];
 
   return {

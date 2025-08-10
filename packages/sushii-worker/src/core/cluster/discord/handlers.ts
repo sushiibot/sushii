@@ -117,9 +117,6 @@ export default function registerEventHandlers(
     );
   });
 
-  client.on(Events.Debug, async (msg) => {
-    logger.debug(msg);
-  });
 
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!deploymentService.isCurrentDeploymentActive(interaction.channelId)) {
