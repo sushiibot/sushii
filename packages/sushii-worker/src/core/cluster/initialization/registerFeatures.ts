@@ -76,7 +76,10 @@ export function registerFeatures(
   });
 
   // Webhook logging feature
-  const webhookLoggingFeature = setupWebhookLoggingFeature({ logger });
+  const webhookLoggingFeature = setupWebhookLoggingFeature({ 
+    logger, 
+    deploymentService 
+  });
 
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(

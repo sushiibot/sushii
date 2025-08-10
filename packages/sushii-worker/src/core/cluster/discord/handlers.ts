@@ -17,7 +17,6 @@ import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
-import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 import { StatName, updateStat } from "@/tasks/StatsTask";
 
@@ -97,17 +96,7 @@ export default function registerEventHandlers(
   interactionHandler: InteractionClient,
   deploymentService: DeploymentService,
 ): void {
-  client.once(Events.ClientReady, async (c) => {
-    logger.info(
-      {
-        clusterId: c.cluster.id,
-        shardIds: c.cluster.shardList,
-        botUser: c.user.tag,
-        deployment: config.deployment.name,
-      },
-      "Cluster client ready!",
-    );
-
+  client.once(Events.ClientReady, async (_c) => {
     // Tasks are now started in bootstrap.ts during feature registration
 
     await tracer.startActiveSpan(
@@ -131,79 +120,6 @@ export default function registerEventHandlers(
 
   client.on(Events.Debug, async (msg) => {
     logger.debug(msg);
-  });
-
-  client.on(Events.ShardReady, async (shardId, unavailableGuilds) => {
-    logger.info(
-      {
-        shardId,
-        unavailableGuilds,
-      },
-      "Shard ready",
-    );
-  });
-
-  client.on(Events.ShardDisconnect, async (closeEvent, shardId) => {
-    logger.info(
-      {
-        shardId,
-        event: closeEvent,
-      },
-      "Shard disconnected",
-    );
-  });
-
-  client.on(Events.ShardError, async (error, shardId) => {
-    logger.error(
-      {
-        shardId,
-        error,
-      },
-      "Shard error",
-    );
-  });
-
-  client.on(Events.ShardReconnecting, async (shardId) => {
-    logger.info(
-      {
-        shardId,
-      },
-      "Shard reconnecting",
-    );
-  });
-
-  client.on(Events.ShardResume, async (shardId, replayedEvents) => {
-    logger.info(
-      {
-        shardId,
-        replayedEvents,
-      },
-      "Shard resumed",
-    );
-  });
-
-  client.on(Events.GuildCreate, async (guild) => {
-    logger.info(
-      {
-        guildId: guild.id,
-      },
-      "Joined guild %s",
-      guild.name,
-    );
-
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-  });
-
-  client.on(Events.GuildDelete, async (guild) => {
-    logger.info(
-      {
-        guildId: guild.id,
-      },
-      "Removed guild %s",
-      guild.name,
-    );
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {

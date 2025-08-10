@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { BaseFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { CriticalErrorService } from "./infrastructure/CriticalErrorService";
@@ -11,13 +12,17 @@ import { GuildLeaveHandler } from "./presentation/events/GuildLeaveHandler";
 import { ShardDisconnectHandler } from "./presentation/events/ShardDisconnectHandler";
 import { ShardErrorHandler } from "./presentation/events/ShardErrorHandler";
 import { ShardReadyHandler } from "./presentation/events/ShardReadyHandler";
+import { ShardReconnectingHandler } from "./presentation/events/ShardReconnectingHandler";
+import { ShardResumeHandler } from "./presentation/events/ShardResumeHandler";
 
 interface WebhookLoggingDependencies {
   logger: Logger;
+  deploymentService: DeploymentService;
 }
 
 export function setupWebhookLoggingFeature({
   logger,
+  deploymentService,
 }: WebhookLoggingDependencies): BaseFeatureSetupReturn & {
   services: {
     webhookService: WebhookService;
@@ -31,12 +36,14 @@ export function setupWebhookLoggingFeature({
   initializeCriticalErrorService();
 
   const eventHandlers = [
-    new BotLifecycleHandler(webhookService),
-    new ShardReadyHandler(webhookService),
-    new ShardDisconnectHandler(webhookService),
-    new ShardErrorHandler(webhookService),
-    new GuildJoinHandler(webhookService),
-    new GuildLeaveHandler(webhookService),
+    new BotLifecycleHandler(webhookService, logger),
+    new ShardReadyHandler(webhookService, logger),
+    new ShardDisconnectHandler(webhookService, logger),
+    new ShardErrorHandler(webhookService, logger),
+    new ShardReconnectingHandler(logger),
+    new ShardResumeHandler(logger),
+    new GuildJoinHandler(webhookService, logger, deploymentService),
+    new GuildLeaveHandler(webhookService, logger),
   ];
 
   return {
