@@ -1,16 +1,25 @@
-import type { Events, Guild } from "discord.js";
+import { Events } from "discord.js";
+import type { Guild } from "discord.js";
 import opentelemetry from "@opentelemetry/api";
-import type { EventHandlerFn } from "@/events/EventHandler";
+
+import { EventHandler } from "@/core/cluster/presentation/EventHandler";
+
 import type { CacheService } from "../../application";
 
 const tracer = opentelemetry.trace.getTracer("cache-guild-handler");
 
-export function createCacheGuildCreateHandler(cacheService: CacheService): EventHandlerFn<Events.GuildCreate> {
-  return async (guild: Guild): Promise<void> => {
+export class CacheGuildCreateHandler extends EventHandler<Events.GuildCreate> {
+  constructor(private readonly cacheService: CacheService) {
+    super();
+  }
+
+  readonly eventType = Events.GuildCreate;
+
+  async handle(guild: Guild): Promise<void> {
     const span = tracer.startSpan("guild create upsert");
 
     try {
-      await cacheService.cacheGuild({
+      await this.cacheService.cacheGuild({
         id: BigInt(guild.id),
         name: guild.name,
         icon: guild.iconURL(),
@@ -21,15 +30,21 @@ export function createCacheGuildCreateHandler(cacheService: CacheService): Event
     } finally {
       span.end();
     }
-  };
+  }
 }
 
-export function createCacheGuildUpdateHandler(cacheService: CacheService): EventHandlerFn<Events.GuildUpdate> {
-  return async (oldGuild: Guild, newGuild: Guild): Promise<void> => {
+export class CacheGuildUpdateHandler extends EventHandler<Events.GuildUpdate> {
+  constructor(private readonly cacheService: CacheService) {
+    super();
+  }
+
+  readonly eventType = Events.GuildUpdate;
+
+  async handle(_oldGuild: Guild, newGuild: Guild): Promise<void> {
     const span = tracer.startSpan("guild update upsert");
 
     try {
-      await cacheService.cacheGuild({
+      await this.cacheService.cacheGuild({
         id: BigInt(newGuild.id),
         name: newGuild.name,
         icon: newGuild.iconURL(),
@@ -40,5 +55,5 @@ export function createCacheGuildUpdateHandler(cacheService: CacheService): Event
     } finally {
       span.end();
     }
-  };
+  }
 }

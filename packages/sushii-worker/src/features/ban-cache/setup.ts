@@ -2,6 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
+import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { BanCacheService } from "./application";
 import { DrizzleBanRepository } from "./infrastructure";
@@ -32,28 +33,47 @@ export function createBanCacheServices({ db, logger }: BanCacheDependencies) {
     logger.child({ module: "banCacheService" }),
   );
 
-  // Presentation layer
-  const banAddHandler = new BanAddEventHandler(
-    banCacheService,
-    logger.child({ module: "banAddHandler" }),
-  );
-  const banRemoveHandler = new BanRemoveEventHandler(
-    banCacheService,
-    logger.child({ module: "banRemoveHandler" }),
-  );
-  const guildJoinHandler = new GuildJoinBanSyncHandler(
-    banCacheService,
-    logger.child({ module: "guildJoinHandler" }),
-  );
-
   return {
-    service: banCacheService,
-    handlers: {
-      banAdd: banAddHandler,
-      banRemove: banRemoveHandler,
-      guildJoin: guildJoinHandler,
-    },
+    banRepository,
+    banCacheService,
   };
 }
 
-export type BanCacheFeature = ReturnType<typeof createBanCacheServices>;
+/**
+ * Sets up the complete ban cache feature with standard structure.
+ */
+export function setupBanCacheFeature({
+  db,
+  logger,
+}: BanCacheDependencies): FeatureSetupWithServices<
+  ReturnType<typeof createBanCacheServices>
+> {
+  const services = createBanCacheServices({ db, logger });
+
+  // Presentation layer
+  const eventHandlers = [
+    new BanAddEventHandler(
+      services.banCacheService,
+      logger.child({ module: "banAddHandler" }),
+    ),
+    new BanRemoveEventHandler(
+      services.banCacheService,
+      logger.child({ module: "banRemoveHandler" }),
+    ),
+    new GuildJoinBanSyncHandler(
+      services.banCacheService,
+      logger.child({ module: "guildJoinHandler" }),
+    ),
+  ];
+
+  return {
+    services,
+    commands: [],
+    autocompletes: [],
+    contextMenuHandlers: [],
+    buttonHandlers: [],
+    eventHandlers,
+  };
+}
+
+export type BanCacheFeature = ReturnType<typeof setupBanCacheFeature>;

@@ -3,9 +3,9 @@ import type * as schema from "@/infrastructure/database/schema";
 import { CacheService } from "./application";
 import { DrizzleCachedGuildRepository, DrizzleCachedUserRepository } from "./infrastructure";
 import { 
-  createCacheGuildCreateHandler, 
-  createCacheGuildUpdateHandler,
-  createCacheUserHandler 
+  CacheGuildCreateHandler, 
+  CacheGuildUpdateHandler,
+  CacheUserHandler 
 } from "./presentation";
 
 interface CacheFeatureDependencies {
@@ -14,11 +14,7 @@ interface CacheFeatureDependencies {
 
 export interface CacheFeature {
   cacheService: CacheService;
-  handlers: {
-    cacheGuildCreate: ReturnType<typeof createCacheGuildCreateHandler>;
-    cacheGuildUpdate: ReturnType<typeof createCacheGuildUpdateHandler>;
-    cacheUser: ReturnType<typeof createCacheUserHandler>;
-  };
+  eventHandlers: [CacheGuildCreateHandler, CacheGuildUpdateHandler, CacheUserHandler];
 }
 
 export function createCacheFeature(dependencies: CacheFeatureDependencies): CacheFeature {
@@ -34,14 +30,14 @@ export function createCacheFeature(dependencies: CacheFeatureDependencies): Cach
     }
   );
 
-  const handlers = {
-    cacheGuildCreate: createCacheGuildCreateHandler(cacheService),
-    cacheGuildUpdate: createCacheGuildUpdateHandler(cacheService),
-    cacheUser: createCacheUserHandler(cacheService),
-  };
+  const eventHandlers: [CacheGuildCreateHandler, CacheGuildUpdateHandler, CacheUserHandler] = [
+    new CacheGuildCreateHandler(cacheService),
+    new CacheGuildUpdateHandler(cacheService),
+    new CacheUserHandler(cacheService),
+  ];
 
   return {
     cacheService,
-    handlers,
+    eventHandlers,
   };
 }

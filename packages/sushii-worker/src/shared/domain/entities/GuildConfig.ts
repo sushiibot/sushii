@@ -178,7 +178,7 @@ export class GuildConfig {
 
   updateLogChannel(
     type: "mod" | "member" | "message",
-    channelId: string,
+    channelId: string | null,
   ): GuildConfig {
     const config = this.clone();
 
@@ -197,7 +197,10 @@ export class GuildConfig {
     return config;
   }
 
-  setLoggingEnabled(type: "mod" | "member" | "message", enabled: boolean): GuildConfig {
+  setLoggingEnabled(
+    type: "mod" | "member" | "message",
+    enabled: boolean,
+  ): GuildConfig {
     const config = this.clone();
 
     switch (type) {

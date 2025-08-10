@@ -13,7 +13,7 @@ import { setupTagFeature } from "@/features/tags/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { createCacheFeature } from "@/features/cache/setup";
-import { createBanCacheServices } from "@/features/ban-cache/setup";
+import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -34,7 +34,7 @@ export function registerFeatures(
   const cacheFeature = createCacheFeature({ db });
 
   // Ban cache feature
-  const banCacheFeature = createBanCacheServices({ db, logger });
+  const banCacheFeature = setupBanCacheFeature({ db, logger });
 
   // Leveling feature
   const levelingFeature = setupLevelingFeature({ db, logger });
@@ -128,9 +128,8 @@ export function registerFeatures(
     ...notificationFeature.eventHandlers,
     ...memberEventsFeature.eventHandlers,
     ...moderationFeature.eventHandlers,
-    banCacheFeature.handlers.banAdd,
-    banCacheFeature.handlers.banRemove,
-    banCacheFeature.handlers.guildJoin,
+    ...cacheFeature.eventHandlers,
+    ...banCacheFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -219,7 +218,6 @@ export function registerFeatures(
 
   // Return services for backwards compatibility (can be removed later)
   return {
-    cacheFeature,
     giveawayServices: {
       giveawayService: giveawayFeature.services.giveawayService,
       giveawayDrawService: giveawayFeature.services.giveawayDrawService,

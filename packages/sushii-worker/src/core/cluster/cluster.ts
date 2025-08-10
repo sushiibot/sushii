@@ -68,7 +68,7 @@ async function initializeShard(): Promise<void> {
   registerInteractionHandlers(interactionRouter);
 
   // New registration of features -- also adds commands to the router and starts tasks
-  const features = registerFeatures(db, client, deploymentService, interactionRouter);
+  registerFeatures(db, client, deploymentService, interactionRouter);
 
   // AFTER features are registered (includes registering commands)
 
@@ -90,7 +90,7 @@ async function initializeShard(): Promise<void> {
   }
 
   // Legacy registration of event handlers
-  registerEventHandlers(client, interactionRouter, deploymentService, features.cacheFeature);
+  registerEventHandlers(client, interactionRouter, deploymentService);
 
   process.on("SIGTERM", async () => {
     log.info("SIGTERM received, shutting down shard gracefully");

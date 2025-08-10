@@ -18,7 +18,6 @@ import legacyModLogNotifierHandler from "@/events/GuildBanAdd/LegacyModLogNotifi
 // Legacy mod log handler removed - migrated to DDD architecture
 import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
 import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
-import type { CacheFeature } from "@/features/cache/setup";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import { config } from "@/shared/infrastructure/config";
@@ -101,7 +100,6 @@ export default function registerEventHandlers(
   client: Client,
   interactionHandler: InteractionClient,
   deploymentService: DeploymentService,
-  cacheFeature: CacheFeature,
 ): void {
   client.once(Events.ClientReady, async (c) => {
     logger.info(
@@ -233,43 +231,6 @@ export default function registerEventHandlers(
     if (!deploymentService.isCurrentDeploymentActive()) {
       return;
     }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildCreate),
-      async (span: Span) => {
-        await handleEvent(
-          Events.GuildCreate,
-          {
-            cacheGuildCreate: cacheFeature.handlers.cacheGuildCreate,
-          },
-          guild,
-        );
-
-        span.end();
-      },
-    );
-  });
-
-  client.on(Events.GuildUpdate, async (oldGuild, newGuild) => {
-    if (!deploymentService.isCurrentDeploymentActive()) {
-      return;
-    }
-
-    await tracer.startActiveSpan(
-      prefixSpanName(Events.GuildUpdate),
-      async (span: Span) => {
-        await handleEvent(
-          Events.GuildUpdate,
-          {
-            cacheGuildUpdate: cacheFeature.handlers.cacheGuildUpdate,
-          },
-          oldGuild,
-          newGuild,
-        );
-
-        span.end();
-      },
-    );
   });
 
   client.on(Events.GuildDelete, async (guild) => {
@@ -335,7 +296,6 @@ export default function registerEventHandlers(
           Events.MessageCreate,
           {
             emojiStats: emojiStatsMsgHandler,
-            cacheUser: cacheFeature.handlers.cacheUser,
           },
           msg,
         );
