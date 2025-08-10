@@ -66,21 +66,6 @@ export class ModerationExecutionPipeline {
       "Executing moderation action pipeline",
     );
 
-    // Validate action
-    const validationResult = action.validate();
-    if (!validationResult.ok) {
-      this.logger.error(
-        {
-          actionType: action.actionType,
-          targetId: target.id,
-          error: validationResult.val,
-        },
-        "Action validation failed",
-      );
-
-      return Err(`Invalid options: ${validationResult.val}`);
-    }
-
     try {
       // 1. Create database records atomically (focused transaction)
       const createResult = await this.createModerationRecord(

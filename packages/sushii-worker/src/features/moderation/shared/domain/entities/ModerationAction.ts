@@ -221,6 +221,10 @@ export class KickAction extends ModerationAction {
   }
 }
 
+// Discord timeout limits
+const MIN_TIMEOUT_SECONDS = 10;
+const MAX_TIMEOUT_SECONDS = 2419200; // 28 days in seconds
+
 export class TimeoutAction extends ModerationAction {
   constructor(
     guildId: string,
@@ -250,6 +254,21 @@ export class TimeoutAction extends ModerationAction {
     const basicValidation = this.validateBasicPermissions();
     if (!basicValidation.ok) {
       return basicValidation;
+    }
+
+    // Validate timeout duration limits
+    const durationSeconds = this._duration.asSeconds();
+
+    if (durationSeconds < MIN_TIMEOUT_SECONDS) {
+      return Err(
+        `Timeout duration '${this._duration.originalString}' is less than the minimum of 10 seconds`,
+      );
+    }
+
+    if (durationSeconds > MAX_TIMEOUT_SECONDS) {
+      return Err(
+        `Timeout duration '${this._duration.originalString}' exceeds the maximum of 28 days (Discord limit)`,
+      );
     }
 
     return Ok.EMPTY;

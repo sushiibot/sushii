@@ -284,6 +284,31 @@ export class ModerationCommand extends SlashCommandHandler {
       return;
     }
 
+    // Create and validate action BEFORE fetching targets
+    const actionResult = this.createActionFromType(
+      this.config.actionType,
+      interaction,
+      options,
+    );
+
+    if (!actionResult.ok) {
+      await interaction.reply(
+        getErrorMessage("Error", actionResult.val),
+      );
+      return;
+    }
+
+    const action = actionResult.val;
+    
+    // Validate the action (including duration limits for timeouts)
+    const validationResult = action.validate();
+    if (!validationResult.ok) {
+      await interaction.reply(
+        getErrorMessage("Error", validationResult.val),
+      );
+      return;
+    }
+
     await interaction.deferReply();
 
     const targetsResult =
@@ -295,20 +320,6 @@ export class ModerationCommand extends SlashCommandHandler {
     }
 
     const targets = targetsResult.val;
-
-    const actionResult = this.createActionFromType(
-      this.config.actionType,
-      interaction,
-      options,
-    );
-
-    if (!actionResult.ok) {
-      const editMsg = getErrorMessageEdit("Error", actionResult.val);
-      await interaction.editReply(editMsg);
-      return;
-    }
-
-    const action = actionResult.val;
     const result = await this.moderationService.executeAction(action, targets);
 
     // Get guild config for displaying configured DM messages
