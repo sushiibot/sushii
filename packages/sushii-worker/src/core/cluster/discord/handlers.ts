@@ -4,9 +4,6 @@ import * as Sentry from "@sentry/node";
 import type { Client, ClientEvents, GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents } from "discord.js";
 
-import webhookLog, {
-  webhookActivity,
-} from "@/core/cluster/discord/webhookLogger";
 import {
   emojiAndStickerStatsReadyHandler,
   emojiStatsMsgHandler,
@@ -23,7 +20,6 @@ import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gate
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 import { StatName, updateStat } from "@/tasks/StatsTask";
-import Color from "@/utils/colors";
 
 import type InteractionClient from "./InteractionRouter";
 
@@ -112,26 +108,6 @@ export default function registerEventHandlers(
       "Cluster client ready!",
     );
 
-    let content =
-      `Bot User: \`${c.user.tag}\`` +
-      `\nShard IDs: \`${c.cluster.shardList.join(", ")}\`` +
-      `\nGuilds: \`${c.guilds.cache.size}\`` +
-      `\nDeployment: \`${config.deployment.name}\``;
-
-    if (config.build.gitHash) {
-      content += `\nBuild Git Hash: \`${config.build.gitHash}\``;
-    }
-
-    if (config.build.buildDate) {
-      content += `\nBuild Date: <t:${config.build.buildDate.getTime() / 1000}>`;
-    }
-
-    await webhookLog(
-      `[Cluster #${c.cluster.id}] Cluster ClientReady`,
-      content,
-      Color.Success,
-    );
-
     // Tasks are now started in bootstrap.ts during feature registration
 
     await tracer.startActiveSpan(
@@ -165,9 +141,6 @@ export default function registerEventHandlers(
       },
       "Shard ready",
     );
-
-    const content = `unavailable guilds: \`${unavailableGuilds || "none"}\``;
-    await webhookLog(`[Shard #${shardId}] ShardReady`, content, Color.Success);
   });
 
   client.on(Events.ShardDisconnect, async (closeEvent, shardId) => {
@@ -178,8 +151,6 @@ export default function registerEventHandlers(
       },
       "Shard disconnected",
     );
-
-    await webhookLog(`[${shardId}] Shard Disconnected`, "", Color.Warning);
   });
 
   client.on(Events.ShardError, async (error, shardId) => {
@@ -190,8 +161,6 @@ export default function registerEventHandlers(
       },
       "Shard error",
     );
-
-    await webhookLog(`[${shardId}] Shard Error`, error.message, Color.Error);
   });
 
   client.on(Events.ShardReconnecting, async (shardId) => {
@@ -222,12 +191,6 @@ export default function registerEventHandlers(
       guild.name,
     );
 
-    await webhookActivity(
-      "Joined guild",
-      `${guild.name} (${guild.id}) - ${guild.memberCount} members`,
-      Color.Info,
-    );
-
     if (!deploymentService.isCurrentDeploymentActive()) {
       return;
     }
@@ -240,12 +203,6 @@ export default function registerEventHandlers(
       },
       "Removed guild %s",
       guild.name,
-    );
-
-    await webhookActivity(
-      "Left guild",
-      `${guild.name} (${guild.id}) - ${guild.memberCount} members`,
-      Color.Error,
     );
   });
 

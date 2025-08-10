@@ -14,6 +14,7 @@ import { setupSocialFeature } from "@/features/social/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { createCacheFeature } from "@/features/cache/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
+import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -74,6 +75,9 @@ export function registerFeatures(
     deploymentService,
   });
 
+  // Webhook logging feature
+  const webhookLoggingFeature = setupWebhookLoggingFeature({ logger });
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -130,6 +134,7 @@ export function registerFeatures(
     ...moderationFeature.eventHandlers,
     ...cacheFeature.eventHandlers,
     ...banCacheFeature.eventHandlers,
+    ...webhookLoggingFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -224,5 +229,6 @@ export function registerFeatures(
       giveawayEntryService: giveawayFeature.services.giveawayEntryService,
     },
     tempBanRepository: moderationFeature.services.tempBanRepository,
+    webhookLoggingServices: webhookLoggingFeature.services,
   };
 }

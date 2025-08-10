@@ -15,7 +15,7 @@ import type { Selectable } from "kysely";
 import type { Option} from "ts-results";
 import { None, Some } from "ts-results";
 
-import { webhookErr } from "@/core/cluster/discord/webhookLogger";
+import { reportCriticalError } from "@/features/webhook-logging/infrastructure/criticalError";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import { getGuildConfig } from "../../db/GuildConfig/GuildConfig.repository";
@@ -368,7 +368,7 @@ export async function msgLogHandler(
       if (err.message.includes("Was there a typo in the url or port?")) {
         log.fatal("FailedToOpenSocket error, exiting sushii...");
 
-        await webhookErr(
+        await reportCriticalError(
           "FailedToOpenSocket",
           "Failed to open socket, exiting sushii...",
         );
