@@ -17,6 +17,7 @@ import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
+import { setupMessageLog } from "@/features/message-log/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -89,6 +90,15 @@ export function registerFeatures(
   // Emoji stats feature
   const emojiStatsFeature = setupEmojiStatsFeature({ db, client, deploymentService });
 
+  // Message log feature
+  const messageLogFeature = setupMessageLog(
+    client,
+    db,
+    guildSettingsFeature.services.guildConfigurationRepository,
+    deploymentService,
+    logger.child({ component: "MessageLogFeature" }),
+  );
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -151,6 +161,7 @@ export function registerFeatures(
     ...webhookLoggingFeature.eventHandlers,
     ...legacyAuditLogsFeature.eventHandlers,
     ...emojiStatsFeature.eventHandlers,
+    ...messageLogFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -237,6 +248,7 @@ export function registerFeatures(
     ...giveawayFeature.tasks, 
     ...moderationFeature.tasks,
     ...emojiStatsFeature.tasks,
+    ...messageLogFeature.tasks,
   ];
 
   registerTasks(client, deploymentService, featureTasks);

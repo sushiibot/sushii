@@ -30,6 +30,31 @@ export class DrizzleMessageLogBlockRepository
     );
   }
 
+  async findByGuildAndChannel(
+    guildId: string,
+    channelId: string,
+  ): Promise<MessageLogBlock | null> {
+    this.logger.debug({ guildId, channelId }, "Finding message log block");
+
+    const result = await this.db
+      .select()
+      .from(msgLogBlocksInAppPublic)
+      .where(
+        and(
+          eq(msgLogBlocksInAppPublic.guildId, BigInt(guildId)),
+          eq(msgLogBlocksInAppPublic.channelId, BigInt(channelId)),
+        ),
+      )
+      .limit(1);
+
+    return result.length > 0
+      ? new MessageLogBlock(
+          result[0].guildId.toString(),
+          result[0].channelId.toString(),
+        )
+      : null;
+  }
+
   async addBlock(guildId: string, channelId: string): Promise<void> {
     this.logger.debug({ guildId, channelId }, "Adding message log block");
 

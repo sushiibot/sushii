@@ -18,7 +18,7 @@ import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { GuildSettingsService } from "../../application/GuildSettingsService";
-import type { MessageLogService } from "../../application/MessageLogService";
+import type { MessageLogBlockService } from "../../application/MessageLogBlockService";
 import {
   type ChannelPermissionsMap,
   checkMultipleChannelsPermissions,
@@ -40,7 +40,7 @@ import { SETTINGS_CUSTOM_IDS } from "../views/components/SettingsConstants";
 export default class SettingsCommand extends SlashCommandHandler {
   constructor(
     private readonly guildSettingsService: GuildSettingsService,
-    private readonly messageLogService: MessageLogService,
+    private readonly messageLogBlockService: MessageLogBlockService,
     private readonly logger: Logger,
   ) {
     super();
@@ -98,7 +98,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     const config = await this.guildSettingsService.getGuildSettings(
       interaction.guildId,
     );
-    const messageLogBlocks = await this.messageLogService.getIgnoredChannels(
+    const messageLogBlocks = await this.messageLogBlockService.getIgnoredChannels(
       interaction.guildId,
     );
 
@@ -161,7 +161,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         const currentConfig = await this.guildSettingsService.getGuildSettings(
           interaction.guildId,
         );
-        const currentBlocks = await this.messageLogService.getIgnoredChannels(
+        const currentBlocks = await this.messageLogBlockService.getIgnoredChannels(
           interaction.guildId,
         );
         const currentChannelPermissions = this.getChannelPermissions(
@@ -222,13 +222,13 @@ export default class SettingsCommand extends SlashCommandHandler {
   ): Promise<void> {
     const selectedChannelIds = interaction.values;
     const currentBlocks =
-      await this.messageLogService.getIgnoredChannels(guildId);
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
     const currentChannelIds = currentBlocks.map((block) => block.channelId);
 
     // Remove channels that are no longer selected
     for (const block of currentBlocks) {
       if (!selectedChannelIds.includes(block.channelId)) {
-        await this.messageLogService.removeIgnoredChannel(
+        await this.messageLogBlockService.removeIgnoredChannel(
           guildId,
           block.channelId,
         );
@@ -238,14 +238,14 @@ export default class SettingsCommand extends SlashCommandHandler {
     // Add newly selected channels
     for (const channelId of selectedChannelIds) {
       if (!currentChannelIds.includes(channelId)) {
-        await this.messageLogService.addIgnoredChannel(guildId, channelId);
+        await this.messageLogBlockService.addIgnoredChannel(guildId, channelId);
       }
     }
 
     const updatedConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
     const updatedBlocks =
-      await this.messageLogService.getIgnoredChannels(guildId);
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -307,7 +307,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     const updatedConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
     const updatedBlocks =
-      await this.messageLogService.getIgnoredChannels(guildId);
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -341,7 +341,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     );
     if (navigationPage) {
       const messageLogBlocks =
-        await this.messageLogService.getIgnoredChannels(guildId);
+        await this.messageLogBlockService.getIgnoredChannels(guildId);
       const currentChannelPermissions = this.getChannelPermissions(
         interaction,
         currentConfig,
@@ -522,7 +522,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       setting,
     );
     const messageLogBlocks =
-      await this.messageLogService.getIgnoredChannels(guildId);
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -632,7 +632,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     const updatedConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
     const messageLogBlocks =
-      await this.messageLogService.getIgnoredChannels(guildId);
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,

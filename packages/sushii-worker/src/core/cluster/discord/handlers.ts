@@ -8,8 +8,6 @@ import { Events, GatewayDispatchEvents } from "discord.js";
 import type { EventHandlerFn } from "@/events/EventHandler";
 // Member event handlers migrated to DDD architecture (member-events feature)
 // Legacy mod log handler migrated to DDD architecture (legacy-audit-logs feature)
-import msgLogCacheHandler from "@/events/msglog/MessageCacheHandler";
-import { msgLogHandler } from "@/events/msglog/MsgLogHandler";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { updateGatewayDispatchEventMetrics } from "@/infrastructure/metrics/gatewayMetrics";
 import logger from "@/shared/infrastructure/logger";
@@ -171,44 +169,7 @@ export default function registerEventHandlers(
     await tracer.startActiveSpan(
       prefixSpanName(Events.Raw),
       async (span: Span) => {
-        if (event.t === GatewayDispatchEvents.MessageDelete) {
-          await runParallel(event.t, [msgLogHandler(client, event.t, event.d)]);
-        }
-
-        if (event.t === GatewayDispatchEvents.MessageDeleteBulk) {
-          await runParallel(event.t, [msgLogHandler(client, event.t, event.d)]);
-        }
-
-        if (event.t === GatewayDispatchEvents.MessageUpdate) {
-          try {
-            // Log first to keep old message, then cache after for new update.
-            // Fine to await since each event is a specific type, no other types that
-            // this blocks.
-            await msgLogHandler(client, event.t, event.d);
-            await msgLogCacheHandler(client, event.t, event.d);
-          } catch (err) {
-            Sentry.captureException(err, {
-              tags: {
-                event: "MessageUpdate",
-              },
-            });
-
-            logger.error(
-              {
-                err,
-                event,
-              },
-              "error handling event %s",
-              event.t,
-            );
-          }
-        }
-
-        if (event.t === GatewayDispatchEvents.MessageCreate) {
-          await runParallel(event.t, [
-            msgLogCacheHandler(client, event.t, event.d),
-          ]);
-        }
+        // Message log handlers migrated to DDD architecture (message-log feature)
 
         span.end();
       },

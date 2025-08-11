@@ -5,9 +5,9 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
 import { DrizzleGuildConfigRepository } from "../../shared/infrastructure/DrizzleGuildConfigRepository";
+import { DrizzleMessageLogBlockRepository } from "../message-log/infrastructure/DrizzleMessageLogBlockRepository";
 import { GuildSettingsService } from "./application/GuildSettingsService";
-import { MessageLogService } from "./application/MessageLogService";
-import { DrizzleMessageLogBlockRepository } from "./infrastructure/DrizzleMessageLogBlockRepository";
+import { MessageLogBlockService } from "./application/MessageLogBlockService";
 import SettingsCommand from "./presentation/commands/SettingsCommand";
 
 interface GuildSettingsDependencies {
@@ -34,16 +34,16 @@ export function createGuildSettingsServices({
     logger.child({ module: "guildSettingsService" }),
   );
 
-  const messageLogService = new MessageLogService(
+  const messageLogBlockService = new MessageLogBlockService(
     messageLogBlockRepository,
-    logger.child({ module: "messageLogService" }),
+    logger.child({ module: "messageLogBlockService" }),
   );
 
   return {
     guildConfigurationRepository,
     messageLogBlockRepository,
     guildSettingsService,
-    messageLogService,
+    messageLogBlockService,
   };
 }
 
@@ -51,12 +51,12 @@ export function createGuildSettingsCommands(
   services: ReturnType<typeof createGuildSettingsServices>,
   logger: Logger,
 ) {
-  const { guildSettingsService, messageLogService } = services;
+  const { guildSettingsService, messageLogBlockService } = services;
 
   const commands = [
     new SettingsCommand(
       guildSettingsService,
-      messageLogService,
+      messageLogBlockService,
       logger.child({ module: "settingsCommand" }),
     ),
   ];

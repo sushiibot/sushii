@@ -1,4 +1,4 @@
-import type { MessageLogBlock } from "@/features/guild-settings/domain/entities/MessageLogBlock";
+import type { MessageLogBlock } from "@/features/message-log/domain/entities/MessageLogBlock";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";

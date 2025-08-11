@@ -1,6 +1,4 @@
-import type { ClientEvents } from "discord.js";
-
-import type { EventHandler } from "@/core/cluster/presentation/EventHandler";
+import type { EventHandler, EventType } from "@/core/cluster/presentation/EventHandler";
 import type {
   AutocompleteHandler,
   ButtonHandler,
@@ -17,10 +15,10 @@ export type Autocompletes = AutocompleteHandler[];
 export type ContextMenuHandlers = ContextMenuHandler[];
 export type ButtonHandlers = ButtonHandler[];
 
-// Allow arrays of event handlers for any specific event type
+// Allow arrays of event handlers for any specific event type including raw events
 export type EventHandlers = {
-  [K in keyof ClientEvents]: EventHandler<K>;
-}[keyof ClientEvents][];
+  [K in EventType]: EventHandler<K>;
+}[EventType][];
 export type Tasks = AbstractBackgroundTask[];
 
 /**
