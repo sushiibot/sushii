@@ -1,33 +1,25 @@
-import type {
-  ChatInputCommandInteraction,
-  Role} from "discord.js";
+import type { ChatInputCommandInteraction, Role } from "discord.js";
 import {
-  SlashCommandBuilder,
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  RoleSelectMenuBuilder,
-  UserSelectMenuBuilder,
-  ChannelType,
   ButtonStyle,
+  ChannelType,
+  DiscordAPIError,
+  EmbedBuilder,
+  InteractionContextType,
   PermissionFlagsBits,
+  RoleSelectMenuBuilder,
+  SlashCommandBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  DiscordAPIError,
-  InteractionContextType,
+  UserSelectMenuBuilder,
 } from "discord.js";
 import { t } from "i18next";
-import type { Option} from "ts-results";
+import type { Option } from "ts-results";
 import { None, Some } from "ts-results";
+
 import logger from "@/shared/infrastructure/logger";
-import Color from "../../utils/colors";
-import parseEmoji from "../../utils/parseEmoji";
-import customIds from "../customIds";
-import { SlashCommandHandler } from "../handlers";
-import {
-  interactionReplyErrorMessage,
-  interactionReplyErrorPlainMessage,
-} from "../responses/error";
+
 import {
   addRoleMenuRoles,
   deleteRoleMenu,
@@ -40,8 +32,16 @@ import {
   upsertRoleMenu,
   upsertRoleMenuRole,
 } from "../../db/RoleMenu/ModLog.repository";
-import db from "../../infrastructure/database/db";
 import type { RoleMenuRow } from "../../db/RoleMenu/RoleMenu.table";
+import db from "../../infrastructure/database/db";
+import Color from "../../utils/colors";
+import parseEmoji from "../../utils/parseEmoji";
+import customIds from "../customIds";
+import { SlashCommandHandler } from "../handlers";
+import {
+  interactionReplyErrorMessage,
+  interactionReplyErrorPlainMessage,
+} from "../responses/error";
 
 const RE_ROLE = /(?:<@&)?(\d{17,20})>?/g;
 

@@ -700,7 +700,7 @@ export const modLogsInAppPublic = appPublic.table(
     dmChannelId: bigint("dm_channel_id", { mode: "bigint" }),
     dmMessageId: bigint("dm_message_id", { mode: "bigint" }),
     dmMessageError: text("dm_message_error"),
-    
+
     // DM intent tracking
     dmIntended: boolean("dm_intended").default(false).notNull(),
     dmIntentSource: text("dm_intent_source").default("unknown").notNull(),

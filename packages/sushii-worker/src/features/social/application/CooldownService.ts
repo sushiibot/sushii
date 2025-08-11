@@ -1,5 +1,6 @@
-import dayjs from "@/shared/domain/dayjs";
 import type { UserProfile } from "@/features/user-profile";
+import dayjs from "@/shared/domain/dayjs";
+
 import { SOCIAL_COOLDOWN_HOURS } from "../domain";
 
 export class CooldownService {
@@ -11,7 +12,7 @@ export class CooldownService {
 
     const lastFishiesTime = dayjs.utc(lastFishies);
     const nextFishyTime = lastFishiesTime.add(SOCIAL_COOLDOWN_HOURS, "hours");
-    
+
     if (nextFishyTime.isAfter(dayjs.utc())) {
       return nextFishyTime;
     }
@@ -27,7 +28,7 @@ export class CooldownService {
 
     const lastRepTime = dayjs.utc(lastRep);
     const nextRepTime = lastRepTime.add(SOCIAL_COOLDOWN_HOURS, "hours");
-    
+
     if (nextRepTime.isAfter(dayjs.utc())) {
       return nextRepTime;
     }

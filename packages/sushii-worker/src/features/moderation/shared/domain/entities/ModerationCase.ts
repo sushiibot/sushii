@@ -7,9 +7,15 @@ export interface DMResult {
   error?: string;
 }
 
-export type DMIntentSource = 'executor_yes' | 'executor_no' | 'guild_default' | 'warn_always' | 'action_not_supported' | 'unknown';
-export type DMNotAttemptedReason = 'user_not_in_guild';
-export type DMFailureReason = 'user_cannot_receive' | 'unknown';
+export type DMIntentSource =
+  | "executor_yes"
+  | "executor_no"
+  | "guild_default"
+  | "warn_always"
+  | "action_not_supported"
+  | "unknown";
+export type DMNotAttemptedReason = "user_not_in_guild";
+export type DMFailureReason = "user_cannot_receive" | "unknown";
 
 export class ModerationCase {
   constructor(
@@ -29,7 +35,7 @@ export class ModerationCase {
     private readonly _timeoutDuration: number | null = null,
     // DM intent tracking
     private readonly _dmIntended: boolean = false,
-    private readonly _dmIntentSource: DMIntentSource = 'unknown',
+    private readonly _dmIntentSource: DMIntentSource = "unknown",
     private readonly _dmAttempted: boolean = false,
     private readonly _dmNotAttemptedReason: DMNotAttemptedReason | null = null,
     private readonly _dmFailureReason: DMFailureReason | null = null,
@@ -62,7 +68,7 @@ export class ModerationCase {
       false,
       timeoutDuration || null,
       false,
-      'unknown',
+      "unknown",
       false,
       null,
       null,
@@ -151,20 +157,23 @@ export class ModerationCase {
 
   withDMResult(dmResult: DMResult): ModerationCase {
     // Determine if DM was attempted and failure reason
-    const dmAttempted = dmResult.messageId !== undefined || dmResult.error !== undefined;
+    const dmAttempted =
+      dmResult.messageId !== undefined || dmResult.error !== undefined;
     let dmFailureReason: DMFailureReason | null = null;
-    
+
     if (dmResult.error) {
       // Categorize the error
-      if (dmResult.error.includes('Cannot send messages to this user') || 
-          dmResult.error.includes('privacy settings') || 
-          dmResult.error.includes('bot blocked')) {
-        dmFailureReason = 'user_cannot_receive';
+      if (
+        dmResult.error.includes("Cannot send messages to this user") ||
+        dmResult.error.includes("privacy settings") ||
+        dmResult.error.includes("bot blocked")
+      ) {
+        dmFailureReason = "user_cannot_receive";
       } else {
-        dmFailureReason = 'unknown';
+        dmFailureReason = "unknown";
       }
     }
-    
+
     return new ModerationCase(
       this._guildId,
       this._caseId,
@@ -187,7 +196,11 @@ export class ModerationCase {
     );
   }
 
-  withDMIntent(intended: boolean, source: DMIntentSource, notAttemptedReason?: DMNotAttemptedReason): ModerationCase {
+  withDMIntent(
+    intended: boolean,
+    source: DMIntentSource,
+    notAttemptedReason?: DMNotAttemptedReason,
+  ): ModerationCase {
     return new ModerationCase(
       this._guildId,
       this._caseId,

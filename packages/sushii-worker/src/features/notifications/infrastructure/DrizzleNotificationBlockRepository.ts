@@ -1,18 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import type {
-  notificationBlockTypeInAppPublic} from "@/infrastructure/database/schema";
-import {
-  notificationBlocksInAppPublic,
-} from "@/infrastructure/database/schema";
+import type { notificationBlockTypeInAppPublic } from "@/infrastructure/database/schema";
+import { notificationBlocksInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
-import type {
-  BlockType} from "../domain/entities/NotificationBlock";
-import {
-  NotificationBlock,
-} from "../domain/entities/NotificationBlock";
+import type { BlockType } from "../domain/entities/NotificationBlock";
+import { NotificationBlock } from "../domain/entities/NotificationBlock";
 import type { NotificationBlockRepository } from "../domain/repositories/NotificationBlockRepository";
 
 export class DrizzleNotificationBlockRepository

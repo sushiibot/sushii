@@ -1,4 +1,4 @@
-import { collectDefaultMetrics, Counter, Gauge } from "prom-client";
+import { Counter, Gauge, collectDefaultMetrics } from "prom-client";
 
 const metricsPrefix = "sushii_ts_worker_";
 

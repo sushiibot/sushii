@@ -1,4 +1,5 @@
 import type { Insertable, Selectable, Updateable } from "kysely";
+
 import type {
   AppPublicRoleMenuRoles,
   AppPublicRoleMenus,

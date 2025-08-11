@@ -14,5 +14,7 @@ export interface GuildAssetRepository {
   /**
    * Batch upsert multiple guild assets
    */
-  upsertMany(assets: (Omit<GuildAsset, "id"> & { id: string })[]): Promise<void>;
+  upsertMany(
+    assets: (Omit<GuildAsset, "id"> & { id: string })[],
+  ): Promise<void>;
 }

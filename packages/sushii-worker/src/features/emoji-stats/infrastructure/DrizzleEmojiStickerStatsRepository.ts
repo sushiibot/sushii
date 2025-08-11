@@ -1,20 +1,24 @@
+import { and, asc, count, desc, eq, sql, sum } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, eq, sum, sql, desc, asc, count } from "drizzle-orm";
-import dayjs from "@/shared/domain/dayjs";
+
 import type * as schema from "@/infrastructure/database/schema";
 import {
   emojiStickerStatsInAppPublic,
   guildEmojisAndStickersInAppPublic,
 } from "@/infrastructure/database/schema";
+import dayjs from "@/shared/domain/dayjs";
+
 import type {
   EmojiStickerStatsRepository,
+  PaginatedStatsResult,
   StatsQueryOptions,
   StatsResult,
-  PaginatedStatsResult,
   UsageData,
 } from "../domain/repositories";
 
-export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepository {
+export class DrizzleEmojiStickerStatsRepository
+  implements EmojiStickerStatsRepository
+{
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
   async incrementUsage(
@@ -54,7 +58,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
     const {
       guildId,
       assetType = "emoji",
-      actionType = "sum", 
+      actionType = "sum",
       serverUsage = "internal",
       order = "high_to_low",
       limit = 25,
@@ -63,7 +67,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
 
     // Build conditions array
     const conditions = this.buildConditions(guildId, assetType, actionType);
-    
+
     // Build the total count expression
     const countExpression = this.buildCountExpression(serverUsage);
 
@@ -90,9 +94,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
         guildEmojisAndStickersInAppPublic.name,
       )
       .orderBy(
-        order === "high_to_low"
-          ? desc(countExpression)
-          : asc(countExpression),
+        order === "high_to_low" ? desc(countExpression) : asc(countExpression),
         emojiStickerStatsInAppPublic.assetId,
       )
       .limit(limit)
@@ -101,12 +103,12 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
     // Execute query and get total count
     const [results, totalCount] = await Promise.all([
       query,
-      this.getStatsCount({ 
-        guildId, 
-        assetType, 
-        actionType, 
-        serverUsage, 
-        order 
+      this.getStatsCount({
+        guildId,
+        assetType,
+        actionType,
+        serverUsage,
+        order,
       }),
     ]);
 
@@ -125,7 +127,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
   }
 
   async getStatsCount(
-    options: Omit<StatsQueryOptions, "limit" | "offset">
+    options: Omit<StatsQueryOptions, "limit" | "offset">,
   ): Promise<number> {
     const {
       guildId,
@@ -175,7 +177,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
           .where(and(...conditions))
           .groupBy(emojiStickerStatsInAppPublic.assetId)
           .having(havingCondition)
-          .as('stats_with_counts')
+          .as("stats_with_counts"),
       );
 
     const result = await finalQuery;
@@ -188,7 +190,7 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
     actionType: string,
   ) {
     const conditions = [
-      eq(guildEmojisAndStickersInAppPublic.guildId, BigInt(guildId))
+      eq(guildEmojisAndStickersInAppPublic.guildId, BigInt(guildId)),
     ];
 
     // Add asset type filter
@@ -213,10 +215,14 @@ export class DrizzleEmojiStickerStatsRepository implements EmojiStickerStatsRepo
       case "internal":
         return sum(emojiStickerStatsInAppPublic.count).as("total_count");
       case "external":
-        return sum(emojiStickerStatsInAppPublic.countExternal).as("total_count");
+        return sum(emojiStickerStatsInAppPublic.countExternal).as(
+          "total_count",
+        );
       case "sum":
       default:
-        return sql<number>`(${sum(emojiStickerStatsInAppPublic.count)} + ${sum(emojiStickerStatsInAppPublic.countExternal)})`.as("total_count");
+        return sql<number>`(${sum(emojiStickerStatsInAppPublic.count)} + ${sum(emojiStickerStatsInAppPublic.countExternal)})`.as(
+          "total_count",
+        );
     }
   }
 

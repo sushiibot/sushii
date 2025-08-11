@@ -1,7 +1,8 @@
+import type { ClusterManager } from "discord-hybrid-sharding";
 import type { GatewayDispatchEvents } from "discord.js";
 import { Counter, Gauge } from "prom-client";
+
 import { prefixedName } from "./metrics";
-import type { ClusterManager } from "discord-hybrid-sharding";
 
 // -----------------------------------------------------------------------------
 // Events

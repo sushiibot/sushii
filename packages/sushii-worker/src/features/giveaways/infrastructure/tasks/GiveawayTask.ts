@@ -2,18 +2,17 @@ import type { Client, GuildTextBasedChannel } from "discord.js";
 import { ChannelType } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
+import type { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
+import type { GiveawayService } from "@/features/giveaways/application/GiveawayService";
+import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
+import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
+import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
 import {
   activeGiveawaysGauge,
   endedGiveawaysCounter,
 } from "@/infrastructure/metrics/metrics";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-
-import type { GiveawayService } from "@/features/giveaways/application/GiveawayService";
-import type { GiveawayDrawService } from "@/features/giveaways/application/GiveawayDrawService";
-import type { GiveawayEntryService } from "@/features/giveaways/application/GiveawayEntryService";
-import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
-import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
-import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 export class GiveawayTask extends AbstractBackgroundTask {
@@ -31,7 +30,8 @@ export class GiveawayTask extends AbstractBackgroundTask {
   }
 
   protected async execute(): Promise<void> {
-    const expiredGiveawaysResult = await this.giveawayService.getExpiredGiveaways();
+    const expiredGiveawaysResult =
+      await this.giveawayService.getExpiredGiveaways();
 
     if (!expiredGiveawaysResult.ok) {
       this.logger.error(
@@ -51,7 +51,9 @@ export class GiveawayTask extends AbstractBackgroundTask {
     );
 
     for (const giveaway of expiredGiveaways) {
-      const giveawayChannel = this.client.channels.cache.get(giveaway.channelId);
+      const giveawayChannel = this.client.channels.cache.get(
+        giveaway.channelId,
+      );
       if (!giveawayChannel || !giveawayChannel.isTextBased()) {
         this.logger.info(
           {
@@ -88,7 +90,7 @@ export class GiveawayTask extends AbstractBackgroundTask {
           this.logger.error(
             {
               giveawayId: giveaway.id,
-              error: drawResult.val,  
+              error: drawResult.val,
             },
             "failed to draw giveaway winners",
           );
@@ -135,8 +137,10 @@ export class GiveawayTask extends AbstractBackgroundTask {
     winnerIds: string[],
   ): Promise<void> {
     try {
-      const totalEntriesResult = await this.giveawayEntryService.getEntryCount(giveaway.id);
-      
+      const totalEntriesResult = await this.giveawayEntryService.getEntryCount(
+        giveaway.id,
+      );
+
       if (!totalEntriesResult.ok) {
         this.logger.error(
           { giveawayId: giveaway.id },
@@ -147,7 +151,10 @@ export class GiveawayTask extends AbstractBackgroundTask {
 
       const totalEntries = totalEntriesResult.val;
       const embed = buildGiveawayEmbed(giveaway, winnerIds);
-      const components = buildGiveawayComponents(totalEntries, giveaway.isEnded);
+      const components = buildGiveawayComponents(
+        totalEntries,
+        giveaway.isEnded,
+      );
 
       await channel.messages.edit(giveaway.id, {
         embeds: [embed],

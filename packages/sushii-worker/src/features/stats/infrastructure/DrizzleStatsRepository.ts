@@ -6,7 +6,10 @@ import type * as schema from "@/infrastructure/database/schema";
 import { botStatsInAppPublic } from "@/infrastructure/database/schema";
 
 import type { StatName } from "../domain/StatName";
-import type { StatsRepository, BotStat } from "../domain/repositories/StatsRepository";
+import type {
+  BotStat,
+  StatsRepository,
+} from "../domain/repositories/StatsRepository";
 
 export class DrizzleStatsRepository implements StatsRepository {
   constructor(
@@ -33,10 +36,13 @@ export class DrizzleStatsRepository implements StatsRepository {
             count: BigInt(count),
           },
         });
-        
+
       this.logger.debug({ name, category, count }, "Successfully set stat");
     } catch (error) {
-      this.logger.error({ err: error, name, category, count }, "Failed to set stat");
+      this.logger.error(
+        { err: error, name, category, count },
+        "Failed to set stat",
+      );
       throw new Error("Failed to update bot statistics", { cause: error });
     }
   }
@@ -60,10 +66,16 @@ export class DrizzleStatsRepository implements StatsRepository {
             count: sql`${botStatsInAppPublic.count} + ${BigInt(count)}`,
           },
         });
-        
-      this.logger.debug({ name, category, count }, "Successfully incremented stat");
+
+      this.logger.debug(
+        { name, category, count },
+        "Successfully incremented stat",
+      );
     } catch (error) {
-      this.logger.error({ err: error, name, category, count }, "Failed to increment stat");
+      this.logger.error(
+        { err: error, name, category, count },
+        "Failed to increment stat",
+      );
       throw new Error("Failed to increment bot statistics", { cause: error });
     }
   }
@@ -83,8 +95,11 @@ export class DrizzleStatsRepository implements StatsRepository {
         category: row.category,
         count: row.count,
       }));
-      
-      this.logger.debug({ count: stats.length }, "Successfully retrieved stats");
+
+      this.logger.debug(
+        { count: stats.length },
+        "Successfully retrieved stats",
+      );
       return stats;
     } catch (error) {
       this.logger.error({ err: error }, "Failed to retrieve stats");

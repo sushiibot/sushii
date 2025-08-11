@@ -180,7 +180,10 @@ export class UserLevelRepository implements IUserLevelRepository {
   ): Promise<UserRankData> {
     try {
       // First get total count as it's always returned
-      const totalCount = await this.getPrivateUserCountInTimeframe(guildId, timeframe);
+      const totalCount = await this.getPrivateUserCountInTimeframe(
+        guildId,
+        timeframe,
+      );
 
       // Basic check if user has any activity at all
       const user = await this.db
@@ -263,8 +266,8 @@ export class UserLevelRepository implements IUserLevelRepository {
         .where(
           and(
             ...conditions,
-            sql`(${orderColumn} > ${userXp} OR (${orderColumn} = ${userXp} AND ${userLevelsInAppPublic.userId} > ${BigInt(userId)}))`
-          )
+            sql`(${orderColumn} > ${userXp} OR (${orderColumn} = ${userXp} AND ${userLevelsInAppPublic.userId} > ${BigInt(userId)}))`,
+          ),
         );
 
       const rank = (rankResult[0]?.count ?? 0) + 1;
@@ -394,7 +397,7 @@ export class UserLevelRepository implements IUserLevelRepository {
           row.msgDay,
           row.msgWeek,
           row.msgMonth,
-        )
+        ),
       );
     } catch (error) {
       throw new Error(
@@ -403,7 +406,10 @@ export class UserLevelRepository implements IUserLevelRepository {
     }
   }
 
-  async getUserCountInTimeframe(guildId: string, timeframe: TimeFrame): Promise<number> {
+  async getUserCountInTimeframe(
+    guildId: string,
+    timeframe: TimeFrame,
+  ): Promise<number> {
     try {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
 

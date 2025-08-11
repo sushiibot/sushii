@@ -1,9 +1,5 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  EmbedBuilder,
-  SlashCommandBuilder,
-} from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import { t } from "i18next";
 import { sql } from "kysely";
 

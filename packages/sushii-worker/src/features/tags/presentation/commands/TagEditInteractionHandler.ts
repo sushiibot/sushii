@@ -1,11 +1,8 @@
 import type {
   ButtonInteraction,
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  ComponentType,
-  MessageFlags,
-  PermissionFlagsBits,
+  ChatInputCommandInteraction,
 } from "discord.js";
+import { ComponentType, MessageFlags, PermissionFlagsBits } from "discord.js";
 import type { Logger } from "pino";
 
 import type { TagService } from "../../application/TagService";

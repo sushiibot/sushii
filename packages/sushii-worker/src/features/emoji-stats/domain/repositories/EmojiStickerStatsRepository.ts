@@ -46,5 +46,7 @@ export interface EmojiStickerStatsRepository {
   /**
    * Get total count of stats for pagination
    */
-  getStatsCount(options: Omit<StatsQueryOptions, "limit" | "offset">): Promise<number>;
+  getStatsCount(
+    options: Omit<StatsQueryOptions, "limit" | "offset">,
+  ): Promise<number>;
 }

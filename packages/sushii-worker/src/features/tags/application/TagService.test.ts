@@ -11,10 +11,9 @@ import type {
   CreateTagParams,
   DeleteTagParams,
   RenameTagParams,
-  UpdateTagParams} from "./TagService";
-import {
-  TagService
+  UpdateTagParams,
 } from "./TagService";
+import { TagService } from "./TagService";
 
 class MockTagRepository implements TagRepository {
   private tags = new Map<string, Tag>();

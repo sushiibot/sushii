@@ -1,4 +1,5 @@
 import type { ButtonInteraction } from "discord.js";
+
 import MessageComponentHandler from "./MessageComponentHandler";
 
 export default abstract class ButtonHandler extends MessageComponentHandler {

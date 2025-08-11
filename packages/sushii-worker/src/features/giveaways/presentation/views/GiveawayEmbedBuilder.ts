@@ -1,7 +1,8 @@
 import { EmbedBuilder } from "discord.js";
+
 import dayjs from "@/shared/domain/dayjs";
-import toTimestamp from "@/utils/toTimestamp";
 import Color from "@/utils/colors";
+import toTimestamp from "@/utils/toTimestamp";
 
 import type { Giveaway } from "../../domain/entities/Giveaway";
 
@@ -29,9 +30,7 @@ export function buildGiveawayEmbed(
   if (winnerIds.length > 0) {
     const winnersStr = winnerIds.map((id) => `<@${id}>`).join(", ");
 
-    desc += `**Winner${
-      winnerIds.length > 1 ? "s" : ""
-    }:** ${winnersStr}`;
+    desc += `**Winner${winnerIds.length > 1 ? "s" : ""}:** ${winnersStr}`;
   } else {
     desc += `**Winners:** ${giveaway.numWinners}`;
   }

@@ -1,9 +1,9 @@
-import type {
-  LevelProgress} from "@/shared/domain/utils/LevelCalculations";
+import type { LevelProgress } from "@/shared/domain/utils/LevelCalculations";
 import {
   calculateLevel,
   calculateLevelProgress,
 } from "@/shared/domain/utils/LevelCalculations";
+
 import { ProgressBar } from "../value-objects/ProgressBar";
 import type { XpAmount } from "../value-objects/XpAmount";
 

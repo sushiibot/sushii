@@ -2,11 +2,15 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import { DrizzleUserProfileRepository } from "@/features/user-profile/infrastructure/DrizzleUserProfileRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
-import { DrizzleUserProfileRepository } from "@/features/user-profile/infrastructure/DrizzleUserProfileRepository";
 
-import { CooldownService, FishyService, ReputationService } from "./application";
+import {
+  CooldownService,
+  FishyService,
+  ReputationService,
+} from "./application";
 import { FishyCommand, RepCommand } from "./presentation/commands";
 
 interface SocialFeatureServices {
@@ -32,7 +36,10 @@ export function setupSocialFeature({
   // Create services
   const cooldownService = new CooldownService();
   const fishyService = new FishyService(userProfileRepository, cooldownService);
-  const reputationService = new ReputationService(userProfileRepository, cooldownService);
+  const reputationService = new ReputationService(
+    userProfileRepository,
+    cooldownService,
+  );
 
   // Create commands
   const fishyCommand = new FishyCommand(fishyService);

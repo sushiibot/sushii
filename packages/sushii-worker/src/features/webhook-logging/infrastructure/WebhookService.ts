@@ -52,7 +52,9 @@ export class WebhookService {
     color?: number,
   ): Promise<void> {
     if (!this.webhookClientActivity) {
-      this.logger.warn("No activity webhook client, skipping activity webhook log");
+      this.logger.warn(
+        "No activity webhook client, skipping activity webhook log",
+      );
       return;
     }
 

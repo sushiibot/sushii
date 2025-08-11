@@ -1,5 +1,5 @@
-import type { Result } from "ts-results";
 import type { Logger } from "pino";
+import type { Result } from "ts-results";
 
 import type { GiveawayData } from "../domain/entities/Giveaway";
 import { Giveaway } from "../domain/entities/Giveaway";
@@ -14,17 +14,23 @@ export class GiveawayService {
   async createGiveaway(data: GiveawayData): Promise<Result<Giveaway, string>> {
     try {
       this.logger.debug({ giveawayId: data.id }, "Creating giveaway");
-      
+
       const giveaway = Giveaway.fromData(data);
       const result = await this.giveawayRepository.create(giveaway);
-      
+
       if (result.ok) {
-        this.logger.info({ giveawayId: data.id }, "Giveaway created successfully");
+        this.logger.info(
+          { giveawayId: data.id },
+          "Giveaway created successfully",
+        );
       }
-      
+
       return result;
     } catch (err) {
-      this.logger.error({ err, giveawayId: data.id }, "Failed to create giveaway");
+      this.logger.error(
+        { err, giveawayId: data.id },
+        "Failed to create giveaway",
+      );
       throw new Error("Failed to create giveaway", { cause: err });
     }
   }
@@ -34,7 +40,10 @@ export class GiveawayService {
     giveawayId: string,
   ): Promise<Result<Giveaway | null, string>> {
     try {
-      return await this.giveawayRepository.findByGuildAndId(guildId, giveawayId);
+      return await this.giveawayRepository.findByGuildAndId(
+        guildId,
+        giveawayId,
+      );
     } catch (err) {
       this.logger.error({ err, guildId, giveawayId }, "Failed to get giveaway");
       throw new Error("Failed to get giveaway", { cause: err });
@@ -71,33 +80,44 @@ export class GiveawayService {
   ): Promise<Result<Giveaway | null, string>> {
     try {
       this.logger.debug({ guildId, giveawayId }, "Deleting giveaway");
-      
+
       const result = await this.giveawayRepository.delete(guildId, giveawayId);
-      
+
       if (result.ok && result.val) {
-        this.logger.info({ guildId, giveawayId }, "Giveaway deleted successfully");
+        this.logger.info(
+          { guildId, giveawayId },
+          "Giveaway deleted successfully",
+        );
       }
-      
+
       return result;
     } catch (err) {
-      this.logger.error({ err, guildId, giveawayId }, "Failed to delete giveaway");
+      this.logger.error(
+        { err, guildId, giveawayId },
+        "Failed to delete giveaway",
+      );
       throw new Error("Failed to delete giveaway", { cause: err });
     }
   }
 
-  async markAsEnded(giveawayId: string): Promise<Result<Giveaway | null, string>> {
+  async markAsEnded(
+    giveawayId: string,
+  ): Promise<Result<Giveaway | null, string>> {
     try {
       this.logger.debug({ giveawayId }, "Marking giveaway as ended");
-      
+
       const result = await this.giveawayRepository.markAsEnded(giveawayId);
-      
+
       if (result.ok && result.val) {
         this.logger.info({ giveawayId }, "Giveaway marked as ended");
       }
-      
+
       return result;
     } catch (err) {
-      this.logger.error({ err, giveawayId }, "Failed to mark giveaway as ended");
+      this.logger.error(
+        { err, giveawayId },
+        "Failed to mark giveaway as ended",
+      );
       throw new Error("Failed to mark giveaway as ended", { cause: err });
     }
   }

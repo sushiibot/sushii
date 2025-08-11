@@ -98,9 +98,8 @@ export default class SettingsCommand extends SlashCommandHandler {
     const config = await this.guildSettingsService.getGuildSettings(
       interaction.guildId,
     );
-    const messageLogBlocks = await this.messageLogBlockService.getIgnoredChannels(
-      interaction.guildId,
-    );
+    const messageLogBlocks =
+      await this.messageLogBlockService.getIgnoredChannels(interaction.guildId);
 
     let currentPage: SettingsPage = "logging";
     const channelPermissions = this.getChannelPermissions(interaction, config);
@@ -161,9 +160,10 @@ export default class SettingsCommand extends SlashCommandHandler {
         const currentConfig = await this.guildSettingsService.getGuildSettings(
           interaction.guildId,
         );
-        const currentBlocks = await this.messageLogBlockService.getIgnoredChannels(
-          interaction.guildId,
-        );
+        const currentBlocks =
+          await this.messageLogBlockService.getIgnoredChannels(
+            interaction.guildId,
+          );
         const currentChannelPermissions = this.getChannelPermissions(
           interaction,
           currentConfig,

@@ -1,20 +1,15 @@
-import type {
-  ButtonInteraction,
-  InteractionResponse} from "discord.js";
-import {
-  MessageFlags,
-  EmbedBuilder
-} from "discord.js";
+import type { ButtonInteraction, InteractionResponse } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
-import { ButtonHandler } from "@/interactions/handlers";
 import customIds from "@/interactions/customIds";
+import { ButtonHandler } from "@/interactions/handlers";
 import Color from "@/utils/colors";
 
-import type { GiveawayService } from "../../application/GiveawayService";
-import type { GiveawayEntryService } from "../../application/GiveawayEntryService";
-import type { GiveawayEntryCacheService } from "../../application/GiveawayEntryCacheService";
 import type { GiveawayEligibilityService } from "../../application/GiveawayEligibilityService";
+import type { GiveawayEntryCacheService } from "../../application/GiveawayEntryCacheService";
+import type { GiveawayEntryService } from "../../application/GiveawayEntryService";
+import type { GiveawayService } from "../../application/GiveawayService";
 import { buildRemoveEntryComponents } from "../views/GiveawayComponentBuilder";
 
 export class GiveawayButtonHandler extends ButtonHandler {
@@ -125,10 +120,11 @@ export class GiveawayButtonHandler extends ButtonHandler {
     const giveaway = giveawayResult.val;
 
     // Check eligibility
-    const eligibilityResult = await this.giveawayEligibilityService.checkEligibility(
-      giveaway,
-      interaction.member,
-    );
+    const eligibilityResult =
+      await this.giveawayEligibilityService.checkEligibility(
+        giveaway,
+        interaction.member,
+      );
 
     if (!eligibilityResult.ok) {
       await interaction.reply({
@@ -218,7 +214,10 @@ export class GiveawayButtonHandler extends ButtonHandler {
       "Remove entry button clicked, deleting giveaway entry",
     );
 
-    const removeResult = await this.giveawayEntryService.removeEntry(giveawayId, userId);
+    const removeResult = await this.giveawayEntryService.removeEntry(
+      giveawayId,
+      userId,
+    );
 
     const embed = new EmbedBuilder()
       .setTitle("Entry deleted")

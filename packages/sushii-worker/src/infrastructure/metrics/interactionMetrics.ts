@@ -2,7 +2,9 @@ import { InteractionType } from "discord.js";
 import type { Interaction } from "discord.js";
 import { ApplicationCommandType } from "discord.js";
 import { Counter } from "prom-client";
+
 import logger from "@/shared/infrastructure/logger";
+
 import { prefixedName } from "./metrics";
 
 // -----------------------------------------------------------------------------

@@ -1,13 +1,15 @@
+import type { Span, Tracer } from "@opentelemetry/api";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeSDK } from "@opentelemetry/sdk-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-node";
-import type { Tracer, Span} from "@opentelemetry/api";
-import { SpanStatusCode } from "@opentelemetry/api";
-import logger from "../../shared/infrastructure/logger";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+
 import { config } from "@/shared/infrastructure/config";
+
+import logger from "../../shared/infrastructure/logger";
 
 const exporterOptions = {
   // Default URL

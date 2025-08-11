@@ -1,12 +1,7 @@
 import type { Span } from "@opentelemetry/api";
 import opentelemetry from "@opentelemetry/api";
-import type {
-  Message} from "discord.js";
-import {
-  DiscordAPIError,
-  Events,
-  RESTJSONErrorCodes,
-} from "discord.js";
+import type { Message } from "discord.js";
+import { DiscordAPIError, Events, RESTJSONErrorCodes } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import { newModuleLogger } from "@/shared/infrastructure/logger";

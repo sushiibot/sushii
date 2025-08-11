@@ -14,7 +14,9 @@ export async function reportCriticalError(
   message: string,
 ): Promise<void> {
   if (!criticalErrorService) {
-    logger.warn("Critical error service not initialized, skipping webhook error");
+    logger.warn(
+      "Critical error service not initialized, skipping webhook error",
+    );
     return;
   }
 

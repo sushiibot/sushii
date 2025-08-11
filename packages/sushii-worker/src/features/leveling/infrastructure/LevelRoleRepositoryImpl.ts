@@ -10,13 +10,16 @@ import type { LevelRoleRepository } from "../domain/repositories/LevelRoleReposi
 export class LevelRoleRepositoryImpl implements LevelRoleRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  private safeBigIntToNumber(value: bigint | null, fieldName: string): number | null {
+  private safeBigIntToNumber(
+    value: bigint | null,
+    fieldName: string,
+  ): number | null {
     if (value === null) return null;
-    
+
     if (value > Number.MAX_SAFE_INTEGER) {
       throw new Error(`${fieldName} value too large: ${value}`);
     }
-    
+
     return Number(value);
   }
 
@@ -26,14 +29,13 @@ export class LevelRoleRepositoryImpl implements LevelRoleRepository {
       .from(levelRolesInAppPublic)
       .where(eq(levelRolesInAppPublic.guildId, BigInt(guildId)));
 
-    return result.map(
-      (record) =>
-        LevelRole.reconstitute(
-          guildId,
-          record.roleId.toString(),
-          this.safeBigIntToNumber(record.addLevel, 'addLevel'),
-          this.safeBigIntToNumber(record.removeLevel, 'removeLevel'),
-        ),
+    return result.map((record) =>
+      LevelRole.reconstitute(
+        guildId,
+        record.roleId.toString(),
+        this.safeBigIntToNumber(record.addLevel, "addLevel"),
+        this.safeBigIntToNumber(record.removeLevel, "removeLevel"),
+      ),
     );
   }
 
@@ -60,8 +62,8 @@ export class LevelRoleRepositoryImpl implements LevelRoleRepository {
     return LevelRole.reconstitute(
       guildId,
       record.roleId.toString(),
-      this.safeBigIntToNumber(record.addLevel, 'addLevel'),
-      this.safeBigIntToNumber(record.removeLevel, 'removeLevel'),
+      this.safeBigIntToNumber(record.addLevel, "addLevel"),
+      this.safeBigIntToNumber(record.removeLevel, "removeLevel"),
     );
   }
 

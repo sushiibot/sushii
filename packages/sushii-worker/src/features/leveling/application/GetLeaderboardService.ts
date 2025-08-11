@@ -52,7 +52,10 @@ export class GetLeaderboardService {
     userId: string,
   ): Promise<UserRank | undefined> {
     try {
-      return await this.userLevelRepository.getUserGuildRankings(guildId, userId);
+      return await this.userLevelRepository.getUserGuildRankings(
+        guildId,
+        userId,
+      );
     } catch {
       return undefined;
     }
@@ -63,7 +66,10 @@ export class GetLeaderboardService {
     userId: string,
   ): Promise<UserLevel | undefined> {
     try {
-      const level = await this.userLevelRepository.getUserGuildLevel(guildId, userId);
+      const level = await this.userLevelRepository.getUserGuildLevel(
+        guildId,
+        userId,
+      );
       return level.getAllTimeXp() > 0 ? level : undefined;
     } catch {
       return undefined;

@@ -4,8 +4,8 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type { BanRepository } from "../domain/repositories/BanRepository";
 import { GuildBan } from "../domain/entities/GuildBan";
+import type { BanRepository } from "../domain/repositories/BanRepository";
 
 /**
  * Application service for ban cache operations.

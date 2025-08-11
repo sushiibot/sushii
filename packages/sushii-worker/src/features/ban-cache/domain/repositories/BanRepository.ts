@@ -1,4 +1,5 @@
 import type { Result } from "ts-results";
+
 import type { GuildBan } from "../entities/GuildBan";
 
 /**
@@ -24,6 +25,8 @@ export interface BanRepository {
   /**
    * Adds multiple bans for a guild.
    */
-  addGuildBans(guildId: string, userIds: string[]): Promise<Result<void, string>>;
-
+  addGuildBans(
+    guildId: string,
+    userIds: string[],
+  ): Promise<Result<void, string>>;
 }

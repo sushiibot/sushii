@@ -93,10 +93,7 @@ export const SCALED_FISH_WEIGHTS = [
   30, // Jae
 ];
 
-export const NORMAL_FISH_TYPES = [
-  CatchableType.Seaweed,
-  CatchableType.Algae,
-];
+export const NORMAL_FISH_TYPES = [CatchableType.Seaweed, CatchableType.Algae];
 
 export const RARE_FISH_TYPES = [
   CatchableType.Rotten,
@@ -106,8 +103,8 @@ export const RARE_FISH_TYPES = [
 
 // Fish catch probabilities (must total 100%)
 export const FISH_PROBABILITIES = {
-  GOLDEN: 1,      // 0-1%
-  RARE: 3,        // 1-4% (3% for Rotten, MrsPuff, RustySpoon)
-  NORMAL: 4,      // 4-8% (Seaweed, Algae)
-  SCALED: 92,     // 8-100% (Regular fish with weights)
+  GOLDEN: 1, // 0-1%
+  RARE: 3, // 1-4% (3% for Rotten, MrsPuff, RustySpoon)
+  NORMAL: 4, // 4-8% (Seaweed, Algae)
+  SCALED: 92, // 8-100% (Regular fish with weights)
 } as const;

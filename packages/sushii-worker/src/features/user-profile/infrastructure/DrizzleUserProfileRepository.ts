@@ -1,7 +1,8 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "@/infrastructure/database/schema";
+
 import { UserProfile } from "../domain/entities/UserProfile";
 import type { UserProfileRepository } from "../domain/repositories/UserProfileRepository";
 
@@ -48,7 +49,7 @@ export class DrizzleUserProfileRepository implements UserProfileRepository {
 
   async upsert(profile: UserProfile): Promise<UserProfile> {
     const data = profile.toData();
-    
+
     const result = await this.db
       .insert(schema.usersInAppPublic)
       .values({

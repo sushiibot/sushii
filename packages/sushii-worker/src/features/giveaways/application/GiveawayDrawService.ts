@@ -1,7 +1,7 @@
 import type { GuildTextBasedChannel } from "discord.js";
-import type { Result } from "ts-results";
-import { Ok, Err } from "ts-results";
 import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import type { Giveaway } from "../domain/entities/Giveaway";
 import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
@@ -38,11 +38,12 @@ export class GiveawayDrawService {
       );
 
       // Get random entries
-      const entriesResult = await this.giveawayEntryRepository.findRandomEntries(
-        giveaway.id,
-        wantWinnerCount,
-        allowRepeatWinners,
-      );
+      const entriesResult =
+        await this.giveawayEntryRepository.findRandomEntries(
+          giveaway.id,
+          wantWinnerCount,
+          allowRepeatWinners,
+        );
 
       if (!entriesResult.ok) {
         return Err(entriesResult.val);
@@ -80,9 +81,8 @@ export class GiveawayDrawService {
       let reason: string | undefined;
 
       if (hasInsufficientWinners) {
-        const totalCountResult = await this.giveawayEntryRepository.countByGiveaway(
-          giveaway.id,
-        );
+        const totalCountResult =
+          await this.giveawayEntryRepository.countByGiveaway(giveaway.id);
 
         if (totalCountResult.ok) {
           const totalEntries = totalCountResult.val;
@@ -97,16 +97,24 @@ export class GiveawayDrawService {
 
       // Mark giveaway as ended if it's not already ended
       if (!giveaway.isEnded) {
-        const markEndedResult = await this.giveawayRepository.markAsEnded(giveaway.id);
+        const markEndedResult = await this.giveawayRepository.markAsEnded(
+          giveaway.id,
+        );
         if (!markEndedResult.ok) {
-          this.logger.warn({
-            giveawayId: giveaway.id,
-            error: markEndedResult.val,
-          }, "Failed to mark giveaway as ended after drawing winners");
+          this.logger.warn(
+            {
+              giveawayId: giveaway.id,
+              error: markEndedResult.val,
+            },
+            "Failed to mark giveaway as ended after drawing winners",
+          );
         } else {
-          this.logger.info({
-            giveawayId: giveaway.id,
-          }, "Giveaway marked as ended after drawing winners");
+          this.logger.info(
+            {
+              giveawayId: giveaway.id,
+            },
+            "Giveaway marked as ended after drawing winners",
+          );
         }
       }
 

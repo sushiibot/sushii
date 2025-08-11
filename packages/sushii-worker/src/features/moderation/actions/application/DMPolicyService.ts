@@ -1,7 +1,7 @@
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
-import type { DMIntentSource } from "../../shared/domain/entities/ModerationCase";
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
+import type { DMIntentSource } from "../../shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import {
   ActionType,
@@ -24,32 +24,32 @@ export class DMPolicyService {
   ): Promise<DMPolicyDecision> {
     // Basic eligibility - only DM users who are in the server and for supported actions
     if (!target.member) {
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
-    
+
     if (!actionTypeSupportsDM(action.actionType)) {
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
 
     // Timing rules - bans DM before action, others DM after
     if (timing === "before" && !action.isBanOrTempBanAction()) {
       // Not ban action, never DM before action
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
 
     if (timing === "after" && action.isBanOrTempBanAction()) {
       // Is ban action, never DM after action
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
 
     // Don't DM if no reason provided
     if (!action.reason) {
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
 
     // Warn ALWAYS DMs, cannot disable or override
     if (action.actionType === ActionType.Warn) {
-      return { should: true, source: 'warn_always' };
+      return { should: true, source: "warn_always" };
     }
 
     // Command-level DM choice override takes highest priority
@@ -57,19 +57,22 @@ export class DMPolicyService {
       // Needs explicit yes
       return {
         should: action.dmChoice === "yes_dm",
-        source: action.dmChoice === "yes_dm" ? 'executor_yes' : 'executor_no'
+        source: action.dmChoice === "yes_dm" ? "executor_yes" : "executor_no",
       };
     }
 
     // Action-specific rules
     if (action.actionType === ActionType.BanRemove) {
       // Unban never sends DM (user not in server)
-      return { should: false, source: 'action_not_supported' };
+      return { should: false, source: "action_not_supported" };
     }
 
     // No override, check guild-specific settings
-    const shouldSend = await this.shouldSendDMForGuildSettings(guildId, action.actionType);
-    return { should: shouldSend, source: 'guild_default' };
+    const shouldSend = await this.shouldSendDMForGuildSettings(
+      guildId,
+      action.actionType,
+    );
+    return { should: shouldSend, source: "guild_default" };
   }
 
   private async shouldSendDMForGuildSettings(

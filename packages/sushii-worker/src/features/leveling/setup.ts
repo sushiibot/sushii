@@ -67,8 +67,12 @@ export function createLevelingCommands(
   services: ReturnType<typeof createLevelingServices>,
   logger: Logger,
 ) {
-  const { getUserRankService, getLeaderboardService, levelRoleService, xpBlockService } =
-    services;
+  const {
+    getUserRankService,
+    getLeaderboardService,
+    levelRoleService,
+    xpBlockService,
+  } = services;
 
   const commands = [
     new RankCommand(getUserRankService, logger.child({ module: "rank" })),

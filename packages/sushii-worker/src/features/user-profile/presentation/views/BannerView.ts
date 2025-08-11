@@ -5,7 +5,7 @@ import type { APIEmbed } from "discord.js";
 import Color from "@/utils/colors";
 import { getUserString } from "@/utils/userString";
 
-type BannerResult = 
+type BannerResult =
   | { success: true; embeds: APIEmbed[] }
   | { success: false; errorEmbed: APIEmbed };
 

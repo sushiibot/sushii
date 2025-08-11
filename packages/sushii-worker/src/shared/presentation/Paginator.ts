@@ -1,13 +1,14 @@
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
-  Message} from "discord.js";
+  Message,
+} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
-  EmbedBuilder
+  EmbedBuilder,
 } from "discord.js";
 import type { Logger } from "pino";
 

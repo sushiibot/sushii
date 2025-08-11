@@ -13,9 +13,7 @@ import Color from "@/utils/colors";
 export class LegacyAuditLogNotificationService {
   private readonly notifiedCache = new Set<string>();
 
-  constructor(
-    private readonly logger: Logger,
-  ) {}
+  constructor(private readonly logger: Logger) {}
 
   /**
    * Handles a guild ban event and potentially sends an audit log permission notification.
@@ -33,16 +31,13 @@ export class LegacyAuditLogNotificationService {
     const config = await getGuildConfig(db, ban.guild.id);
 
     // No guild config found, or mod log not configured/enabled
-    if (
-      !config ||
-      !config.log_mod ||
-      !config.log_mod_enabled
-    ) {
+    if (!config || !config.log_mod || !config.log_mod_enabled) {
       return;
     }
 
     // Check if bot has audit log permissions
-    const hasAuditLogPerms = ban.guild.members.me?.permissions.has("ViewAuditLog");
+    const hasAuditLogPerms =
+      ban.guild.members.me?.permissions.has("ViewAuditLog");
 
     // Bot has permissions, no notification needed
     if (hasAuditLogPerms) {
@@ -53,7 +48,10 @@ export class LegacyAuditLogNotificationService {
     await this.sendPermissionNotification(ban, config.log_mod);
   }
 
-  private async sendPermissionNotification(ban: GuildBan, logChannelId: string): Promise<void> {
+  private async sendPermissionNotification(
+    ban: GuildBan,
+    logChannelId: string,
+  ): Promise<void> {
     const channel = ban.guild.channels.cache.get(logChannelId);
 
     if (!channel || !channel.isTextBased()) {
@@ -64,7 +62,7 @@ export class LegacyAuditLogNotificationService {
     const embed = new EmbedBuilder()
       .setTitle("Missing audit log permissions")
       .setDescription(
-        "sushii now needs extra permissions to log mod actions, please make sure my role has the `View Audit Log` permission!"
+        "sushii now needs extra permissions to log mod actions, please make sure my role has the `View Audit Log` permission!",
       )
       .setColor(Color.Error);
 

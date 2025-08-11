@@ -33,12 +33,12 @@ function wereDMsIntended(
   if (action?.dmChoice === "no_dm") {
     return false;
   }
-  
+
   // If executor explicitly chose yes_dm, DMs were intended
   if (action?.dmChoice === "yes_dm") {
     return true;
   }
-  
+
   // Otherwise check guild settings
   switch (actionType) {
     case ActionType.Ban:
@@ -166,8 +166,12 @@ export function buildActionResultMessage(
     }
 
     // Add DM status
-    const successfulCases = successful.map((s) => s.result.val as ModerationCase);
-    const dmAttemptedCount = successfulCases.filter((c) => c.dmAttempted).length;
+    const successfulCases = successful.map(
+      (s) => s.result.val as ModerationCase,
+    );
+    const dmAttemptedCount = successfulCases.filter(
+      (c) => c.dmAttempted,
+    ).length;
     const dmSuccessCount = successfulCases.filter((c) => c.dmSuccess).length;
     const dmFailedCount = successfulCases.filter((c) => c.dmFailed).length;
 
@@ -192,8 +196,10 @@ export function buildActionResultMessage(
       // No DM attempts were made
       const dmsIntended = wereDMsIntended(action, actionType, guildConfig);
       const usersInGuild = successful.filter((r) => r.target.isInGuild).length;
-      const usersNotInGuild = successful.filter((r) => !r.target.isInGuild).length;
-      
+      const usersNotInGuild = successful.filter(
+        (r) => !r.target.isInGuild,
+      ).length;
+
       // Determine the reason for not sending DMs
       if (!dmsIntended) {
         // DMs were intentionally not sent (executor choice or guild settings)
@@ -214,11 +220,13 @@ export function buildActionResultMessage(
     } else if (dmSuccessCount === 0) {
       // All DM attempts failed - check failure reasons
       const failureReasons = successfulCases
-        .filter(c => c.dmFailureReason)
-        .map(c => c.dmFailureReason);
-      
-      const allUserCannotReceive = failureReasons.every(r => r === 'user_cannot_receive');
-      
+        .filter((c) => c.dmFailureReason)
+        .map((c) => c.dmFailureReason);
+
+      const allUserCannotReceive = failureReasons.every(
+        (r) => r === "user_cannot_receive",
+      );
+
       if (allUserCannotReceive) {
         dmSectionContent += `❌ **Failed to send** — Could not deliver to any users (privacy settings or bot blocked)`;
       } else {

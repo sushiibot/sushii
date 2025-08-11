@@ -1,7 +1,9 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq, inArray, sql } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+
 import type * as schema from "@/infrastructure/database/schema";
 import { guildEmojisAndStickersInAppPublic } from "@/infrastructure/database/schema";
+
 import { GuildAsset } from "../domain/entities";
 import type { GuildAssetRepository } from "../domain/repositories";
 
@@ -16,7 +18,12 @@ export class DrizzleGuildAssetRepository implements GuildAssetRepository {
     const results = await this.db
       .select()
       .from(guildEmojisAndStickersInAppPublic)
-      .where(inArray(guildEmojisAndStickersInAppPublic.id, assetIds.map(id => BigInt(id))));
+      .where(
+        inArray(
+          guildEmojisAndStickersInAppPublic.id,
+          assetIds.map((id) => BigInt(id)),
+        ),
+      );
 
     return results.map(
       (row) =>

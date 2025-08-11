@@ -10,7 +10,8 @@ import type {
   ContextMenuCommandInteraction,
   Interaction,
   ModalSubmitInteraction,
-  RESTPostAPIApplicationCommandsJSONBody} from "discord.js";
+  RESTPostAPIApplicationCommandsJSONBody,
+} from "discord.js";
 import {
   ApplicationCommandType,
   Collection,

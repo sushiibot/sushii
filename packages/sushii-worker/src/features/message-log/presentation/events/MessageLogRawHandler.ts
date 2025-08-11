@@ -7,9 +7,9 @@ import type { MessageCacheService } from "../../application/MessageCacheService"
 import type { MessageLogService } from "../../application/MessageLogService";
 import type {
   GuildMessageCreatePayload,
-  GuildMessageUpdatePayload,
-  GuildMessageDeletePayload,
   GuildMessageDeleteBulkPayload,
+  GuildMessageDeletePayload,
+  GuildMessageUpdatePayload,
 } from "../../domain/types/GuildMessagePayloads";
 
 export class MessageLogRawHandler extends EventHandler<Events.Raw> {
@@ -30,7 +30,7 @@ export class MessageLogRawHandler extends EventHandler<Events.Raw> {
           return;
         }
         await this.messageCacheService.handleRawMessageCreate(
-          event.d as GuildMessageCreatePayload
+          event.d as GuildMessageCreatePayload,
         );
         break;
 
@@ -41,10 +41,10 @@ export class MessageLogRawHandler extends EventHandler<Events.Raw> {
         }
         // Log first to preserve old message, then cache the new update
         await this.messageLogService.handleRawMessageUpdate(
-          event.d as GuildMessageUpdatePayload
+          event.d as GuildMessageUpdatePayload,
         );
         await this.messageCacheService.handleRawMessageUpdate(
-          event.d as GuildMessageUpdatePayload
+          event.d as GuildMessageUpdatePayload,
         );
         break;
 
@@ -54,7 +54,7 @@ export class MessageLogRawHandler extends EventHandler<Events.Raw> {
           return;
         }
         await this.messageLogService.handleRawMessageDelete(
-          event.d as GuildMessageDeletePayload
+          event.d as GuildMessageDeletePayload,
         );
         break;
 
@@ -64,7 +64,7 @@ export class MessageLogRawHandler extends EventHandler<Events.Raw> {
           return;
         }
         await this.messageLogService.handleRawMessageDeleteBulk(
-          event.d as GuildMessageDeleteBulkPayload
+          event.d as GuildMessageDeleteBulkPayload,
         );
         break;
     }

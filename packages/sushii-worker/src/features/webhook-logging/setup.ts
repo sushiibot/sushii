@@ -4,18 +4,18 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import type { BaseFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { CriticalErrorService } from "./infrastructure/CriticalErrorService";
-import { initializeCriticalErrorService } from "./infrastructure/criticalError";
 import { WebhookService } from "./infrastructure/WebhookService";
+import { initializeCriticalErrorService } from "./infrastructure/criticalError";
 import { BotLifecycleHandler } from "./presentation/events/BotLifecycleHandler";
 import { GuildJoinHandler } from "./presentation/events/GuildJoinHandler";
 import { GuildLeaveHandler } from "./presentation/events/GuildLeaveHandler";
 import { ShardDisconnectHandler } from "./presentation/events/ShardDisconnectHandler";
 import { ShardErrorHandler } from "./presentation/events/ShardErrorHandler";
 import { ShardReadyHandler } from "./presentation/events/ShardReadyHandler";
-import { 
-  createDebugHandler, 
-  createShardReconnectingHandler, 
-  createShardResumeHandler 
+import {
+  createDebugHandler,
+  createShardReconnectingHandler,
+  createShardResumeHandler,
 } from "./presentation/events/SimpleEventHandlers";
 
 interface WebhookLoggingDependencies {

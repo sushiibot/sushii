@@ -1,16 +1,20 @@
-import type { Result} from "ts-results";
-import { Ok, Err } from "ts-results";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
+
 import { cachedUsersInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
+
 import type { CachedUserRepository, NewCachedUser } from "../domain";
 import { CachedUserEntity } from "../domain";
 
 export class DrizzleCachedUserRepository implements CachedUserRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  async upsert(userData: NewCachedUser): Promise<Result<CachedUserEntity, string>> {
+  async upsert(
+    userData: NewCachedUser,
+  ): Promise<Result<CachedUserEntity, string>> {
     try {
       const [result] = await this.db
         .insert(cachedUsersInAppPublic)
@@ -28,11 +32,15 @@ export class DrizzleCachedUserRepository implements CachedUserRepository {
 
       return Ok(CachedUserEntity.fromData(result));
     } catch (error) {
-      return Err(`Failed to upsert cached user: ${error instanceof Error ? error.message : String(error)}`);
+      return Err(
+        `Failed to upsert cached user: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
-  async batchUpsert(usersData: NewCachedUser[]): Promise<Result<CachedUserEntity[], string>> {
+  async batchUpsert(
+    usersData: NewCachedUser[],
+  ): Promise<Result<CachedUserEntity[], string>> {
     if (usersData.length === 0) {
       return Ok([]);
     }
@@ -52,9 +60,11 @@ export class DrizzleCachedUserRepository implements CachedUserRepository {
         })
         .returning();
 
-      return Ok(results.map(result => CachedUserEntity.fromData(result)));
+      return Ok(results.map((result) => CachedUserEntity.fromData(result)));
     } catch (error) {
-      return Err(`Failed to batch upsert cached users: ${error instanceof Error ? error.message : String(error)}`);
+      return Err(
+        `Failed to batch upsert cached users: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

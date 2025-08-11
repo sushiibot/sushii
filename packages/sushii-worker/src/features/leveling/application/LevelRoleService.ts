@@ -18,7 +18,7 @@ export class LevelRoleService {
     if (addLevel < 1 || addLevel > 500) {
       return Err("The add level must be between 1 and 500.");
     }
-    
+
     if (removeLevel !== undefined && (removeLevel < 1 || removeLevel > 500)) {
       return Err("The remove level must be between 1 and 500.");
     }

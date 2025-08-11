@@ -4,7 +4,10 @@ import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import type { JoinLeaveMessageService, MemberLogService } from "../../application";
+import type {
+  JoinLeaveMessageService,
+  MemberLogService,
+} from "../../application";
 
 export class MemberJoinHandler extends EventHandler<Events.GuildMemberAdd> {
   constructor(

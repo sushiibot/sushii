@@ -1,4 +1,7 @@
-import type { AutocompleteFocusedOption, AutocompleteInteraction } from "discord.js";
+import type {
+  AutocompleteFocusedOption,
+  AutocompleteInteraction,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import { AutocompleteHandler } from "@/interactions/handlers";

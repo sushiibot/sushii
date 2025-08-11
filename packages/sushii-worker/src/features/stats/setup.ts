@@ -1,9 +1,9 @@
+import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
-import type { Client } from "discord.js";
 
-import type * as schema from "@/infrastructure/database/schema";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type * as schema from "@/infrastructure/database/schema";
 import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import { StatsService } from "./application/StatsService";
@@ -44,9 +44,7 @@ export function createStatsTasks(
 ): AbstractBackgroundTask[] {
   const { statsService } = services;
 
-  const tasks = [
-    new StatsTask(client, deploymentService, statsService),
-  ];
+  const tasks = [new StatsTask(client, deploymentService, statsService)];
 
   return tasks;
 }

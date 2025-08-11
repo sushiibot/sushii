@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach } from "bun:test";
-import dayjs from "@/shared/domain/dayjs";
+import { beforeEach, describe, expect, it } from "bun:test";
+
 import { UserProfile } from "@/features/user-profile";
-import { CooldownService } from "./CooldownService";
+import dayjs from "@/shared/domain/dayjs";
+
 import { SOCIAL_COOLDOWN_HOURS } from "../domain";
+import { CooldownService } from "./CooldownService";
 
 describe("CooldownService", () => {
   let cooldownService: CooldownService;
@@ -19,7 +21,10 @@ describe("CooldownService", () => {
     });
 
     it("should return null when cooldown has expired", () => {
-      const pastTime = dayjs.utc().subtract(SOCIAL_COOLDOWN_HOURS + 1, "hours").toDate();
+      const pastTime = dayjs
+        .utc()
+        .subtract(SOCIAL_COOLDOWN_HOURS + 1, "hours")
+        .toDate();
       const user = UserProfile.create({
         id: "123",
         rep: BigInt(0),
@@ -64,7 +69,10 @@ describe("CooldownService", () => {
     });
 
     it("should return null when cooldown has expired", () => {
-      const pastTime = dayjs.utc().subtract(SOCIAL_COOLDOWN_HOURS + 1, "hours").toDate();
+      const pastTime = dayjs
+        .utc()
+        .subtract(SOCIAL_COOLDOWN_HOURS + 1, "hours")
+        .toDate();
       const user = UserProfile.create({
         id: "123",
         rep: BigInt(0),

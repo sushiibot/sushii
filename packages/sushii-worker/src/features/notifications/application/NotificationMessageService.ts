@@ -1,10 +1,5 @@
-import type {
-  GuildMember,
-  Message} from "discord.js";
-import {
-  DiscordAPIError,
-  RESTJSONErrorCodes,
-} from "discord.js";
+import type { GuildMember, Message } from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import { sentNotificationsCounter } from "@/infrastructure/metrics/metrics";

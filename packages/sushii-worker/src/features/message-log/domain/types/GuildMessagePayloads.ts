@@ -1,8 +1,8 @@
 import type {
   GatewayMessageCreateDispatchData,
-  GatewayMessageUpdateDispatchData,
-  GatewayMessageDeleteDispatchData,
   GatewayMessageDeleteBulkDispatchData,
+  GatewayMessageDeleteDispatchData,
+  GatewayMessageUpdateDispatchData,
 } from "discord.js";
 
 /**
@@ -20,6 +20,7 @@ export type GuildMessageDeletePayload = GatewayMessageDeleteDispatchData & {
   guild_id: string;
 };
 
-export type GuildMessageDeleteBulkPayload = GatewayMessageDeleteBulkDispatchData & {
-  guild_id: string;
-};
+export type GuildMessageDeleteBulkPayload =
+  GatewayMessageDeleteBulkDispatchData & {
+    guild_id: string;
+  };

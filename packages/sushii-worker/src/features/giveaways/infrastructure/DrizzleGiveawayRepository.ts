@@ -1,8 +1,8 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, lte, sql } from "drizzle-orm";
-import type { Result } from "ts-results";
-import { Ok, Err } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 import dayjs from "@/shared/domain/dayjs";
@@ -34,7 +34,9 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
           hostUserId: BigInt(data.hostUserId),
           prize: data.prize,
           numWinners: data.numWinners,
-          requiredRoleId: data.requiredRoleId ? BigInt(data.requiredRoleId) : undefined,
+          requiredRoleId: data.requiredRoleId
+            ? BigInt(data.requiredRoleId)
+            : undefined,
           requiredMinLevel: data.requiredMinLevel,
           requiredMaxLevel: data.requiredMaxLevel,
           requiredNitroState: data.requiredNitroState,
@@ -81,7 +83,10 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
 
       return Ok(this.mapToEntity(result[0]));
     } catch (err) {
-      this.logger.error({ err, guildId, giveawayId }, "Failed to find giveaway");
+      this.logger.error(
+        { err, guildId, giveawayId },
+        "Failed to find giveaway",
+      );
       return Err("Database error");
     }
   }
@@ -196,7 +201,9 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
         .set({
           prize: data.prize,
           numWinners: data.numWinners,
-          requiredRoleId: data.requiredRoleId ? BigInt(data.requiredRoleId) : null,
+          requiredRoleId: data.requiredRoleId
+            ? BigInt(data.requiredRoleId)
+            : null,
           requiredMinLevel: data.requiredMinLevel,
           requiredMaxLevel: data.requiredMaxLevel,
           requiredNitroState: data.requiredNitroState,
@@ -237,7 +244,10 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
 
       return Ok(this.mapToEntity(result[0]));
     } catch (err) {
-      this.logger.error({ err, giveawayId }, "Failed to mark giveaway as ended");
+      this.logger.error(
+        { err, giveawayId },
+        "Failed to mark giveaway as ended",
+      );
       return Err("Database error");
     }
   }
@@ -266,12 +276,17 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
 
       return Ok(this.mapToEntity(result[0]));
     } catch (err) {
-      this.logger.error({ err, guildId, giveawayId }, "Failed to delete giveaway");
+      this.logger.error(
+        { err, guildId, giveawayId },
+        "Failed to delete giveaway",
+      );
       return Err("Database error");
     }
   }
 
-  private mapToEntity(row: typeof schema.giveawaysInAppPublic.$inferSelect): Giveaway {
+  private mapToEntity(
+    row: typeof schema.giveawaysInAppPublic.$inferSelect,
+  ): Giveaway {
     const data: GiveawayData = {
       id: row.id.toString(),
       channelId: row.channelId.toString(),

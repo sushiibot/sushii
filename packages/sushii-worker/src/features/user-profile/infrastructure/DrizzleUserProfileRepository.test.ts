@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import { UserProfile } from "../domain/entities/UserProfile";
 
@@ -21,7 +21,7 @@ describe("UserProfile entity", () => {
   test("updates rep and sets last rep timestamp", () => {
     const profile = UserProfile.createDefault("123456789");
     const newRep = BigInt(100);
-    
+
     const updatedProfile = profile.updateRep(newRep);
 
     expect(updatedProfile.getRep()).toBe(newRep);
@@ -32,7 +32,7 @@ describe("UserProfile entity", () => {
   test("updates fishies and sets last fishies timestamp", () => {
     const profile = UserProfile.createDefault("123456789");
     const newFishies = BigInt(50);
-    
+
     const updatedProfile = profile.updateFishies(newFishies);
 
     expect(updatedProfile.getFishies()).toBe(newFishies);
@@ -42,7 +42,7 @@ describe("UserProfile entity", () => {
 
   test("updates patron status", () => {
     const profile = UserProfile.createDefault("123456789");
-    
+
     const updatedProfile = profile.updatePatronStatus(true, "🔥");
 
     expect(updatedProfile.getIsPatron()).toBe(true);

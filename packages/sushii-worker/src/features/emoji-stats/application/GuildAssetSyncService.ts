@@ -1,6 +1,8 @@
-import type { Client, GuildEmoji, Sticker, Guild } from "discord.js";
+import type { Client, Guild, GuildEmoji, Sticker } from "discord.js";
+
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import type { GuildAssetRepository, GuildAsset } from "../domain";
+
+import type { GuildAsset, GuildAssetRepository } from "../domain";
 
 const logger = newModuleLogger("GuildAssetSyncService");
 
@@ -42,7 +44,9 @@ export class GuildAssetSyncService {
   /**
    * Sync emojis and stickers for a specific guild
    */
-  async syncGuildAssets(guild: Guild): Promise<{ emojiCount: number; stickerCount: number }> {
+  async syncGuildAssets(
+    guild: Guild,
+  ): Promise<{ emojiCount: number; stickerCount: number }> {
     try {
       const emojis = Array.from(guild.emojis.cache.values());
       const stickers = Array.from(guild.stickers.cache.values());

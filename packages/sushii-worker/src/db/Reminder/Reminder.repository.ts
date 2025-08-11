@@ -1,5 +1,6 @@
-import type { Kysely} from "kysely";
+import type { Kysely } from "kysely";
 import { sql } from "kysely";
+
 import type { DB } from "../../infrastructure/database/dbTypes";
 import type { ReminderRow } from "./Reminder.table";
 

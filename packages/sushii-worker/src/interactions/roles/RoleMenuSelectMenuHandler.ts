@@ -1,15 +1,13 @@
-import type {
-  AnySelectMenuInteraction} from "discord.js";
-import {
-  EmbedBuilder,
-  DiscordAPIError,
-} from "discord.js";
+import type { AnySelectMenuInteraction } from "discord.js";
+import { DiscordAPIError, EmbedBuilder } from "discord.js";
 import { MessageFlags } from "discord.js";
+
+import logger from "@/shared/infrastructure/logger";
+
 import Color from "../../utils/colors";
 import customIds from "../customIds";
 import { SelectMenuHandler } from "../handlers";
 import { getRoleMenuMessageSelectRoles, getRoleMenuRequiredRole } from "./ids";
-import logger from "@/shared/infrastructure/logger";
 
 export default class RoleMenuSelectMenuHandler extends SelectMenuHandler {
   customIDMatch = customIds.roleMenuSelect.match;

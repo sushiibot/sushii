@@ -16,7 +16,10 @@ export class ShardReadyHandler extends EventHandler<Events.ShardReady> {
     super();
   }
 
-  async handle(shardId: number, unavailableGuilds: Set<string> | undefined): Promise<void> {
+  async handle(
+    shardId: number,
+    unavailableGuilds: Set<string> | undefined,
+  ): Promise<void> {
     // Regular application logging
     this.logger.info(
       {

@@ -31,7 +31,9 @@ export class XpBlockService {
 
     this.logger.info(
       { guildId, roleId, blockType: "role", success },
-      success ? "XP block created for role" : "XP block already exists for role",
+      success
+        ? "XP block created for role"
+        : "XP block already exists for role",
     );
 
     return success;
@@ -50,9 +52,8 @@ export class XpBlockService {
   }
 
   async getChannelBlocks(guildId: string): Promise<string[]> {
-    const channelIds = await this.xpBlockRepository.findChannelBlocksByGuildId(
-      guildId,
-    );
+    const channelIds =
+      await this.xpBlockRepository.findChannelBlocksByGuildId(guildId);
 
     this.logger.debug(
       { guildId, channelBlockCount: channelIds.length },
@@ -63,9 +64,8 @@ export class XpBlockService {
   }
 
   async getRoleBlocks(guildId: string): Promise<string[]> {
-    const roleIds = await this.xpBlockRepository.findRoleBlocksByGuildId(
-      guildId,
-    );
+    const roleIds =
+      await this.xpBlockRepository.findRoleBlocksByGuildId(guildId);
 
     this.logger.debug(
       { guildId, roleBlockCount: roleIds.length },

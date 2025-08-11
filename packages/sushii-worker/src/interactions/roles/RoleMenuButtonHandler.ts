@@ -1,12 +1,9 @@
-import type {
-  ButtonInteraction} from "discord.js";
-import {
-  EmbedBuilder,
-  DiscordAPIError,
-  RESTJSONErrorCodes,
-} from "discord.js";
-import { MessageFlags } from "discord.js";
 import * as Sentry from "@sentry/node";
+import { sleep } from "bun";
+import type { ButtonInteraction } from "discord.js";
+import { DiscordAPIError, EmbedBuilder, RESTJSONErrorCodes } from "discord.js";
+import { MessageFlags } from "discord.js";
+
 import Color from "../../utils/colors";
 import customIds from "../customIds";
 import { ButtonHandler } from "../handlers";
@@ -15,7 +12,6 @@ import {
   getRoleMenuMessageButtonRoles,
   getRoleMenuRequiredRole,
 } from "./ids";
-import { sleep } from "bun";
 
 export default class RoleMenuButtonHandler extends ButtonHandler {
   customIDMatch = customIds.roleMenuButton.match;

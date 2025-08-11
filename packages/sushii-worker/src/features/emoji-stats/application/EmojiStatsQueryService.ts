@@ -1,8 +1,9 @@
 import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import type {
   EmojiStickerStatsRepository,
-  StatsQueryOptions,
   PaginatedStatsResult,
+  StatsQueryOptions,
 } from "../domain";
 
 const logger = newModuleLogger("EmojiStatsQueryService");
@@ -34,7 +35,16 @@ export class EmojiStatsQueryService {
     } = request;
 
     logger.debug(
-      { guildId, assetType, actionType, serverUsage, order, emojiType, limit, offset },
+      {
+        guildId,
+        assetType,
+        actionType,
+        serverUsage,
+        order,
+        emojiType,
+        limit,
+        offset,
+      },
       "Querying emoji/sticker stats",
     );
 
@@ -53,7 +63,12 @@ export class EmojiStatsQueryService {
       const result = await this.statsRepository.queryStats(options);
 
       logger.debug(
-        { guildId, resultCount: result.results.length, totalCount: result.totalCount, hasMore: result.hasMore },
+        {
+          guildId,
+          resultCount: result.results.length,
+          totalCount: result.totalCount,
+          hasMore: result.hasMore,
+        },
         "Stats query completed",
       );
 

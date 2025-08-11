@@ -26,9 +26,8 @@ export class DeleteOldMessagesTask extends AbstractBackgroundTask {
   protected async execute(): Promise<void> {
     const cutoffDate = dayjs().utc().subtract(RETAIN_DURATION).toDate();
 
-    const deleteCount = await this.messageLogEventRepository.deleteMessagesBefore(
-      cutoffDate,
-    );
+    const deleteCount =
+      await this.messageLogEventRepository.deleteMessagesBefore(cutoffDate);
 
     this.logger.info(
       {

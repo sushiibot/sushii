@@ -40,7 +40,12 @@ export function registerFeatures(
   const cacheFeature = createCacheFeature({ db });
 
   // Stats feature (setup early so other features can use it)
-  const statsFeature = setupStatsFeature({ db, logger, client, deploymentService });
+  const statsFeature = setupStatsFeature({
+    db,
+    logger,
+    client,
+    deploymentService,
+  });
 
   // Interaction handler feature -- commands, etc.
   const interactionHandlerFeature = setupInteractionHandlerFeature({

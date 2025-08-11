@@ -103,9 +103,7 @@ export class DeploymentConfig {
 }
 
 export class FeatureFlags {
-  constructor(
-    readonly skipCommandRegistration: boolean,
-  ) {}
+  constructor(readonly skipCommandRegistration: boolean) {}
 }
 
 export class BuildConfig {
@@ -168,9 +166,7 @@ export class Config {
         : new Set(),
       env.E2E_WEBHOOK_URL,
     );
-    this.features = new FeatureFlags(
-      env.SKIP_COMMAND_REGISTRATION,
-    );
+    this.features = new FeatureFlags(env.SKIP_COMMAND_REGISTRATION);
     this.build = new BuildConfig(
       env.GIT_HASH,
       env.BUILD_DATE ? new Date(env.BUILD_DATE) : undefined,

@@ -1,10 +1,9 @@
 import type {
   ButtonComponent,
   ButtonInteraction,
-  StringSelectMenuComponent} from "discord.js";
-import {
-  ComponentType
+  StringSelectMenuComponent,
 } from "discord.js";
+import { ComponentType } from "discord.js";
 
 import customIds from "../customIds";
 

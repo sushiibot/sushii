@@ -1,4 +1,5 @@
 import type { Insertable, Selectable, Updateable } from "kysely";
+
 import type { AppPublicMessages } from "../../infrastructure/database/dbTypes";
 
 export type MessageRow = Selectable<AppPublicMessages>;

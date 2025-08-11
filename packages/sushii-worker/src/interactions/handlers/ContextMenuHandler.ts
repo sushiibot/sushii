@@ -1,8 +1,9 @@
 import type {
-  RESTPostAPIChatInputApplicationCommandsJSONBody,
   RESTPostAPIApplicationCommandsJSONBody,
+  RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import type { ContextMenuCommandInteraction } from "discord.js";
+
 import InteractionHandler from "./InteractionHandler";
 
 export default abstract class ContextMenuHandler extends InteractionHandler {

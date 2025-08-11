@@ -1,15 +1,11 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  SlashCommandBuilder
-} from "discord.js";
 import { isDayjs } from "dayjs";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder } from "discord.js";
+
 import { SlashCommandHandler } from "@/interactions/handlers";
+
 import type { ReputationService } from "../../application";
-import { 
-  createRepSuccessEmbed, 
-  createRepCooldownEmbed 
-} from "../views";
+import { createRepCooldownEmbed, createRepSuccessEmbed } from "../views";
 
 export class RepCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -29,9 +25,12 @@ export class RepCommand extends SlashCommandHandler {
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const target = interaction.options.getUser("user", true);
-    
+
     try {
-      const result = await this.reputationService.repForUser(interaction.user, target);
+      const result = await this.reputationService.repForUser(
+        interaction.user,
+        target,
+      );
 
       let embed;
       if (isDayjs(result)) {

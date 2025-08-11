@@ -1,7 +1,13 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { Ok } from "ts-results";
+
+import type {
+  CachedGuildEntity,
+  CachedGuildRepository,
+  CachedUserEntity,
+  CachedUserRepository,
+} from "../domain";
 import { CacheService } from "./CacheService";
-import type { CachedGuildRepository, CachedUserRepository, CachedGuildEntity, CachedUserEntity } from "../domain";
 
 // Mock repositories
 const mockGuildRepository: CachedGuildRepository = {
@@ -24,11 +30,21 @@ describe("CacheService", () => {
   beforeEach(() => {
     // Reset mocks
     mock.restore();
-    mockGuildRepository.upsert = mock(() => Promise.resolve(Ok({} as CachedGuildEntity)));
-    mockUserRepository.upsert = mock(() => Promise.resolve(Ok({} as CachedUserEntity)));
-    mockUserRepository.batchUpsert = mock(() => Promise.resolve(Ok([{} as CachedUserEntity])));
-    
-    cacheService = new CacheService(mockGuildRepository, mockUserRepository, testConfig);
+    mockGuildRepository.upsert = mock(() =>
+      Promise.resolve(Ok({} as CachedGuildEntity)),
+    );
+    mockUserRepository.upsert = mock(() =>
+      Promise.resolve(Ok({} as CachedUserEntity)),
+    );
+    mockUserRepository.batchUpsert = mock(() =>
+      Promise.resolve(Ok([{} as CachedUserEntity])),
+    );
+
+    cacheService = new CacheService(
+      mockGuildRepository,
+      mockUserRepository,
+      testConfig,
+    );
   });
 
   afterEach(async () => {
@@ -104,7 +120,7 @@ describe("CacheService", () => {
     };
 
     await cacheService.cacheUser(userData);
-    
+
     // Shutdown should flush remaining users
     await cacheService.shutdown();
 

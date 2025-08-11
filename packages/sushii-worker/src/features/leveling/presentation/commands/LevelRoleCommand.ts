@@ -1,9 +1,5 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  InteractionContextType,
-  SlashCommandBuilder,
-} from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
 import { SlashCommandHandler } from "@/interactions/handlers";

@@ -1,1 +1,5 @@
-export { BanAddEventHandler, BanRemoveEventHandler, GuildJoinBanSyncHandler } from "./BanEventHandlers";
+export {
+  BanAddEventHandler,
+  BanRemoveEventHandler,
+  GuildJoinBanSyncHandler,
+} from "./BanEventHandlers";

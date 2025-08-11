@@ -1,6 +1,6 @@
-import type { Result } from "ts-results";
-import { Ok, Err } from "ts-results";
 import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
 import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
@@ -16,16 +16,14 @@ export class GiveawayEntryService {
     userId: string,
   ): Promise<Result<boolean, string>> {
     try {
-      this.logger.debug(
-        { giveawayId, userId },
-        "Adding user to giveaway",
-      );
+      this.logger.debug({ giveawayId, userId }, "Adding user to giveaway");
 
       // Check if user already entered
-      const existingResult = await this.giveawayEntryRepository.findByGiveawayAndUser(
-        giveawayId,
-        userId,
-      );
+      const existingResult =
+        await this.giveawayEntryRepository.findByGiveawayAndUser(
+          giveawayId,
+          userId,
+        );
 
       if (!existingResult.ok) {
         return Err(existingResult.val);
@@ -41,7 +39,9 @@ export class GiveawayEntryService {
 
       // Create new entry
       const entry = GiveawayEntry.create(giveawayId, userId);
-      const createResult = await this.giveawayEntryRepository.createBatch([entry]);
+      const createResult = await this.giveawayEntryRepository.createBatch([
+        entry,
+      ]);
 
       if (!createResult.ok) {
         return Err(createResult.val);
@@ -67,12 +67,12 @@ export class GiveawayEntryService {
     userId: string,
   ): Promise<Result<void, string>> {
     try {
-      this.logger.debug(
-        { giveawayId, userId },
-        "Removing user from giveaway",
-      );
+      this.logger.debug({ giveawayId, userId }, "Removing user from giveaway");
 
-      const result = await this.giveawayEntryRepository.delete(giveawayId, userId);
+      const result = await this.giveawayEntryRepository.delete(
+        giveawayId,
+        userId,
+      );
 
       if (result.ok) {
         this.logger.info(

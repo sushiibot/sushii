@@ -1,8 +1,10 @@
-import type dayjs from "@/shared/domain/dayjs";
 import type { User } from "discord.js";
+
 import type { UserProfileRepository } from "@/features/user-profile";
+import type dayjs from "@/shared/domain/dayjs";
 import logger from "@/shared/infrastructure/logger";
-import type { RepResult} from "../domain";
+
+import type { RepResult } from "../domain";
 import { REP_INCREMENT } from "../domain";
 import type { CooldownService } from "./CooldownService";
 
@@ -38,7 +40,7 @@ export class ReputationService {
 
     // Update target's rep (gets the reputation point)
     const updatedTarget = targetProfile.updateRep(newRep);
-    
+
     // Update invoker's last rep timestamp only
     const updatedInvoker = invokerProfile.updateLastRepTimestamp();
 

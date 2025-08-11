@@ -1,21 +1,18 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  SlashCommandBuilder,
-  EmbedBuilder,
-  MessageFlags
-} from "discord.js";
-import dayjs from "@/shared/domain/dayjs";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { t } from "i18next";
-import Color from "../../utils/colors";
-import { SlashCommandHandler } from "../handlers";
+
+import dayjs from "@/shared/domain/dayjs";
+
 import {
   deleteReminder,
   insertReminder,
   listReminders,
 } from "../../db/Reminder/Reminder.repository";
 import db from "../../infrastructure/database/db";
+import Color from "../../utils/colors";
 import parseDurationOrTimestamp from "../../utils/parseDurationOrTimestamp";
+import { SlashCommandHandler } from "../handlers";
 
 export default class ReminderCommand extends SlashCommandHandler {
   serverOnly = false;

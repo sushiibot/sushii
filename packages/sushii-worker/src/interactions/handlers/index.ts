@@ -1,11 +1,11 @@
 import AutocompleteHandler from "./AutocompleteHandler";
-import MessageComponentHandler from "./MessageComponentHandler";
-import InteractionHandler from "./InteractionHandler";
-import ModalHandler from "./ModalHandler";
-import SlashCommandHandler from "./SlashCommandHandler";
-import ContextMenuHandler from "./ContextMenuHandler";
-import SelectMenuHandler from "./SelectMenuHandler";
 import ButtonHandler from "./ButtonHandler";
+import ContextMenuHandler from "./ContextMenuHandler";
+import InteractionHandler from "./InteractionHandler";
+import MessageComponentHandler from "./MessageComponentHandler";
+import ModalHandler from "./ModalHandler";
+import SelectMenuHandler from "./SelectMenuHandler";
+import SlashCommandHandler from "./SlashCommandHandler";
 
 export {
   AutocompleteHandler,

@@ -20,5 +20,8 @@ export interface UserLevelRepository {
     pageIndex: number,
     pageSize: number,
   ): Promise<LeaderboardEntry[]>;
-  getUserCountInTimeframe(guildId: string, timeframe: TimeFrame): Promise<number>;
+  getUserCountInTimeframe(
+    guildId: string,
+    timeframe: TimeFrame,
+  ): Promise<number>;
 }

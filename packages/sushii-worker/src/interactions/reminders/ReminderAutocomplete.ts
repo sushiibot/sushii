@@ -1,15 +1,16 @@
-import dayjs from "@/shared/domain/dayjs";
 import type {
+  APIApplicationCommandOptionChoice,
   AutocompleteFocusedOption,
   AutocompleteInteraction,
-  APIApplicationCommandOptionChoice} from "discord.js";
-import {
-  ApplicationCommandOptionType,
 } from "discord.js";
-import { getDurationFromNow } from "../../utils/getDuration";
-import { AutocompleteHandler } from "../handlers";
+import { ApplicationCommandOptionType } from "discord.js";
+
+import dayjs from "@/shared/domain/dayjs";
+
 import { listReminders } from "../../db/Reminder/Reminder.repository";
 import db from "../../infrastructure/database/db";
+import { getDurationFromNow } from "../../utils/getDuration";
+import { AutocompleteHandler } from "../handlers";
 
 export default class ReminderDeleteAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = "reminder.delete";

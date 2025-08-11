@@ -7,7 +7,7 @@ import {
   test,
 } from "bun:test";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Logger} from "pino";
+import type { Logger } from "pino";
 import { pino } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";

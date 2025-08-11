@@ -1,7 +1,9 @@
 import type { Client, GuildEmoji, Sticker } from "discord.js";
 import { Events } from "discord.js";
-import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
+import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import type { GuildAssetSyncService } from "../../application";
 
 const logger = newModuleLogger("AssetSyncHandlers");

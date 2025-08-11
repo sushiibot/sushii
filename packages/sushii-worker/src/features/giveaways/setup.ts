@@ -1,30 +1,27 @@
+import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
-import type { Client } from "discord.js";
 
-import type * as schema from "@/infrastructure/database/schema";
-import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
+import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
+import { GiveawayDrawService } from "./application/GiveawayDrawService";
+import { GiveawayEligibilityService } from "./application/GiveawayEligibilityService";
+import { GiveawayEntryCacheService } from "./application/GiveawayEntryCacheService";
+import { GiveawayEntryService } from "./application/GiveawayEntryService";
 // Application services
 import { GiveawayService } from "./application/GiveawayService";
-import { GiveawayEntryService } from "./application/GiveawayEntryService";
-import { GiveawayEntryCacheService } from "./application/GiveawayEntryCacheService";
-import { GiveawayEligibilityService } from "./application/GiveawayEligibilityService";
-import { GiveawayDrawService } from "./application/GiveawayDrawService";
-
+import { DrizzleGiveawayEntryRepository } from "./infrastructure/DrizzleGiveawayEntryRepository";
 // Infrastructure
 import { DrizzleGiveawayRepository } from "./infrastructure/DrizzleGiveawayRepository";
-import { DrizzleGiveawayEntryRepository } from "./infrastructure/DrizzleGiveawayEntryRepository";
-
-// Presentation
-import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
-import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutocomplete";
-import { GiveawayButtonHandler } from "./presentation/components/GiveawayButtonHandler";
-
 // Tasks
 import { GiveawayTask } from "./infrastructure/tasks/GiveawayTask";
+import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutocomplete";
+// Presentation
+import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
+import { GiveawayButtonHandler } from "./presentation/components/GiveawayButtonHandler";
 
 interface GiveawayDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -153,7 +150,8 @@ export function createGiveawayTasks(
   client: Client,
   deploymentService: DeploymentService,
 ) {
-  const { giveawayService, giveawayDrawService, giveawayEntryService } = services;
+  const { giveawayService, giveawayDrawService, giveawayEntryService } =
+    services;
 
   const tasks = [
     new GiveawayTask(
@@ -176,7 +174,9 @@ export function setupGiveawayFeature({
   logger,
   client,
   deploymentService,
-}: GiveawayTaskDependencies): FullFeatureSetupReturn<ReturnType<typeof createGiveawayServices>> {
+}: GiveawayTaskDependencies): FullFeatureSetupReturn<
+  ReturnType<typeof createGiveawayServices>
+> {
   const services = createGiveawayServices({ db, userLevelRepository, logger });
   const commands = createGiveawayCommands(services, logger);
   const events = createGiveawayEventHandlers(services, logger);

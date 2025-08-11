@@ -1,9 +1,10 @@
-import type { LeaderboardData } from "../../application/GetLeaderboardService";
-import type { UserRank } from "../../domain/entities/UserRank";
 import {
   calculateLevel,
   calculateLevelProgress,
 } from "@/shared/domain/utils/LevelCalculations";
+
+import type { LeaderboardData } from "../../application/GetLeaderboardService";
+import type { UserRank } from "../../domain/entities/UserRank";
 import { ProgressBar } from "../../domain/value-objects/ProgressBar";
 import { TimeFrame } from "../../domain/value-objects/TimeFrame";
 

@@ -1,4 +1,5 @@
 import dayjs from "@/shared/domain/dayjs";
+
 import { USER_EMOJI_RATE_LIMIT_DURATION } from "../constants";
 import { RateLimit } from "../entities";
 import type { RateLimitRepository } from "../repositories";
@@ -42,12 +43,13 @@ export class RateLimitService {
       .toDate();
 
     // Find existing rate limits within the time window
-    const activeRateLimits = await this.rateLimitRepository.findActiveRateLimits(
-      userId,
-      uniqueAssetIds,
-      actionType,
-      rateLimitCutoff,
-    );
+    const activeRateLimits =
+      await this.rateLimitRepository.findActiveRateLimits(
+        userId,
+        uniqueAssetIds,
+        actionType,
+        rateLimitCutoff,
+      );
 
     const rateLimitedAssetIds = new Set(
       activeRateLimits.map((rl) => rl.assetId),

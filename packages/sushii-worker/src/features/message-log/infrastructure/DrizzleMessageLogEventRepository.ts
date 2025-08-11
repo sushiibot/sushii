@@ -1,14 +1,14 @@
-import { lt, inArray } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { inArray, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import { messagesInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
 import { MessageLogEvent } from "../domain/entities/MessageLogEvent";
-import type { MessageData } from "../domain/types/MessageData";
 import type { MessageLogEventRepository } from "../domain/repositories/MessageLogEventRepository";
+import type { MessageData } from "../domain/types/MessageData";
 
 export class DrizzleMessageLogEventRepository
   implements MessageLogEventRepository

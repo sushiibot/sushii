@@ -7,8 +7,8 @@ import { Err, Ok } from "ts-results";
 import { guildBansInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
-import type { BanRepository } from "../domain/repositories/BanRepository";
 import type { GuildBan } from "../domain/entities/GuildBan";
+import type { BanRepository } from "../domain/repositories/BanRepository";
 
 /**
  * Drizzle ORM implementation of the BanRepository.
@@ -123,5 +123,4 @@ export class DrizzleBanRepository implements BanRepository {
       return Err("Guild ban insertion failed");
     }
   }
-
 }

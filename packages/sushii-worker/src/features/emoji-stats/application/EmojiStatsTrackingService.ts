@@ -1,8 +1,9 @@
 import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import {
   EMOJI_RE,
-  type GuildAssetRepository,
   type EmojiStickerStatsRepository,
+  type GuildAssetRepository,
   type RateLimitService,
   type UsageData,
 } from "../domain";
@@ -43,11 +44,12 @@ export class EmojiStatsTrackingService {
     try {
       // Check rate limits
       const usageAttempts = assetIds.map((assetId) => ({ assetId }));
-      const eligibleAttempts = await this.rateLimitService.filterRateLimitedUsage(
-        userId,
-        actionType,
-        usageAttempts,
-      );
+      const eligibleAttempts =
+        await this.rateLimitService.filterRateLimitedUsage(
+          userId,
+          actionType,
+          usageAttempts,
+        );
 
       if (eligibleAttempts.length === 0) {
         logger.debug(
@@ -60,10 +62,9 @@ export class EmojiStatsTrackingService {
       const eligibleAssetIds = eligibleAttempts.map((a) => a.assetId);
 
       // Get known assets from database
-      const knownAssets = await this.guildAssetRepository.findByIds(
-        eligibleAssetIds,
-      );
-      
+      const knownAssets =
+        await this.guildAssetRepository.findByIds(eligibleAssetIds);
+
       if (knownAssets.length === 0) {
         logger.debug(
           { userId, guildId, actionType, assetIds: eligibleAssetIds },

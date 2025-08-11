@@ -91,7 +91,11 @@ export class ModerationExecutionPipeline {
       );
 
       // Execute Discord action
-      const discordActionResult = await this.handleDiscordAction(action, target, finalActionType);
+      const discordActionResult = await this.handleDiscordAction(
+        action,
+        target,
+        finalActionType,
+      );
       if (!discordActionResult.ok) {
         return discordActionResult;
       }
@@ -198,12 +202,15 @@ export class ModerationExecutionPipeline {
           undefined,
           action.attachment ? [action.attachment.url] : [],
           timeoutDuration,
-        ).withPending(isPending)
-         .withDMIntent(
-           dmPolicyDecision.should,
-           dmPolicyDecision.source,
-           !target.member && dmPolicyDecision.should ? 'user_not_in_guild' : undefined
-         );
+        )
+          .withPending(isPending)
+          .withDMIntent(
+            dmPolicyDecision.should,
+            dmPolicyDecision.source,
+            !target.member && dmPolicyDecision.should
+              ? "user_not_in_guild"
+              : undefined,
+          );
 
         // Save moderation case
         const saveCaseResult = await this.caseRepository.save(
@@ -261,7 +268,7 @@ export class ModerationExecutionPipeline {
     if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
       return moderationCase;
     }
-    
+
     // For non-ban actions, DMs are sent after
     if (!action.isBanOrTempBanAction()) {
       return moderationCase;
@@ -355,7 +362,7 @@ export class ModerationExecutionPipeline {
     if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
       return moderationCase;
     }
-    
+
     // For ban actions, DMs are sent before
     if (action.isBanOrTempBanAction()) {
       return moderationCase;

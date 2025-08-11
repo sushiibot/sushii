@@ -1,9 +1,8 @@
 import type {
   AutocompleteFocusedOption,
-  AutocompleteInteraction} from "discord.js";
-import {
-  ApplicationCommandOptionType
+  AutocompleteInteraction,
 } from "discord.js";
+import { ApplicationCommandOptionType } from "discord.js";
 
 import { AutocompleteHandler } from "@/interactions/handlers";
 

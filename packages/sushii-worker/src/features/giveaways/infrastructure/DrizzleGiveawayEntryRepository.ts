@@ -1,8 +1,8 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { Result } from "ts-results";
-import { Ok, Err } from "ts-results";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import * as schema from "@/infrastructure/database/schema";
 
@@ -40,13 +40,21 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
       await database
         .insert(schema.giveawayEntriesInAppPublic)
         .values(values)
-        .onConflictDoNothing({ target: [schema.giveawayEntriesInAppPublic.giveawayId, schema.giveawayEntriesInAppPublic.userId] });
+        .onConflictDoNothing({
+          target: [
+            schema.giveawayEntriesInAppPublic.giveawayId,
+            schema.giveawayEntriesInAppPublic.userId,
+          ],
+        });
 
       // Drizzle doesn't return row count from onConflict, so we return the input count
       // This is consistent with the original behavior
       return Ok(entries.length);
     } catch (err) {
-      this.logger.error({ err, entriesCount: entries.length }, "Failed to create giveaway entries");
+      this.logger.error(
+        { err, entriesCount: entries.length },
+        "Failed to create giveaway entries",
+      );
       return Err("Database error");
     }
   }
@@ -64,7 +72,10 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         .from(schema.giveawayEntriesInAppPublic)
         .where(
           and(
-            eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
+            eq(
+              schema.giveawayEntriesInAppPublic.giveawayId,
+              BigInt(giveawayId),
+            ),
             eq(schema.giveawayEntriesInAppPublic.userId, BigInt(userId)),
           ),
         )
@@ -76,7 +87,10 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
 
       return Ok(this.mapToEntity(result[0]));
     } catch (err) {
-      this.logger.error({ err, giveawayId, userId }, "Failed to find giveaway entry");
+      this.logger.error(
+        { err, giveawayId, userId },
+        "Failed to find giveaway entry",
+      );
       return Err("Database error");
     }
   }
@@ -91,11 +105,16 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
       const result = await database
         .select({ count: sql<number>`count(*)` })
         .from(schema.giveawayEntriesInAppPublic)
-        .where(eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)));
+        .where(
+          eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
+        );
 
       return Ok(result[0]?.count ?? 0);
     } catch (err) {
-      this.logger.error({ err, giveawayId }, "Failed to count giveaway entries");
+      this.logger.error(
+        { err, giveawayId },
+        "Failed to count giveaway entries",
+      );
       return Err("Database error");
     }
   }
@@ -112,15 +131,23 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
       let query = database
         .select()
         .from(schema.giveawayEntriesInAppPublic)
-        .where(eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)))
+        .where(
+          eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
+        )
         .orderBy(sql`RANDOM()`)
         .limit(count);
 
       // If not allowing repeat winners, filter out already picked entries
       if (!allowRepeatWinners) {
-        const baseCondition = eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId));
-        const pickedCondition = eq(schema.giveawayEntriesInAppPublic.isPicked, false);
-        
+        const baseCondition = eq(
+          schema.giveawayEntriesInAppPublic.giveawayId,
+          BigInt(giveawayId),
+        );
+        const pickedCondition = eq(
+          schema.giveawayEntriesInAppPublic.isPicked,
+          false,
+        );
+
         query = database
           .select()
           .from(schema.giveawayEntriesInAppPublic)
@@ -158,8 +185,14 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         .set({ isPicked: true })
         .where(
           and(
-            eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
-            inArray(schema.giveawayEntriesInAppPublic.userId, userIds.map(id => BigInt(id))),
+            eq(
+              schema.giveawayEntriesInAppPublic.giveawayId,
+              BigInt(giveawayId),
+            ),
+            inArray(
+              schema.giveawayEntriesInAppPublic.userId,
+              userIds.map((id) => BigInt(id)),
+            ),
           ),
         );
 
@@ -185,19 +218,27 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         .delete(schema.giveawayEntriesInAppPublic)
         .where(
           and(
-            eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
+            eq(
+              schema.giveawayEntriesInAppPublic.giveawayId,
+              BigInt(giveawayId),
+            ),
             eq(schema.giveawayEntriesInAppPublic.userId, BigInt(userId)),
           ),
         );
 
       return Ok(undefined);
     } catch (err) {
-      this.logger.error({ err, giveawayId, userId }, "Failed to delete giveaway entry");
+      this.logger.error(
+        { err, giveawayId, userId },
+        "Failed to delete giveaway entry",
+      );
       return Err("Database error");
     }
   }
 
-  private mapToEntity(row: typeof schema.giveawayEntriesInAppPublic.$inferSelect): GiveawayEntry {
+  private mapToEntity(
+    row: typeof schema.giveawayEntriesInAppPublic.$inferSelect,
+  ): GiveawayEntry {
     const data: GiveawayEntryData = {
       giveawayId: row.giveawayId.toString(),
       userId: row.userId.toString(),

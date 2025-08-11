@@ -1,15 +1,19 @@
-import type { Result} from "ts-results";
-import { Ok, Err } from "ts-results";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Result } from "ts-results";
+import { Err, Ok } from "ts-results";
+
 import { cachedGuildsInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
+
 import type { CachedGuildRepository, NewCachedGuild } from "../domain";
 import { CachedGuildEntity } from "../domain";
 
 export class DrizzleCachedGuildRepository implements CachedGuildRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  async upsert(guildData: NewCachedGuild): Promise<Result<CachedGuildEntity, string>> {
+  async upsert(
+    guildData: NewCachedGuild,
+  ): Promise<Result<CachedGuildEntity, string>> {
     try {
       const [result] = await this.db
         .insert(cachedGuildsInAppPublic)
@@ -29,7 +33,9 @@ export class DrizzleCachedGuildRepository implements CachedGuildRepository {
 
       return Ok(CachedGuildEntity.fromData(result));
     } catch (error) {
-      return Err(`Failed to upsert cached guild: ${error instanceof Error ? error.message : String(error)}`);
+      return Err(
+        `Failed to upsert cached guild: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

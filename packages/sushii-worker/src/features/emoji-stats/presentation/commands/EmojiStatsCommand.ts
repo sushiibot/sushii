@@ -1,13 +1,15 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
-  SlashCommandBuilder,
   EmbedBuilder,
   InteractionContextType,
+  SlashCommandBuilder,
 } from "discord.js";
+
 import { SlashCommandHandler } from "@/interactions/handlers";
-import Color from "@/utils/colors";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 import Paginator from "@/shared/presentation/Paginator";
+import Color from "@/utils/colors";
+
 import type {
   EmojiStatsQueryService,
   QueryStatsRequest,
@@ -326,7 +328,11 @@ export class EmojiStatsCommand extends SlashCommandHandler {
       let cachedTotalCount: number | null = null;
 
       // Helper function to format stats for display
-      const formatStats = (stats: Awaited<ReturnType<EmojiStatsQueryService['queryStats']>>['results']) => {
+      const formatStats = (
+        stats: Awaited<
+          ReturnType<EmojiStatsQueryService["queryStats"]>
+        >["results"],
+      ) => {
         if (!stats || stats.length === 0) {
           return ["No statistics found."];
         }
@@ -385,12 +391,12 @@ export class EmojiStatsCommand extends SlashCommandHandler {
             limit: pageSizeParam,
             offset,
           });
-          
+
           // Cache total count from first query
           if (cachedTotalCount === null) {
             cachedTotalCount = result.totalCount;
           }
-          
+
           const formattedStats = formatStats(result.results);
           return formattedStats.join("\n");
         },
@@ -427,4 +433,3 @@ export class EmojiStatsCommand extends SlashCommandHandler {
     }
   }
 }
-

@@ -1,9 +1,10 @@
-import type dayjs from "@/shared/domain/dayjs";
 import type { User } from "discord.js";
+
 import type { UserProfileRepository } from "@/features/user-profile";
+import type dayjs from "@/shared/domain/dayjs";
 import logger from "@/shared/infrastructure/logger";
-import type {
-  FishyResult} from "../domain";
+
+import type { FishyResult } from "../domain";
 import {
   CatchableType,
   FISHY_VALUE_RANGES,
@@ -24,16 +25,21 @@ export class FishyService {
     invoker: User,
     target: User,
   ): Promise<FishyResult | dayjs.Dayjs> {
-    const targetProfile = await this.userProfileRepository.getByIdOrDefault(target.id);
-    
+    const targetProfile = await this.userProfileRepository.getByIdOrDefault(
+      target.id,
+    );
+
     // Only fetch invoker profile if different from target
     let invokerProfile = targetProfile;
     if (invoker.id !== target.id) {
-      invokerProfile = await this.userProfileRepository.getByIdOrDefault(invoker.id);
+      invokerProfile = await this.userProfileRepository.getByIdOrDefault(
+        invoker.id,
+      );
     }
 
     // Check cooldown for invoker (not target)
-    const cooldownTime = this.cooldownService.checkFishyCooldown(invokerProfile);
+    const cooldownTime =
+      this.cooldownService.checkFishyCooldown(invokerProfile);
     if (cooldownTime) {
       return cooldownTime;
     }
@@ -50,7 +56,7 @@ export class FishyService {
 
     // Update target's fishies (always gets the fish)
     const updatedTarget = targetProfile.updateFishies(newFishies);
-    
+
     // Handle timestamp updates based on whether invoker is same as target
     if (invoker.id !== target.id) {
       // Different users: update only invoker's timestamp
@@ -86,20 +92,29 @@ export class FishyService {
 
   private getRandomCatchable(): CatchableType {
     const rand = Math.random() * 100;
-    
+
     // Golden fishy
     if (rand < FISH_PROBABILITIES.GOLDEN) {
       return CatchableType.Golden;
     }
-    
+
     // Other rare types
     if (rand < FISH_PROBABILITIES.GOLDEN + FISH_PROBABILITIES.RARE) {
-      const rareTypes = [CatchableType.Rotten, CatchableType.MrsPuff, CatchableType.RustySpoon];
+      const rareTypes = [
+        CatchableType.Rotten,
+        CatchableType.MrsPuff,
+        CatchableType.RustySpoon,
+      ];
       return this.getRandomFromArray(rareTypes);
     }
 
     // Normal types (seaweed/algae)
-    if (rand < FISH_PROBABILITIES.GOLDEN + FISH_PROBABILITIES.RARE + FISH_PROBABILITIES.NORMAL) {
+    if (
+      rand <
+      FISH_PROBABILITIES.GOLDEN +
+        FISH_PROBABILITIES.RARE +
+        FISH_PROBABILITIES.NORMAL
+    ) {
       return this.getRandomFromArray(NORMAL_FISH_TYPES);
     }
 
@@ -130,7 +145,12 @@ export class FishyService {
     return items[i];
   }
 
-  private randDistNumber(min: number, max: number, skew: number, depth = 0): number {
+  private randDistNumber(
+    min: number,
+    max: number,
+    skew: number,
+    depth = 0,
+  ): number {
     // Prevent infinite recursion - fallback to simple random after 10 attempts
     if (depth > 10) {
       return Math.random() * (max - min) + min;

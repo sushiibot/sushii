@@ -1,11 +1,13 @@
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
 // or `import * as Cursor from 'pg-cursor'` depending on your tsconfig
 import Cursor from "pg-cursor";
-import { Kysely, PostgresDialect } from "kysely";
-import { drizzle } from "drizzle-orm/node-postgres";
-import logger from "@/shared/infrastructure/logger";
-import type { DB } from "./dbTypes";
+
 import { config } from "@/shared/infrastructure/config";
+import logger from "@/shared/infrastructure/logger";
+
+import type { DB } from "./dbTypes";
 import * as schema from "./schema";
 
 const dbLogger = logger.child({ module: "db" });

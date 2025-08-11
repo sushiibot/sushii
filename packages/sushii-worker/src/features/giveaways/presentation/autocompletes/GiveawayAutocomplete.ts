@@ -1,21 +1,20 @@
-import dayjs from "@/shared/domain/dayjs";
 import type {
+  APIApplicationCommandOptionChoice,
   AutocompleteFocusedOption,
   AutocompleteInteraction,
-  APIApplicationCommandOptionChoice} from "discord.js";
-import {
-  ApplicationCommandOptionType,
 } from "discord.js";
+import { ApplicationCommandOptionType } from "discord.js";
 import type { Logger } from "pino";
 
-import { getDurationFromNow } from "@/utils/getDuration";
 import { AutocompleteHandler } from "@/interactions/handlers";
+import dayjs from "@/shared/domain/dayjs";
+import { getDurationFromNow } from "@/utils/getDuration";
 
 import type { GiveawayService } from "../../application/GiveawayService";
 
 enum GiveawaySubcommand {
   Delete = "delete",
-  End = "end", 
+  End = "end",
   Reroll = "reroll",
 }
 
@@ -52,11 +51,15 @@ export class GiveawayAutocomplete extends AutocompleteHandler {
 
     if (subcommand === GiveawaySubcommand.Reroll) {
       // Only show ENDED giveaways
-      giveawaysResult = await this.giveawayService.getCompletedGiveaways(interaction.guildId);
+      giveawaysResult = await this.giveawayService.getCompletedGiveaways(
+        interaction.guildId,
+      );
       isCompleted = true;
     } else {
       // Only show ACTIVE giveaways
-      giveawaysResult = await this.giveawayService.getActiveGiveaways(interaction.guildId);
+      giveawaysResult = await this.giveawayService.getActiveGiveaways(
+        interaction.guildId,
+      );
     }
 
     if (!giveawaysResult.ok) {

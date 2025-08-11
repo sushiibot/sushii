@@ -1,6 +1,4 @@
-import type {
-  APIEmbedField,
-  InteractionReplyOptions} from "discord.js";
+import type { APIEmbedField, InteractionReplyOptions } from "discord.js";
 import {
   ActionRowBuilder,
   AttachmentBuilder,

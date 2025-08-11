@@ -1,4 +1,4 @@
-import type { RawBuilder} from "kysely";
+import type { RawBuilder } from "kysely";
 import { sql } from "kysely";
 
 export function json<T>(object: T): RawBuilder<string> {

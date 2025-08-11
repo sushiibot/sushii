@@ -1,6 +1,7 @@
+import * as Sentry from "@sentry/node";
 import i18next from "i18next";
 import Backend from "i18next-fs-backend";
-import * as Sentry from "@sentry/node";
+
 import log from "./logger";
 
 export default async function initI18next(): Promise<void> {

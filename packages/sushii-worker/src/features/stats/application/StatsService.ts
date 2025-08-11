@@ -1,7 +1,10 @@
 import type { Logger } from "pino";
 
 import { StatName } from "../domain/StatName";
-import type { StatsRepository, BotStat } from "../domain/repositories/StatsRepository";
+import type {
+  BotStat,
+  StatsRepository,
+} from "../domain/repositories/StatsRepository";
 
 export class StatsService {
   constructor(
@@ -18,15 +21,15 @@ export class StatsService {
     if (!Number.isInteger(value)) {
       throw new Error("Stat value must be an integer");
     }
-    
+
     if (value < 0) {
       throw new Error("Stat value cannot be negative");
     }
-    
+
     if (value > Number.MAX_SAFE_INTEGER) {
       throw new Error("Stat value exceeds safe integer range");
     }
-    
+
     // Validate enum value (TypeScript helps but runtime safety is good)
     if (!Object.values(StatName).includes(name)) {
       throw new Error(`Invalid stat name: ${name}`);
@@ -48,7 +51,10 @@ export class StatsService {
         await this.statsRepository.setStat(name, "bot", value);
       }
     } catch (error) {
-      this.logger.error({ err: error, stat: name, value, action }, "Failed to update stat");
+      this.logger.error(
+        { err: error, stat: name, value, action },
+        "Failed to update stat",
+      );
       throw new Error("Stat update failed", { cause: error });
     }
   }

@@ -97,7 +97,10 @@ export class UserProfile {
     });
   }
 
-  updatePatronStatus(isPatron: boolean, patronEmoji?: string | null): UserProfile {
+  updatePatronStatus(
+    isPatron: boolean,
+    patronEmoji?: string | null,
+  ): UserProfile {
     return new UserProfile({
       ...this.data,
       isPatron,

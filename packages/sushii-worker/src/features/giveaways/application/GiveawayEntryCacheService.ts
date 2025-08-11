@@ -63,15 +63,14 @@ export class GiveawayEntryCacheService {
 
     const allEntries = Array.from(this.entryCache.entries()).flatMap(
       ([giveawayId, entry]) =>
-        entry.users.map((userId) =>
-          GiveawayEntry.create(giveawayId, userId),
-        ),
+        entry.users.map((userId) => GiveawayEntry.create(giveawayId, userId)),
     );
 
     this.entryCache.clear();
 
     try {
-      const insertResult = await this.giveawayEntryRepository.createBatch(allEntries);
+      const insertResult =
+        await this.giveawayEntryRepository.createBatch(allEntries);
 
       this.logger.debug(
         {

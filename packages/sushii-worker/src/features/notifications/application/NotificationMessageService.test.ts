@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { Message} from "discord.js";
+import type { Message } from "discord.js";
 import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 

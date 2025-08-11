@@ -1,14 +1,14 @@
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
+  InteractionEditReplyOptions,
   InteractionReplyOptions,
   ModalSubmitInteraction,
-  InteractionEditReplyOptions} from "discord.js";
-import {
-  EmbedBuilder
 } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 import { MessageFlags } from "discord.js";
 import { t } from "i18next";
+
 import Color from "../../utils/colors";
 
 type ReplyableInteraction =

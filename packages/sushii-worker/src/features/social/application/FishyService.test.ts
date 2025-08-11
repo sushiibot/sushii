@@ -1,4 +1,5 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
+
 import { CatchableType, FISH_PROBABILITIES } from "../domain";
 
 describe("FishyService", () => {
@@ -25,7 +26,7 @@ describe("FishyService", () => {
       expect(CatchableType.Anchovy).toBeDefined();
       expect(CatchableType.Wawa).toBeDefined();
       expect(CatchableType.Rotten).toBeDefined();
-      
+
       // Verify Gunnie was removed
       expect(Object.values(CatchableType)).not.toContain("gunnie 🔫");
     });

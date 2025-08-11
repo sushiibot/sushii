@@ -1,6 +1,6 @@
+import opentelemetry from "@opentelemetry/api";
 import { Events } from "discord.js";
 import type { Message } from "discord.js";
-import opentelemetry from "@opentelemetry/api";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 

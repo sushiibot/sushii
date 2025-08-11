@@ -1,5 +1,4 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
 import {
   EmbedBuilder,
   InteractionContextType,
@@ -241,7 +240,7 @@ export default class XpCommand extends SlashCommandHandler {
     }
 
     const channelBlocks = channelBlockIds.map((id) => `<#${id}>`);
-    const roleBlocks = roleBlockIds.map((id) => `<@&${id}>`); 
+    const roleBlocks = roleBlockIds.map((id) => `<@&${id}>`);
 
     await interaction.reply({
       embeds: [

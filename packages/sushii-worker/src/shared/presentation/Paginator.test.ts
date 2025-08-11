@@ -1,16 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  ComponentType,
-  EmbedBuilder,
-} from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { ComponentType, EmbedBuilder } from "discord.js";
 import type { Logger } from "pino";
 
 import type {
   EmbedModifierFn,
   GetPageFn,
-  GetTotalEntriesFn} from "./Paginator";
+  GetTotalEntriesFn,
+} from "./Paginator";
 import Paginator, {
   ComponentInteractionError,
   PageFetchError,

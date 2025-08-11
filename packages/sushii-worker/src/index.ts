@@ -1,10 +1,6 @@
 import * as Sentry from "@sentry/bun";
-import type {
-  Child} from "discord-hybrid-sharding";
-import {
-  ClusterManager,
-  HeartbeatManager,
-} from "discord-hybrid-sharding";
+import type { Child } from "discord-hybrid-sharding";
+import { ClusterManager, HeartbeatManager } from "discord-hybrid-sharding";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { fileURLToPath } from "url";
 

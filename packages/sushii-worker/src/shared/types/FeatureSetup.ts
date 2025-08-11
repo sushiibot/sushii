@@ -1,4 +1,7 @@
-import type { EventHandler, EventType } from "@/core/cluster/presentation/EventHandler";
+import type {
+  EventHandler,
+  EventType,
+} from "@/core/cluster/presentation/EventHandler";
 import type {
   AutocompleteHandler,
   ButtonHandler,

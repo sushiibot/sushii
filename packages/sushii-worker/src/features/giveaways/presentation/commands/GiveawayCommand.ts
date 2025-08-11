@@ -1,31 +1,32 @@
 import type {
   ChatInputCommandInteraction,
-  GuildTextBasedChannel} from "discord.js";
+  GuildTextBasedChannel,
+} from "discord.js";
 import {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  EmbedBuilder,
-  messageLink,
-  MessageFlags,
   DiscordAPIError,
+  EmbedBuilder,
+  InteractionContextType,
+  MessageFlags,
+  PermissionFlagsBits,
   RESTJSONErrorCodes,
-  InteractionContextType
+  SlashCommandBuilder,
+  messageLink,
 } from "discord.js";
 import type { Logger } from "pino";
 
-import dayjs from "@/shared/domain/dayjs";
 import { SlashCommandHandler } from "@/interactions/handlers";
 import { getErrorMessage } from "@/interactions/responses/error";
-import parseDuration from "@/utils/parseDuration";
+import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
+import parseDuration from "@/utils/parseDuration";
 import toTimestamp from "@/utils/toTimestamp";
 
+import type { GiveawayDrawService } from "../../application/GiveawayDrawService";
+import type { GiveawayService } from "../../application/GiveawayService";
 import type { GiveawayData } from "../../domain/entities/Giveaway";
 import { Giveaway } from "../../domain/entities/Giveaway";
-import type { GiveawayService } from "../../application/GiveawayService";
-import type { GiveawayDrawService } from "../../application/GiveawayDrawService";
-import { buildGiveawayEmbed } from "../views/GiveawayEmbedBuilder";
 import { buildGiveawayComponents } from "../views/GiveawayComponentBuilder";
+import { buildGiveawayEmbed } from "../views/GiveawayEmbedBuilder";
 
 enum GiveawayOption {
   GiveawayID = "giveaway_id",
@@ -216,10 +217,18 @@ export class GiveawayCommand extends SlashCommandHandler {
 
     const winners = interaction.options.getNumber(GiveawayOption.Winners, true);
     const prize = interaction.options.getString(GiveawayOption.Prize, true);
-    const requiredRole = interaction.options.getRole(GiveawayOption.RequiredRole);
-    const requiredMinLevel = interaction.options.getNumber(GiveawayOption.RequiredMinLevel);
-    const requiredMaxLevel = interaction.options.getNumber(GiveawayOption.RequiredMaxLevel);
-    const boosterStatus = interaction.options.getBoolean(GiveawayOption.BoosterStatus);
+    const requiredRole = interaction.options.getRole(
+      GiveawayOption.RequiredRole,
+    );
+    const requiredMinLevel = interaction.options.getNumber(
+      GiveawayOption.RequiredMinLevel,
+    );
+    const requiredMaxLevel = interaction.options.getNumber(
+      GiveawayOption.RequiredMaxLevel,
+    );
+    const boosterStatus = interaction.options.getBoolean(
+      GiveawayOption.BoosterStatus,
+    );
 
     if (!interaction.channel) {
       throw new Error("No channel");
@@ -269,7 +278,8 @@ export class GiveawayCommand extends SlashCommandHandler {
     // Update the giveaway data with the actual message ID
     giveawayData.id = giveawayMsg.id;
 
-    const createResult = await this.giveawayService.createGiveaway(giveawayData);
+    const createResult =
+      await this.giveawayService.createGiveaway(giveawayData);
     if (!createResult.ok) {
       // Delete the message if we failed to create the giveaway
       await giveawayMsg.delete();
@@ -370,7 +380,10 @@ export class GiveawayCommand extends SlashCommandHandler {
 
     if (!deleteResult.val) {
       await interaction.reply(
-        getErrorMessage("Giveaway not found", "Please give a valid giveaway ID."),
+        getErrorMessage(
+          "Giveaway not found",
+          "Please give a valid giveaway ID.",
+        ),
       );
       return;
     }
@@ -378,7 +391,10 @@ export class GiveawayCommand extends SlashCommandHandler {
     const deletedGiveaway = deleteResult.val;
 
     // Delete the giveaway message
-    const channel = await this.getGiveawayChannel(interaction, deletedGiveaway.channelId);
+    const channel = await this.getGiveawayChannel(
+      interaction,
+      deletedGiveaway.channelId,
+    );
     if (channel) {
       try {
         await channel.messages.delete(deletedGiveaway.id);
@@ -403,7 +419,10 @@ export class GiveawayCommand extends SlashCommandHandler {
   private async endGiveaway(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const giveawayId = interaction.options.getString(GiveawayOption.GiveawayID, true);
+    const giveawayId = interaction.options.getString(
+      GiveawayOption.GiveawayID,
+      true,
+    );
 
     const giveawayResult = await this.giveawayService.getGiveaway(
       interaction.guildId,
@@ -419,7 +438,10 @@ export class GiveawayCommand extends SlashCommandHandler {
 
     if (!giveawayResult.val) {
       await interaction.reply(
-        getErrorMessage("Giveaway not found", "Please give a valid giveaway ID."),
+        getErrorMessage(
+          "Giveaway not found",
+          "Please give a valid giveaway ID.",
+        ),
       );
       return;
     }
@@ -436,15 +458,25 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    const channel = await this.getGiveawayChannel(interaction, giveaway.channelId);
+    const channel = await this.getGiveawayChannel(
+      interaction,
+      giveaway.channelId,
+    );
     if (!channel) {
       await interaction.reply(
-        getErrorMessage("Channel not found", "Could not find the giveaway channel."),
+        getErrorMessage(
+          "Channel not found",
+          "Could not find the giveaway channel.",
+        ),
       );
       return;
     }
 
-    const drawResult = await this.giveawayDrawService.drawWinners(giveaway, false, 1);
+    const drawResult = await this.giveawayDrawService.drawWinners(
+      giveaway,
+      false,
+      1,
+    );
     if (!drawResult.ok) {
       await interaction.reply(
         getErrorMessage("Failed to draw winners", drawResult.val),
@@ -457,7 +489,11 @@ export class GiveawayCommand extends SlashCommandHandler {
     // Note: GiveawayDrawService now automatically marks giveaway as ended
 
     if (winnerIds.length > 0) {
-      await this.giveawayDrawService.sendWinnersMessage(channel, giveaway, winnerIds);
+      await this.giveawayDrawService.sendWinnersMessage(
+        channel,
+        giveaway,
+        winnerIds,
+      );
     }
 
     if (hasInsufficientWinners && reason) {
@@ -486,9 +522,14 @@ export class GiveawayCommand extends SlashCommandHandler {
   private async rerollGiveaway(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const giveawayId = interaction.options.getString(GiveawayOption.GiveawayID, true);
+    const giveawayId = interaction.options.getString(
+      GiveawayOption.GiveawayID,
+      true,
+    );
     const winnerCount = interaction.options.getNumber(GiveawayOption.Winners);
-    const allowRepeatWinners = interaction.options.getBoolean(GiveawayOption.AllowRepeatWinners);
+    const allowRepeatWinners = interaction.options.getBoolean(
+      GiveawayOption.AllowRepeatWinners,
+    );
 
     const giveawayResult = await this.giveawayService.getGiveaway(
       interaction.guildId,
@@ -504,7 +545,10 @@ export class GiveawayCommand extends SlashCommandHandler {
 
     if (!giveawayResult.val) {
       await interaction.reply(
-        getErrorMessage("Giveaway not found", "Please give a valid giveaway ID."),
+        getErrorMessage(
+          "Giveaway not found",
+          "Please give a valid giveaway ID.",
+        ),
       );
       return;
     }
@@ -521,10 +565,16 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    const channel = await this.getGiveawayChannel(interaction, giveaway.channelId);
+    const channel = await this.getGiveawayChannel(
+      interaction,
+      giveaway.channelId,
+    );
     if (!channel) {
       await interaction.reply(
-        getErrorMessage("Channel not found", "Could not find the giveaway channel."),
+        getErrorMessage(
+          "Channel not found",
+          "Could not find the giveaway channel.",
+        ),
       );
       return;
     }
@@ -545,7 +595,11 @@ export class GiveawayCommand extends SlashCommandHandler {
     const { winnerIds, hasInsufficientWinners, reason } = drawResult.val;
 
     if (winnerIds.length > 0) {
-      await this.giveawayDrawService.sendWinnersMessage(channel, giveaway, winnerIds);
+      await this.giveawayDrawService.sendWinnersMessage(
+        channel,
+        giveaway,
+        winnerIds,
+      );
     }
 
     if (hasInsufficientWinners && reason) {

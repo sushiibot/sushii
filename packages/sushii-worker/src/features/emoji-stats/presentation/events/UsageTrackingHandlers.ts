@@ -6,8 +6,10 @@ import type {
   User,
 } from "discord.js";
 import { Events } from "discord.js";
-import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
+import { newModuleLogger } from "@/shared/infrastructure/logger";
+
 import type {
   EmojiStatsTrackingService,
   TrackUsageRequest,
@@ -27,9 +29,10 @@ export class MessageEmojiTrackingHandler extends EventHandler<Events.MessageCrea
       return;
     }
 
-    const stickerIds = message.stickers.size > 0 
-      ? Array.from(message.stickers.keys())
-      : undefined;
+    const stickerIds =
+      message.stickers.size > 0
+        ? Array.from(message.stickers.keys())
+        : undefined;
 
     const request: TrackUsageRequest = {
       userId: message.author.id,

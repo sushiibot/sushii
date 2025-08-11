@@ -292,20 +292,16 @@ export class ModerationCommand extends SlashCommandHandler {
     );
 
     if (!actionResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Error", actionResult.val),
-      );
+      await interaction.reply(getErrorMessage("Error", actionResult.val));
       return;
     }
 
     const action = actionResult.val;
-    
+
     // Validate the action (including duration limits for timeouts)
     const validationResult = action.validate();
     if (!validationResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Error", validationResult.val),
-      );
+      await interaction.reply(getErrorMessage("Error", validationResult.val));
       return;
     }
 

@@ -1,15 +1,11 @@
-import type {
-  ChatInputCommandInteraction} from "discord.js";
-import {
-  SlashCommandBuilder
-} from "discord.js";
 import { isDayjs } from "dayjs";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder } from "discord.js";
+
 import { SlashCommandHandler } from "@/interactions/handlers";
+
 import type { FishyService } from "../../application";
-import { 
-  createFishySuccessEmbed, 
-  createFishyCooldownEmbed 
-} from "../views";
+import { createFishyCooldownEmbed, createFishySuccessEmbed } from "../views";
 
 export class FishyCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -29,9 +25,12 @@ export class FishyCommand extends SlashCommandHandler {
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const target = interaction.options.getUser("user", true);
-    
+
     try {
-      const result = await this.fishyService.fishyForUser(interaction.user, target);
+      const result = await this.fishyService.fishyForUser(
+        interaction.user,
+        target,
+      );
 
       let embed;
       if (isDayjs(result)) {
@@ -46,7 +45,7 @@ export class FishyCommand extends SlashCommandHandler {
     } catch (error) {
       // Log error for debugging
       console.error("Fishy command error:", error);
-      
+
       await interaction.reply({
         content: "Something went wrong while fishing! Please try again later.",
         ephemeral: true,
