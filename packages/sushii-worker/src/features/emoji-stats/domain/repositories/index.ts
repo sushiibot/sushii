@@ -1,7 +1,7 @@
-export { GuildAssetRepository } from "./GuildAssetRepository";
-export { RateLimitRepository } from "./RateLimitRepository";
+export type { GuildAssetRepository } from "./GuildAssetRepository";
+export type { RateLimitRepository } from "./RateLimitRepository";
 export {
-  EmojiStickerStatsRepository,
+  type EmojiStickerStatsRepository,
   type StatsQueryOptions,
   type StatsResult,
   type PaginatedStatsResult,

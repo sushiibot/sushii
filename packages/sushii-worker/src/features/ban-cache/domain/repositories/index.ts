@@ -1,1 +1,1 @@
-export { BanRepository } from "./BanRepository";
+export type { BanRepository } from "./BanRepository";
