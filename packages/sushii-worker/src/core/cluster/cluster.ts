@@ -2,11 +2,10 @@ import * as Sentry from "@sentry/node";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
-import InteractionRouter from "@/core/cluster/discord/InteractionRouter";
 import { config } from "@/shared/infrastructure/config";
 import sdk from "@/shared/infrastructure/tracing";
 
-import registerInteractionHandlers from "../../interactions/commands";
+import registerLegacyInteractionHandlers from "../../interactions/commands";
 import "../../shared/domain/dayjs";
 import initI18next from "../../shared/infrastructure/i18next";
 import log from "../../shared/infrastructure/logger";
@@ -61,17 +60,16 @@ async function initializeShard(): Promise<void> {
   client.rest.setToken(config.discord.token);
 
   // START NEW REGISTRATION
-  const { db, deploymentService } = await initCore();
+  const { db, deploymentService, interactionRouter } = await initCore(client);
 
-  const interactionRouter = new InteractionRouter(client, deploymentService);
-  registerInteractionHandlers(interactionRouter);
+  registerLegacyInteractionHandlers(interactionRouter);
 
   // New registration of features -- also adds commands to the router and starts tasks
   registerFeatures(db, client, deploymentService, interactionRouter);
 
   // AFTER features are registered (includes registering commands)
 
-  // Only register on client including shard 0
+  // Only commands register on client including shard 0
   if (
     !config.features.skipCommandRegistration &&
     client.cluster.shardList.includes(0)
@@ -87,7 +85,6 @@ async function initializeShard(): Promise<void> {
       "skipping interaction handler registration on cluster",
     );
   }
-
 
   process.on("SIGTERM", async () => {
     log.info("SIGTERM received, shutting down shard gracefully");

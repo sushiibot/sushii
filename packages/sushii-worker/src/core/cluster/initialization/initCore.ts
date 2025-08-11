@@ -1,3 +1,5 @@
+import type { Client } from "discord.js";
+
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentChanged } from "@/features/deployment/domain/events/DeploymentChanged";
 import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
@@ -6,7 +8,9 @@ import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 
-export async function initCore() {
+import InteractionRouter from "../discord/InteractionRouter";
+
+export async function initCore(client: Client) {
   // This just returns the global existing database for now, until we fully
   // integrate the database into the core
   const db = drizzleDb;
@@ -36,9 +40,13 @@ export async function initCore() {
 
   await deploymentService.start();
 
+  // Initialize interaction router
+  const interactionRouter = new InteractionRouter(client, deploymentService);
+
   return {
     db,
     deploymentService,
     eventBus,
+    interactionRouter,
   };
 }

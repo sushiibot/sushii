@@ -9,19 +9,12 @@ import RoleMenuAutocomplete from "./roles/RoleMenuAutocomplete";
 import RoleMenuButtonHandler from "./roles/RoleMenuButtonHandler";
 import RoleMenuSelectMenuHandler from "./roles/RoleMenuSelectMenuHandler";
 
-export default function registerInteractionHandlers(
+export default function registerLegacyInteractionHandlers(
   interactionRouter: InteractionClient,
 ): void {
   interactionRouter.addCommands(
-    // Meta
     new StatusCommand(),
-
-    // Guild
-    // EmojiStatsCommand migrated to DDD architecture (emoji-stats feature)
-
     new ReminderCommand(),
-
-    // Roles
     new RoleMenuCommand(),
   );
 
@@ -31,10 +24,6 @@ export default function registerInteractionHandlers(
     new ReminderDeleteAutocomplete(),
     new RoleMenuAutocomplete(),
   );
-
-  // ----------------------------------------
-  // Context menus
-  // Note: Context menus now handled by DDD features in bootstrap
 
   // ----------------------------------------
   // Buttons
