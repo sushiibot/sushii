@@ -1,23 +1,24 @@
 import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
+import { setupBanCacheFeature } from "@/features/ban-cache/setup";
+import { createCacheFeature } from "@/features/cache/setup";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
+import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
+import { setupInteractionHandlerFeature } from "@/features/interaction-handler/setup";
+import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupMemberEventsFeature } from "@/features/member-events/setup";
+import { setupMessageLog } from "@/features/message-log/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
-import { setupTagFeature } from "@/features/tags/setup";
 import { setupSocialFeature } from "@/features/social/setup";
+import { setupTagFeature } from "@/features/tags/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
-import { createCacheFeature } from "@/features/cache/setup";
-import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
-import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
-import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
-import { setupMessageLog } from "@/features/message-log/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -36,6 +37,12 @@ export function registerFeatures(
 
   // Cache feature
   const cacheFeature = createCacheFeature({ db });
+
+  // Interaction handler feature -- commands, etc.
+  const interactionHandlerFeature = setupInteractionHandlerFeature({
+    interactionRouter,
+    logger,
+  });
 
   // Ban cache feature
   const banCacheFeature = setupBanCacheFeature({ db, logger });
@@ -79,16 +86,20 @@ export function registerFeatures(
   });
 
   // Webhook logging feature
-  const webhookLoggingFeature = setupWebhookLoggingFeature({ 
-    logger, 
-    deploymentService 
+  const webhookLoggingFeature = setupWebhookLoggingFeature({
+    logger,
+    deploymentService,
   });
 
   // Legacy audit logs feature
   const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({ logger });
 
   // Emoji stats feature
-  const emojiStatsFeature = setupEmojiStatsFeature({ db, client, deploymentService });
+  const emojiStatsFeature = setupEmojiStatsFeature({
+    db,
+    client,
+    deploymentService,
+  });
 
   // Message log feature
   const messageLogFeature = setupMessageLog(
@@ -151,6 +162,7 @@ export function registerFeatures(
   );
 
   const handlers = [
+    ...interactionHandlerFeature.eventHandlers,
     ...levelingFeature.eventHandlers,
     deploymentHandler,
     ...notificationFeature.eventHandlers,
@@ -165,7 +177,7 @@ export function registerFeatures(
   ];
 
   // ---------------------------------------------------------------------------
-  // Register event handlers
+  // Register feature event handlers
 
   // Union type is too much for typescript, so we just use any here - it's
   // already type enforced in implementation, and the usage is fine
@@ -245,7 +257,7 @@ export function registerFeatures(
   // Register background tasks
 
   const featureTasks = [
-    ...giveawayFeature.tasks, 
+    ...giveawayFeature.tasks,
     ...moderationFeature.tasks,
     ...emojiStatsFeature.tasks,
     ...messageLogFeature.tasks,

@@ -3,7 +3,6 @@ import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import InteractionRouter from "@/core/cluster/discord/InteractionRouter";
-import registerEventHandlers from "@/core/cluster/discord/handlers";
 import { config } from "@/shared/infrastructure/config";
 import sdk from "@/shared/infrastructure/tracing";
 
@@ -89,8 +88,6 @@ async function initializeShard(): Promise<void> {
     );
   }
 
-  // Legacy registration of event handlers
-  registerEventHandlers(client, interactionRouter, deploymentService);
 
   process.on("SIGTERM", async () => {
     log.info("SIGTERM received, shutting down shard gracefully");
