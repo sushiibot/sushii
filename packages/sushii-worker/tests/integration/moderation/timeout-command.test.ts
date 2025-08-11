@@ -64,7 +64,7 @@ describe("Timeout Command Integration", () => {
           interaction: {
             deferReply: true,
             editReply: true,
-            embedContains: ["timed out"],
+            embedContains: ["Timeout Successful"],
           },
         },
       });
