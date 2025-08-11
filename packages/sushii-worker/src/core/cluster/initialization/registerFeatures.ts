@@ -16,6 +16,7 @@ import { setupMessageLog } from "@/features/message-log/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupSocialFeature } from "@/features/social/setup";
+import { setupStatsFeature } from "@/features/stats/setup";
 import { setupTagFeature } from "@/features/tags/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
@@ -38,9 +39,13 @@ export function registerFeatures(
   // Cache feature
   const cacheFeature = createCacheFeature({ db });
 
+  // Stats feature (setup early so other features can use it)
+  const statsFeature = setupStatsFeature({ db, logger, client, deploymentService });
+
   // Interaction handler feature -- commands, etc.
   const interactionHandlerFeature = setupInteractionHandlerFeature({
     interactionRouter,
+    statsService: statsFeature.services.statsService,
     logger,
   });
 
@@ -261,6 +266,7 @@ export function registerFeatures(
     ...moderationFeature.tasks,
     ...emojiStatsFeature.tasks,
     ...messageLogFeature.tasks,
+    ...statsFeature.tasks,
   ];
 
   registerTasks(client, deploymentService, featureTasks);

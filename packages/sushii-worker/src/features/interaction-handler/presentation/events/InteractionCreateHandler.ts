@@ -5,7 +5,7 @@ import type { Logger } from "pino";
 
 import type InteractionRouter from "@/core/cluster/discord/InteractionRouter";
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-import { StatName, updateStat } from "@/tasks/StatsTask";
+import { StatName, type StatsService } from "@/features/stats";
 
 /**
  * Event handler for Discord InteractionCreate events.
@@ -14,6 +14,7 @@ import { StatName, updateStat } from "@/tasks/StatsTask";
 export class InteractionCreateHandler extends EventHandler<Events.InteractionCreate> {
   constructor(
     private readonly interactionRouter: InteractionRouter,
+    private readonly statsService: StatsService,
     private readonly tracer: Tracer,
     private readonly logger: Logger,
   ) {
@@ -28,8 +29,7 @@ export class InteractionCreateHandler extends EventHandler<Events.InteractionCre
       "event-handler.InteractionCreate",
       async (span: Span) => {
         await this.interactionRouter.handleAPIInteraction(interaction);
-        await updateStat(StatName.CommandCount, 1, "add");
-
+        await this.statsService.updateStat(StatName.CommandCount, 1, "add");
         span.end();
       },
     );

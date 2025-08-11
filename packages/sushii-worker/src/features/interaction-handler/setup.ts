@@ -3,17 +3,20 @@ import opentelemetry from "@opentelemetry/api";
 import type { Logger } from "pino";
 
 import type InteractionRouter from "@/core/cluster/discord/InteractionRouter";
+import type { StatsService } from "@/features/stats";
 import type { BaseFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { InteractionCreateHandler } from "./presentation/events/InteractionCreateHandler";
 
 interface InteractionHandlerDependencies {
   interactionRouter: InteractionRouter;
+  statsService: StatsService;
   logger: Logger;
 }
 
 export function setupInteractionHandlerFeature({
   interactionRouter,
+  statsService,
   logger,
 }: InteractionHandlerDependencies): BaseFeatureSetupReturn {
   // Create OpenTelemetry tracer for interaction handling
@@ -22,6 +25,7 @@ export function setupInteractionHandlerFeature({
   const eventHandlers = [
     new InteractionCreateHandler(
       interactionRouter,
+      statsService,
       tracer,
       logger.child({ component: "InteractionHandler" }),
     ),

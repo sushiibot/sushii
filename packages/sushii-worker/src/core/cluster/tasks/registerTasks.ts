@@ -6,7 +6,6 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import logger from "@/shared/infrastructure/logger";
 import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 import { RemindersTask } from "@/tasks/RemindersTask";
-import { StatsTask } from "@/tasks/StatsTask";
 
 export function registerTasks(
   client: Client,
@@ -39,7 +38,6 @@ export function registerTasks(
 
   // Combine legacy tasks with feature tasks
   const legacyTasks: AbstractBackgroundTask[] = [
-    new StatsTask(client, deploymentService),
     new RemindersTask(client, deploymentService),
   ];
 
