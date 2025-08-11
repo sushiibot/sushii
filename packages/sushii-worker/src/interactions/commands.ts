@@ -1,7 +1,7 @@
 import type InteractionClient from "@/core/cluster/discord/InteractionRouter";
 
 import StatusCommand from "../features/status/presentation/StatusCommand";
-import EmojiStatsCommand from "./emojis/EmojiStatsCommands";
+// EmojiStatsCommand migrated to DDD architecture (emoji-stats feature)
 import ReminderDeleteAutocomplete from "./reminders/ReminderAutocomplete";
 import ReminderCommand from "./reminders/ReminderCommand";
 import RoleMenuCommand from "./roles/RoleMenu";
@@ -17,7 +17,7 @@ export default function registerInteractionHandlers(
     new StatusCommand(),
 
     // Guild
-    new EmojiStatsCommand(),
+    // EmojiStatsCommand migrated to DDD architecture (emoji-stats feature)
 
     new ReminderCommand(),
 

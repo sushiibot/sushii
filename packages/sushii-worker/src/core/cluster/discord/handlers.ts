@@ -4,11 +4,7 @@ import * as Sentry from "@sentry/node";
 import type { Client, ClientEvents, GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents } from "discord.js";
 
-import {
-  emojiAndStickerStatsReadyHandler,
-  emojiStatsMsgHandler,
-  emojiStatsReactHandler,
-} from "@/events/EmojiStatsHandler";
+// Emoji stats handlers migrated to DDD architecture (emoji-stats feature)
 import type { EventHandlerFn } from "@/events/EventHandler";
 // Member event handlers migrated to DDD architecture (member-events feature)
 // Legacy mod log handler migrated to DDD architecture (legacy-audit-logs feature)
@@ -103,13 +99,8 @@ export default function registerEventHandlers(
       async (span: Span) => {
         // Check to make Client<true> instead of Client<bool>
         if (client.isReady()) {
-          await handleEvent(
-            Events.ClientReady,
-            {
-              emojiAndStickerStatsReady: emojiAndStickerStatsReadyHandler,
-            },
-            client,
-          );
+          // Emoji and sticker stats are now handled in DDD architecture (emoji-stats feature)
+          // No legacy handlers to call
         }
 
         span.end();
@@ -144,13 +135,8 @@ export default function registerEventHandlers(
     await tracer.startActiveSpan(
       prefixSpanName(Events.MessageCreate),
       async (span: Span) => {
-        await handleEvent(
-          Events.MessageCreate,
-          {
-            emojiStats: emojiStatsMsgHandler,
-          },
-          msg,
-        );
+        // Message handling for emoji stats is now handled in DDD architecture (emoji-stats feature)
+        // No legacy handlers to call
 
         span.end();
       },
@@ -167,13 +153,8 @@ export default function registerEventHandlers(
     await tracer.startActiveSpan(
       prefixSpanName(Events.MessageReactionAdd),
       async (span: Span) => {
-        await handleEvent(
-          Events.MessageReactionAdd,
-          { emojiStatsReact: emojiStatsReactHandler },
-          reaction,
-          user,
-          details,
-        );
+        // Message reaction handling for emoji stats is now handled in DDD architecture (emoji-stats feature)
+        // No legacy handlers to call
 
         span.end();
       },

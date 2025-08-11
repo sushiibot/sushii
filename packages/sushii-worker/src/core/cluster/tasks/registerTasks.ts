@@ -6,7 +6,6 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import logger from "@/shared/infrastructure/logger";
 import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 import { DeleteOldMessagesTask } from "@/tasks/DeleteOldMessagesTask";
-import { DeleteStaleEmojiStatsRateLimit } from "@/tasks/DeleteStaleEmojiStatsRateLimit";
 import { RemindersTask } from "@/tasks/RemindersTask";
 import { StatsTask } from "@/tasks/StatsTask";
 
@@ -43,7 +42,6 @@ export function registerTasks(
   const legacyTasks: AbstractBackgroundTask[] = [
     new DeleteOldMessagesTask(client, deploymentService),
     new StatsTask(client, deploymentService),
-    new DeleteStaleEmojiStatsRateLimit(client, deploymentService),
     new RemindersTask(client, deploymentService),
   ];
 

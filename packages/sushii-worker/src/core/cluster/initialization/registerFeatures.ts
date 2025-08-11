@@ -16,6 +16,7 @@ import { createCacheFeature } from "@/features/cache/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
+import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
@@ -85,6 +86,9 @@ export function registerFeatures(
   // Legacy audit logs feature
   const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({ logger });
 
+  // Emoji stats feature
+  const emojiStatsFeature = setupEmojiStatsFeature({ db, client, deploymentService });
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -95,6 +99,7 @@ export function registerFeatures(
     ...guildSettingsFeature.commands,
     ...moderationFeature.commands,
     ...giveawayFeature.commands,
+    ...emojiStatsFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
@@ -105,6 +110,7 @@ export function registerFeatures(
     ...guildSettingsFeature.autocompletes,
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
+    ...emojiStatsFeature.autocompletes,
   );
 
   // Context menu handlers
@@ -122,6 +128,7 @@ export function registerFeatures(
     ...guildSettingsFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
+    ...emojiStatsFeature.buttonHandlers,
   );
 
   // ---------------------------------------------------------------------------
@@ -143,6 +150,7 @@ export function registerFeatures(
     ...banCacheFeature.eventHandlers,
     ...webhookLoggingFeature.eventHandlers,
     ...legacyAuditLogsFeature.eventHandlers,
+    ...emojiStatsFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -225,7 +233,11 @@ export function registerFeatures(
   // ---------------------------------------------------------------------------
   // Register background tasks
 
-  const featureTasks = [...giveawayFeature.tasks, ...moderationFeature.tasks];
+  const featureTasks = [
+    ...giveawayFeature.tasks, 
+    ...moderationFeature.tasks,
+    ...emojiStatsFeature.tasks,
+  ];
 
   registerTasks(client, deploymentService, featureTasks);
 
