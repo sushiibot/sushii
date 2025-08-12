@@ -75,7 +75,7 @@ function buildBansSection(
   const lookupEmoji = getActionTypeEmoji(ActionType.Lookup);
   const totalBans = crossServerBans.length;
 
-  let content = `${lookupEmoji} **Cross-Server Bans** (${totalBans})\n\n`;
+  let content = `### ${lookupEmoji} **Cross-Server Bans** (${totalBans})\n`;
 
   if (totalBans === 0) {
     content += "> No cross-server bans found.";
@@ -106,7 +106,6 @@ function buildAccountSection(
     "",
     `**ID:** \`${targetUser.id}\``,
     `**Created:** <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
-    `**Bot:** ${targetUser.bot ? "Yes" : "No"}`,
   ].join("\n");
 
   return new TextDisplayBuilder().setContent(content);

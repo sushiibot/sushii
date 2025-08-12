@@ -72,7 +72,6 @@ function addBasicUserInfoContext(
     value: [
       `**ID:** ${targetUser.id}`,
       `**Created:** ${accountAgeFormatted}`,
-      `**Bot:** ${targetUser.bot ? "Yes" : "No"}`,
     ].join("\n"),
     inline: true,
   });
