@@ -679,6 +679,16 @@ export class ModerationExecutionPipeline {
               "Cannot remove timeout from a user who is not in the guild",
             );
           }
+
+          // Check if user is currently timed out
+          const currentTimeout = target.member.communicationDisabledUntil;
+          const isTimedOut =
+            currentTimeout && currentTimeout.getTime() > Date.now();
+
+          if (!isTimedOut) {
+            return Err("User is not currently timed out");
+          }
+
           await target.member.timeout(
             null,
             action.reason?.value || "No reason provided",
