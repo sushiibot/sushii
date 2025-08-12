@@ -12,8 +12,6 @@
     "form-data": "4.0.0"
   },
   "devDependencies": {
-    "concurrently": "^7.6.0",
-    "kysely-codegen": "^0.11.0",
     "typescript": "^5.4.2"
   },
   "dependencies": {}
