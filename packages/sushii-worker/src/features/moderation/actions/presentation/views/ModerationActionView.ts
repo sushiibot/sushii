@@ -142,6 +142,28 @@ export function buildActionResultMessage(
       fullContent += `\n> ${firstSuccessfulCase.reason.value}\n`;
     }
 
+    // Add DM status
+    const successfulCases = successful.map(
+      (s) => s.result.val as ModerationCase,
+    );
+    const dmAttemptedCount = successfulCases.filter(
+      (c) => c.dmAttempted,
+    ).length;
+    const dmSuccessCount = successfulCases.filter((c) => c.dmSuccess).length;
+    const dmFailedCount = successfulCases.filter((c) => c.dmFailed).length;
+
+    // ------------------------------------------------------------------------
+    // Additional DM message if configured
+
+    // Even if no DMs were attempted, show the configured message if it exists
+    const configuredDMText = getConfiguredDMText(actionType, guildConfig);
+    if (configuredDMText) {
+      fullContent += `### 📋 Additional DM Message\n`;
+      fullContent += `> ${configuredDMText}\n`;
+      fullContent +=
+        "-# This was also sent to the user as configured in `/settings`\n";
+    }
+
     // Add timeout duration if this is a timeout action
     if (
       (actionType === ActionType.Timeout ||
@@ -163,28 +185,6 @@ export function buildActionResultMessage(
         .join(", ");
 
       fullContent += "\n";
-    }
-
-    // Add DM status
-    const successfulCases = successful.map(
-      (s) => s.result.val as ModerationCase,
-    );
-    const dmAttemptedCount = successfulCases.filter(
-      (c) => c.dmAttempted,
-    ).length;
-    const dmSuccessCount = successfulCases.filter((c) => c.dmSuccess).length;
-    const dmFailedCount = successfulCases.filter((c) => c.dmFailed).length;
-
-    // ------------------------------------------------------------------------
-    // Additional DM message if configured
-
-    // Even if no DMs were attempted, show the configured message if it exists
-    const configuredDMText = getConfiguredDMText(actionType, guildConfig);
-    if (configuredDMText) {
-      fullContent += `### 📋 Additional DM Message\n`;
-      fullContent += `> ${configuredDMText}\n`;
-      fullContent +=
-        "-# This is always sent to the user as configured in `/settings`\n";
     }
 
     // ------------------------------------------------------------------------
