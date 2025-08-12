@@ -254,7 +254,7 @@ describe("DMPolicyService", () => {
       );
 
       const result = await dmPolicyService.shouldSendDM(
-        "after",
+        "before",
         action,
         target,
         "guild123",
@@ -274,7 +274,7 @@ describe("DMPolicyService", () => {
       );
 
       const result = await dmPolicyService.shouldSendDM(
-        "after",
+        "before",
         action,
         target,
         "guild123",
@@ -371,7 +371,7 @@ describe("DMPolicyService", () => {
       expect(result.should).toBe(false);
     });
 
-    test("defaults to true for other action types", async () => {
+    test("defaults to false for kick action types (no config yet)", async () => {
       const target = createMockTarget(true);
       const action = new KickAction(
         mockGuildId,
@@ -382,13 +382,13 @@ describe("DMPolicyService", () => {
       );
 
       const result = await dmPolicyService.shouldSendDM(
-        "after",
+        "before",
         action,
         target,
         "guild123",
       );
 
-      expect(result.should).toBe(true);
+      expect(result.should).toBe(false);
     });
   });
 });

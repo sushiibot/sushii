@@ -69,6 +69,16 @@ export abstract class ModerationAction {
     return this.isBanAction() || this.isTempBanAction();
   }
 
+  isKickAction(): this is KickAction {
+    return this.actionType === ActionType.Kick;
+  }
+
+  shouldSendDMBeforeAction(): boolean {
+    // Ban, TempBan, and Kick should all send DMs before the action
+    // to ensure the user receives the notification
+    return this.isBanOrTempBanAction() || this.isKickAction();
+  }
+
   isTemporalAction(): this is TempBanAction | TimeoutAction {
     return this.isTempBanAction() || this.isTimeoutAction();
   }

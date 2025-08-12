@@ -46,7 +46,7 @@ export class ModerationExecutionPipeline {
    *
    * Pipeline stages:
    * 1. Create case and validate
-   * 2. Send pre-action DM (for ban actions)
+   * 2. Send pre-action DM (for ban/kick actions)
    * 3. Execute Discord action
    * 4. Handle post-action tasks (temp bans, post-DMs, mod logs)
    */
@@ -150,7 +150,7 @@ export class ModerationExecutionPipeline {
   > {
     // Determine DM intent before creating the case
     const dmPolicyDecision = await this.dmPolicyService.shouldSendDM(
-      action.isBanOrTempBanAction() ? "before" : "after",
+      action.shouldSendDMBeforeAction() ? "before" : "after",
       action,
       target,
       action.guildId,
@@ -269,8 +269,8 @@ export class ModerationExecutionPipeline {
       return moderationCase;
     }
 
-    // For non-ban actions, DMs are sent after
-    if (!action.isBanOrTempBanAction()) {
+    // For actions that don't require pre-action DM, skip
+    if (!action.shouldSendDMBeforeAction()) {
       return moderationCase;
     }
 
@@ -363,8 +363,8 @@ export class ModerationExecutionPipeline {
       return moderationCase;
     }
 
-    // For ban actions, DMs are sent before
-    if (action.isBanOrTempBanAction()) {
+    // For actions that require pre-action DM, skip post-action DM
+    if (action.shouldSendDMBeforeAction()) {
       return moderationCase;
     }
 

@@ -28,7 +28,7 @@ export function addReasonOption(
 export function addAttachmentOption(option: SlashCommandAttachmentOption) {
   return option
     .setName(OPTION_NAMES.ATTACHMENT)
-    .setDescription("Additional media to attach to the case.")
+    .setDescription("Mod-only attachment.")
     .setRequired(false);
 }
 
@@ -65,6 +65,6 @@ export function addNoteOption(
 ) {
   return option
     .setName("note")
-    .setDescription("Note to add to the user.")
+    .setDescription("Mod-only note to add to the user.")
     .setRequired(required);
 }

@@ -31,14 +31,14 @@ export class DMPolicyService {
       return { should: false, source: "action_not_supported" };
     }
 
-    // Timing rules - bans DM before action, others DM after
-    if (timing === "before" && !action.isBanOrTempBanAction()) {
-      // Not ban action, never DM before action
+    // Timing rules - bans/kicks DM before action, others DM after
+    if (timing === "before" && !action.shouldSendDMBeforeAction()) {
+      // Not a pre-action DM type, never DM before action
       return { should: false, source: "action_not_supported" };
     }
 
-    if (timing === "after" && action.isBanOrTempBanAction()) {
-      // Is ban action, never DM after action
+    if (timing === "after" && action.shouldSendDMBeforeAction()) {
+      // Is pre-action DM type, never DM after action
       return { should: false, source: "action_not_supported" };
     }
 
@@ -85,6 +85,10 @@ export class DMPolicyService {
       case ActionType.Ban:
       case ActionType.TempBan:
         return guildConfig.moderationSettings.banDmEnabled;
+      case ActionType.Kick:
+        // TODO: Add kickDmEnabled config option
+        // For now, default to false since there's no config option yet
+        return false;
       case ActionType.Timeout:
         return guildConfig.moderationSettings.timeoutCommandDmEnabled;
       default:
