@@ -155,9 +155,9 @@ export function buildActionResultMessage(
     // ------------------------------------------------------------------------
     // Additional DM message if configured
 
-    // Even if no DMs were attempted, show the configured message if it exists
+    // Only show the configured DM message if DMs were actually attempted
     const configuredDMText = getConfiguredDMText(actionType, guildConfig);
-    if (configuredDMText) {
+    if (configuredDMText && dmAttemptedCount > 0) {
       fullContent += `### 📋 Additional DM Message\n`;
       fullContent += `> ${configuredDMText}\n`;
       fullContent +=

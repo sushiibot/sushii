@@ -11,7 +11,7 @@ import { SlashCommandHandler } from "@/interactions/handlers";
 import { getErrorMessage } from "@/interactions/responses/error";
 
 import type { LookupUserService } from "../../application/LookupUserService";
-import { buildUserLookupContainer } from "../views/UserLookupView";
+import { buildUserLookupReply } from "../views/UserLookupView";
 
 export class LookupCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -77,14 +77,9 @@ export class LookupCommand extends SlashCommandHandler {
       member = null;
     }
 
-    const message = buildUserLookupContainer(
-      targetUser,
-      member,
-      lookupResult.val,
-      {
-        showBasicInfo: true,
-      },
-    );
+    const message = buildUserLookupReply(targetUser, member, lookupResult.val, {
+      showBasicInfo: true,
+    });
 
     log.info(
       {

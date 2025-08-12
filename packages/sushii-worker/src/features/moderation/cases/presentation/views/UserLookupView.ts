@@ -26,7 +26,7 @@ interface LookupOptions {
  * Build user lookup container using components v2 - shows ALL cross-server bans
  * for comprehensive lookup command display.
  */
-export function buildUserLookupContainer(
+export function buildUserLookupReply(
   targetUser: User,
   member: GuildMember | null,
   lookupResult: UserLookupResult,

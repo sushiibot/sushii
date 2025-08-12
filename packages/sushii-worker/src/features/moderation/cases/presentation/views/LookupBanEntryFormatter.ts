@@ -15,14 +15,23 @@ export function formatBanEntry(
 
   // Always show guild badges (even for hidden names, gives context about server type)
   const guildBadges = getGuildBadges(ban.guildFeatures || []);
-  
+
   if (shouldShowDetails && ban.guildName) {
     // Both guilds opted in - show real server name
     const escapedGuildName = escapeMarkdown(ban.guildName);
-    parts.push(`${guildBadges} **${escapedGuildName}**`);
+
+    if (guildBadges) {
+      parts.push(`${guildBadges} **${escapedGuildName}**`);
+    } else {
+      parts.push(`**${escapedGuildName}**`);
+    }
   } else {
     // Either guild hasn't opted in - hide server name
-    parts.push(`${guildBadges} **[Server Name Hidden]**`);
+    if (guildBadges) {
+      parts.push(`${guildBadges} **[Anonymous]**`);
+    } else {
+      parts.push(`**[Anonymous]**`);
+    }
   }
 
   if (ban.actionTime) {
