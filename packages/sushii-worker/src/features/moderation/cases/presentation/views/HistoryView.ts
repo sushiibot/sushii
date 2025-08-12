@@ -1,7 +1,7 @@
 import type { GuildMember, User } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 
-import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
+import type { UserHistoryResult } from "@/features/moderation/cases/application/HistoryUserService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
@@ -66,7 +66,7 @@ export function formatModerationCase(moderationCase: ModerationCase): string {
 export function buildUserHistoryEmbeds(
   targetUser: User,
   member: GuildMember | null,
-  historyResult: UserLookupResult,
+  historyResult: UserHistoryResult,
 ): EmbedBuilder[] {
   const { moderationHistory, totalCases } = historyResult;
   const count = totalCases;
@@ -170,4 +170,44 @@ export function addUserAccountInfo(
   embed.addFields(fields).setFooter({
     text: `User ID: ${targetUser.id}`,
   });
+}
+
+export function buildUserHistoryContextEmbed(
+  targetUser: User,
+  member: GuildMember | null,
+  historyResult: UserHistoryResult,
+): EmbedBuilder {
+  const { moderationHistory, totalCases } = historyResult;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Recent Moderation History (${totalCases} case${totalCases === 1 ? "" : "s"})`)
+    .setColor(Color.Success)
+    .setAuthor({
+      name: getUserString(member || targetUser),
+      iconURL: targetUser.displayAvatarURL(),
+    });
+
+  if (moderationHistory.length === 0) {
+    embed.setDescription("No moderation history found in this server.");
+    return embed;
+  }
+
+  // Show only the most recent 3 cases
+  const recentCases = moderationHistory.slice(0, 3);
+  const casesStr = recentCases.map(formatModerationCase).join("\n\n");
+
+  embed.setDescription(casesStr);
+
+  // Add footer with instruction to use /history for full list
+  if (totalCases > 3) {
+    embed.setFooter({
+      text: `Showing 3 of ${totalCases} cases. Use /history for full list. • User ID: ${targetUser.id}`,
+    });
+  } else {
+    embed.setFooter({
+      text: `User ID: ${targetUser.id}`,
+    });
+  }
+
+  return embed;
 }

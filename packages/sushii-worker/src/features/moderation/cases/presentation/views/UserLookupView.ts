@@ -2,12 +2,10 @@ import type { GuildMember, User } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 
 import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
-import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
-
-import { formatModerationCase } from "./HistoryView";
 
 interface LookupOptions {
   botHasBanPermission: boolean;
@@ -20,7 +18,7 @@ export function buildUserLookupEmbed(
   lookupResult: UserLookupResult,
   options: LookupOptions,
 ): EmbedBuilder {
-  const { userInfo, moderationHistory, totalCases } = lookupResult;
+  const { userInfo, crossServerBans } = lookupResult;
 
   const embed = new EmbedBuilder()
     .setColor(Color.Info)
@@ -32,21 +30,16 @@ export function buildUserLookupEmbed(
     addBasicUserInfo(embed, targetUser, userInfo, member);
   }
 
-  if (moderationHistory.length > 0) {
-    addModerationHistory(embed, moderationHistory);
+  // Add cross-server bans section
+  if (crossServerBans.length > 0) {
+    addCrossServerBans(embed, crossServerBans, options);
   } else {
     embed.addFields({
-      name: "Moderation History",
-      value: "No moderation history found in this server.",
+      name: "Cross-Server Bans",
+      value: "No cross-server bans found.",
       inline: false,
     });
   }
-
-  embed.addFields({
-    name: "Total Cases",
-    value: totalCases.toString(),
-    inline: true,
-  });
 
   return embed;
 }
@@ -114,23 +107,47 @@ function addBasicUserInfo(
   }
 }
 
-function addModerationHistory(
+function addCrossServerBans(
   embed: EmbedBuilder,
-  moderationHistory: ModerationCase[],
+  crossServerBans: UserLookupBan[],
+  _options: LookupOptions,
 ): void {
-  const recentCases = moderationHistory.slice(0, 5);
+  const displayBans = crossServerBans.slice(0, 5);
 
-  const historyValue = recentCases.map(formatModerationCase).join("\n\n");
+  const banValues = displayBans.map((ban) => {
+    const parts: string[] = [];
+    
+    if (ban.guildName) {
+      parts.push(`**${ban.guildName}**`);
+    }
+
+    if (ban.actionTime) {
+      const timestamp = timestampToUnixTime(ban.actionTime.getTime());
+      parts.push(`<t:${timestamp}:R>`);
+    }
+
+    if (ban.reason && ban.lookupDetailsOptIn) {
+      const truncatedReason = ban.reason.length > 100 
+        ? `${ban.reason.slice(0, 100)}...` 
+        : ban.reason;
+      parts.push(`Reason: ${truncatedReason}`);
+    }
+
+    return parts.join("\n");
+  }).join("\n\n");
 
   embed.addFields({
-    name: `Recent Moderation History (${recentCases.length}/${moderationHistory.length})`,
-    value: historyValue || "No moderation history found.",
+    name: `Cross-Server Bans (${displayBans.length}/${crossServerBans.length})`,
+    value: banValues || "No ban details available.",
     inline: false,
   });
 
-  if (moderationHistory.length > 5) {
-    embed.setFooter({
-      text: `Showing 5 of ${moderationHistory.length} total cases. Use /history for full list.`,
-    });
+  if (crossServerBans.length > 5) {
+    const currentFooterText = embed.data.footer?.text ?? "";
+    const newFooterText = currentFooterText 
+      ? `${currentFooterText} • Showing 5 of ${crossServerBans.length} cross-server bans.`
+      : `Showing 5 of ${crossServerBans.length} cross-server bans.`;
+    
+    embed.setFooter({ text: newFooterText });
   }
 }

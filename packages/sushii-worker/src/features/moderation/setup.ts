@@ -35,12 +35,14 @@ import {
   CaseDeletionService,
   CaseRangeAutocompleteService,
   LookupUserService,
+  HistoryUserService,
   ReasonUpdateService,
 } from "./cases/application";
+import { DrizzleUserLookupRepository } from "./cases/infrastructure/repositories/DrizzleUserLookupRepository";
 import {
   HistoryCommand,
   LookupCommand,
-  LookupContextMenuHandler,
+  UserInfoContextMenuHandler,
   ReasonCommand,
   UncaseCommand,
 } from "./cases/presentation";
@@ -139,10 +141,21 @@ export function createModerationServices({
     logger.child({ module: "moderationService" }),
   );
 
+  const userLookupRepository = new DrizzleUserLookupRepository(
+    db,
+    logger.child({ module: "userLookupRepository" }),
+  );
+
   const lookupUserService = new LookupUserService(
     client,
-    moderationCaseRepository,
+    userLookupRepository,
     logger.child({ module: "lookupUserService" }),
+  );
+
+  const historyUserService = new HistoryUserService(
+    client,
+    moderationCaseRepository,
+    logger.child({ module: "historyUserService" }),
   );
 
   const targetResolutionService = new TargetResolutionService();
@@ -226,6 +239,7 @@ export function createModerationServices({
     dmNotificationService,
     moderationService,
     lookupUserService,
+    historyUserService,
     targetResolutionService,
     tempBanListService,
     channelService,
@@ -251,6 +265,7 @@ export function createModerationCommands(
   const {
     moderationService,
     lookupUserService,
+    historyUserService,
     targetResolutionService,
     tempBanListService,
     slowmodeService,
@@ -279,7 +294,7 @@ export function createModerationCommands(
       logger.child({ commandHandler: "lookup" }),
     ),
     new HistoryCommand(
-      lookupUserService,
+      historyUserService,
       logger.child({ commandHandler: "history" }),
     ),
     // Utility commands
@@ -313,9 +328,10 @@ export function createModerationCommands(
   ];
 
   const contextMenuHandlers = [
-    new LookupContextMenuHandler(
+    new UserInfoContextMenuHandler(
+      historyUserService,
       lookupUserService,
-      logger.child({ contextMenuHandler: "lookupContextMenu" }),
+      logger.child({ contextMenuHandler: "userInfoContextMenu" }),
     ),
   ];
 

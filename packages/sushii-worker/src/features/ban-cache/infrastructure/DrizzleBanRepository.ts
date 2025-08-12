@@ -7,7 +7,7 @@ import { Err, Ok } from "ts-results";
 import { guildBansInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
-import type { GuildBan } from "../domain/entities/GuildBan";
+import { GuildBan } from "../domain/entities/GuildBan";
 import type { BanRepository } from "../domain/repositories/BanRepository";
 
 /**
@@ -121,6 +121,29 @@ export class DrizzleBanRepository implements BanRepository {
       );
 
       return Err("Guild ban insertion failed");
+    }
+  }
+
+  async getUserBans(userId: string): Promise<Result<GuildBan[], string>> {
+    try {
+      const bans = await this.db
+        .select()
+        .from(guildBansInAppPublic)
+        .where(eq(guildBansInAppPublic.userId, BigInt(userId)));
+
+      const mappedBans: GuildBan[] = bans.map((ban) =>
+        GuildBan.fromData(ban.guildId.toString(), ban.userId.toString()),
+      );
+
+      this.logger.debug(
+        { userId, banCount: mappedBans.length },
+        "Fetched user bans",
+      );
+
+      return Ok(mappedBans);
+    } catch (error) {
+      this.logger.error({ err: error, userId }, "Failed to fetch user bans");
+      return Err("User ban fetch failed");
     }
   }
 }

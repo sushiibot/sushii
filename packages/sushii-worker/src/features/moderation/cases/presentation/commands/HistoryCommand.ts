@@ -9,7 +9,7 @@ import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
 
-import type { LookupUserService } from "../../application/LookupUserService";
+import type { HistoryUserService } from "../../application/HistoryUserService";
 import { buildUserHistoryEmbeds } from "../views/HistoryView";
 
 export class HistoryCommand extends SlashCommandHandler {
@@ -29,7 +29,7 @@ export class HistoryCommand extends SlashCommandHandler {
     .toJSON();
 
   constructor(
-    private readonly lookupUserService: LookupUserService,
+    private readonly historyUserService: HistoryUserService,
     private readonly logger: Logger,
   ) {
     super();
@@ -53,7 +53,7 @@ export class HistoryCommand extends SlashCommandHandler {
 
     log.info("Processing history command");
 
-    const historyResult = await this.lookupUserService.lookupUser(
+    const historyResult = await this.historyUserService.getUserHistory(
       interaction.guild.id,
       user.id,
     );

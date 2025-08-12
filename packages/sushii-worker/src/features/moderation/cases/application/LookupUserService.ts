@@ -4,20 +4,19 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
 import type { UserInfo } from "../../shared/domain/types/UserInfo";
+import type { UserLookupBan } from "../domain/entities/UserLookupBan";
+import type { UserLookupRepository } from "../domain/repositories/UserLookupRepository";
 
 export interface UserLookupResult {
   userInfo: UserInfo;
-  moderationHistory: ModerationCase[];
-  totalCases: number;
+  crossServerBans: UserLookupBan[];
 }
 
 export class LookupUserService {
   constructor(
     private readonly client: Client,
-    private readonly caseRepository: ModerationCaseRepository,
+    private readonly userLookupRepository: UserLookupRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -52,17 +51,50 @@ export class LookupUserService {
       return Err("User not found");
     }
 
-    const moderationHistoryResult = await this.caseRepository.findByUserId(
-      guildId,
+    // Fetch cross-server bans
+    const crossServerBansResult = await this.userLookupRepository.getUserCrossServerBans(
       userId,
     );
-    if (!moderationHistoryResult.ok) {
+    if (!crossServerBansResult.ok) {
       log.error(
-        { error: moderationHistoryResult.val },
-        "Failed to get moderation history",
+        { error: crossServerBansResult.val },
+        "Failed to get cross-server bans",
       );
-      return Err(moderationHistoryResult.val);
+      return Err(crossServerBansResult.val);
     }
+
+    // Populate guild names for cross-server bans
+    const crossServerBans = await Promise.all(
+      crossServerBansResult.val.map(async (ban): Promise<UserLookupBan> => {
+        if (!ban.guildId) {
+          return {
+            ...ban,
+            guildName: null,
+          };
+        }
+
+        try {
+          const guild = await this.client.guilds.fetch(ban.guildId);
+          return {
+            ...ban,
+            guildName: guild.name,
+            guildFeatures: guild.features,
+            guildMembers: guild.memberCount,
+          };
+        } catch {
+          // Guild not found or bot not in guild anymore
+          return {
+            ...ban,
+            guildName: null,
+          };
+        }
+      }),
+    );
+
+    // Filter out bans where guild info couldn't be fetched or opt-in is disabled
+    const filteredCrossServerBans = crossServerBans.filter(
+      (ban) => ban.guildName !== null,
+    );
 
     const result: UserLookupResult = {
       userInfo: {
@@ -73,11 +105,12 @@ export class LookupUserService {
         joinedAt: member ? member.joinedAt : null,
         isBot: user.bot,
       },
-      moderationHistory: moderationHistoryResult.val,
-      totalCases: moderationHistoryResult.val.length,
+      crossServerBans: filteredCrossServerBans,
     };
 
-    log.info({ totalCases: result.totalCases }, "User lookup completed");
+    log.info({ 
+      crossServerBans: filteredCrossServerBans.length 
+    }, "User lookup completed");
     return Ok(result);
   }
 }

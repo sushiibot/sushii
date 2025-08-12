@@ -21,13 +21,13 @@ export class LookupCommand extends SlashCommandHandler {
 
   command = new SlashCommandBuilder()
     .setName("lookup")
-    .setDescription("Look up user information and moderation history.")
+    .setDescription("Look up cross-server bans for a user.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((option) =>
       option
         .setName("user")
-        .setDescription("The user to look up.")
+        .setDescription("The user to show server bans for.")
         .setRequired(true),
     )
     .toJSON();
@@ -95,7 +95,7 @@ export class LookupCommand extends SlashCommandHandler {
     log.info(
       {
         targetUserId: targetUser.id,
-        totalCases: lookupResult.val.totalCases,
+        crossServerBans: lookupResult.val.crossServerBans.length,
       },
       "User lookup completed",
     );

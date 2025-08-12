@@ -29,4 +29,9 @@ export interface BanRepository {
     guildId: string,
     userIds: string[],
   ): Promise<Result<void, string>>;
+
+  /**
+   * Gets all bans for a user across all guilds.
+   */
+  getUserBans(userId: string): Promise<Result<GuildBan[], string>>;
 }
