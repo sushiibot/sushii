@@ -31,7 +31,7 @@ export function buildUserLookupContextEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(Color.Info)
-    .setTitle(`User Lookup: ${targetUser.tag}`)
+    .setTitle("User Lookup")
     .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
     .setTimestamp();
 
@@ -50,7 +50,7 @@ export function buildUserLookupContextEmbed(
   } else {
     embed.addFields({
       name: "Cross-Server Bans",
-      value: "No cross-server bans found.",
+      value: "No bans found.",
       inline: false,
     });
   }

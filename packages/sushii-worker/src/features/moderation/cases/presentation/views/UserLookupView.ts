@@ -78,7 +78,7 @@ function buildBansSection(
   let content = `### ${lookupEmoji} **Cross-Server Bans** (${totalBans})\n`;
 
   if (totalBans === 0) {
-    content += "> No cross-server bans found.";
+    content += "> No bans found.";
   } else {
     // Use shared formatter for all ban entries
     const banEntries = crossServerBans.map((ban) =>
