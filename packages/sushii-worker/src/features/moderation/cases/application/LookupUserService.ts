@@ -4,6 +4,8 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+
 import type { UserInfo } from "../../shared/domain/types/UserInfo";
 import type { UserLookupBan } from "../domain/entities/UserLookupBan";
 import type { UserLookupRepository } from "../domain/repositories/UserLookupRepository";
@@ -11,12 +13,14 @@ import type { UserLookupRepository } from "../domain/repositories/UserLookupRepo
 export interface UserLookupResult {
   userInfo: UserInfo;
   crossServerBans: UserLookupBan[];
+  currentGuildLookupOptIn: boolean;
 }
 
 export class LookupUserService {
   constructor(
     private readonly client: Client,
     private readonly userLookupRepository: UserLookupRepository,
+    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -33,6 +37,10 @@ export class LookupUserService {
       return Err("Guild not found");
     }
 
+    // Get current guild's lookup opt-in status
+    const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
+    const currentGuildLookupOptIn = guildConfig.moderationSettings.lookupDetailsOptIn;
+
     const member = guild.members.cache.get(userId);
     let user: User | null = null;
 
@@ -42,8 +50,8 @@ export class LookupUserService {
       try {
         user = await this.client.users.fetch(userId);
       } catch (error) {
-        log.error({ error }, "Failed to fetch user from Discord");
-        return Err(`Failed to fetch user: ${error}`);
+        log.error({ err: error }, "Failed to fetch user from Discord");
+        return Err("Failed to fetch user information");
       }
     }
 
@@ -57,7 +65,7 @@ export class LookupUserService {
     );
     if (!crossServerBansResult.ok) {
       log.error(
-        { error: crossServerBansResult.val },
+        { err: crossServerBansResult.val },
         "Failed to get cross-server bans",
       );
       return Err(crossServerBansResult.val);
@@ -91,7 +99,9 @@ export class LookupUserService {
       }),
     );
 
-    // Filter out bans where guild info couldn't be fetched or opt-in is disabled
+    // Filter out bans where guild info couldn't be fetched 
+    // Note: Privacy filtering (showing/hiding names) is handled in presentation layer
+    // to ensure ban counts remain accurate regardless of opt-in status
     const filteredCrossServerBans = crossServerBans.filter(
       (ban) => ban.guildName !== null,
     );
@@ -106,6 +116,7 @@ export class LookupUserService {
         isBot: user.bot,
       },
       crossServerBans: filteredCrossServerBans,
+      currentGuildLookupOptIn,
     };
 
     log.info({ 

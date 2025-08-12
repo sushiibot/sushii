@@ -1,153 +1,146 @@
-import type { GuildMember, User } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import type { GuildMember, InteractionReplyOptions, User } from "discord.js";
+import {
+  ContainerBuilder,
+  MessageFlags,
+  SectionBuilder,
+  SeparatorBuilder,
+  TextDisplayBuilder,
+  ThumbnailBuilder,
+} from "discord.js";
 
 import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { getActionTypeEmoji } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
+import { formatBanEntry } from "./LookupBanEntryFormatter";
+
 interface LookupOptions {
-  botHasBanPermission: boolean;
   showBasicInfo: boolean;
 }
 
-export function buildUserLookupEmbed(
+/**
+ * Build user lookup container using components v2 - shows ALL cross-server bans
+ * for comprehensive lookup command display.
+ */
+export function buildUserLookupContainer(
   targetUser: User,
   member: GuildMember | null,
   lookupResult: UserLookupResult,
   options: LookupOptions,
-): EmbedBuilder {
-  const { userInfo, crossServerBans } = lookupResult;
+): InteractionReplyOptions {
+  const { userInfo, crossServerBans, currentGuildLookupOptIn } = lookupResult;
 
-  const embed = new EmbedBuilder()
-    .setColor(Color.Info)
-    .setTitle(`User Lookup: ${targetUser.tag}`)
-    .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
-    .setTimestamp();
+  const container = new ContainerBuilder().setAccentColor(Color.Info);
+
+  // Cross-server bans section with user avatar
+  const bansSection = buildBansSection(
+    targetUser,
+    crossServerBans,
+    currentGuildLookupOptIn,
+  );
+  container.addSectionComponents(bansSection);
 
   if (options.showBasicInfo) {
-    addBasicUserInfo(embed, targetUser, userInfo, member);
+    // Add separator
+    container.addSeparatorComponents(new SeparatorBuilder());
+
+    // Account information
+    const accountSection = buildAccountSection(targetUser, userInfo);
+    container.addTextDisplayComponents(accountSection);
+
+    // Member information (only if user is in server)
+    if (member) {
+      container.addSeparatorComponents(new SeparatorBuilder());
+      const memberSection = buildMemberSection(member);
+      container.addTextDisplayComponents(memberSection);
+    }
   }
 
-  // Add cross-server bans section
-  if (crossServerBans.length > 0) {
-    addCrossServerBans(embed, crossServerBans, options);
-  } else {
-    embed.addFields({
-      name: "Cross-Server Bans",
-      value: "No cross-server bans found.",
-      inline: false,
-    });
-  }
-
-  return embed;
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+  };
 }
 
-function addBasicUserInfo(
-  embed: EmbedBuilder,
+function buildBansSection(
   targetUser: User,
-  userInfo: UserInfo,
-  member: GuildMember | null,
-): void {
-  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  const accountAgeFormatted = `<t:${createdTimestamp}:R>`;
+  crossServerBans: UserLookupBan[],
+  currentGuildLookupOptIn: boolean,
+): SectionBuilder {
+  const lookupEmoji = getActionTypeEmoji(ActionType.Lookup);
+  const totalBans = crossServerBans.length;
 
-  embed.addFields({
-    name: "Account Info",
-    value: [
-      `**ID:** ${targetUser.id}`,
-      `**Created:** ${accountAgeFormatted}`,
-      `**Bot:** ${targetUser.bot ? "Yes" : "No"}`,
-    ].join("\n"),
-    inline: true,
-  });
+  let content = `${lookupEmoji} **Cross-Server Bans** (${totalBans})\n\n`;
 
-  if (member) {
-    const joinedTimestamp = member.joinedTimestamp
-      ? timestampToUnixTime(member.joinedTimestamp)
-      : null;
-
-    const joinedFormatted = joinedTimestamp
-      ? `<t:${joinedTimestamp}:R>`
-      : "Unknown";
-
-    embed.addFields({
-      name: "Member Info",
-      value: [
-        `**Joined:** ${joinedFormatted}`,
-        `**Nickname:** ${member.nickname || "None"}`,
-        `**Roles:** ${member.roles.cache.size - 1}`, // Subtract @everyone
-      ].join("\n"),
-      inline: true,
-    });
-
-    if (member.roles.cache.size > 1) {
-      const roles = member.roles.cache
-        .filter((role) => role.name !== "@everyone")
-        .sort((a, b) => b.position - a.position)
-        .map((role) => role.toString())
-        .slice(0, 10)
-        .join(", ");
-
-      if (roles) {
-        embed.addFields({
-          name: "Roles",
-          value: roles,
-          inline: false,
-        });
-      }
-    }
+  if (totalBans === 0) {
+    content += "> No cross-server bans found.";
   } else {
-    embed.addFields({
-      name: "Member Info",
-      value: "User is not in this server.",
-      inline: true,
-    });
+    // Use shared formatter for all ban entries
+    const banEntries = crossServerBans.map((ban) =>
+      formatBanEntry(ban, currentGuildLookupOptIn),
+    );
+
+    content += banEntries.join("\n\n");
   }
+
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+    .setThumbnailAccessory(
+      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 256 })),
+    );
 }
 
-function addCrossServerBans(
-  embed: EmbedBuilder,
-  crossServerBans: UserLookupBan[],
-  _options: LookupOptions,
-): void {
-  const displayBans = crossServerBans.slice(0, 5);
+function buildAccountSection(
+  targetUser: User,
+  _userInfo: UserInfo,
+): TextDisplayBuilder {
+  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
 
-  const banValues = displayBans.map((ban) => {
-    const parts: string[] = [];
-    
-    if (ban.guildName) {
-      parts.push(`**${ban.guildName}**`);
+  const content = [
+    "### 👤 Account Information",
+    "",
+    `**ID:** \`${targetUser.id}\``,
+    `**Created:** <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
+    `**Bot:** ${targetUser.bot ? "Yes" : "No"}`,
+  ].join("\n");
+
+  return new TextDisplayBuilder().setContent(content);
+}
+
+function buildMemberSection(member: GuildMember): TextDisplayBuilder {
+  const joinedTimestamp = member.joinedTimestamp
+    ? timestampToUnixTime(member.joinedTimestamp)
+    : null;
+
+  const joinedFormatted = joinedTimestamp
+    ? `<t:${joinedTimestamp}:F> (<t:${joinedTimestamp}:R>)`
+    : "Unknown";
+
+  const content = [
+    "### 🏠 Member Information",
+    "",
+    `**Joined:** ${joinedFormatted}`,
+    `**Nickname:** ${member.nickname || "None"}`,
+    `**Roles:** ${member.roles.cache.size - 1}`, // Subtract @everyone
+  ];
+
+  // Add roles if user has any (excluding @everyone)
+  if (member.roles.cache.size > 1) {
+    const roles = member.roles.cache
+      .filter((role) => role.name !== "@everyone")
+      .sort((a, b) => b.position - a.position)
+      .map((role) => role.toString())
+      .join(", ");
+
+    if (roles) {
+      content.push("", "**Roles**", roles);
     }
-
-    if (ban.actionTime) {
-      const timestamp = timestampToUnixTime(ban.actionTime.getTime());
-      parts.push(`<t:${timestamp}:R>`);
-    }
-
-    if (ban.reason && ban.lookupDetailsOptIn) {
-      const truncatedReason = ban.reason.length > 100 
-        ? `${ban.reason.slice(0, 100)}...` 
-        : ban.reason;
-      parts.push(`Reason: ${truncatedReason}`);
-    }
-
-    return parts.join("\n");
-  }).join("\n\n");
-
-  embed.addFields({
-    name: `Cross-Server Bans (${displayBans.length}/${crossServerBans.length})`,
-    value: banValues || "No ban details available.",
-    inline: false,
-  });
-
-  if (crossServerBans.length > 5) {
-    const currentFooterText = embed.data.footer?.text ?? "";
-    const newFooterText = currentFooterText 
-      ? `${currentFooterText} • Showing 5 of ${crossServerBans.length} cross-server bans.`
-      : `Showing 5 of ${crossServerBans.length} cross-server bans.`;
-    
-    embed.setFooter({ text: newFooterText });
   }
+
+  return new TextDisplayBuilder().setContent(content.join("\n"));
 }

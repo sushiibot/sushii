@@ -149,6 +149,7 @@ export function createModerationServices({
   const lookupUserService = new LookupUserService(
     client,
     userLookupRepository,
+    guildConfigRepository,
     logger.child({ module: "lookupUserService" }),
   );
 

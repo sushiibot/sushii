@@ -14,7 +14,7 @@ import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import type { HistoryUserService } from "../../application/HistoryUserService";
 import type { LookupUserService } from "../../application/LookupUserService";
 import { buildUserHistoryContextEmbed } from "../views/HistoryView";
-import { buildUserLookupEmbed } from "../views/UserLookupView";
+import { buildUserLookupContextEmbed } from "../views/UserInfoContextView";
 
 export class UserInfoContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
@@ -62,22 +62,21 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
         embeds: [userInfoEmbed],
         flags: MessageFlags.Ephemeral,
       });
+
       return;
     }
 
     log.info("Moderator accessing user info context menu");
-
-    const sushiiMember = interaction.guild.members.me;
-    const hasPermission = sushiiMember?.permissions.has(
-      PermissionFlagsBits.BanMembers,
-    );
 
     // Start with user info embed
     const embeds: EmbedBuilder[] = [new EmbedBuilder(userInfoEmbed)];
 
     // Fetch both history and lookup data for moderators
     const [historyResult, lookupResult] = await Promise.all([
-      this.historyUserService.getUserHistory(interaction.guildId, targetUser.id),
+      this.historyUserService.getUserHistory(
+        interaction.guildId,
+        targetUser.id,
+      ),
       this.lookupUserService.lookupUser(interaction.guildId, targetUser.id),
     ]);
 
@@ -98,12 +97,11 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
 
     // Add lookup embed (cross-server bans)
     if (lookupResult.ok) {
-      const lookupEmbed = buildUserLookupEmbed(
+      const lookupEmbed = buildUserLookupContextEmbed(
         targetUser,
         targetMember,
         lookupResult.val,
         {
-          botHasBanPermission: hasPermission ?? true,
           showBasicInfo: false, // Don't duplicate basic info since history embeds include it
         },
       );

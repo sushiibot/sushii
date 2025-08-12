@@ -8,13 +8,10 @@ import {
 import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/interactions/handlers";
-import {
-  getErrorMessage,
-  getErrorMessageEdit,
-} from "@/interactions/responses/error";
+import { getErrorMessage } from "@/interactions/responses/error";
 
 import type { LookupUserService } from "../../application/LookupUserService";
-import { buildUserLookupEmbed } from "../views/UserLookupView";
+import { buildUserLookupContainer } from "../views/UserLookupView";
 
 export class LookupCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -56,8 +53,6 @@ export class LookupCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply();
-
     log.info({ targetUserId: targetUser.id }, "Looking up user");
 
     const lookupResult = await this.lookupUserService.lookupUser(
@@ -70,15 +65,10 @@ export class LookupCommand extends SlashCommandHandler {
         { error: lookupResult.val, targetUserId: targetUser.id },
         "Failed to lookup user",
       );
-      const editMsg = getErrorMessageEdit("Error", lookupResult.val);
-      await interaction.editReply(editMsg);
+      const msg = getErrorMessage("Error", lookupResult.val);
+      await interaction.reply(msg);
       return;
     }
-
-    const sushiiMember = interaction.guild.members.me;
-    const hasPermission = sushiiMember?.permissions.has(
-      PermissionFlagsBits.BanMembers,
-    );
 
     let member;
     try {
@@ -87,10 +77,14 @@ export class LookupCommand extends SlashCommandHandler {
       member = null;
     }
 
-    const embed = buildUserLookupEmbed(targetUser, member, lookupResult.val, {
-      botHasBanPermission: hasPermission ?? true,
-      showBasicInfo: true,
-    });
+    const message = buildUserLookupContainer(
+      targetUser,
+      member,
+      lookupResult.val,
+      {
+        showBasicInfo: true,
+      },
+    );
 
     log.info(
       {
@@ -100,6 +94,6 @@ export class LookupCommand extends SlashCommandHandler {
       "User lookup completed",
     );
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.reply(message);
   }
 }
