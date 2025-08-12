@@ -3,13 +3,17 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { AuditLogEvent } from "../domain/entities";
 import type { AuditLogProcessingService } from "./AuditLogProcessingService";
 import type { ModLogPostingService } from "./ModLogPostingService";
-import type { NativeTimeoutDMService } from "./NativeTimeoutDMService";
+import type {
+  DMSentResult,
+  NativeTimeoutDMService,
+} from "./NativeTimeoutDMService";
 
 /**
  * Application service that orchestrates the complete audit log processing workflow.
@@ -47,6 +51,7 @@ export class AuditLogOrchestrationService {
       }
 
       // Step 2: Handle native timeout DMs if applicable
+      let updatedModLogCase = processedLog.modLogCase;
       const dmResult = await this.handleNativeTimeoutDM(
         processedLog.auditLogEvent,
         processedLog.targetUser,
@@ -59,12 +64,33 @@ export class AuditLogOrchestrationService {
           { err: dmResult.val },
           "Failed to send native timeout DM, continuing with mod log posting",
         );
+      } else if (dmResult.ok) {
+        // Update the case object with DM information if DM was sent successfully
+        const dmInfo = dmResult.val;
+        if (dmInfo) {
+          const dmResultForCase: DMResult = {};
+
+          if (dmInfo.channelId) {
+            dmResultForCase.channelId = dmInfo.channelId;
+          }
+
+          if (dmInfo.messageId) {
+            dmResultForCase.messageId = dmInfo.messageId;
+          }
+
+          if (dmInfo.error) {
+            dmResultForCase.error = dmInfo.error;
+          }
+
+          updatedModLogCase =
+            processedLog.modLogCase.withDMResult(dmResultForCase);
+        }
       }
 
-      // Step 3: Post mod log message
+      // Step 3: Post mod log message with updated case
       const postResult = await this.modLogPostingService.postModLogMessage(
         processedLog.auditLogEvent,
-        processedLog.modLogCase,
+        updatedModLogCase,
         processedLog.targetUser,
         guild,
         processedLog.guildConfig.modLogChannelId,
@@ -98,6 +124,7 @@ export class AuditLogOrchestrationService {
   /**
    * Handles native timeout DM sending if applicable.
    * Contains the business logic for when and how to send timeout DMs.
+   * Returns the DM information if a DM was sent successfully.
    */
   private async handleNativeTimeoutDM(
     auditLogEvent: AuditLogEvent,
@@ -105,7 +132,7 @@ export class AuditLogOrchestrationService {
     guild: Guild,
     caseId: string,
     wasPendingCase: boolean,
-  ): Promise<Result<void, string>> {
+  ): Promise<Result<DMSentResult | null, string>> {
     // Check if we should send a DM for this event
     let guildConfig: GuildConfig | undefined;
     try {
@@ -123,7 +150,7 @@ export class AuditLogOrchestrationService {
     );
 
     if (!shouldSend) {
-      return Ok.EMPTY;
+      return Ok(null);
     }
 
     // Send the DM
@@ -147,6 +174,6 @@ export class AuditLogOrchestrationService {
       dmSentResult.error,
     );
 
-    return Ok.EMPTY;
+    return Ok(dmSentResult);
   }
 }
