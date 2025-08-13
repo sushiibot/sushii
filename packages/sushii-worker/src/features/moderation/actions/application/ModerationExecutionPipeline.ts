@@ -9,7 +9,10 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
-import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import {
+  type DMResult,
+  ModerationCase,
+} from "../../shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { TempBan } from "../../shared/domain/entities/TempBan";
 import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
@@ -67,11 +70,39 @@ export class ModerationExecutionPipeline {
     );
 
     try {
+      // For actions that require DM before creation, handle it first
+      let preDMResult: DMResult | null = null;
+      if (action.shouldSendDMBeforeAction()) {
+        const dmPolicy = await this.dmPolicyService.shouldSendDM(
+          "before",
+          action,
+          target,
+          action.guildId,
+        );
+
+        if (dmPolicy.should) {
+          // For warnings, DM must succeed before creating case
+          if (action.isWarnAction()) {
+            preDMResult = await this.sendDM(
+              action.guildId,
+              "pre-case",
+              action,
+              target,
+            );
+
+            if (preDMResult.error) {
+              return Err(`Failed to send warning DM: ${preDMResult.error}`);
+            }
+          }
+        }
+      }
+
       // 1. Create database records atomically (focused transaction)
       const createResult = await this.createModerationRecord(
         action,
         finalActionType,
         target,
+        preDMResult,
       );
       if (!createResult.ok) {
         return createResult;
@@ -82,13 +113,16 @@ export class ModerationExecutionPipeline {
       // 2. Execute external operations (outside transaction)
       let currentCase = moderationCase;
 
-      // Send pre-action DM if needed
-      currentCase = await this.handlePreActionDM(
-        action,
-        target,
-        caseId,
-        currentCase,
-      );
+      // Send pre-action DM if needed (for ban/kick actions)
+      // Warnings already have their DM result included in the case
+      if (action.shouldSendDMBeforeAction() && !action.isWarnAction()) {
+        currentCase = await this.handlePreActionDM(
+          action,
+          target,
+          caseId,
+          currentCase,
+        );
+      }
 
       // Execute Discord action
       const discordActionResult = await this.handleDiscordAction(
@@ -145,6 +179,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     finalActionType: ActionType,
     target: ModerationTarget,
+    preDMResult?: DMResult | null,
   ): Promise<
     Result<{ caseId: string; moderationCase: ModerationCase }, string>
   > {
@@ -191,7 +226,7 @@ export class ModerationExecutionPipeline {
         }
 
         // Create moderation case with DM intent
-        const moderationCase = ModerationCase.create(
+        let moderationCase = ModerationCase.create(
           action.guildId,
           caseId,
           finalActionType,
@@ -211,6 +246,11 @@ export class ModerationExecutionPipeline {
               ? "user_not_in_guild"
               : undefined,
           );
+
+        // Include pre-sent DM result if provided
+        if (preDMResult) {
+          moderationCase = moderationCase.withDMResult(preDMResult);
+        }
 
         // Save moderation case
         const saveCaseResult = await this.caseRepository.save(

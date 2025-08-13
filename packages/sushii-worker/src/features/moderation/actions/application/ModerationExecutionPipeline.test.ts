@@ -383,6 +383,42 @@ describe("ModerationExecutionPipeline", () => {
         expect(result.val.dmResult).toBeNull();
       }
     });
+
+    test("should fail to create case when warning DM fails", async () => {
+      // Override mock to enable DM policy for warnings
+      mockDMPolicyService.shouldSendDM = mock(() =>
+        Promise.resolve({
+          should: true,
+          source: "warn_always" as DMIntentSource,
+        }),
+      );
+
+      // Override mock to simulate DM failure
+      mockDMNotificationService.sendModerationDM = mock(() =>
+        Promise.resolve(
+          Err("Failed to send DM: User has DMs disabled"),
+        ),
+      );
+
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+      const target = createMockTarget();
+
+      const result = await pipeline.execute(action, ActionType.Warn, target);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.val).toContain("Failed to send DM");
+      }
+
+      // Verify no case was created
+      expect(mockCaseRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe("Discord action execution", () => {

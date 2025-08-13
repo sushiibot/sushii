@@ -160,8 +160,7 @@ export function buildActionResultMessage(
     if (configuredDMText && dmAttemptedCount > 0) {
       fullContent += `### 📋 Additional DM Message\n`;
       fullContent += `> ${configuredDMText}\n`;
-      fullContent +=
-        "-# This was also sent to the user as configured in `/settings`\n";
+      fullContent += "-# As configured in `/settings`\n";
     }
 
     // Add timeout duration if this is a timeout action

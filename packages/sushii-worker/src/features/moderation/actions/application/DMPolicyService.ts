@@ -32,6 +32,16 @@ export class DMPolicyService {
     }
 
     // Timing rules - bans/kicks DM before action, others DM after
+    // Don't DM if no reason provided
+    if (!action.reason) {
+      return { should: false, source: "action_not_supported" };
+    }
+
+    // Warn ALWAYS DMs, cannot disable or override, regardless of timing
+    if (action.actionType === ActionType.Warn) {
+      return { should: true, source: "warn_always" };
+    }
+
     if (timing === "before" && !action.shouldSendDMBeforeAction()) {
       // Not a pre-action DM type, never DM before action
       return { should: false, source: "action_not_supported" };
@@ -40,16 +50,6 @@ export class DMPolicyService {
     if (timing === "after" && action.shouldSendDMBeforeAction()) {
       // Is pre-action DM type, never DM after action
       return { should: false, source: "action_not_supported" };
-    }
-
-    // Don't DM if no reason provided
-    if (!action.reason) {
-      return { should: false, source: "action_not_supported" };
-    }
-
-    // Warn ALWAYS DMs, cannot disable or override
-    if (action.actionType === ActionType.Warn) {
-      return { should: true, source: "warn_always" };
     }
 
     // Command-level DM choice override takes highest priority
