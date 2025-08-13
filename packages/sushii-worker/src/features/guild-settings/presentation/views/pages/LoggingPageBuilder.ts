@@ -93,7 +93,7 @@ export function addLoggingContent(
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Member Logs Section
-  let memberLogDescription = `Logs member joins, leaves, role changes\n${
+  let memberLogDescription = `Logs member joins and leaves\n${
     config.loggingSettings.memberLogChannel
       ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
       : "**Channel:** No channel set"
