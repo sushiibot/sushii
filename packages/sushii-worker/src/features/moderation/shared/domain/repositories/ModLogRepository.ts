@@ -180,4 +180,6 @@ export interface ModLogAuditOperations {
  * Repository interface for mod log operations.
  * Combines case management and audit log specific operations.
  */
-export interface ModLogRepository extends ModLogCaseOperations, ModLogAuditOperations {}
+export interface ModLogRepository
+  extends ModLogCaseOperations,
+    ModLogAuditOperations {}

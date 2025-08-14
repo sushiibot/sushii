@@ -5,11 +5,13 @@ This directory contains comprehensive integration tests for the moderation featu
 ## Structure
 
 ### Shared Utilities (`/shared/`)
+
 - **`testCaseTypes.ts`** - Type definitions for test cases
 - **`moderationTestRunner.ts`** - Core test execution engine (`runModerationTest` function)
 - **`testCaseFactories.ts`** - Factory functions for creating test cases with sensible defaults
 
 ### Command Test Files
+
 - **`ban-command.test.ts`** - Ban command integration tests
 - **`timeout-command.test.ts`** - Timeout command integration tests
 
@@ -22,21 +24,21 @@ describe("Command Integration", () => {
   describe("Basic Operations", () => {
     // Success cases, core functionality
   });
-  
+
   describe("DM Behavior", () => {
     describe("Guild Config Defaults", () => {
       // Tests using guild config defaults
     });
-    
+
     describe("Edge Cases", () => {
       // No reason, non-members, etc.
     });
   });
-  
+
   describe("Validation & Errors", () => {
     // Invalid input, non-existent users
   });
-  
+
   describe("Audit Log Integration", () => {
     // Pending -> completed flow
   });

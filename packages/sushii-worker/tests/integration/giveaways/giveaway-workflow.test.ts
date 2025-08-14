@@ -13,8 +13,7 @@ import {
   giveawaysInAppPublic,
 } from "@/infrastructure/database/schema";
 
-import type {
-  IntegrationTestServices} from "../helpers/integrationTestSetup";
+import type { IntegrationTestServices } from "../helpers/integrationTestSetup";
 import {
   cleanupIntegrationTest,
   setupIntegrationTest,
@@ -419,15 +418,19 @@ describe("Giveaway Workflow Integration", () => {
 
     // BUG: Drawing winners should automatically mark giveaway as ended
     // Check the database directly
-    const updatedGiveaways = await db.select().from(giveawaysInAppPublic).execute();
+    const updatedGiveaways = await db
+      .select()
+      .from(giveawaysInAppPublic)
+      .execute();
     expect(updatedGiveaways).toHaveLength(1);
     expect(updatedGiveaways[0].isEnded).toBe(true); // This should be true after drawing
 
     // Also verify through the service
-    const updatedGiveaway = await giveawayFeature.services.giveawayService.getGiveaway(
-      guildId,
-      giveawayData.id,
-    );
+    const updatedGiveaway =
+      await giveawayFeature.services.giveawayService.getGiveaway(
+        guildId,
+        giveawayData.id,
+      );
     if (updatedGiveaway.ok && updatedGiveaway.val) {
       expect(updatedGiveaway.val.isEnded).toBe(true);
     }
@@ -441,7 +444,7 @@ describe("Giveaway Workflow Integration", () => {
     // ==========================================
     const hostUser = {
       id: "100000000000000002",
-      username: "host", 
+      username: "host",
       discriminator: "0001",
       tag: "host#0001",
     };
@@ -475,14 +478,14 @@ describe("Giveaway Workflow Integration", () => {
     }
 
     const _member = await guild.members.fetch(participantUser.id);
-    
+
     // BUG: Cache and database should be synchronized
     // First add to cache (like button handler does)
     const mockMessage = {
       id: giveawayData.id,
       channel: { id: giveawayData.channelId },
     } as Message<true>;
-    
+
     await giveawayFeature.services.giveawayEntryCacheService.addEntryToCache(
       giveawayData.id,
       participantUser.id,
@@ -492,27 +495,32 @@ describe("Giveaway Workflow Integration", () => {
     // ==========================================
     // ASSERT: Verify cache and database are in sync
     // ==========================================
-    
+
     // Check cache shows user as entered
-    const inCache = giveawayFeature.services.giveawayEntryCacheService.isInCache(
-      giveawayData.id,
-      participantUser.id,
-    );
+    const inCache =
+      giveawayFeature.services.giveawayEntryCacheService.isInCache(
+        giveawayData.id,
+        participantUser.id,
+      );
     expect(inCache).toBe(true);
 
     // Wait for cache to flush to database (cache flushes after 5 seconds of inactivity)
-    await new Promise(resolve => setTimeout(resolve, 6000));
+    await new Promise((resolve) => setTimeout(resolve, 6000));
 
     // Database should have the entry after cache flush
-    const dbEntries = await db.select().from(giveawayEntriesInAppPublic).execute();
+    const dbEntries = await db
+      .select()
+      .from(giveawayEntriesInAppPublic)
+      .execute();
     expect(dbEntries).toHaveLength(1);
     expect(dbEntries[0].userId).toBe(BigInt(participantUser.id));
 
     // Verify entry service also sees the entry
-    const hasEntry = await giveawayFeature.services.giveawayEntryService.hasUserEntered(
-      giveawayData.id,
-      participantUser.id,
-    );
+    const hasEntry =
+      await giveawayFeature.services.giveawayEntryService.hasUserEntered(
+        giveawayData.id,
+        participantUser.id,
+      );
     expect(hasEntry.ok).toBe(true);
     expect(hasEntry.val).toBe(true);
   });

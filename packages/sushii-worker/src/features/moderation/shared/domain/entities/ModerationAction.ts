@@ -81,7 +81,11 @@ export abstract class ModerationAction {
     // Ban, TempBan, Kick, and Warn should all send DMs before the action
     // to ensure the user receives the notification
     const actionType = this.actionType;
-    return this.isBanOrTempBanAction() || this.isKickAction() || actionType === ActionType.Warn;
+    return (
+      this.isBanOrTempBanAction() ||
+      this.isKickAction() ||
+      actionType === ActionType.Warn
+    );
   }
 
   isTemporalAction(): this is TempBanAction | TimeoutAction {

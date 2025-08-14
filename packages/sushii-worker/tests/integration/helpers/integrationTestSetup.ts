@@ -4,19 +4,16 @@ import pino from "pino";
 
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
-import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { createLevelingServices } from "@/features/leveling/setup";
+import { setupModerationFeature } from "@/features/moderation/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import type { DeploymentConfig } from "@/shared/infrastructure/config/config";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
-import type {
-  MockDiscordClient} from "./mockDiscordClient";
-import {
-  createMockDiscordClient,
-} from "./mockDiscordClient";
+import type { MockDiscordClient } from "./mockDiscordClient";
+import { createMockDiscordClient } from "./mockDiscordClient";
 
 export interface IntegrationTestServices {
   db: NodePgDatabase<typeof schema>;

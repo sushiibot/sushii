@@ -78,9 +78,10 @@ describe("ModLog Reason Button Integration", () => {
         null,
       );
 
-      const createResult = await services.moderationFeature.services.modLogRepository.createCase(
-        existingCase,
-      );
+      const createResult =
+        await services.moderationFeature.services.modLogRepository.createCase(
+          existingCase,
+        );
       if (createResult.err) {
         throw createResult.val;
       }
@@ -172,9 +173,10 @@ describe("ModLog Reason Button Integration", () => {
         originalReasonResult.val,
       );
 
-      const createResult2 = await services.moderationFeature.services.modLogRepository.createCase(
-        existingCase,
-      );
+      const createResult2 =
+        await services.moderationFeature.services.modLogRepository.createCase(
+          existingCase,
+        );
       if (createResult2.err) {
         throw createResult2.val;
       }

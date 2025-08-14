@@ -1,7 +1,7 @@
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import type { Logger } from "pino";
-import { sql } from "drizzle-orm";
 
 export interface DeploymentRecord {
   name: string;

@@ -34,17 +34,17 @@ import {
 import {
   CaseDeletionService,
   CaseRangeAutocompleteService,
-  LookupUserService,
   HistoryUserService,
+  LookupUserService,
   ReasonUpdateService,
 } from "./cases/application";
 import { DrizzleUserLookupRepository } from "./cases/infrastructure/repositories/DrizzleUserLookupRepository";
 import {
   HistoryCommand,
   LookupCommand,
-  UserInfoContextMenuHandler,
   ReasonCommand,
   UncaseCommand,
+  UserInfoContextMenuHandler,
 } from "./cases/presentation";
 // Tasks
 import { TempbanTask } from "./infrastructure/tasks/TempbanTask";

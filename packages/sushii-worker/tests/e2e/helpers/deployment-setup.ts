@@ -1,9 +1,10 @@
-import pino from "pino";
-import { DockerUtils } from "./docker-utils";
-import { DatabaseUtils } from "./database-utils";
-import { HealthCheckUtils } from "./health-check-utils";
-import { configDotenv } from "dotenv";
 import { sleep } from "bun";
+import { configDotenv } from "dotenv";
+import pino from "pino";
+
+import { DatabaseUtils } from "./database-utils";
+import { DockerUtils } from "./docker-utils";
+import { HealthCheckUtils } from "./health-check-utils";
 
 configDotenv();
 

@@ -5,6 +5,7 @@ This directory contains end-to-end tests for the Sushii Discord bot, focusing on
 ## Overview
 
 The e2e tests verify:
+
 - Bot startup and initialization
 - Deployment state synchronization between database and bot instances
 - Blue/green deployment switchover mechanics
@@ -43,10 +44,11 @@ The e2e tests verify:
    - Note your Discord User ID
 
 3. **Environment Configuration**:
+
    ```bash
    # Copy the example environment file
    cp .env.e2e.example .env.e2e
-   
+
    # Edit .env.e2e with your test bot credentials
    # E2E_DISCORD_TOKEN=your_test_bot_token
    # E2E_APPLICATION_ID=your_test_application_id

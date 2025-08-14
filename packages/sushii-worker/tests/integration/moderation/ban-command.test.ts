@@ -1,22 +1,14 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  test,
-} from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, test } from "bun:test";
 import { AuditLogEvent } from "discord.js";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
-import type {
-  IntegrationTestServices} from "../helpers/integrationTestSetup";
+import type { IntegrationTestServices } from "../helpers/integrationTestSetup";
 import {
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";
-
 import { runModerationTest } from "./shared/moderationTestRunner";
 import {
   createBanTestCase,
@@ -49,24 +41,27 @@ describe("Ban Command Integration", () => {
 
   describe("Basic Operations", () => {
     test("basic successful ban with reason", async () => {
-      const testCase = createBanTestCase("ban - basic successful ban with reason", {
-        commandOptions: {
-          reason: "Test ban reason",
-        },
-        expectations: {
-          moderationCase: {
-            shouldCreate: true,
-            pending: true,
-            actionType: ActionType.Ban,
+      const testCase = createBanTestCase(
+        "ban - basic successful ban with reason",
+        {
+          commandOptions: {
             reason: "Test ban reason",
           },
-          interaction: {
-            deferReply: true,
-            editReply: true,
-            embedContains: ["Ban Successful"],
+          expectations: {
+            moderationCase: {
+              shouldCreate: true,
+              pending: true,
+              actionType: ActionType.Ban,
+              reason: "Test ban reason",
+            },
+            interaction: {
+              deferReply: true,
+              editReply: true,
+              embedContains: ["Ban Successful"],
+            },
           },
         },
-      });
+      );
 
       await runModerationTest(testCase, services);
     });
@@ -98,42 +93,48 @@ describe("Ban Command Integration", () => {
 
     describe("Edge Cases", () => {
       test("no DM when no reason provided", async () => {
-        const testCase = createBanTestCase("ban - no DM when no reason provided", {
-          setup: {
-            guildConfig: {
-              banDmEnabled: true,
+        const testCase = createBanTestCase(
+          "ban - no DM when no reason provided",
+          {
+            setup: {
+              guildConfig: {
+                banDmEnabled: true,
+              },
+            },
+            commandOptions: {
+              dm_reason: "yes_dm", // Even with yes_dm, no DM if no reason
+            },
+            expectations: {
+              discordApi: {
+                ban: { called: true },
+                dmSend: { called: false }, // No DM without reason
+              },
             },
           },
-          commandOptions: {
-            dm_reason: "yes_dm", // Even with yes_dm, no DM if no reason
-          },
-          expectations: {
-            discordApi: {
-              ban: { called: true },
-              dmSend: { called: false }, // No DM without reason
-            },
-          },
-        });
+        );
 
         await runModerationTest(testCase, services);
       });
 
       test("no DM when target not in guild (even with yes_dm)", async () => {
-        const testCase = createBanTestCase("ban - no DM when target not in guild (even with yes_dm)", {
-          setup: {
-            targetIsMember: false, // User exists but not in guild
-          },
-          commandOptions: {
-            reason: "Test ban non-member",
-            dm_reason: "yes_dm", // Even explicit yes_dm shouldn't work for non-members
-          },
-          expectations: {
-            discordApi: {
-              ban: { called: true },
-              dmSend: { called: false }, // No DM for non-members
+        const testCase = createBanTestCase(
+          "ban - no DM when target not in guild (even with yes_dm)",
+          {
+            setup: {
+              targetIsMember: false, // User exists but not in guild
+            },
+            commandOptions: {
+              reason: "Test ban non-member",
+              dm_reason: "yes_dm", // Even explicit yes_dm shouldn't work for non-members
+            },
+            expectations: {
+              discordApi: {
+                ban: { called: true },
+                dmSend: { called: false }, // No DM for non-members
+              },
             },
           },
-        });
+        );
 
         await runModerationTest(testCase, services);
       });

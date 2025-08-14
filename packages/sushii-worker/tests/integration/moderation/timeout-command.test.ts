@@ -1,26 +1,18 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  test,
-} from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, test } from "bun:test";
 import { AuditLogEvent } from "discord.js";
 
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 
-import type {
-  IntegrationTestServices} from "../helpers/integrationTestSetup";
+import type { IntegrationTestServices } from "../helpers/integrationTestSetup";
 import {
   cleanupIntegrationTest,
   setupIntegrationTest,
 } from "../helpers/integrationTestSetup";
-
 import { runModerationTest } from "./shared/moderationTestRunner";
 import {
-  createTimeoutTestCase,
   createDmConfigVariations,
+  createTimeoutTestCase,
 } from "./shared/testCaseFactories";
 
 describe("Timeout Command Integration", () => {
@@ -49,25 +41,28 @@ describe("Timeout Command Integration", () => {
 
   describe("Basic Operations", () => {
     test("basic successful timeout with duration", async () => {
-      const testCase = createTimeoutTestCase("timeout - basic successful timeout with duration", {
-        commandOptions: {
-          duration: "1h",
-          reason: "Spamming in chat",
-        },
-        expectations: {
-          moderationCase: {
-            shouldCreate: true,
-            pending: true,
-            actionType: ActionType.Timeout,
+      const testCase = createTimeoutTestCase(
+        "timeout - basic successful timeout with duration",
+        {
+          commandOptions: {
+            duration: "1h",
             reason: "Spamming in chat",
           },
-          interaction: {
-            deferReply: true,
-            editReply: true,
-            embedContains: ["Timeout Successful"],
+          expectations: {
+            moderationCase: {
+              shouldCreate: true,
+              pending: true,
+              actionType: ActionType.Timeout,
+              reason: "Spamming in chat",
+            },
+            interaction: {
+              deferReply: true,
+              editReply: true,
+              embedContains: ["Timeout Successful"],
+            },
           },
         },
-      });
+      );
 
       await runModerationTest(testCase, services);
     });
@@ -76,7 +71,7 @@ describe("Timeout Command Integration", () => {
   describe("DM Behavior", () => {
     describe("Guild Config Defaults", () => {
       const baseTimeoutCase = createTimeoutTestCase("base timeout case", {
-        commandOptions: { 
+        commandOptions: {
           duration: "30m",
           reason: "Test reason",
         },
@@ -91,23 +86,26 @@ describe("Timeout Command Integration", () => {
 
     describe("Edge Cases", () => {
       test("no DM when no reason provided", async () => {
-        const testCase = createTimeoutTestCase("timeout - no DM when no reason provided", {
-          setup: {
-            guildConfig: {
-              timeoutCommandDmEnabled: true,
+        const testCase = createTimeoutTestCase(
+          "timeout - no DM when no reason provided",
+          {
+            setup: {
+              guildConfig: {
+                timeoutCommandDmEnabled: true,
+              },
+            },
+            commandOptions: {
+              duration: "1h",
+              dm_reason: "yes_dm", // Even with yes_dm, no DM if no reason
+            },
+            expectations: {
+              discordApi: {
+                timeout: { called: true },
+                dmSend: { called: false }, // No DM without reason
+              },
             },
           },
-          commandOptions: {
-            duration: "1h",
-            dm_reason: "yes_dm", // Even with yes_dm, no DM if no reason
-          },
-          expectations: {
-            discordApi: {
-              timeout: { called: true },
-              dmSend: { called: false }, // No DM without reason
-            },
-          },
-        });
+        );
 
         await runModerationTest(testCase, services);
       });
@@ -116,57 +114,63 @@ describe("Timeout Command Integration", () => {
 
   describe("Validation & Errors", () => {
     test("fails when no duration provided", async () => {
-      const testCase = createTimeoutTestCase("timeout - fails when no duration provided", {
-        commandOptions: {
-          duration: undefined, // No duration provided
-          reason: "Test timeout without duration",
+      const testCase = createTimeoutTestCase(
+        "timeout - fails when no duration provided",
+        {
+          commandOptions: {
+            duration: undefined, // No duration provided
+            reason: "Test timeout without duration",
+          },
+          expectations: {
+            shouldSucceed: false, // Should fail validation
+            errorMessage: "Duration is required",
+            discordApi: {
+              timeout: { called: false },
+              dmSend: { called: false },
+            },
+            moderationCase: {
+              shouldCreate: false,
+              pending: false, // Not applicable when not created
+              actionType: ActionType.Timeout, // Not applicable when not created
+            },
+            interaction: {
+              deferReply: true,
+              editReply: true, // Error message
+            },
+          },
         },
-        expectations: {
-          shouldSucceed: false, // Should fail validation
-          errorMessage: "Duration is required",
-          discordApi: {
-            timeout: { called: false },
-            dmSend: { called: false },
-          },
-          moderationCase: {
-            shouldCreate: false,
-            pending: false, // Not applicable when not created
-            actionType: ActionType.Timeout, // Not applicable when not created
-          },
-          interaction: {
-            deferReply: true,
-            editReply: true, // Error message
-          },
-        },
-      });
+      );
 
       await runModerationTest(testCase, services);
     });
 
     test("fails with invalid duration format", async () => {
-      const testCase = createTimeoutTestCase("timeout - fails with invalid duration format", {
-        commandOptions: {
-          duration: "invalid-duration",
-          reason: "Test invalid duration",
+      const testCase = createTimeoutTestCase(
+        "timeout - fails with invalid duration format",
+        {
+          commandOptions: {
+            duration: "invalid-duration",
+            reason: "Test invalid duration",
+          },
+          expectations: {
+            shouldSucceed: false, // Should fail validation
+            errorMessage: "Invalid duration",
+            discordApi: {
+              timeout: { called: false },
+              dmSend: { called: false },
+            },
+            moderationCase: {
+              shouldCreate: false,
+              pending: false, // Not applicable when not created
+              actionType: ActionType.Timeout, // Not applicable when not created
+            },
+            interaction: {
+              deferReply: true,
+              editReply: true, // Error message
+            },
+          },
         },
-        expectations: {
-          shouldSucceed: false, // Should fail validation
-          errorMessage: "Invalid duration",
-          discordApi: {
-            timeout: { called: false },
-            dmSend: { called: false },
-          },
-          moderationCase: {
-            shouldCreate: false,
-            pending: false, // Not applicable when not created
-            actionType: ActionType.Timeout, // Not applicable when not created
-          },
-          interaction: {
-            deferReply: true,
-            editReply: true, // Error message
-          },
-        },
-      });
+      );
 
       await runModerationTest(testCase, services);
     });
@@ -174,28 +178,31 @@ describe("Timeout Command Integration", () => {
 
   describe("Audit Log Integration", () => {
     test("completed by audit log", async () => {
-      const testCase = createTimeoutTestCase("timeout - completed by audit log", {
-        setup: {
-          guildConfig: {
-            modLogChannel: "100000000000023456",
+      const testCase = createTimeoutTestCase(
+        "timeout - completed by audit log",
+        {
+          setup: {
+            guildConfig: {
+              modLogChannel: "100000000000023456",
+            },
+          },
+          commandOptions: {
+            duration: "30m",
+            reason: "Test audit log completion",
+          },
+          expectations: {
+            moderationCase: {
+              shouldCreate: true,
+              pending: true, // Initially pending
+              actionType: ActionType.Timeout,
+            },
+            auditLog: {
+              event: AuditLogEvent.MemberUpdate, // Timeout shows as member update
+              completesCase: true, // Should complete the pending case
+            },
           },
         },
-        commandOptions: {
-          duration: "30m",
-          reason: "Test audit log completion",
-        },
-        expectations: {
-          moderationCase: {
-            shouldCreate: true,
-            pending: true, // Initially pending
-            actionType: ActionType.Timeout,
-          },
-          auditLog: {
-            event: AuditLogEvent.MemberUpdate, // Timeout shows as member update
-            completesCase: true, // Should complete the pending case
-          },
-        },
-      });
+      );
 
       await runModerationTest(testCase, services);
     });

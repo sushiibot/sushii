@@ -422,9 +422,7 @@ describe("ModerationExecutionPipeline", () => {
 
       // Override mock to simulate DM failure
       mockDMNotificationService.sendModerationDM = mock(() =>
-        Promise.resolve(
-          Err("Failed to send DM: User has DMs disabled"),
-        ),
+        Promise.resolve(Err("Failed to send DM: User has DMs disabled")),
       );
 
       const action = new WarnAction(

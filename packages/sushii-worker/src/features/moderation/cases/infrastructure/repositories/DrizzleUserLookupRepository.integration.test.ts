@@ -73,12 +73,12 @@ describe("DrizzleUserLookupRepository (Integration)", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.val).toHaveLength(3);
-      
-      const guildIds = result.val.map(ban => ban.guildId).sort();
+
+      const guildIds = result.val.map((ban) => ban.guildId).sort();
       expect(guildIds).toEqual([guild1, guild2, guild3]);
-      
+
       // All should have null reason/actionTime since no mod logs
-      result.val.forEach(ban => {
+      result.val.forEach((ban) => {
         expect(ban.reason).toBe(null);
         expect(ban.actionTime).toBe(null);
         expect(ban.lookupDetailsOptIn).toBe(false);
@@ -127,14 +127,14 @@ describe("DrizzleUserLookupRepository (Integration)", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.val).toHaveLength(2);
-      
-      const banWithModLog = result.val.find(ban => ban.guildId === guild1);
-      const banWithoutModLog = result.val.find(ban => ban.guildId === guild2);
-      
+
+      const banWithModLog = result.val.find((ban) => ban.guildId === guild1);
+      const banWithoutModLog = result.val.find((ban) => ban.guildId === guild2);
+
       // Ban with mod log should have reason and actionTime
       expect(banWithModLog?.reason).toBe("Spam violation");
       expect(banWithModLog?.actionTime).toEqual(actionTime);
-      
+
       // Ban without mod log should have null values
       expect(banWithoutModLog?.reason).toBe(null);
       expect(banWithoutModLog?.actionTime).toBe(null);
@@ -213,11 +213,11 @@ describe("DrizzleUserLookupRepository (Integration)", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.val).toHaveLength(3);
-      
-      const ban1 = result.val.find(ban => ban.guildId === guild1);
-      const ban2 = result.val.find(ban => ban.guildId === guild2);
-      const ban3 = result.val.find(ban => ban.guildId === guild3);
-      
+
+      const ban1 = result.val.find((ban) => ban.guildId === guild1);
+      const ban2 = result.val.find((ban) => ban.guildId === guild2);
+      const ban3 = result.val.find((ban) => ban.guildId === guild3);
+
       expect(ban1?.lookupDetailsOptIn).toBe(true);
       expect(ban2?.lookupDetailsOptIn).toBe(false);
       expect(ban3?.lookupDetailsOptIn).toBe(false); // Default when no config

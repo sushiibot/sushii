@@ -1,4 +1,4 @@
-import type { Mock} from "bun:test";
+import type { Mock } from "bun:test";
 import { mock } from "bun:test";
 import type {
   Client,
@@ -6,12 +6,11 @@ import type {
   Guild,
   GuildBan,
   GuildMember,
-  User} from "discord.js";
-import {
-  Collection
+  User,
 } from "discord.js";
+import { Collection } from "discord.js";
 
-import type { MockUserData} from "./mockUsers";
+import type { MockUserData } from "./mockUsers";
 import { getMockUserById } from "./mockUsers";
 
 export interface DiscordAPISpies {

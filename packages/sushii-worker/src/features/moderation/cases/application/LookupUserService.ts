@@ -39,7 +39,8 @@ export class LookupUserService {
 
     // Get current guild's lookup opt-in status
     const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
-    const currentGuildLookupOptIn = guildConfig.moderationSettings.lookupDetailsOptIn;
+    const currentGuildLookupOptIn =
+      guildConfig.moderationSettings.lookupDetailsOptIn;
 
     const member = guild.members.cache.get(userId);
     let user: User | null = null;
@@ -60,9 +61,8 @@ export class LookupUserService {
     }
 
     // Fetch cross-server bans
-    const crossServerBansResult = await this.userLookupRepository.getUserCrossServerBans(
-      userId,
-    );
+    const crossServerBansResult =
+      await this.userLookupRepository.getUserCrossServerBans(userId);
     if (!crossServerBansResult.ok) {
       log.error(
         { err: crossServerBansResult.val },
@@ -99,7 +99,7 @@ export class LookupUserService {
       }),
     );
 
-    // Filter out bans where guild info couldn't be fetched 
+    // Filter out bans where guild info couldn't be fetched
     // Note: Privacy filtering (showing/hiding names) is handled in presentation layer
     // to ensure ban counts remain accurate regardless of opt-in status
     const filteredCrossServerBans = crossServerBans.filter(
@@ -119,9 +119,12 @@ export class LookupUserService {
       currentGuildLookupOptIn,
     };
 
-    log.info({ 
-      crossServerBans: filteredCrossServerBans.length 
-    }, "User lookup completed");
+    log.info(
+      {
+        crossServerBans: filteredCrossServerBans.length,
+      },
+      "User lookup completed",
+    );
     return Ok(result);
   }
 }

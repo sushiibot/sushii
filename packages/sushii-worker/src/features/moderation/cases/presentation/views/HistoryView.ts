@@ -180,7 +180,9 @@ export function buildUserHistoryContextEmbed(
   const { moderationHistory, totalCases } = historyResult;
 
   const embed = new EmbedBuilder()
-    .setTitle(`Recent Moderation History (${totalCases} case${totalCases === 1 ? "" : "s"})`)
+    .setTitle(
+      `Recent Moderation History (${totalCases} case${totalCases === 1 ? "" : "s"})`,
+    )
     .setColor(Color.Success)
     .setAuthor({
       name: getUserString(member || targetUser),

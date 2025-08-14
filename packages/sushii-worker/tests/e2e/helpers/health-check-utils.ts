@@ -36,7 +36,7 @@ export class HealthCheckUtils {
         };
       }
 
-      const data = await response.json() as Record<string, unknown>;
+      const data = (await response.json()) as Record<string, unknown>;
 
       if (!data || typeof data !== "object") {
         this.logger.error({ port, data }, "Invalid health response format");

@@ -1,16 +1,14 @@
 import {
-  describe,
-  test,
-  expect,
-  beforeAll,
   afterAll,
+  beforeAll,
   beforeEach,
+  describe,
+  expect,
+  test,
 } from "bun:test";
-import type {
-  E2ETestEnvironment} from "./helpers/deployment-setup";
-import {
-  DeploymentSetup
-} from "./helpers/deployment-setup";
+
+import type { E2ETestEnvironment } from "./helpers/deployment-setup";
+import { DeploymentSetup } from "./helpers/deployment-setup";
 
 describe("Deployment Switchover E2E Tests", () => {
   let testEnv: E2ETestEnvironment;

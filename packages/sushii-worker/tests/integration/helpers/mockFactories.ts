@@ -1,4 +1,4 @@
-import type { Mock} from "bun:test";
+import type { Mock } from "bun:test";
 import { mock } from "bun:test";
 import type {
   AuditLogEvent,
@@ -9,11 +9,12 @@ import type {
   GuildMemberRoleManager,
   Role,
   Snowflake,
-  User} from "discord.js";
+  User,
+} from "discord.js";
 import {
   ApplicationCommandType,
   Collection,
-  InteractionType
+  InteractionType,
 } from "discord.js";
 
 import { createMockGuildMember } from "./mockDiscordClient";

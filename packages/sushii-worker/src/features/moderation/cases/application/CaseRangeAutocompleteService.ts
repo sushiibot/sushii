@@ -26,8 +26,10 @@ export class CaseRangeAutocompleteService {
     try {
       if (!query) {
         // No value provided, list most recent cases
-        const recentCasesResult =
-          await this.modLogRepository.findRecent(guildId, 25);
+        const recentCasesResult = await this.modLogRepository.findRecent(
+          guildId,
+          25,
+        );
 
         if (recentCasesResult.err) {
           this.logger.warn(
@@ -143,12 +145,11 @@ export class CaseRangeAutocompleteService {
       );
     } else {
       // Both start and end ID provided, we are just adding to the last digit
-      const prefixSearchResult =
-        await this.modLogRepository.searchByIdPrefix(
-          guildId,
-          rangeData.endId.toString(),
-          25,
-        );
+      const prefixSearchResult = await this.modLogRepository.searchByIdPrefix(
+        guildId,
+        rangeData.endId.toString(),
+        25,
+      );
 
       if (prefixSearchResult.err) {
         return [];

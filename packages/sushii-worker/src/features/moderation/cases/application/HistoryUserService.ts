@@ -77,7 +77,10 @@ export class HistoryUserService {
       totalCases: moderationHistoryResult.val.length,
     };
 
-    log.info({ totalCases: result.totalCases }, "User history lookup completed");
+    log.info(
+      { totalCases: result.totalCases },
+      "User history lookup completed",
+    );
     return Ok(result);
   }
 }
