@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/interactions/handlers";
@@ -23,7 +23,7 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
   customIDMatch = customIds.modLogDeleteReasonDM.match;
 
   constructor(
-    private readonly moderationCaseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -172,7 +172,7 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     }
 
     // Fetch the moderation case to rebuild components
-    const caseResult = await this.moderationCaseRepository.findById(
+    const caseResult = await this.modLogRepository.findById(
       confirmationInteraction.guildId,
       caseId,
     );

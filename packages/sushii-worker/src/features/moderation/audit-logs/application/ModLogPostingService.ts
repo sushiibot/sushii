@@ -34,7 +34,9 @@ export class ModLogPostingService {
         targetUser,
         {
           case_id: modLogCase.caseId,
-          executor_id: auditLogEvent.executorId || null,
+          // Preserve mod case executor ID, otherwise fall back to audit log event
+          executor_id:
+            modLogCase.executorId || auditLogEvent.executorId || null,
           reason: modLogCase.reason?.value || null,
           attachments: modLogCase.attachments,
         },

@@ -1,4 +1,4 @@
-import type { Guild, User } from "discord.js";
+import type { Client, Guild, User } from "discord.js";
 import {
   DiscordAPIError,
   EmbedBuilder,
@@ -173,6 +173,24 @@ export class DMNotificationService {
         error: errorMessage,
       });
     }
+  }
+
+  async deleteModerationDM(
+    client: Client,
+    dmChannelId: string,
+    messageId: string,
+  ): Promise<void> {
+    const channel = await client.channels.fetch(dmChannelId);
+    if (!channel) {
+      // Could not find
+      return;
+    }
+
+    if (!channel.isDMBased()) {
+      throw new Error("Channel is not a DM channel");
+    }
+
+    await channel.messages.delete(messageId);
   }
 
   /**

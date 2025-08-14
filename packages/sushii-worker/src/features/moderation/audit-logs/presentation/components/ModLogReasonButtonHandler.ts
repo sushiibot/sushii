@@ -2,7 +2,7 @@ import type { ButtonInteraction, ModalSubmitInteraction } from "discord.js";
 import { ActionRowBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModerationCaseRepository } from "@/features/moderation/shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
@@ -17,7 +17,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
   customIDMatch = customIds.modLogReason.match;
 
   constructor(
-    private readonly moderationCaseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -110,7 +110,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     const reason = reasonResult.val;
 
     // Fetch the moderation case
-    const caseResult = await this.moderationCaseRepository.findById(
+    const caseResult = await this.modLogRepository.findById(
       interaction.guildId,
       caseId,
     );
@@ -148,7 +148,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     );
 
     // Save the updated case
-    const updateResult = await this.moderationCaseRepository.update(
+    const updateResult = await this.modLogRepository.update(
       updatedCaseWithExecutor,
     );
 

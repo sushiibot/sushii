@@ -68,7 +68,6 @@ import {
   DiscordModLogService,
   DiscordPermissionValidationService,
   DrizzleModLogRepository,
-  DrizzleModerationCaseRepository,
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
 import { COMMAND_CONFIGS, ReasonAutocomplete } from "./shared/presentation";
@@ -88,11 +87,6 @@ export function createModerationServices({
   client,
   logger,
 }: ModerationDependencies) {
-  const moderationCaseRepository = new DrizzleModerationCaseRepository(
-    db,
-    logger.child({ module: "moderationCaseRepository" }),
-  );
-
   const modLogRepository = new DrizzleModLogRepository(
     db,
     logger.child({ module: "modLogRepository" }),
@@ -123,7 +117,7 @@ export function createModerationServices({
   // Create execution pipeline with focused dependencies
   const moderationExecutionPipeline = new ModerationExecutionPipeline(
     db,
-    moderationCaseRepository,
+    modLogRepository,
     tempBanRepository,
     modLogService,
     dmPolicyService,
@@ -155,7 +149,7 @@ export function createModerationServices({
 
   const historyUserService = new HistoryUserService(
     client,
-    moderationCaseRepository,
+    modLogRepository,
     logger.child({ module: "historyUserService" }),
   );
 
@@ -184,21 +178,21 @@ export function createModerationServices({
 
   const caseDeletionService = new CaseDeletionService(
     db,
-    moderationCaseRepository,
+    modLogRepository,
     guildConfigRepository,
     client,
     logger.child({ module: "caseDeletionService" }),
   );
 
   const reasonUpdateService = new ReasonUpdateService(
-    moderationCaseRepository,
+    modLogRepository,
     guildConfigRepository,
     client,
     logger.child({ module: "reasonUpdateService" }),
   );
 
   const caseRangeAutocompleteService = new CaseRangeAutocompleteService(
-    moderationCaseRepository,
+    modLogRepository,
     logger.child({ module: "caseRangeAutocompleteService" }),
   );
 
@@ -232,7 +226,6 @@ export function createModerationServices({
   );
 
   return {
-    moderationCaseRepository,
     modLogRepository,
     guildConfigRepository,
     tempBanRepository,
@@ -338,11 +331,11 @@ export function createModerationCommands(
 
   const buttonHandlers = [
     new ModLogReasonButtonHandler(
-      services.moderationCaseRepository,
+      services.modLogRepository,
       logger.child({ buttonHandler: "modLogReason" }),
     ),
     new ModLogDeleteDMButtonHandler(
-      services.moderationCaseRepository,
+      services.modLogRepository,
       logger.child({ buttonHandler: "modLogDeleteDM" }),
     ),
   ];

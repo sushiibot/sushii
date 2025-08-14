@@ -2,7 +2,7 @@ import type { APIApplicationCommandOptionChoice } from "discord.js";
 import type { Logger } from "pino";
 
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 
 const MAX_CHOICE_NAME_LEN = 100;
@@ -14,7 +14,7 @@ export interface AutocompleteOptions {
 
 export class CaseRangeAutocompleteService {
   constructor(
-    private readonly moderationCaseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -27,7 +27,7 @@ export class CaseRangeAutocompleteService {
       if (!query) {
         // No value provided, list most recent cases
         const recentCasesResult =
-          await this.moderationCaseRepository.findRecent(guildId, 25);
+          await this.modLogRepository.findRecent(guildId, 25);
 
         if (recentCasesResult.err) {
           this.logger.warn(
@@ -79,7 +79,7 @@ export class CaseRangeAutocompleteService {
   private async getLatestCaseSuggestions(
     guildId: string,
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
-    const recentCasesResult = await this.moderationCaseRepository.findRecent(
+    const recentCasesResult = await this.modLogRepository.findRecent(
       guildId,
       25,
     );
@@ -90,14 +90,13 @@ export class CaseRangeAutocompleteService {
 
     const recentCases = recentCasesResult.val;
 
-    // Get the next case number to calculate latest indices
-    const nextCaseResult =
-      await this.moderationCaseRepository.getNextCaseNumber(guildId);
-    if (nextCaseResult.err) {
+    // Get the latest case to calculate latest indices
+    const latestCaseResult = await this.modLogRepository.findRecent(guildId, 1);
+    if (latestCaseResult.err) {
       return [];
     }
-
-    const latestCaseId = Number(nextCaseResult.val) - 1;
+    const latestCase = latestCaseResult.val[0];
+    const latestCaseId = latestCase ? Number(latestCase.caseId) : 0;
 
     return recentCases
       .filter((c) => parseInt(c.caseId, 10) > latestCaseId - 25)
@@ -130,7 +129,7 @@ export class CaseRangeAutocompleteService {
 
     if (!rangeData.endId) {
       // Searching for end ID - should only include cases that are > startId
-      const recentCasesResult = await this.moderationCaseRepository.findRecent(
+      const recentCasesResult = await this.modLogRepository.findRecent(
         guildId,
         25,
       );
@@ -145,7 +144,7 @@ export class CaseRangeAutocompleteService {
     } else {
       // Both start and end ID provided, we are just adding to the last digit
       const prefixSearchResult =
-        await this.moderationCaseRepository.searchByIdPrefix(
+        await this.modLogRepository.searchByIdPrefix(
           guildId,
           rangeData.endId.toString(),
           25,
@@ -175,7 +174,7 @@ export class CaseRangeAutocompleteService {
     guildId: string,
     caseId: number,
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
-    const searchResult = await this.moderationCaseRepository.searchByIdPrefix(
+    const searchResult = await this.modLogRepository.searchByIdPrefix(
       guildId,
       caseId.toString(),
       25,

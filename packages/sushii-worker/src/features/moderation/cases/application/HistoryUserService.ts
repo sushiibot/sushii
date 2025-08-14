@@ -5,7 +5,7 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import type { UserInfo } from "../../shared/domain/types/UserInfo";
 
 export interface UserHistoryResult {
@@ -17,7 +17,7 @@ export interface UserHistoryResult {
 export class HistoryUserService {
   constructor(
     private readonly client: Client,
-    private readonly caseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -52,7 +52,7 @@ export class HistoryUserService {
       return Err("User not found");
     }
 
-    const moderationHistoryResult = await this.caseRepository.findByUserId(
+    const moderationHistoryResult = await this.modLogRepository.findByUserId(
       guildId,
       userId,
     );

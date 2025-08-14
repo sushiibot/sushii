@@ -15,7 +15,7 @@ import {
 } from "../../shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { TempBan } from "../../shared/domain/entities/TempBan";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import type { ModLogService } from "../../shared/domain/services/ModLogService";
 import {
@@ -34,7 +34,7 @@ const DEFAULT_DELETE_MESSAGE_DAYS = 0 as const;
 export class ModerationExecutionPipeline {
   constructor(
     private readonly db: NodePgDatabase<typeof schema>,
-    private readonly caseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly tempBanRepository: TempBanRepository,
     private readonly modLogService: ModLogService,
     private readonly dmPolicyService: DMPolicyService,
@@ -97,7 +97,7 @@ export class ModerationExecutionPipeline {
         }
       }
 
-      // 1. Create database records atomically (focused transaction)
+      // 1. Create database records atomically
       const createResult = await this.createModerationRecord(
         action,
         finalActionType,
@@ -131,6 +131,26 @@ export class ModerationExecutionPipeline {
         finalActionType,
       );
       if (!discordActionResult.ok) {
+        // If it failed, we need to delete the DM sent and case if they were created
+
+        // Delete DM if it was sent
+        if (
+          currentCase.dmResult?.channelId &&
+          currentCase.dmResult?.messageId
+        ) {
+          await this.dmNotificationService.deleteModerationDM(
+            this.client,
+            currentCase.dmResult.channelId,
+            currentCase.dmResult.messageId,
+          );
+        }
+
+        // Delete case
+        await this.modLogRepository.delete(
+          currentCase.guildId,
+          currentCase.caseId,
+        );
+
         return discordActionResult;
       }
 
@@ -192,27 +212,6 @@ export class ModerationExecutionPipeline {
     );
     return await this.db.transaction(
       async (tx: NodePgDatabase<typeof schema>) => {
-        // Get next case number with row locking
-        const caseNumberResult = await this.caseRepository.getNextCaseNumber(
-          action.guildId,
-          tx,
-        );
-
-        if (!caseNumberResult.ok) {
-          this.logger.error(
-            {
-              actionType: action.actionType,
-              targetId: target.id,
-              error: caseNumberResult.val,
-            },
-            "Failed to get next case number",
-          );
-
-          throw new Error(caseNumberResult.val);
-        }
-
-        const caseId = caseNumberResult.val.toString();
-
         // Should not be pending for note or warn
         // Only pending for actions that create an audit-log event
         const isPending =
@@ -226,9 +225,10 @@ export class ModerationExecutionPipeline {
         }
 
         // Create moderation case with DM intent
+        // Use placeholder case ID - createCase() will auto-generate the real ID
         let moderationCase = ModerationCase.create(
           action.guildId,
-          caseId,
+          "placeholder",
           finalActionType,
           target.id,
           target.tag,
@@ -252,22 +252,22 @@ export class ModerationExecutionPipeline {
           moderationCase = moderationCase.withDMResult(preDMResult);
         }
 
-        // Save moderation case
-        const saveCaseResult = await this.caseRepository.save(
+        // Create moderation case with auto-generated case ID
+        const createCaseResult = await this.modLogRepository.createCase(
           moderationCase,
           tx,
         );
 
-        if (!saveCaseResult.ok) {
+        if (!createCaseResult.ok) {
           this.logger.error(
             {
               actionType: action.actionType,
               targetId: target.id,
-              error: saveCaseResult.val,
+              error: createCaseResult.val,
             },
-            "Failed to save moderation case",
+            "Failed to create moderation case",
           );
-          throw new Error(saveCaseResult.val);
+          throw new Error(createCaseResult.val);
         }
 
         // Handle temp ban records atomically
@@ -290,7 +290,9 @@ export class ModerationExecutionPipeline {
           throw new Error(tempBanResult.val);
         }
 
-        return Ok({ caseId, moderationCase });
+        // Use the created case with auto-generated ID
+        const createdCase = createCaseResult.val;
+        return Ok({ caseId: createdCase.caseId, moderationCase: createdCase });
       },
     );
   }
@@ -456,7 +458,10 @@ export class ModerationExecutionPipeline {
     moderationCase: ModerationCase,
   ): Promise<void> {
     await this.db.transaction(async (tx: NodePgDatabase<typeof schema>) => {
-      const updateResult = await this.caseRepository.update(moderationCase, tx);
+      const updateResult = await this.modLogRepository.update(
+        moderationCase,
+        tx,
+      );
       if (!updateResult.ok) {
         this.logger.warn(
           {

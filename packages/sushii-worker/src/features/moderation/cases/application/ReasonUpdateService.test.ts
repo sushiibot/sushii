@@ -7,7 +7,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { ActionType } from "../../shared/domain/value-objects/ActionType";
 import { Reason } from "../../shared/domain/value-objects/Reason";
 import { ReasonUpdateService } from "./ReasonUpdateService";
@@ -17,16 +17,16 @@ const testLogger = pino({ level: "silent" });
 
 describe("ReasonUpdateService", () => {
   let service: ReasonUpdateService;
-  let mockCaseRepository: ModerationCaseRepository;
+  let mockModLogRepository: ModLogRepository;
   let mockGuildConfigRepository: GuildConfigRepository;
   let mockClient: Client;
 
   beforeEach(() => {
-    mockCaseRepository = {
-      save: mock(() => Promise.resolve(Ok.EMPTY)),
+    mockModLogRepository = {
+      createCase: mock(() => Promise.resolve(Ok({} as ModerationCase))),
       update: mock(() => Promise.resolve(Ok.EMPTY)),
       delete: mock(() => Promise.resolve(Ok.EMPTY)),
-      getNextCaseNumber: mock(() => Promise.resolve(Ok(5n))),
+      findRecent: mock(() => Promise.resolve(Ok([{ caseId: "4" } as ModerationCase]))),
       findById: mock(() => Promise.resolve(Ok(null))),
       findByUserId: mock(() => Promise.resolve(Ok([]))),
       findByGuildId: mock(() => Promise.resolve(Ok([]))),
@@ -35,7 +35,11 @@ describe("ReasonUpdateService", () => {
       findByRange: mock(() => Promise.resolve(Ok([]))),
       updateReasonBulk: mock(() => Promise.resolve(Ok([]))),
       searchByIdPrefix: mock(() => Promise.resolve(Ok([]))),
-      findRecent: mock(() => Promise.resolve(Ok([]))),
+      // Audit log methods
+      findPendingCase: mock(() => Promise.resolve(Ok(null))),
+      markAsNotPending: mock(() => Promise.resolve(Ok.EMPTY)),
+      updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
+      updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
     };
 
     mockGuildConfigRepository = {
@@ -83,7 +87,7 @@ describe("ReasonUpdateService", () => {
     } as unknown as Client;
 
     service = new ReasonUpdateService(
-      mockCaseRepository,
+      mockModLogRepository,
       mockGuildConfigRepository,
       mockClient,
       testLogger,
@@ -103,7 +107,7 @@ describe("ReasonUpdateService", () => {
         Reason.create("Existing reason").unwrap(),
       );
 
-      mockCaseRepository.findByRange = mock(() =>
+      mockModLogRepository.findByRange = mock(() =>
         Promise.resolve(Ok([mockCase])),
       );
 
@@ -149,7 +153,7 @@ describe("ReasonUpdateService", () => {
         "message-123", // Message ID for mod log
       );
 
-      mockCaseRepository.updateReasonBulk = mock(() =>
+      mockModLogRepository.updateReasonBulk = mock(() =>
         Promise.resolve(Ok([mockCase])),
       );
 

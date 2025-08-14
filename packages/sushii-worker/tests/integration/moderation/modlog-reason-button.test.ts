@@ -70,7 +70,7 @@ describe("ModLog Reason Button Integration", () => {
       // Create a moderation case without reason
       const existingCase = ModerationCase.create(
         guildId,
-        "1",
+        "placeholder",
         ActionType.Ban,
         MOCK_USERS.MEMBER_1.id,
         MOCK_USERS.MEMBER_1.tag,
@@ -78,16 +78,20 @@ describe("ModLog Reason Button Integration", () => {
         null,
       );
 
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      const createResult = await services.moderationFeature.services.modLogRepository.createCase(
         existingCase,
       );
+      if (createResult.err) {
+        throw createResult.val;
+      }
+      const createdCase = createResult.val;
 
       // Test the button handler logic by directly calling the service methods
       // First verify case exists
       const caseResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
-          "1",
+          createdCase.caseId,
         );
       if (caseResult.err) {
         throw caseResult.val;
@@ -115,7 +119,7 @@ describe("ModLog Reason Button Integration", () => {
 
       // Save the updated case
       const updateResult =
-        await services.moderationFeature.services.moderationCaseRepository.update(
+        await services.moderationFeature.services.modLogRepository.update(
           updatedCaseWithExecutor,
         );
       if (updateResult.err) {
@@ -124,9 +128,9 @@ describe("ModLog Reason Button Integration", () => {
 
       // Verify the case was updated
       const finalCaseResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
-          "1",
+          createdCase.caseId,
         );
       if (finalCaseResult.err) {
         throw finalCaseResult.val;
@@ -160,7 +164,7 @@ describe("ModLog Reason Button Integration", () => {
 
       const existingCase = ModerationCase.create(
         guildId,
-        "2",
+        "placeholder",
         ActionType.Kick,
         MOCK_USERS.MEMBER_1.id,
         MOCK_USERS.MEMBER_1.tag,
@@ -168,15 +172,19 @@ describe("ModLog Reason Button Integration", () => {
         originalReasonResult.val,
       );
 
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      const createResult2 = await services.moderationFeature.services.modLogRepository.createCase(
         existingCase,
       );
+      if (createResult2.err) {
+        throw createResult2.val;
+      }
+      const createdCase2 = createResult2.val;
 
       // Get the case
       const caseResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
-          "2",
+          createdCase2.caseId,
         );
       if (caseResult.err) {
         throw caseResult.val;
@@ -202,7 +210,7 @@ describe("ModLog Reason Button Integration", () => {
 
       // Save the updated case
       const updateResult =
-        await services.moderationFeature.services.moderationCaseRepository.update(
+        await services.moderationFeature.services.modLogRepository.update(
           updatedCaseWithExecutor,
         );
       if (updateResult.err) {
@@ -211,9 +219,9 @@ describe("ModLog Reason Button Integration", () => {
 
       // Verify the case was updated
       const finalCaseResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
-          "2",
+          createdCase2.caseId,
         );
       if (finalCaseResult.err) {
         throw finalCaseResult.val;
@@ -255,7 +263,7 @@ describe("ModLog Reason Button Integration", () => {
     test("should handle case not found scenario", async () => {
       // Try to find a case that doesn't exist (using valid numeric format)
       const caseResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
           "999999",
         );

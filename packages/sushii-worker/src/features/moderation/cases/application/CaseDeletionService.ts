@@ -8,7 +8,7 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 
 export interface CaseDeletionResult {
@@ -20,7 +20,7 @@ export interface CaseDeletionResult {
 export class CaseDeletionService {
   constructor(
     private readonly db: NodePgDatabase<typeof schema>,
-    private readonly moderationCaseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly client: Client,
     private readonly logger: Logger,
@@ -75,12 +75,13 @@ export class CaseDeletionService {
 
     // Resolve the case range to actual case IDs
     const getCurrentCaseNumber = async () => {
-      const result =
-        await this.moderationCaseRepository.getNextCaseNumber(guildId);
+      // Get the latest case to determine the current max case number
+      const result = await this.modLogRepository.findRecent(guildId, 1);
       if (result.err) {
         throw new Error(result.val);
       }
-      return Number(result.val);
+      const latestCase = result.val[0];
+      return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
     const resolvedRangeResult =
@@ -93,7 +94,7 @@ export class CaseDeletionService {
 
     // Validate that cases exist in the range
     if (caseRange.data.type === "single") {
-      const existsResult = await this.moderationCaseRepository.exists(
+      const existsResult = await this.modLogRepository.exists(
         guildId,
         startCaseId.toString(),
       );
@@ -108,7 +109,7 @@ export class CaseDeletionService {
     // Perform the deletion in a transaction
     return await this.db.transaction(async (tx) => {
       // Delete the cases
-      const deletionResult = await this.moderationCaseRepository.deleteRange(
+      const deletionResult = await this.modLogRepository.deleteRange(
         guildId,
         startCaseId,
         endCaseId,

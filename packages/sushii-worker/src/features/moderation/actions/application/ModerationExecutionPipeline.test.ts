@@ -25,7 +25,7 @@ import {
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
 import type { DMIntentSource } from "../../shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
-import { type ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import { type ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { type TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import { type ModLogService } from "../../shared/domain/services/ModLogService";
 import { ActionType } from "../../shared/domain/value-objects/ActionType";
@@ -140,7 +140,7 @@ describe("ModerationExecutionPipeline", () => {
   const mockGuildId = "guild-123";
   let pipeline: ModerationExecutionPipeline;
   let mockDb: NodePgDatabase<typeof schema>;
-  let mockCaseRepository: ModerationCaseRepository;
+  let mockModLogRepository: ModLogRepository;
   let mockTempBanRepository: TempBanRepository;
   let mockModLogService: ModLogService;
   let mockDMPolicyService: DMPolicyService;
@@ -154,11 +154,33 @@ describe("ModerationExecutionPipeline", () => {
       transaction: mock((callback) => callback(mockDb)),
     } as unknown as NodePgDatabase<typeof schema>;
 
-    mockCaseRepository = {
-      save: mock(() => Promise.resolve(Ok.EMPTY)),
+    mockModLogRepository = {
+      createCase: mock((caseData) => {
+        // Return the created case with auto-generated ID
+        const createdCase = new ModerationCase(
+          caseData.guildId,
+          "1", // Auto-generated ID
+          caseData.actionType,
+          caseData.actionTime,
+          caseData.userId,
+          caseData.userTag,
+          caseData.executorId,
+          caseData.reason,
+          caseData.msgId,
+          caseData.attachments,
+          caseData.dmResult,
+          caseData.pending,
+          caseData.timeoutDuration,
+          caseData.dmIntended,
+          caseData.dmIntentSource,
+          caseData.dmAttempted,
+          caseData.dmNotAttemptedReason,
+          caseData.dmFailureReason,
+        );
+        return Promise.resolve(Ok(createdCase));
+      }),
       update: mock(() => Promise.resolve(Ok.EMPTY)),
       delete: mock(() => Promise.resolve(Ok.EMPTY)),
-      getNextCaseNumber: mock(() => Promise.resolve(Ok(1n))),
       findById: mock(() => Promise.resolve(Ok(null))),
       findByUserId: mock(() => Promise.resolve(Ok([]))),
       findByGuildId: mock(() => Promise.resolve(Ok([]))),
@@ -168,6 +190,11 @@ describe("ModerationExecutionPipeline", () => {
       updateReasonBulk: mock(() => Promise.resolve(Ok([]))),
       searchByIdPrefix: mock(() => Promise.resolve(Ok([]))),
       findRecent: mock(() => Promise.resolve(Ok([]))),
+      // Audit log methods
+      findPendingCase: mock(() => Promise.resolve(Ok(null))),
+      markAsNotPending: mock(() => Promise.resolve(Ok.EMPTY)),
+      updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
+      updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
     };
 
     mockTempBanRepository = {
@@ -217,7 +244,7 @@ describe("ModerationExecutionPipeline", () => {
 
     pipeline = new ModerationExecutionPipeline(
       mockDb,
-      mockCaseRepository,
+      mockModLogRepository,
       mockTempBanRepository,
       mockModLogService,
       mockDMPolicyService,
@@ -289,10 +316,10 @@ describe("ModerationExecutionPipeline", () => {
   });
 
   describe("createCase stage", () => {
-    test("should fail when case number generation fails", async () => {
+    test("should fail when case creation fails", async () => {
       // Override mock for this test
-      mockCaseRepository.getNextCaseNumber = mock(() =>
-        Promise.resolve(Err("Failed to get next case number")),
+      mockModLogRepository.createCase = mock(() =>
+        Promise.resolve(Err("Failed to create case")),
       );
 
       const action = new WarnAction(
@@ -308,13 +335,13 @@ describe("ModerationExecutionPipeline", () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.val).toContain("Failed to get next case number");
+        expect(result.val).toContain("Failed to create case");
       }
     });
 
     test("should fail when case save fails", async () => {
       // Override mock for this test
-      mockCaseRepository.save = mock(() =>
+      mockModLogRepository.createCase = mock(() =>
         Promise.resolve(Err("Failed to save moderation case")),
       );
 
@@ -417,7 +444,7 @@ describe("ModerationExecutionPipeline", () => {
       }
 
       // Verify no case was created
-      expect(mockCaseRepository.save).not.toHaveBeenCalled();
+      expect(mockModLogRepository.createCase).not.toHaveBeenCalled();
     });
   });
 
@@ -475,7 +502,7 @@ describe("ModerationExecutionPipeline", () => {
 
       const pipelineWithError = new ModerationExecutionPipeline(
         mockDb,
-        mockCaseRepository,
+        mockModLogRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,
@@ -613,7 +640,7 @@ describe("ModerationExecutionPipeline", () => {
 
       const pipelineWithError = new ModerationExecutionPipeline(
         mockDb,
-        mockCaseRepository,
+        mockModLogRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,
@@ -644,8 +671,7 @@ describe("ModerationExecutionPipeline", () => {
       }
 
       // Case should be created but cleanup logic may not be working as expected
-      expect(mockCaseRepository.save).toHaveBeenCalled();
-      expect(mockCaseRepository.getNextCaseNumber).toHaveBeenCalled();
+      expect(mockModLogRepository.createCase).toHaveBeenCalled();
 
       // TODO: Investigate why cleanup delete is not being called
       // The pipeline creates a case, fails on Discord action, but doesn't cleanup
@@ -654,7 +680,7 @@ describe("ModerationExecutionPipeline", () => {
 
     test("should handle cleanup failure gracefully", async () => {
       // Override mock for this test
-      mockCaseRepository.delete = mock(() =>
+      mockModLogRepository.delete = mock(() =>
         Promise.resolve(Err("Failed to delete case")),
       );
 
@@ -677,7 +703,7 @@ describe("ModerationExecutionPipeline", () => {
 
       const pipelineWithError = new ModerationExecutionPipeline(
         mockDb,
-        mockCaseRepository,
+        mockModLogRepository,
         mockTempBanRepository,
         mockModLogService,
         mockDMPolicyService,

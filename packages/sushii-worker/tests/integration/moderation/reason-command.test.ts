@@ -76,7 +76,7 @@ describe("Reason Command Integration", () => {
         null,
       );
 
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      await services.moderationFeature.services.modLogRepository.createCase(
         existingCase,
       );
 
@@ -119,7 +119,7 @@ describe("Reason Command Integration", () => {
 
       // Verify case was updated
       const updatedCasesResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
           "1",
         );
@@ -198,7 +198,7 @@ describe("Reason Command Integration", () => {
           null,
         );
 
-        await services.moderationFeature.services.moderationCaseRepository.save(
+        await services.moderationFeature.services.modLogRepository.createCase(
           existingCase,
         );
       }
@@ -243,7 +243,7 @@ describe("Reason Command Integration", () => {
       // Verify all cases were updated
       for (let i = 1; i <= 3; i++) {
         const updatedCasesResult =
-          await services.moderationFeature.services.moderationCaseRepository.findById(
+          await services.moderationFeature.services.modLogRepository.findById(
             guildId,
             i.toString(),
           );
@@ -330,7 +330,7 @@ describe("Reason Command Integration", () => {
         reasonResult.val,
       );
 
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      await services.moderationFeature.services.modLogRepository.createCase(
         existingCase,
       );
 
@@ -357,7 +357,7 @@ describe("Reason Command Integration", () => {
 
       // Verify case was updated
       const updatedCasesResult =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
           "1",
         );
@@ -403,10 +403,10 @@ describe("Reason Command Integration", () => {
         null,
       );
 
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      await services.moderationFeature.services.modLogRepository.createCase(
         caseWithReason,
       );
-      await services.moderationFeature.services.moderationCaseRepository.save(
+      await services.moderationFeature.services.modLogRepository.createCase(
         caseWithoutReason,
       );
 
@@ -434,12 +434,12 @@ describe("Reason Command Integration", () => {
 
       // Verify only the case without reason was updated
       const case1Result =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
           "1",
         );
       const case2Result =
-        await services.moderationFeature.services.moderationCaseRepository.findById(
+        await services.moderationFeature.services.modLogRepository.findById(
           guildId,
           "2",
         );

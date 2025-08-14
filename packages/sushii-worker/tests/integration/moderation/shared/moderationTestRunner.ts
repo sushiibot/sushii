@@ -210,7 +210,7 @@ export async function runModerationTest(
   // 9. Assert moderation case
   if (testCase.expectations.moderationCase.shouldCreate) {
     const userCasesResult =
-      await moderationFeature.services.moderationCaseRepository.findByUserId(
+      await moderationFeature.services.modLogRepository.findByUserId(
         testCase.setup.guildId,
         testCase.setup.targetUser.id,
       );
@@ -264,7 +264,7 @@ export async function runModerationTest(
 
       // Verify case is no longer pending
       const finalCases =
-        await moderationFeature.services.moderationCaseRepository.findByUserId(
+        await moderationFeature.services.modLogRepository.findByUserId(
           testCase.setup.guildId,
           testCase.setup.targetUser.id,
         );

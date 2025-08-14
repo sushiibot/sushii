@@ -6,7 +6,7 @@ import { Err, Ok } from "ts-results";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { ModerationCaseRepository } from "../../shared/domain/repositories/ModerationCaseRepository";
+import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 import buildModLogEmbed from "../../shared/presentation/buildModLogEmbed";
 
@@ -31,7 +31,7 @@ export interface ReasonUpdateOptions {
 
 export class ReasonUpdateService {
   constructor(
-    private readonly moderationCaseRepository: ModerationCaseRepository,
+    private readonly modLogRepository: ModLogRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly client: Client,
     private readonly logger: Logger,
@@ -63,12 +63,13 @@ export class ReasonUpdateService {
 
     // Get the next case number to resolve "latest" ranges
     const getCurrentCaseNumber = async () => {
-      const result =
-        await this.moderationCaseRepository.getNextCaseNumber(guildId);
+      // Get the latest case to determine the current max case number
+      const result = await this.modLogRepository.findRecent(guildId, 1);
       if (result.err) {
         throw new Error(result.val);
       }
-      return Number(result.val);
+      const latestCase = result.val[0];
+      return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
     // Resolve the case range to actual case IDs
@@ -81,7 +82,7 @@ export class ReasonUpdateService {
     const [startCaseId, endCaseId] = resolvedRangeResult.val;
 
     // Fetch all cases in the range
-    const casesResult = await this.moderationCaseRepository.findByRange(
+    const casesResult = await this.modLogRepository.findByRange(
       guildId,
       startCaseId,
       endCaseId,
@@ -128,12 +129,13 @@ export class ReasonUpdateService {
 
     // Get the next case number to resolve "latest" ranges
     const getCurrentCaseNumber = async () => {
-      const result =
-        await this.moderationCaseRepository.getNextCaseNumber(guildId);
+      // Get the latest case to determine the current max case number
+      const result = await this.modLogRepository.findRecent(guildId, 1);
       if (result.err) {
         throw new Error(result.val);
       }
-      return Number(result.val);
+      const latestCase = result.val[0];
+      return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
     const resolvedRangeResult =
@@ -145,7 +147,7 @@ export class ReasonUpdateService {
     const [startCaseId, endCaseId] = resolvedRangeResult.val;
 
     // Update cases in database
-    const updateResult = await this.moderationCaseRepository.updateReasonBulk(
+    const updateResult = await this.modLogRepository.updateReasonBulk(
       guildId,
       executorId,
       startCaseId,
