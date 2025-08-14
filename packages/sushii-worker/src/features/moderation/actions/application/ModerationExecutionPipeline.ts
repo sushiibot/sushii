@@ -642,6 +642,7 @@ export class ModerationExecutionPipeline {
               60 *
               60,
           });
+
           break;
         }
 
@@ -765,6 +766,18 @@ export class ModerationExecutionPipeline {
         },
         "Failed to execute Discord action",
       );
+
+      // Handle common errors cases for clearer user facing errors
+      if (error instanceof DiscordAPIError) {
+        switch (error.code) {
+          case RESTJSONErrorCodes.UnknownUser:
+            return Err("User not found");
+          case RESTJSONErrorCodes.MissingPermissions:
+            return Err(
+              "Bot is missing permissions. Please check the bot's role and permissions.",
+            );
+        }
+      }
 
       return Err(error instanceof Error ? error.message : String(error));
     }

@@ -84,13 +84,13 @@ export function buildActionResultMessage(
   action?: ModerationAction,
 ): InteractionEditReplyOptions {
   // Map targets and cases together for cleaner data handling
-  const results: ActionResult[] = targets.map((target, index) => ({
+  const actionResults: ActionResult[] = targets.map((target, index) => ({
     target,
     result: cases[index],
   }));
 
-  const successful = results.filter((r) => r.result.ok);
-  const failed = results.filter((r) => !r.result.ok);
+  const successful = actionResults.filter((r) => r.result.ok);
+  const failed = actionResults.filter((r) => !r.result.ok);
 
   const emoji = getActionTypeEmoji(actionType);
   const actionName = formatActionTypeAsSentence(actionType);
@@ -114,19 +114,19 @@ export function buildActionResultMessage(
   const container = new ContainerBuilder().setAccentColor(color);
 
   // Build header and user list
-  const summary = `${results.length} ${results.length === 1 ? "user" : "users"} processed`;
+  const summary = `${actionResults.length} ${actionResults.length === 1 ? "user" : "users"} processed`;
   let fullContent = `### ${title}\n**${summary}**\n`;
 
   // Format users in order with failure indicators
-  for (const result of results) {
-    const failureIcon = !result.result.ok ? "❌ " : "";
-    fullContent += `> ${failureIcon}<@${result.target.id}> — \`${result.target.user.username}\` — \`${result.target.id}\`\n`;
+  for (const actionResult of actionResults) {
+    const failureIcon = !actionResult.result.ok ? "❌ " : "";
+    fullContent += `> ${failureIcon}<@${actionResult.target.id}> — \`${actionResult.target.user.username}\` — \`${actionResult.target.id}\`\n`;
 
-    if (!result.result.ok) {
-      fullContent += `> -# Error: ${result.result.val}\n`;
+    if (!actionResult.result.ok) {
+      fullContent += `> -# Error: ${actionResult.result.val}\n`;
     } else {
       // Add DM failure indicator for successful moderation cases
-      const moderationCase = result.result.val as ModerationCase;
+      const moderationCase = actionResult.result.val as ModerationCase;
       if (moderationCase.dmFailed) {
         fullContent += `> -# \\↪ 📭 DM Failed (privacy settings or bot blocked)\n`;
       }

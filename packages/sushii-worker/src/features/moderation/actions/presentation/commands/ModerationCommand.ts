@@ -316,7 +316,10 @@ export class ModerationCommand extends SlashCommandHandler {
     }
 
     const targets = targetsResult.val;
-    const result = await this.moderationService.executeAction(action, targets);
+    const executeResults = await this.moderationService.executeAction(
+      action,
+      targets,
+    );
 
     // Get guild config for displaying configured DM messages
     const guildConfig = await this.guildConfigRepository.findByGuildId(
@@ -327,7 +330,7 @@ export class ModerationCommand extends SlashCommandHandler {
       this.config.actionType,
       interaction.user,
       targets,
-      result,
+      executeResults,
       guildConfig || GuildConfig.createDefault(action.guildId),
       action,
     );
