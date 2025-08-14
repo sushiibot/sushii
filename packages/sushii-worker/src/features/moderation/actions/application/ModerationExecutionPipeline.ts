@@ -770,8 +770,6 @@ export class ModerationExecutionPipeline {
       // Handle common errors cases for clearer user facing errors
       if (error instanceof DiscordAPIError) {
         switch (error.code) {
-          case RESTJSONErrorCodes.UnknownUser:
-            return Err("User not found");
           case RESTJSONErrorCodes.MissingPermissions:
             return Err(
               "Bot is missing permissions. Please check the bot's role and permissions.",
