@@ -106,6 +106,14 @@ export class DrizzleModLogRepository implements ModLogRepository {
           dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
           dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
           dmMessageError: dmResult?.error || null,
+          dmIntended: moderationCase.dmIntended,
+          dmIntentSource: moderationCase.dmIntentSource,
+          dmAttempted: moderationCase.dmAttempted,
+          dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+          dmFailureReason: moderationCase.dmFailureReason,
+          timeoutDuration: moderationCase.timeoutDuration
+            ? BigInt(moderationCase.timeoutDuration)
+            : null,
         })
         .returning();
 
