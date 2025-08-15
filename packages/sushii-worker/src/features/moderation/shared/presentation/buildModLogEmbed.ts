@@ -9,6 +9,7 @@ import toTimestamp from "@/utils/toTimestamp";
 import { getCleanFilename } from "@/utils/url";
 
 import { ActionType } from "../domain/value-objects/ActionType";
+import { formatActionType } from "./views/ActionTypeFormatter";
 
 interface ModCase {
   case_id: string;
@@ -45,7 +46,7 @@ export default async function buildModLogEmbed(
   const fields: APIEmbedField[] = [];
 
   fields.push({
-    name: `User ${actionType}`,
+    name: `User ${formatActionType(actionType)}`,
     value: `<@${targetUser.id}> ${targetUser.displayName} (\`@${targetUser.tag}\`) | \`${targetUser.id}\``,
     inline: false,
   });
