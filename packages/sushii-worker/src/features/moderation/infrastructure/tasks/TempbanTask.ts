@@ -39,22 +39,12 @@ export class TempbanTask extends AbstractBackgroundTask {
     );
 
     for (const tempBan of tempBans) {
-      const guild = this.client.guilds.cache.get(tempBan.guildId);
-      if (!guild) {
-        // Might be a guild that the bot is no longer in
-        this.logger.debug(
-          {
-            guildId: tempBan.guildId,
-            userId: tempBan.userId,
-          },
-          "Guild not found for temp ban, skipping",
-        );
-        continue;
-      }
-
-      const ts = toTimestamp(tempBan.createdAt);
-
       try {
+        // Do not use client.guilds.cache, as this task runs only on shard 0
+        // so other guilds will not be cached.
+
+        const guild = await this.client.guilds.fetch(tempBan.guildId);
+        const ts = toTimestamp(tempBan.createdAt);
         await guild.members.unban(
           tempBan.userId,
           `Tempban from ${ts} expired.`,
@@ -77,6 +67,7 @@ export class TempbanTask extends AbstractBackgroundTask {
           },
           "Failed to unban user (probably already unbanned or no permissions)",
         );
+
         continue;
       }
     }

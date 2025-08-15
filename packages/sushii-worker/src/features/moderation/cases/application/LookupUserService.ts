@@ -82,6 +82,7 @@ export class LookupUserService {
         }
 
         try {
+          // Fetch, not cache only -- search guilds on other shards
           const guild = await this.client.guilds.fetch(ban.guildId);
           return {
             ...ban,
