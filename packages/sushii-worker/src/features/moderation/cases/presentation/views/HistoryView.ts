@@ -94,10 +94,10 @@ export function buildUserHistoryEmbeds(
   // Build case history
   const casesStr = moderationHistory.map(formatModerationCase);
 
-  const [mainCHunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
+  const [mainChunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
 
   // First embed gets first chunk
-  mainEmbed.setDescription(mainCHunk);
+  mainEmbed.setDescription(mainChunk);
 
   // Additional embeds get the rest excluding first chunk
   const additionalEmbeds = additionalChunks.map((desc) =>
