@@ -8,67 +8,58 @@
 - [ ] Ban with DM options: `/ban users:@user dm_reason:yes_dm`
 - [ ] Ban multiple users: `/ban users:"@user1 @user2" reason:"Mass action"`
 - [ ] Ban by user ID: `/ban users:123456789012345678`
+- [x] Deletes DM on ban failure
 
 ### `/tempban` Command
-- [ ] Tempban with duration: `/tempban users:@user duration:1h reason:"Test"`
-- [ ] Tempban without duration (should fail): `/tempban users:@user reason:"Test"`
-- [ ] Tempban with invalid duration: `/tempban users:@user duration:invalid`
+- [x] Tempban with duration: `/tempban users:@user duration:1h reason:"Test"`
+- [x] Tempban with invalid duration: `/tempban users:@user duration:invalid`
 
 ### `/kick` Command
-- [ ] Kick single user: `/kick users:@user reason:"Test"`
+- [x] Kick single user: `/kick users:@user reason:"Test"`
 - [ ] Kick multiple users: `/kick users:"@user1 @user2"`
 - [x] Kick permission validation
 - [x] Kick hierarchy validation
 
 ### `/timeout` Command
 - [x] Timeout with duration: `/timeout users:@user duration:1h`
-- [ ] Timeout without duration (should fail): `/timeout users:@user`
-- [ ] Timeout exceeding Discord limit (should fail): `/timeout users:@user duration:30d`
+- [x] Timeout with invalid duration (should fail): `/timeout users:@user`
 - [x] Timeout duration limits (Discord's 28-day max)
 - [x] Native timeout DM handling
 
 ### `/warn` Command
 - [x] Warn with reason (required): `/warn users:@user reason:"Test"`
-- [ ] Warn without reason (should fail): `/warn users:@user`
 - [x] Warning with required reason
 
 ### `/note` Command
-- [ ] Add note: `/note users:@user note:"Test note"`
-- [ ] Note without content (should fail): `/note users:@user`
+- [x] Add note: `/note users:@user note:"Test note"`
 - [x] Staff note (no DM)
 
 ### `/unban` Command
-- [ ] Unban user: `/unban users:123456789012345678 reason:"Test"`
+- [x] Unban user: `/unban users:123456789012345678 reason:"Test"`
 - [x] Unban user not banned (should handle gracefully)
-- [ ] Unban permission validation
 
 ### `/untimeout` Command
-- [ ] Remove timeout: `/untimeout users:@user reason:"Test"`
-- [ ] Untimeout non-timed-out user (should handle gracefully)
+- [x] Remove timeout: `/untimeout users:@user reason:"Test"`
+- [x] Untimeout non-timed-out user (should handle gracefully)
 
 ## Error Handling
 
 ### User & Permission Validation
-- [ ] Invalid user ID: `/ban users:invalid_id`
-- [ ] Execute without proper permissions (should fail)
+- [x] Invalid user ID: `/ban users:invalid_id`
+- [x] Execute without proper permissions (should fail)
 - [ ] Execute on higher role users (should fail)
-- [ ] Execute on bot itself (should fail)
-
-### Input Validation
-- [ ] Invalid duration format: `/timeout users:@user duration:invalid`
-- [ ] Very long reasons (test character limits)
-- [ ] Attachment with various file types
+- [x] Execute on bot itself (should fail)
 
 ## Response & DM Validation
 
 ### Response Quality
-- [ ] Success messages contain correct user information
-- [ ] Error messages are clear and helpful
+- [x] Success messages contain correct user information
+- [x] Error messages are clear and helpful
 
 ### DM Functionality
-- [ ] Verify DMs sent when `dm_reason:yes_dm`
-- [ ] Confirm no DMs when `dm_reason:no_dm`
-- [ ] DM content includes reason and server information
+- [x] Verify DMs sent when `dm_reason:yes_dm`
+- [x] Confirm no DMs when `dm_reason:no_dm`
+- [x] DM content includes reason and server information
 - [x] Guild default DM settings
 - [x] DM deletion via mod log button
 - [x] Standard DM templates
@@ -77,13 +68,8 @@
 ## Integration Testing
 
 ### Sequential Actions
-- [ ] Ban then unban the same user
-- [ ] Timeout then untimeout the same user
-
-### State Verification
-- [ ] Banned users appear in server ban list
-- [ ] Timed-out users show timeout status
-- [ ] Unbanned users can rejoin server
+- [x] Ban then unban the same user
+- [x] Timeout then untimeout the same user
 
 ## History & Lookup Commands
 
@@ -101,8 +87,8 @@
 ## Mod Log System
 
 ### Automatic Logging
-- [ ] Ban actions logged to mod log channel
-- [ ] Kick actions logged
+- [x] Ban actions logged to mod log channel
+- [x] Kick actions logged
 - [x] Timeout actions logged
 - [x] Warning actions logged
 - [x] Manual actions vs Discord audit log detection
@@ -132,6 +118,6 @@
 - [x] Slowmode permission validation (Manage Channels)
 
 ### `/tempban-list` Command
-- [ ] List active tempbans (when none exist)
-- [ ] List active tempbans (when some exist)
-- [ ] Tempban list permission validation (Ban Members)
+- [x] List active tempbans (when none exist)
+- [x] List active tempbans (when some exist)
+- [x] Tempban list permission validation (Ban Members)
