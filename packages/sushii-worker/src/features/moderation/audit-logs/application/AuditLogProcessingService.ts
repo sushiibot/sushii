@@ -9,6 +9,7 @@ import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/serv
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import { ActionType } from "../../shared";
 import { AuditLogEvent } from "../domain/entities";
 
 /**
@@ -117,31 +118,44 @@ export class AuditLogProcessingService {
     auditLogEvent: AuditLogEvent,
     targetUser: User,
   ): Promise<{ modLogCase: ModerationCase; wasPendingCase: boolean }> {
-    // Look for pending case created in the last minute
-    const pendingCaseResult = await this.modLogRepository.findPendingCase(
-      auditLogEvent.guildId,
-      auditLogEvent.targetId,
-      auditLogEvent.actionType,
-      1, // maxAgeMinutes
-    );
+    const actionTypesToSearch =
+      auditLogEvent.actionType === ActionType.BanRemove
+        ? // Also check for temp bans for ban events
+          [ActionType.BanRemove, ActionType.TempBan]
+        : [auditLogEvent.actionType];
 
-    if (pendingCaseResult.err) {
-      throw new Error("Failed to find pending case", {
-        cause: pendingCaseResult.val,
-      });
+    let foundPendingCase;
+    for (const actionType of actionTypesToSearch) {
+      // Look for pending case created in the last minute
+      const pendingCase = await this.modLogRepository.findPendingCase(
+        auditLogEvent.guildId,
+        auditLogEvent.targetId,
+        actionType,
+        1, // maxAgeMinutes
+      );
+
+      if (pendingCase.err) {
+        // Not if null, only if actual error
+        throw new Error("Error finding pending case", {
+          cause: pendingCase.val,
+        });
+      }
+
+      // Not null, found result
+      if (pendingCase.val) {
+        foundPendingCase = pendingCase.val;
+      }
     }
 
-    const pendingCase = pendingCaseResult.val;
-
-    if (pendingCase) {
+    if (foundPendingCase) {
       this.logger.debug(
-        { caseId: pendingCase.caseId },
+        { caseId: foundPendingCase.caseId },
         "Found pending case, marking as not pending",
       );
 
       // Mark the case as not pending
       const markResult = await this.modLogRepository.markAsNotPending(
-        pendingCase.caseId,
+        foundPendingCase.caseId,
       );
       if (markResult.err) {
         throw new Error(
@@ -150,7 +164,7 @@ export class AuditLogProcessingService {
       }
 
       return {
-        modLogCase: pendingCase.withPending(false),
+        modLogCase: foundPendingCase.withPending(false),
         wasPendingCase: true,
       };
     }

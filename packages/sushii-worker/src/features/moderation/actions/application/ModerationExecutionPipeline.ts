@@ -271,7 +271,7 @@ export class ModerationExecutionPipeline {
         }
 
         // Handle temp ban records atomically
-        const tempBanResult = await this.manageTempBanRecordsTransactional(
+        const tempBanResult = await this.manageTempBanRecords(
           action,
           target,
           tx,
@@ -477,7 +477,7 @@ export class ModerationExecutionPipeline {
   /**
    * Manages temporary ban database records with transaction support.
    */
-  private async manageTempBanRecordsTransactional(
+  private async manageTempBanRecords(
     action: ModerationAction,
     target: ModerationTarget,
     tx: NodePgDatabase<typeof schema>,
