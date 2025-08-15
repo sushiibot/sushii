@@ -628,6 +628,11 @@ export class ModerationExecutionPipeline {
       return Err("Guild not found");
     }
 
+    let reason = `By ${action.executor.username}`;
+    if (action.reason?.value) {
+      reason += `: ${action.reason.value}`;
+    }
+
     try {
       switch (actionType) {
         case ActionType.Ban: {
@@ -635,7 +640,7 @@ export class ModerationExecutionPipeline {
             return Err("Invalid action type for ban operation");
           }
           await guild.members.ban(target.id, {
-            reason: action.reason?.value || "No reason provided",
+            reason,
             deleteMessageSeconds:
               (action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS) *
               24 *
@@ -652,7 +657,7 @@ export class ModerationExecutionPipeline {
           }
 
           await guild.members.ban(target.id, {
-            reason: action.reason?.value || "No reason provided",
+            reason: reason,
             deleteMessageDays:
               action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS,
           });
@@ -661,10 +666,7 @@ export class ModerationExecutionPipeline {
 
         case ActionType.BanRemove: {
           try {
-            await guild.members.unban(
-              target.id,
-              action.reason?.value || "No reason provided",
-            );
+            await guild.members.unban(target.id, reason);
           } catch (error) {
             // Check if the error is because the user is not banned for clearer
             // error for executor
@@ -685,9 +687,7 @@ export class ModerationExecutionPipeline {
           if (!target.member) {
             return Err("Cannot kick a user who is not in the guild");
           }
-          await target.member.kick(
-            action.reason?.value || "No reason provided",
-          );
+          await target.member.kick(reason);
           break;
         }
 
@@ -700,7 +700,7 @@ export class ModerationExecutionPipeline {
           }
           await target.member.timeout(
             action.duration.value.asMilliseconds(),
-            action.reason?.value || "No reason provided",
+            reason,
           );
           break;
         }
@@ -714,7 +714,7 @@ export class ModerationExecutionPipeline {
           }
           await target.member.timeout(
             action.duration.value.asMilliseconds(),
-            action.reason?.value || "No reason provided",
+            reason,
           );
           break;
         }
@@ -735,10 +735,7 @@ export class ModerationExecutionPipeline {
             return Err("User is not currently timed out");
           }
 
-          await target.member.timeout(
-            null,
-            action.reason?.value || "No reason provided",
-          );
+          await target.member.timeout(null, reason);
           break;
         }
 
