@@ -119,9 +119,9 @@ export class AuditLogProcessingService {
     targetUser: User,
   ): Promise<{ modLogCase: ModerationCase; wasPendingCase: boolean }> {
     const actionTypesToSearch =
-      auditLogEvent.actionType === ActionType.BanRemove
-        ? // Also check for temp bans for ban events
-          [ActionType.BanRemove, ActionType.TempBan]
+      auditLogEvent.actionType === ActionType.Ban
+        ? // Ban audit log can be triggered by either ban or tempban actions
+          [ActionType.Ban, ActionType.TempBan]
         : [auditLogEvent.actionType];
 
     let foundPendingCase;
