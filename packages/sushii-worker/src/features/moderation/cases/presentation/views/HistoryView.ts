@@ -94,20 +94,18 @@ export function buildUserHistoryEmbeds(
   // Build case history
   const casesStr = moderationHistory.map(formatModerationCase);
 
-  const descChunks = buildChunks(casesStr, "\n", 4096);
+  const [mainCHunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
 
   // First embed gets first chunk
-  mainEmbed.setDescription(descChunks[0]);
+  mainEmbed.setDescription(mainCHunk);
 
   // Additional embeds get the rest excluding first chunk
-  const additionalEmbeds = descChunks
-    .slice(1)
-    .map((desc) =>
-      new EmbedBuilder()
-        .setTitle("Case History (Continued)")
-        .setColor(Color.Success)
-        .setDescription(desc),
-    );
+  const additionalEmbeds = additionalChunks.map((desc) =>
+    new EmbedBuilder()
+      .setTitle("Case History (Continued)")
+      .setColor(Color.Success)
+      .setDescription(desc),
+  );
 
   if (additionalEmbeds.length > 0) {
     // Add summary to last embed
@@ -142,6 +140,7 @@ export function buildCaseSummary(
     const actionStr = formatActionTypeAsSentence(moderationCase.actionType);
     const oldCount = summary.get(actionStr) || 0;
     summary.set(actionStr, oldCount + 1);
+
     return summary;
   }, new Map<string, number>());
 }

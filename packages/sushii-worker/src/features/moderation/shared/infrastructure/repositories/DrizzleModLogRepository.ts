@@ -251,7 +251,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
     }
   }
 
-  async findByUserId(
+  async findByUserIdNotPending(
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
@@ -265,9 +265,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
           and(
             eq(modLogsInAppPublic.guildId, BigInt(guildId)),
             eq(modLogsInAppPublic.userId, BigInt(userId)),
+            eq(modLogsInAppPublic.pending, false),
           ),
         )
-        .orderBy(asc(modLogsInAppPublic.actionTime))
+        .orderBy(asc(modLogsInAppPublic.caseId))
         .limit(500);
 
       const cases = results.map((row) => this.mapRowToModerationCase(row));

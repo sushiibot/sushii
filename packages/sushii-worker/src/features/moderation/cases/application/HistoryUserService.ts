@@ -52,10 +52,9 @@ export class HistoryUserService {
       return Err("User not found");
     }
 
-    const moderationHistoryResult = await this.modLogRepository.findByUserId(
-      guildId,
-      userId,
-    );
+    const moderationHistoryResult =
+      await this.modLogRepository.findByUserIdNotPending(guildId, userId);
+
     if (!moderationHistoryResult.ok) {
       log.error(
         { error: moderationHistoryResult.val },

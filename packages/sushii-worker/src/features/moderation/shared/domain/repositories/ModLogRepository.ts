@@ -43,7 +43,7 @@ export interface ModLogCaseOperations {
   /**
    * Finds all cases for a specific user in a guild.
    */
-  findByUserId(
+  findByUserIdNotPending(
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,

@@ -23,6 +23,7 @@ export default function buildChunks(
     }
   }
 
+  // Still anything leftover, create a new chunk
   if (currentChunk.length > 0) {
     chunks.push(currentChunk);
   }

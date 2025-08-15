@@ -210,16 +210,19 @@ export async function runModerationTest(
   // 9. Assert moderation case
   if (testCase.expectations.moderationCase.shouldCreate) {
     const userCasesResult =
-      await moderationFeature.services.modLogRepository.findByUserId(
+      await moderationFeature.services.modLogRepository.findPendingCase(
         testCase.setup.guildId,
         testCase.setup.targetUser.id,
+        testCase.actionType,
       );
 
     expect(userCasesResult.ok).toBe(true);
     if (userCasesResult.ok) {
-      expect(userCasesResult.val.length).toBe(1);
+      const moderationCase = userCasesResult.val;
+      if (!moderationCase) {
+        throw new Error("Expected moderation case to be present");
+      }
 
-      const moderationCase = userCasesResult.val[0];
       expect(moderationCase.pending).toBe(
         testCase.expectations.moderationCase.pending,
       );
@@ -264,7 +267,7 @@ export async function runModerationTest(
 
       // Verify case is no longer pending
       const finalCases =
-        await moderationFeature.services.modLogRepository.findByUserId(
+        await moderationFeature.services.modLogRepository.findByUserIdNotPending(
           testCase.setup.guildId,
           testCase.setup.targetUser.id,
         );

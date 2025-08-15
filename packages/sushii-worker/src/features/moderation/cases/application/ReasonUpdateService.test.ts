@@ -30,7 +30,7 @@ describe("ReasonUpdateService", () => {
         Promise.resolve(Ok([{ caseId: "4" } as ModerationCase])),
       ),
       findById: mock(() => Promise.resolve(Ok(null))),
-      findByUserId: mock(() => Promise.resolve(Ok([]))),
+      findByUserIdNotPending: mock(() => Promise.resolve(Ok([]))),
       findByGuildId: mock(() => Promise.resolve(Ok([]))),
       deleteRange: mock(() => Promise.resolve(Ok([]))),
       exists: mock(() => Promise.resolve(Ok(true))),
