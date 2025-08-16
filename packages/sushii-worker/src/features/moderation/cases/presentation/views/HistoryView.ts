@@ -11,6 +11,7 @@ import {
 import dayjs from "@/shared/domain/dayjs";
 import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
+import { quoteMarkdownString } from "@/utils/markdown";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getCleanFilename } from "@/utils/url";
 import { getUserString } from "@/utils/userString";
@@ -30,25 +31,19 @@ export function formatModerationCase(moderationCase: ModerationCase): string {
 
   const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
-  let s =
-    `\`#${moderationCase.caseId}\`` +
-    ` ${actionEmoji} **${actionName}**` +
-    ` – <t:${timestamp}:R> `;
+  let s = `\`#${moderationCase.caseId}\` • ${actionEmoji} **${actionName}**`;
 
-  const hasExecutor = moderationCase.executorId;
-  const hasReason = moderationCase.reason;
-  const hasAttachments =
-    moderationCase.attachments && moderationCase.attachments.length > 0;
-
-  if (hasExecutor) {
-    s += `\n> **By:** <@${moderationCase.executorId}>`;
+  if (moderationCase.executorId) {
+    s += ` – <@${moderationCase.executorId}>`;
   }
 
-  if (hasReason) {
-    s += `\n> **Reason:** ${moderationCase.reason.value}`;
+  s += ` – <t:${timestamp}:R> `;
+
+  if (moderationCase.reason) {
+    s += `\n` + quoteMarkdownString(moderationCase.reason.value);
   }
 
-  if (hasAttachments) {
+  if (moderationCase.attachments.length > 0) {
     const validAttachments = moderationCase.attachments.filter(
       (a): a is string => !!a,
     );
