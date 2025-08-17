@@ -24,7 +24,11 @@ export function createUserInfoEmbed(
       url: faceURL,
     })
     .setThumbnail(faceURL)
-    .setImage(user.bannerURL() || null)
+    .setImage(
+      user.bannerURL({
+        size: 2048,
+      }) || null,
+    )
     .setFooter({
       text: `ID: ${user.id}`,
     })
