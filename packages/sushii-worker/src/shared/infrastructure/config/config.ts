@@ -79,7 +79,6 @@ export class DeploymentConfig {
   constructor(
     readonly name: "blue" | "green",
     readonly ownerUserId?: string,
-    readonly ownerChannelId?: string,
     readonly exemptChannelIds: Set<string> = new Set(),
     readonly e2eWebhookUrl?: string,
   ) {}
@@ -156,7 +155,6 @@ export class Config {
     this.deployment = new DeploymentConfig(
       env.DEPLOYMENT_NAME,
       env.OWNER_USER_ID,
-      env.OWNER_CHANNEL_ID,
       env.DEPLOYMENT_EXEMPT_CHANNEL_IDS
         ? new Set(
             env.DEPLOYMENT_EXEMPT_CHANNEL_IDS.split(",")

@@ -53,7 +53,6 @@ The e2e tests verify:
    # E2E_DISCORD_TOKEN=your_test_bot_token
    # E2E_APPLICATION_ID=your_test_application_id
    # E2E_OWNER_USER_ID=your_discord_user_id
-   # E2E_OWNER_CHANNEL_ID=your_test_channel_id
    # E2E_TEST_CHANNEL_ID=your_test_channel_id
    ```
 

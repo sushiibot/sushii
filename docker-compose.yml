@@ -18,7 +18,6 @@ services:
       # blue is default, and for now just 1 deployment green later
       - DEPLOYMENT_NAME=blue
       - OWNER_USER_ID=$OWNER_USER_ID
-      - OWNER_CHANNEL_ID=$OWNER_CHANNEL_ID
       - DEPLOYMENT_EXEMPT_CHANNEL_IDS=167058919611564043
 
       # Base

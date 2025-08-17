@@ -15,8 +15,6 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
   ) {}
 
   async findByGuildId(guildId: string): Promise<GuildConfig> {
-    this.logger.debug({ guildId }, "Finding guild configuration");
-
     const result = await this.db
       .select()
       .from(guildConfigsInAppPublic)

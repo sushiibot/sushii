@@ -21,13 +21,10 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
   }
 
   async handle(msg: Message): Promise<void> {
-    // Optional values, require both to be set.
-    if (!config.deployment.ownerUserId || !config.deployment.ownerChannelId) {
-      return;
-    }
-
     // Check if this is an authorized message (either from owner or E2E webhook)
-    const isOwnerMessage = msg.author.id === config.deployment.ownerUserId;
+    const isOwnerMessage = 
+      config.deployment.ownerUserId && 
+      msg.author.id === config.deployment.ownerUserId;
     const isE2EWebhookMessage =
       msg.webhookId &&
       config.deployment.e2eWebhookId &&
@@ -37,7 +34,8 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
       return;
     }
 
-    if (msg.channelId !== config.deployment.ownerChannelId) {
+    // Check if this channel is exempt from deployment checks
+    if (!this.deploymentService.isChannelExemptFromDeploymentCheck(msg.channelId)) {
       return;
     }
 

@@ -36,7 +36,7 @@ export class EmojiStatsTrackingService {
       return;
     }
 
-    logger.debug(
+    logger.trace(
       { userId, guildId, actionType, assetCount: assetIds.length },
       "Processing usage tracking request",
     );

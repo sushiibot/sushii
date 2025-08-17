@@ -43,8 +43,6 @@ export class CacheService {
   }
 
   async cacheUser(userData: NewCachedUser): Promise<void> {
-    logger.debug({ userId: userData.id }, "Queueing user for caching");
-
     this.userQueue.push(userData);
 
     if (this.userQueue.length >= this.config.userBatchSize) {

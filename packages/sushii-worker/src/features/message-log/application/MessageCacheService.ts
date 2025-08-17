@@ -65,7 +65,7 @@ export class MessageCacheService {
 
     await this.messageLogEventRepository.save(messageLogEvent);
 
-    this.logger.debug(
+    this.logger.trace(
       {
         messageId: payload.id,
         guildId: payload.guild_id,

@@ -216,7 +216,6 @@ describe("DeploymentService", () => {
       const configWithExemptions = new DeploymentConfig(
         "blue",
         undefined,
-        undefined,
         exemptChannels,
       );
       const serviceWithExemptions = new DeploymentService(
@@ -252,7 +251,6 @@ describe("DeploymentService", () => {
       const configWithExemptions = new DeploymentConfig(
         "blue",
         undefined,
-        undefined,
         exemptChannels,
       );
       const serviceWithExemptions = new DeploymentService(
@@ -273,7 +271,6 @@ describe("DeploymentService", () => {
       const exemptChannels = new Set(["12345"]);
       const configWithExemptions = new DeploymentConfig(
         "blue",
-        undefined,
         undefined,
         exemptChannels,
       );
@@ -308,7 +305,6 @@ describe("DeploymentService", () => {
       const exemptChannels = new Set(["12345"]);
       const configWithExemptions = new DeploymentConfig(
         "blue",
-        undefined,
         undefined,
         exemptChannels,
       );

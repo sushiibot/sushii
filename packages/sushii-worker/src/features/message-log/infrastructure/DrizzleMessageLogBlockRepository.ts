@@ -17,7 +17,7 @@ export class DrizzleMessageLogBlockRepository
   ) {}
 
   async findByGuildId(guildId: string): Promise<MessageLogBlock[]> {
-    this.logger.debug({ guildId }, "Finding message log blocks");
+    this.logger.trace({ guildId }, "Finding message log blocks");
 
     const results = await this.db
       .select()
@@ -34,7 +34,7 @@ export class DrizzleMessageLogBlockRepository
     guildId: string,
     channelId: string,
   ): Promise<MessageLogBlock | null> {
-    this.logger.debug({ guildId, channelId }, "Finding message log block");
+    this.logger.trace({ guildId, channelId }, "Finding message log block");
 
     const result = await this.db
       .select()
@@ -56,7 +56,7 @@ export class DrizzleMessageLogBlockRepository
   }
 
   async addBlock(guildId: string, channelId: string): Promise<void> {
-    this.logger.debug({ guildId, channelId }, "Adding message log block");
+    this.logger.trace({ guildId, channelId }, "Adding message log block");
 
     await this.db
       .insert(msgLogBlocksInAppPublic)
@@ -73,7 +73,7 @@ export class DrizzleMessageLogBlockRepository
   }
 
   async removeBlock(guildId: string, channelId: string): Promise<void> {
-    this.logger.debug({ guildId, channelId }, "Removing message log block");
+    this.logger.trace({ guildId, channelId }, "Removing message log block");
 
     await this.db
       .delete(msgLogBlocksInAppPublic)

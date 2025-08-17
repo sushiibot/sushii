@@ -110,7 +110,6 @@ function createMonitoringServer(
         deployment: config.deployment.name,
         owner: {
           userID: config.deployment.ownerUserId,
-          channelID: config.deployment.ownerChannelId,
         },
         tracingSamplePercentage: config.tracing.samplePercentage,
       },
