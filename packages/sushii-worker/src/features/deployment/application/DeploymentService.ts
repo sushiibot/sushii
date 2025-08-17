@@ -62,6 +62,10 @@ export class DeploymentService {
     }
   }
 
+  getProcessName(): DeploymentName {
+    return this.processName;
+  }
+
   getCurrentDeployment(): DeploymentName {
     if (!this.currentDeployment) {
       this.logger.warn("Deployment service not initialized, returning default");

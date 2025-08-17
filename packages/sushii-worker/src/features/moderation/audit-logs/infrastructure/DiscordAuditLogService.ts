@@ -11,7 +11,7 @@ import type { AuditLogOrchestrationService } from "../application";
 export class DiscordAuditLogService {
   constructor(
     private readonly auditLogOrchestrationService: AuditLogOrchestrationService,
-    private readonly logger?: Logger,
+    private readonly logger: Logger,
   ) {}
 
   /**
@@ -21,7 +21,7 @@ export class DiscordAuditLogService {
     entry: GuildAuditLogsEntry,
     guild: Guild,
   ): Promise<Result<void, string>> {
-    this.logger?.debug(
+    this.logger.trace(
       {
         guildId: guild.id,
         entryAction: entry.action,

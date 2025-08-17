@@ -204,6 +204,7 @@ export class DrizzleTagRepository implements TagRepository {
           ilike(schema.tagsInAppPublic.tagName, `%${query}%`),
         ),
       )
+      .orderBy(desc(schema.tagsInAppPublic.tagName))
       .limit(25);
 
     return results.map((row) => this.mapToTag(row));

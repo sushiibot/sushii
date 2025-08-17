@@ -19,7 +19,7 @@ export class DrizzleMessageLogEventRepository
   ) {}
 
   async save(event: MessageLogEvent): Promise<void> {
-    this.logger.debug(
+    this.logger.trace(
       { messageId: event.messageId, channelId: event.channelId },
       "Saving message log event",
     );
@@ -47,7 +47,7 @@ export class DrizzleMessageLogEventRepository
   }
 
   async findByMessageIds(messageIds: string[]): Promise<MessageLogEvent[]> {
-    this.logger.debug({ messageIds }, "Finding message log events");
+    this.logger.trace({ messageIds }, "Finding message log events");
 
     if (messageIds.length === 0) {
       return [];
@@ -77,7 +77,7 @@ export class DrizzleMessageLogEventRepository
   }
 
   async deleteMessagesBefore(date: Date): Promise<number> {
-    this.logger.debug({ date }, "Deleting old message log events");
+    this.logger.trace({ date }, "Deleting old message log events");
 
     const result = await this.db
       .delete(messagesInAppPublic)

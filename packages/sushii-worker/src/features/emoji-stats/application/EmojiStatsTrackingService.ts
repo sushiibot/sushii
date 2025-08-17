@@ -52,10 +52,11 @@ export class EmojiStatsTrackingService {
         );
 
       if (eligibleAttempts.length === 0) {
-        logger.debug(
+        logger.trace(
           { userId, guildId, actionType },
           "All attempts rate limited",
         );
+
         return;
       }
 
@@ -94,7 +95,7 @@ export class EmojiStatsTrackingService {
         ),
       ]);
 
-      logger.debug(
+      logger.trace(
         {
           userId,
           guildId,

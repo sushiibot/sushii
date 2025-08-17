@@ -22,8 +22,8 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
 
   async handle(msg: Message): Promise<void> {
     // Check if this is an authorized message (either from owner or E2E webhook)
-    const isOwnerMessage = 
-      config.deployment.ownerUserId && 
+    const isOwnerMessage =
+      config.deployment.ownerUserId &&
       msg.author.id === config.deployment.ownerUserId;
     const isE2EWebhookMessage =
       msg.webhookId &&
@@ -35,7 +35,9 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
     }
 
     // Check if this channel is exempt from deployment checks
-    if (!this.deploymentService.isChannelExemptFromDeploymentCheck(msg.channelId)) {
+    if (
+      !this.deploymentService.isChannelExemptFromDeploymentCheck(msg.channelId)
+    ) {
       return;
     }
 
@@ -67,7 +69,8 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
       const deployment = this.deploymentService.getCurrentDeployment();
 
       const content =
-        `Current deployment: \`${deployment}\`` +
+        `Active deployment: \`${deployment}\`` +
+        `Process name: \`${this.deploymentService.getProcessName()}\`` +
         `\nuptime: ${dur.humanize()}` +
         `\nstarted: ${startTimestamp}`;
 
