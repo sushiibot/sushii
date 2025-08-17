@@ -133,6 +133,10 @@ function createMockTransaction(): NodePgDatabase<typeof schema> {
   return {} as NodePgDatabase<typeof schema>;
 }
 
+function createMockGuildConfig(guildId = "guild-123"): GuildConfig {
+  return GuildConfig.createDefault(guildId);
+}
+
 // Silent logger for tests
 const testLogger = pino({ level: "silent" });
 
@@ -266,7 +270,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -286,7 +295,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Ban, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Ban,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -305,7 +319,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Kick, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Kick,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -331,7 +350,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -354,7 +378,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -382,7 +411,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -403,7 +437,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -434,7 +473,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -457,7 +501,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       // No specific assertions needed - just ensuring it doesn't fail
@@ -473,7 +522,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Ban, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Ban,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
     });
@@ -523,6 +577,7 @@ describe("ModerationExecutionPipeline", () => {
         action,
         ActionType.Ban,
         target,
+        createMockGuildConfig(),
       );
 
       expect(result.ok).toBe(false);
@@ -545,7 +600,12 @@ describe("ModerationExecutionPipeline", () => {
 
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.TempBan, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.TempBan,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       expect(mockTempBanRepository.save).toHaveBeenCalled();
@@ -568,7 +628,12 @@ describe("ModerationExecutionPipeline", () => {
 
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.TempBan, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.TempBan,
+        target,
+        createMockGuildConfig(),
+      );
 
       // Should fail as temp ban failure now fails the entire transaction for atomicity
       expect(result.ok).toBe(false);
@@ -589,7 +654,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       expect(result.ok).toBe(true);
       expect(mockModLogService.sendModLog).toHaveBeenCalled();
@@ -610,7 +680,12 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(action, ActionType.Warn, target);
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        target,
+        createMockGuildConfig(),
+      );
 
       // Should still succeed as mod log failure doesn't fail the entire operation
       expect(result.ok).toBe(true);
@@ -661,6 +736,7 @@ describe("ModerationExecutionPipeline", () => {
         action,
         ActionType.Ban,
         target,
+        createMockGuildConfig(),
       );
 
       expect(result.ok).toBe(false);
@@ -724,6 +800,7 @@ describe("ModerationExecutionPipeline", () => {
         action,
         ActionType.Ban,
         target,
+        createMockGuildConfig(),
       );
 
       expect(result.ok).toBe(false);

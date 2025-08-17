@@ -5,6 +5,7 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
@@ -57,6 +58,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     finalActionType: ActionType,
     target: ModerationTarget,
+    guildConfig: GuildConfig,
   ): Promise<Result<ModerationCase, string>> {
     this.logger.info(
       {
@@ -77,7 +79,7 @@ export class ModerationExecutionPipeline {
           "before",
           action,
           target,
-          action.guildId,
+          guildConfig,
         );
 
         if (dmPolicy.should) {
@@ -88,6 +90,7 @@ export class ModerationExecutionPipeline {
               "pre-case",
               action,
               target,
+              guildConfig,
             );
 
             if (preDMResult.error) {
@@ -103,6 +106,7 @@ export class ModerationExecutionPipeline {
         finalActionType,
         target,
         preDMResult,
+        guildConfig,
       );
       if (!createResult.ok) {
         return createResult;
@@ -121,6 +125,7 @@ export class ModerationExecutionPipeline {
           target,
           caseId,
           currentCase,
+          guildConfig,
         );
       }
 
@@ -161,6 +166,7 @@ export class ModerationExecutionPipeline {
         finalActionType,
         caseId,
         currentCase,
+        guildConfig,
       );
 
       this.logger.info(
@@ -199,7 +205,8 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     finalActionType: ActionType,
     target: ModerationTarget,
-    preDMResult?: DMResult | null,
+    preDMResult: DMResult | null,
+    guildConfig: GuildConfig,
   ): Promise<
     Result<{ caseId: string; moderationCase: ModerationCase }, string>
   > {
@@ -208,7 +215,7 @@ export class ModerationExecutionPipeline {
       action.shouldSendDMBeforeAction() ? "before" : "after",
       action,
       target,
-      action.guildId,
+      guildConfig,
     );
     return await this.db.transaction(
       async (tx: NodePgDatabase<typeof schema>) => {
@@ -305,6 +312,7 @@ export class ModerationExecutionPipeline {
     target: ModerationTarget,
     caseId: string,
     moderationCase: ModerationCase,
+    guildConfig: GuildConfig,
   ): Promise<ModerationCase> {
     // Check if we should send DM based on the stored intent
     if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
@@ -316,7 +324,13 @@ export class ModerationExecutionPipeline {
       return moderationCase;
     }
 
-    const dmResult = await this.sendDM(action.guildId, caseId, action, target);
+    const dmResult = await this.sendDM(
+      action.guildId,
+      caseId,
+      action,
+      target,
+      guildConfig,
+    );
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result in separate small transaction
@@ -371,6 +385,7 @@ export class ModerationExecutionPipeline {
     finalActionType: ActionType,
     caseId: string,
     moderationCase: ModerationCase,
+    guildConfig: GuildConfig,
   ): Promise<ModerationCase> {
     // Send post-action DM (may update context)
     const currentCase = await this.handlePostActionDM(
@@ -378,6 +393,7 @@ export class ModerationExecutionPipeline {
       target,
       caseId,
       moderationCase,
+      guildConfig,
     );
 
     // Send mod log for Warn/Note actions
@@ -399,6 +415,7 @@ export class ModerationExecutionPipeline {
     target: ModerationTarget,
     caseId: string,
     moderationCase: ModerationCase,
+    guildConfig: GuildConfig,
   ): Promise<ModerationCase> {
     // Check if we should send DM based on the stored intent
     if (!moderationCase.dmIntended || moderationCase.dmNotAttemptedReason) {
@@ -410,7 +427,13 @@ export class ModerationExecutionPipeline {
       return moderationCase;
     }
 
-    const dmResult = await this.sendDM(action.guildId, caseId, action, target);
+    const dmResult = await this.sendDM(
+      action.guildId,
+      caseId,
+      action,
+      target,
+      guildConfig,
+    );
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result in separate small transaction
@@ -555,14 +578,12 @@ export class ModerationExecutionPipeline {
     caseId: string,
     action: ModerationAction,
     target: ModerationTarget,
+    guildConfig: GuildConfig,
   ): Promise<{ channelId?: string; messageId?: string; error?: string }> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
       return { error: "Guild not found" };
     }
-
-    // Get guild config for custom DM messages
-    const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
 
     // Determine duration end time for temporal actions
     const durationEnd = action.isTemporalAction()

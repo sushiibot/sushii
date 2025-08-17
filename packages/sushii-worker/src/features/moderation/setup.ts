@@ -132,6 +132,7 @@ export function createModerationServices({
     permissionService,
     timeoutDetectionService,
     moderationExecutionPipeline,
+    guildConfigRepository,
     logger.child({ module: "moderationService" }),
   );
 

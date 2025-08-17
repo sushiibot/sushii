@@ -85,7 +85,7 @@ function buildBansSection(
       formatBanEntry(ban, currentGuildLookupOptIn),
     );
 
-    content += banEntries.join("\n\n");
+    content += banEntries.join("\n");
   }
 
   return new SectionBuilder()

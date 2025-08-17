@@ -84,6 +84,10 @@ function createMockDuration(): Duration {
   return result.val!;
 }
 
+function createMockGuildConfig(guildId: string = "guild123"): GuildConfig {
+  return GuildConfig.createDefault(guildId);
+}
+
 describe("DMPolicyService", () => {
   const mockGuildId = "123456789";
   let dmPolicyService: DMPolicyService;
@@ -109,7 +113,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -129,7 +133,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -151,7 +155,7 @@ describe("DMPolicyService", () => {
         "before",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -171,7 +175,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -191,7 +195,7 @@ describe("DMPolicyService", () => {
         "before",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(true);
@@ -213,7 +217,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -235,7 +239,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(true);
@@ -257,7 +261,7 @@ describe("DMPolicyService", () => {
         "before",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(true);
@@ -277,7 +281,7 @@ describe("DMPolicyService", () => {
         "before",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -299,7 +303,7 @@ describe("DMPolicyService", () => {
         "after",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
@@ -319,21 +323,24 @@ describe("DMPolicyService", () => {
 
       // Test with ban DM enabled
       mockGuildConfigRepository.setBanDmEnabled(true);
+      let guildConfig =
+        await mockGuildConfigRepository.findByGuildId(mockGuildId);
       let result = await dmPolicyService.shouldSendDM(
         "before",
         action,
         target,
-        "guild123",
+        guildConfig,
       );
       expect(result.should).toBe(true);
 
       // Test with ban DM disabled
       mockGuildConfigRepository.setBanDmEnabled(false);
+      guildConfig = await mockGuildConfigRepository.findByGuildId(mockGuildId);
       result = await dmPolicyService.shouldSendDM(
         "before",
         action,
         target,
-        "guild123",
+        guildConfig,
       );
       expect(result.should).toBe(false);
     });
@@ -352,21 +359,24 @@ describe("DMPolicyService", () => {
 
       // Test with timeout DM enabled
       mockGuildConfigRepository.setTimeoutCommandDmEnabled(true);
+      let guildConfig =
+        await mockGuildConfigRepository.findByGuildId(mockGuildId);
       let result = await dmPolicyService.shouldSendDM(
         "after",
         action,
         target,
-        "guild123",
+        guildConfig,
       );
       expect(result.should).toBe(true);
 
       // Test with timeout DM disabled
       mockGuildConfigRepository.setTimeoutCommandDmEnabled(false);
+      guildConfig = await mockGuildConfigRepository.findByGuildId(mockGuildId);
       result = await dmPolicyService.shouldSendDM(
         "after",
         action,
         target,
-        "guild123",
+        guildConfig,
       );
       expect(result.should).toBe(false);
     });
@@ -385,10 +395,138 @@ describe("DMPolicyService", () => {
         "before",
         action,
         target,
-        "guild123",
+        createMockGuildConfig(),
       );
 
       expect(result.should).toBe(false);
+    });
+  });
+
+  describe("custom DM text behavior", () => {
+    test("sends DM when custom ban text is configured but no reason provided", async () => {
+      const target = createMockTarget(true);
+      const action = new BanAction(
+        mockGuildId,
+        createMockUser(),
+        null, // executorMember
+        null, // no reason
+        "unspecified",
+        null,
+      );
+
+      // Create guild config with custom ban text
+      const guildConfig = createMockGuildConfig();
+      guildConfig.moderationSettings.banDmText = "Custom ban message";
+
+      const result = await dmPolicyService.shouldSendDM(
+        "before",
+        action,
+        target,
+        guildConfig,
+      );
+
+      expect(result.should).toBe(true);
+    });
+
+    test("sends DM when custom timeout text is configured but no reason provided", async () => {
+      const target = createMockTarget(true);
+      const action = new TimeoutAction(
+        mockGuildId,
+        createMockUser(),
+        null, // executorMember
+        null, // no reason
+        "unspecified",
+        null,
+        createMockDuration(),
+      );
+
+      // Create guild config with custom timeout text
+      const guildConfig = createMockGuildConfig();
+      guildConfig.moderationSettings.timeoutDmText = "Custom timeout message";
+
+      const result = await dmPolicyService.shouldSendDM(
+        "after",
+        action,
+        target,
+        guildConfig,
+      );
+
+      expect(result.should).toBe(true);
+    });
+
+    test("sends DM when custom warn text is configured but no reason provided", async () => {
+      const target = createMockTarget(true);
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null, // executorMember
+        null, // no reason
+        "unspecified",
+        null,
+      );
+
+      // Create guild config with custom warn text
+      const guildConfig = createMockGuildConfig();
+      guildConfig.moderationSettings.warnDmText = "Custom warn message";
+
+      const result = await dmPolicyService.shouldSendDM(
+        "before",
+        action,
+        target,
+        guildConfig,
+      );
+
+      expect(result.should).toBe(true);
+    });
+
+    test("does not send DM when neither reason nor custom text provided", async () => {
+      const target = createMockTarget(true);
+      const action = new BanAction(
+        mockGuildId,
+        createMockUser(),
+        null, // executorMember
+        null, // no reason
+        "unspecified",
+        null,
+      );
+
+      // Create guild config without custom ban text
+      const guildConfig = createMockGuildConfig();
+      guildConfig.moderationSettings.banDmText = null;
+
+      const result = await dmPolicyService.shouldSendDM(
+        "before",
+        action,
+        target,
+        guildConfig,
+      );
+
+      expect(result.should).toBe(false);
+    });
+
+    test("sends DM when both reason and custom text are provided", async () => {
+      const target = createMockTarget(true);
+      const action = new BanAction(
+        mockGuildId,
+        createMockUser(),
+        null, // executorMember
+        createMockReason(), // has reason
+        "unspecified",
+        null,
+      );
+
+      // Create guild config with custom ban text
+      const guildConfig = createMockGuildConfig();
+      guildConfig.moderationSettings.banDmText = "Custom ban message";
+
+      const result = await dmPolicyService.shouldSendDM(
+        "before",
+        action,
+        target,
+        guildConfig,
+      );
+
+      expect(result.should).toBe(true);
     });
   });
 });

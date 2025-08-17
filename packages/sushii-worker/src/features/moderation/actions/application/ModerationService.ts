@@ -3,6 +3,8 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
@@ -17,6 +19,7 @@ export class ModerationService {
     private readonly permissionService: PermissionValidationService,
     private readonly timeoutDetectionService: TimeoutDetectionService,
     private readonly executionPipeline: ModerationExecutionPipeline,
+    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -38,11 +41,20 @@ export class ModerationService {
       "Executing batch moderation actions",
     );
 
+    // Fetch guild config once for all targets in this batch
+    const guildConfig = await this.guildConfigRepository.findByGuildId(
+      action.guildId,
+    );
+
     const actionResults: Result<ModerationCase, string>[] = [];
 
     // Process each target sequentially to avoid race conditions
     for (const target of targets) {
-      const result = await this.executeActionSingle(action, target);
+      const result = await this.executeActionSingle(
+        action,
+        target,
+        guildConfig,
+      );
       actionResults.push(result);
     }
 
@@ -64,6 +76,7 @@ export class ModerationService {
   private async executeActionSingle(
     action: ModerationAction,
     target: ModerationTarget,
+    guildConfig: GuildConfig,
   ): Promise<Result<ModerationCase, string>> {
     // 1. Permission validation
     const permissionResult = await this.permissionService.canTargetUser(
@@ -91,6 +104,7 @@ export class ModerationService {
       action,
       finalActionType,
       target,
+      guildConfig,
     );
   }
 }

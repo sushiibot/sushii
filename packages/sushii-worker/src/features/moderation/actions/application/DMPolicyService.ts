@@ -1,3 +1,4 @@
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
@@ -20,7 +21,7 @@ export class DMPolicyService {
     timing: "before" | "after",
     action: ModerationAction,
     target: ModerationTarget,
-    guildId: string,
+    guildConfig: GuildConfig,
   ): Promise<DMPolicyDecision> {
     // Basic eligibility - only DM users who are in the server and for supported actions
     if (!target.member) {
@@ -32,8 +33,9 @@ export class DMPolicyService {
     }
 
     // Timing rules - bans/kicks DM before action, others DM after
-    // Don't DM if no reason provided
-    if (!action.reason) {
+    // Don't DM if no reason provided AND no custom DM text configured
+    const hasCustomText = this.hasCustomDMText(action.actionType, guildConfig);
+    if (!action.reason && !hasCustomText) {
       return { should: false, source: "action_not_supported" };
     }
 
@@ -68,19 +70,17 @@ export class DMPolicyService {
     }
 
     // No override, check guild-specific settings
-    const shouldSend = await this.shouldSendDMForGuildSettings(
-      guildId,
+    const shouldSend = this.shouldSendDMForGuildSettings(
+      guildConfig,
       action.actionType,
     );
     return { should: shouldSend, source: "guild_default" };
   }
 
-  private async shouldSendDMForGuildSettings(
-    guildId: string,
+  private shouldSendDMForGuildSettings(
+    guildConfig: GuildConfig,
     actionType: ActionType,
-  ): Promise<boolean> {
-    const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
-
+  ): boolean {
     switch (actionType) {
       case ActionType.Ban:
       case ActionType.TempBan:
@@ -93,6 +93,23 @@ export class DMPolicyService {
         return guildConfig.moderationSettings.timeoutCommandDmEnabled;
       default:
         return true;
+    }
+  }
+
+  private hasCustomDMText(
+    actionType: ActionType,
+    guildConfig: GuildConfig,
+  ): boolean {
+    switch (actionType) {
+      case ActionType.Ban:
+      case ActionType.TempBan:
+        return !!guildConfig.moderationSettings.banDmText;
+      case ActionType.Timeout:
+        return !!guildConfig.moderationSettings.timeoutDmText;
+      case ActionType.Warn:
+        return !!guildConfig.moderationSettings.warnDmText;
+      default:
+        return false;
     }
   }
 }
