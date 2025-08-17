@@ -47,6 +47,21 @@ export class Tag {
     );
   }
 
+  static createFromDatabase(data: TagData): Tag {
+    // For database reads - no validation, allows legacy tag names
+    const name = TagName.createFromDatabase(data.name);
+
+    return new Tag(
+      name,
+      data.content,
+      data.attachment,
+      data.guildId,
+      data.ownerId,
+      data.useCount,
+      data.created,
+    );
+  }
+
   getName(): TagName {
     return this.name;
   }

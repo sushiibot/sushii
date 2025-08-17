@@ -36,6 +36,23 @@ export class TagName {
     return Ok(new TagName(res.data));
   }
 
+  static createFromDatabase(value: string): TagName {
+    // For database reads - accepts legacy formats without validation
+    // This allows us to read legacy tags without crashing
+    return new TagName(value);
+  }
+
+  static normalize(value: string): string {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_") // spaces to underscores
+      .replace(/[^a-z0-9_-]/g, "") // remove special chars
+      .replace(/_{2,}/g, "_") // collapse multiple underscores
+      .replace(/-{2,}/g, "-") // collapse multiple hyphens
+      .slice(0, 32); // enforce max length
+  }
+
   getValue(): string {
     return this.value;
   }

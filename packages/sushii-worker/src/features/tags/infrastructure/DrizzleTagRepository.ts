@@ -8,7 +8,7 @@ import type { TagData } from "../domain/entities/Tag";
 import { Tag } from "../domain/entities/Tag";
 import type { TagRepository } from "../domain/repositories/TagRepository";
 import type { TagFilters } from "../domain/value-objects/TagFilters";
-import type { TagName } from "../domain/value-objects/TagName";
+import { TagName } from "../domain/value-objects/TagName";
 
 type DbType = NodePgDatabase<typeof schema>;
 
@@ -51,6 +51,7 @@ export class DrizzleTagRepository implements TagRepository {
     name: TagName,
     guildId: string,
   ): Promise<Tag | null> {
+    // Try exact match first
     const result = await this.db
       .select()
       .from(schema.tagsInAppPublic)
@@ -62,7 +63,39 @@ export class DrizzleTagRepository implements TagRepository {
       )
       .limit(1);
 
-    return result.length > 0 ? this.mapToTag(result[0]) : null;
+    if (result.length > 0) {
+      return this.mapToTag(result[0]);
+    }
+
+    // If not found, try normalized version for legacy name lookups
+    const normalized = TagName.normalize(name.getValue());
+    if (normalized !== name.getValue()) {
+      this.logger.debug(
+        { original: name.getValue(), normalized, guildId },
+        "Trying normalized tag name lookup",
+      );
+
+      const normalizedResult = await this.db
+        .select()
+        .from(schema.tagsInAppPublic)
+        .where(
+          and(
+            eq(schema.tagsInAppPublic.guildId, BigInt(guildId)),
+            eq(schema.tagsInAppPublic.tagName, normalized),
+          ),
+        )
+        .limit(1);
+
+      if (normalizedResult.length > 0) {
+        this.logger.info(
+          { original: name.getValue(), found: normalized, guildId },
+          "Found tag using normalized name",
+        );
+        return this.mapToTag(normalizedResult[0]);
+      }
+    }
+
+    return null;
   }
 
   async findByFilters(filters: TagFilters, limit: number): Promise<Tag[]> {
@@ -222,15 +255,7 @@ export class DrizzleTagRepository implements TagRepository {
       created: row.created,
     };
 
-    const tagResult = Tag.create(tagData);
-    if (tagResult.err) {
-      this.logger.error(
-        { error: tagResult.val, row },
-        "Failed to create tag from database row",
-      );
-      throw new Error(`Failed to create tag: ${tagResult.val}`);
-    }
-
-    return tagResult.val;
+    // Use lenient creation for database reads - handles legacy tag names
+    return Tag.createFromDatabase(tagData);
   }
 }
