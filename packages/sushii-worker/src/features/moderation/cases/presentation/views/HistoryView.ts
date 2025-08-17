@@ -31,13 +31,11 @@ export function formatModerationCase(moderationCase: ModerationCase): string {
 
   const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
-  let s = `\`#${moderationCase.caseId}\` • ${actionEmoji} **${actionName}**`;
+  let s = `\`#${moderationCase.caseId}\` • ${actionEmoji} **${actionName}**  – <t:${timestamp}:R>`;
 
   if (moderationCase.executorId) {
     s += ` – <@${moderationCase.executorId}>`;
   }
-
-  s += ` – <t:${timestamp}:R> `;
 
   if (moderationCase.reason) {
     s += `\n` + quoteMarkdownString(moderationCase.reason.value);
