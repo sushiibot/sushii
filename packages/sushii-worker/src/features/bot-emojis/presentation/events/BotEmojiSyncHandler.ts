@@ -18,8 +18,6 @@ export class BotEmojiSyncHandler extends EventHandler<"ready"> {
   }
 
   async handle(): Promise<void> {
-    this.logger.info("Bot ready - starting emoji sync");
-
     try {
       await this.syncService.syncEmojis();
     } catch (error) {

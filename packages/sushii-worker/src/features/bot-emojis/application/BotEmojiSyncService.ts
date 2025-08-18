@@ -42,8 +42,15 @@ export class BotEmojiSyncService {
    */
   async syncEmojis(): Promise<void> {
     // Only sync on shard 0
-    if (this.client.shard?.ids[0] !== 0) {
-      this.logger.debug("Skipping emoji sync - not shard 0");
+    if (!this.client.cluster.shardList.includes(0)) {
+      this.logger.debug(
+        {
+          clusterId: this.client.cluster.id,
+          shardList: this.client.cluster.shardList,
+        },
+        "Skipping emoji sync - not shard 0",
+      );
+
       return;
     }
 
