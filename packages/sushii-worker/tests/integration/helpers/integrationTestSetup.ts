@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 
+import { DrizzleBotEmojiRepository } from "@/features/bot-emojis";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
@@ -71,12 +72,15 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   // Create leveling services (needed for giveaways)
   const levelingServices = createLevelingServices({ db, logger });
 
+  const botEmojiRepository = new DrizzleBotEmojiRepository(db);
+
   // Create moderation services with mock client
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
     logger,
     deploymentService,
+    emojiRepository: botEmojiRepository,
   });
 
   // Create giveaway services with mock client
