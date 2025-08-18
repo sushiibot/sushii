@@ -80,18 +80,39 @@ function buildBansSection(
   if (totalBans === 0) {
     content += "> No bans found.";
   } else {
-    // Use shared formatter for all ban entries
-    const banEntries = crossServerBans.map((ban) =>
-      formatBanEntry(ban, currentGuildLookupOptIn),
-    );
+    // Character limit to prevent Discord message overflow (leaving room for other sections)
+    const MAX_CONTENT_LENGTH = 3500;
+    const banEntries: string[] = [];
+    let currentLength = content.length;
+    let bansShown = 0;
 
-    content += banEntries.join("\n");
+    for (const ban of crossServerBans) {
+      const banEntry = formatBanEntry(ban, currentGuildLookupOptIn);
+      const entryWithNewline = bansShown === 0 ? banEntry : `\n${banEntry}`;
+
+      // Check if adding this ban would exceed the limit
+      if (currentLength + entryWithNewline.length > MAX_CONTENT_LENGTH) {
+        break;
+      }
+
+      banEntries.push(entryWithNewline);
+      currentLength += entryWithNewline.length;
+      bansShown++;
+    }
+
+    content += banEntries.join("");
+
+    // Add "and X more" message if we truncated
+    const remainingBans = totalBans - bansShown;
+    if (remainingBans > 0) {
+      content += `\n\n*and ${remainingBans} more ban${remainingBans === 1 ? "" : "s"}...*`;
+    }
   }
 
   return new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
     .setThumbnailAccessory(
-      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 256 })),
+      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
     );
 }
 
@@ -104,6 +125,8 @@ function buildAccountSection(
   const content = [
     "### 👤 Account Information",
     "",
+    `**Username:** \`${targetUser.username}\``,
+    `**Display Name:** \`${targetUser.globalName}\``,
     `**ID:** \`${targetUser.id}\``,
     `**Created:** <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
   ].join("\n");
@@ -125,7 +148,6 @@ function buildMemberSection(member: GuildMember): TextDisplayBuilder {
     "",
     `**Joined:** ${joinedFormatted}`,
     `**Nickname:** ${member.nickname || "None"}`,
-    `**Roles:** ${member.roles.cache.size - 1}`, // Subtract @everyone
   ];
 
   // Add roles if user has any (excluding @everyone)
@@ -137,7 +159,9 @@ function buildMemberSection(member: GuildMember): TextDisplayBuilder {
       .join(", ");
 
     if (roles) {
-      content.push("", "**Roles**", roles);
+      const rolesStr = `**Roles:** ${roles}`;
+
+      content.push(rolesStr);
     }
   }
 
