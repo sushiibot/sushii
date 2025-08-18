@@ -5,7 +5,6 @@ import type { ActionType } from "@/features/moderation/shared/domain/value-objec
 
 export * from "./domain";
 export * from "./application";
-export * from "./infrastructure";
 export * from "./presentation";
 
 /**

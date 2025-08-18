@@ -39,7 +39,7 @@ describe("ReasonUpdateService", () => {
       searchByIdPrefix: mock(() => Promise.resolve(Ok([]))),
       // Audit log methods
       findPendingCase: mock(() => Promise.resolve(Ok(null))),
-      markAsNotPending: mock(() => Promise.resolve(Ok.EMPTY)),
+      markAsNotPending: mock(() => Promise.resolve(Ok({} as ModerationCase))),
       updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
       updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
     };

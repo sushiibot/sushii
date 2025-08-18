@@ -25,7 +25,6 @@ import {
   ModLogPostingService,
   NativeTimeoutDMService,
 } from "./audit-logs/application";
-import { DiscordAuditLogService } from "./audit-logs/infrastructure";
 // Button handlers
 import {
   ModLogDeleteDMButtonHandler,
@@ -224,11 +223,6 @@ export function createModerationServices({
     logger.child({ module: "auditLogOrchestrationService" }),
   );
 
-  const discordAuditLogService = new DiscordAuditLogService(
-    auditLogOrchestrationService,
-    logger.child({ module: "discordAuditLogService" }),
-  );
-
   return {
     modLogRepository,
     guildConfigRepository,
@@ -252,7 +246,6 @@ export function createModerationServices({
     nativeTimeoutDMService,
     modLogPostingService,
     auditLogOrchestrationService,
-    discordAuditLogService,
 
     // Additional dependencies
     emojiRepository,
@@ -363,10 +356,10 @@ export function createModerationEventHandlers(
   services: ReturnType<typeof createModerationServices>,
   logger: Logger,
 ) {
-  const { discordAuditLogService } = services;
+  const { auditLogProcessingService } = services;
 
   const auditLogEventHandler = new AuditLogEventHandler(
-    discordAuditLogService,
+    auditLogProcessingService,
     logger.child({ eventHandler: "auditLog" }),
   );
 

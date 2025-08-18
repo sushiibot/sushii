@@ -183,18 +183,18 @@ export class AuditLogProcessingService {
       );
 
       // Mark the case as not pending
-      const markResult = await this.modLogRepository.markAsNotPending(
+      const updatedCaseResult = await this.modLogRepository.markAsNotPending(
         auditLogEvent.guildId,
         foundPendingCase.caseId,
       );
-      if (markResult.err) {
+      if (updatedCaseResult.err) {
         throw new Error(
-          `Failed to mark case as not pending: ${markResult.val}`,
+          `Failed to mark case as not pending: ${updatedCaseResult.val}`,
         );
       }
 
       return {
-        modLogCase: foundPendingCase.withPending(false),
+        modLogCase: updatedCaseResult.val,
         wasPendingCase: true,
       };
     }

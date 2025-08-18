@@ -141,10 +141,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<Result<ModerationCase, string>> {
     const db = tx || this.db;
     try {
-      await db
+      const updatedCase = await db
         .update(modLogsInAppPublic)
         .set({ pending: false })
         .where(
@@ -152,9 +152,14 @@ export class DrizzleModLogRepository implements ModLogRepository {
             eq(modLogsInAppPublic.guildId, BigInt(guildId)),
             eq(modLogsInAppPublic.caseId, BigInt(caseId)),
           ),
-        );
+        )
+        .returning();
 
-      return Ok.EMPTY;
+      if (updatedCase.length === 0) {
+        return Err("Failed to mark case as not pending - no rows updated");
+      }
+
+      return Ok(this.mapRowToModerationCase(updatedCase[0]));
     } catch (error) {
       this.logger.error(
         {

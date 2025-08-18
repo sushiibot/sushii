@@ -4,7 +4,7 @@ import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import type { DiscordAuditLogService } from "../../infrastructure";
+import type { AuditLogProcessingService } from "../../application";
 
 /**
  * Presentation layer event handler for Discord audit log entries.
@@ -12,7 +12,7 @@ import type { DiscordAuditLogService } from "../../infrastructure";
  */
 export class AuditLogEventHandler extends EventHandler<Events.GuildAuditLogEntryCreate> {
   constructor(
-    private readonly discordAuditLogService: DiscordAuditLogService,
+    private readonly auditLogProcessingService: AuditLogProcessingService,
     private readonly logger: Logger,
   ) {
     super();
@@ -25,7 +25,7 @@ export class AuditLogEventHandler extends EventHandler<Events.GuildAuditLogEntry
    */
   async handle(entry: GuildAuditLogsEntry, guild: Guild): Promise<void> {
     try {
-      const result = await this.discordAuditLogService.handleAuditLogEntry(
+      const result = await this.auditLogProcessingService.processAuditLogEntry(
         entry,
         guild,
       );

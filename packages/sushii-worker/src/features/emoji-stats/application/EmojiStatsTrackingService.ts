@@ -67,10 +67,11 @@ export class EmojiStatsTrackingService {
         await this.guildAssetRepository.findByIds(eligibleAssetIds);
 
       if (knownAssets.length === 0) {
-        logger.debug(
+        logger.trace(
           { userId, guildId, actionType, assetIds: eligibleAssetIds },
           "No known assets found",
         );
+
         return;
       }
 

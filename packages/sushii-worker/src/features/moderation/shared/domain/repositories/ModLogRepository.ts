@@ -154,7 +154,7 @@ export interface ModLogAuditOperations {
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<Result<ModerationCase, string>>;
 
   /**
    * Updates a mod log case with the Discord message ID.

@@ -61,13 +61,13 @@ export function createMockDiscordClient(): MockDiscordClient {
   );
   const sendSpy = mock((_options: unknown) =>
     Promise.resolve({
-      id: "message-id",
-      channel: { id: "dm-channel-id" },
+      id: "123456789012345678",
+      channel: { id: "987654321098765432" },
     }),
   );
   const createDMSpy = mock(() =>
     Promise.resolve({
-      id: "dm-channel-id",
+      id: "987654321098765432",
       send: sendSpy,
     } as unknown as DMChannel),
   );
@@ -200,7 +200,7 @@ export function createMockDiscordClient(): MockDiscordClient {
       system: userData.system,
       createDM: mock(() =>
         Promise.resolve({
-          id: "dm-channel-id",
+          id: "987654321098765432",
           send: sendSpy, // Use the global sendSpy
         } as unknown as DMChannel),
       ),
@@ -222,7 +222,7 @@ export function createMockDiscordClient(): MockDiscordClient {
       username: `TestUser${userId.slice(-4)}`,
       createDM: mock(() =>
         Promise.resolve({
-          id: "dm-channel-id",
+          id: "987654321098765432",
           send: sendSpy, // Use the global sendSpy
         } as unknown as DMChannel),
       ),
@@ -308,19 +308,19 @@ export function createMockUser(
         `https://cdn.discordapp.com/avatars/${mockUserData.id}/avatar.png`,
       createDM: mock(() =>
         Promise.resolve({
-          id: "dm-channel-id",
+          id: "987654321098765432",
           send: mock(() =>
             Promise.resolve({
-              id: "message-id",
-              channel: { id: "dm-channel-id" },
+              id: "123456789012345678",
+              channel: { id: "987654321098765432" },
             }),
           ),
         } as unknown as DMChannel),
       ),
       send: mock(() =>
         Promise.resolve({
-          id: "message-id",
-          channel: { id: "dm-channel-id" },
+          id: "123456789012345678",
+          channel: { id: "987654321098765432" },
         }),
       ), // Add send method for direct DM
       ...overrides,
@@ -336,14 +336,14 @@ export function createMockUser(
       `https://cdn.discordapp.com/avatars/${userId}/avatar.png`,
     createDM: mock(() =>
       Promise.resolve({
-        id: "dm-channel-id",
-        send: mock(() => Promise.resolve({ id: "message-id" })),
+        id: "987654321098765432",
+        send: mock(() => Promise.resolve({ id: "123456789012345678" })),
       } as unknown as DMChannel),
     ),
     send: mock(() =>
       Promise.resolve({
-        id: "message-id",
-        channel: { id: "dm-channel-id" },
+        id: "123456789012345678",
+        channel: { id: "987654321098765432" },
       }),
     ),
     ...overrides,
