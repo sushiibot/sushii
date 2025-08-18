@@ -103,6 +103,7 @@ export class AuditLogOrchestrationService {
       // Step 4: Update mod log case with message ID
       const messageId = postResult.val;
       await this.auditLogProcessingService.updateModLogCaseMessageId(
+        processedLog.modLogCase.guildId,
         processedLog.modLogCase.caseId,
         messageId,
       );
@@ -168,6 +169,7 @@ export class AuditLogOrchestrationService {
     // Update mod log case with DM information
     const dmSentResult = dmResult.val;
     await this.auditLogProcessingService.updateModLogCaseDMInfo(
+      guild.id,
       caseId,
       dmSentResult.channelId,
       dmSentResult.messageId,

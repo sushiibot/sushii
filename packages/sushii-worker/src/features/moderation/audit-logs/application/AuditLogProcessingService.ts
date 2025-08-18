@@ -155,6 +155,7 @@ export class AuditLogProcessingService {
 
       // Mark the case as not pending
       const markResult = await this.modLogRepository.markAsNotPending(
+        auditLogEvent.guildId,
         foundPendingCase.caseId,
       );
       if (markResult.err) {
@@ -219,17 +220,19 @@ export class AuditLogProcessingService {
    * Updates a mod log case with message ID.
    */
   async updateModLogCaseMessageId(
+    guildId: string,
     caseId: string,
     messageId: string,
   ): Promise<Result<void, string>> {
     const result = await this.modLogRepository.updateMessageId(
+      guildId,
       caseId,
       messageId,
     );
 
     if (result.ok) {
       this.logger.debug(
-        { caseId, messageId },
+        { guildId, caseId, messageId },
         "Updated mod log case with message ID",
       );
     }
@@ -241,6 +244,7 @@ export class AuditLogProcessingService {
    * Updates a mod log case with DM information.
    */
   async updateModLogCaseDMInfo(
+    guildId: string,
     caseId: string,
     dmChannelId: string | null,
     dmMessageId: string | null,
@@ -252,11 +256,15 @@ export class AuditLogProcessingService {
       error: dmMessageError || undefined,
     };
 
-    const result = await this.modLogRepository.updateDMInfo(caseId, dmResult);
+    const result = await this.modLogRepository.updateDMInfo(
+      guildId,
+      caseId,
+      dmResult,
+    );
 
     if (result.ok) {
       this.logger.debug(
-        { caseId, dmChannelId, dmMessageId, dmMessageError },
+        { guildId, caseId, dmChannelId, dmMessageId, dmMessageError },
         "Updated mod log case with DM information",
       );
     }

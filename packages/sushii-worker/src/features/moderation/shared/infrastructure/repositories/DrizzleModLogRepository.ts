@@ -138,6 +138,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
   }
 
   async markAsNotPending(
+    guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>> {
@@ -146,13 +147,19 @@ export class DrizzleModLogRepository implements ModLogRepository {
       await db
         .update(modLogsInAppPublic)
         .set({ pending: false })
-        .where(eq(modLogsInAppPublic.caseId, BigInt(caseId)));
+        .where(
+          and(
+            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+          ),
+        );
 
       return Ok.EMPTY;
     } catch (error) {
       this.logger.error(
         {
           err: error,
+          guildId,
           caseId,
         },
         "Failed to mark case as not pending",
@@ -162,6 +169,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
   }
 
   async updateMessageId(
+    guildId: string,
     caseId: string,
     messageId: string,
     tx?: NodePgDatabase<typeof schema>,
@@ -171,13 +179,19 @@ export class DrizzleModLogRepository implements ModLogRepository {
       await db
         .update(modLogsInAppPublic)
         .set({ msgId: BigInt(messageId) })
-        .where(eq(modLogsInAppPublic.caseId, BigInt(caseId)));
+        .where(
+          and(
+            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+          ),
+        );
 
       return Ok.EMPTY;
     } catch (error) {
       this.logger.error(
         {
           err: error,
+          guildId,
           caseId,
           messageId,
         },
@@ -188,6 +202,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
   }
 
   async updateDMInfo(
+    guildId: string,
     caseId: string,
     dmResult: DMResult,
     tx?: NodePgDatabase<typeof schema>,
@@ -201,13 +216,19 @@ export class DrizzleModLogRepository implements ModLogRepository {
           dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
           dmMessageError: dmResult.error || null,
         })
-        .where(eq(modLogsInAppPublic.caseId, BigInt(caseId)));
+        .where(
+          and(
+            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+          ),
+        );
 
       return Ok.EMPTY;
     } catch (error) {
       this.logger.error(
         {
           err: error,
+          guildId,
           caseId,
           dmResult,
         },

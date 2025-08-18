@@ -151,6 +151,7 @@ export interface ModLogAuditOperations {
    * Used when an audit log event is matched to a pending case.
    */
   markAsNotPending(
+    guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>>;
@@ -160,6 +161,7 @@ export interface ModLogAuditOperations {
    * Called after successfully posting to mod log channel.
    */
   updateMessageId(
+    guildId: string,
     caseId: string,
     messageId: string,
     tx?: NodePgDatabase<typeof schema>,
@@ -170,6 +172,7 @@ export interface ModLogAuditOperations {
    * Stores channel ID, message ID, and any error that occurred.
    */
   updateDMInfo(
+    guildId: string,
     caseId: string,
     dmResult: DMResult,
     tx?: NodePgDatabase<typeof schema>,
