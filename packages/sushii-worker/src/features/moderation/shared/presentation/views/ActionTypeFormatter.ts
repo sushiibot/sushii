@@ -118,6 +118,10 @@ export function getActionTypeBotEmoji(
   }
 }
 
+/**
+ *
+ * @deprecated Use getActionTypeBotEmoji now
+ */
 export function getActionTypeEmoji(action: ActionType): string {
   switch (action) {
     case ActionType.Ban:

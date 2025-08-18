@@ -298,6 +298,7 @@ export function createModerationCommands(
     ),
     new HistoryCommand(
       historyUserService,
+      emojiRepository,
       logger.child({ commandHandler: "history" }),
     ),
     // Utility commands
@@ -334,6 +335,7 @@ export function createModerationCommands(
     new UserInfoContextMenuHandler(
       historyUserService,
       lookupUserService,
+      emojiRepository,
       logger.child({ contextMenuHandler: "userInfoContextMenu" }),
     ),
   ];

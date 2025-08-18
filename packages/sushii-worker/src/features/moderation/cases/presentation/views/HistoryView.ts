@@ -1,12 +1,16 @@
 import type { GuildMember, User } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 
+import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis";
 import type { UserHistoryResult } from "@/features/moderation/cases/application/HistoryUserService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import {
+  ActionType,
+  ActionTypeBotEmojis,
+} from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
   formatActionTypeAsSentence,
-  getActionTypeEmoji,
+  getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import dayjs from "@/shared/domain/dayjs";
 import buildChunks from "@/utils/buildChunks";
@@ -16,8 +20,21 @@ import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getCleanFilename } from "@/utils/url";
 import { getUserString } from "@/utils/userString";
 
-export function formatModerationCase(moderationCase: ModerationCase): string {
-  const actionEmoji = getActionTypeEmoji(moderationCase.actionType);
+export const HISTORY_ACTION_EMOJIS = [
+  ...ActionTypeBotEmojis,
+  "reason",
+  "duration",
+  "attachment",
+  "warning",
+] as const satisfies readonly BotEmojiNameType[];
+
+export function formatModerationCase(
+  moderationCase: ModerationCase,
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+): string {
+  const emojiName = getActionTypeBotEmoji(moderationCase.actionType);
+  const emoji = emojis[emojiName];
+
   let actionName = formatActionTypeAsSentence(moderationCase.actionType);
 
   // Add timeout duration if available for Timeout actions
@@ -31,7 +48,7 @@ export function formatModerationCase(moderationCase: ModerationCase): string {
 
   const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
-  let s = `\`#${moderationCase.caseId}\` • ${actionEmoji} **${actionName}**  – <t:${timestamp}:R>`;
+  let s = `\`#${moderationCase.caseId}\` • ${emoji} **${actionName}**  – <t:${timestamp}:R>`;
 
   if (moderationCase.executorId) {
     s += ` – <@${moderationCase.executorId}>`;
@@ -60,6 +77,7 @@ export function buildUserHistoryEmbeds(
   targetUser: User,
   member: GuildMember | null,
   historyResult: UserHistoryResult,
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
 ): EmbedBuilder[] {
   const { moderationHistory, totalCases } = historyResult;
   const count = totalCases;
@@ -86,7 +104,9 @@ export function buildUserHistoryEmbeds(
   );
 
   // Build case history
-  const casesStr = moderationHistory.map(formatModerationCase);
+  const casesStr = moderationHistory.map((c) =>
+    formatModerationCase(c, emojis),
+  );
 
   const [mainChunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
 
@@ -169,6 +189,7 @@ export function buildUserHistoryContextEmbed(
   targetUser: User,
   member: GuildMember | null,
   historyResult: UserHistoryResult,
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
 ): EmbedBuilder {
   const { moderationHistory, totalCases } = historyResult;
 
@@ -189,7 +210,9 @@ export function buildUserHistoryContextEmbed(
 
   // Show only the most recent 3 cases
   const recentCases = moderationHistory.slice(0, 3);
-  const casesStr = recentCases.map(formatModerationCase).join("\n\n");
+  const casesStr = recentCases
+    .map((c) => formatModerationCase(c, emojis))
+    .join("\n\n");
 
   embed.setDescription(casesStr);
 

@@ -7,10 +7,14 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis";
 import { SlashCommandHandler } from "@/interactions/handlers";
 
 import type { HistoryUserService } from "../../application/HistoryUserService";
-import { buildUserHistoryEmbeds } from "../views/HistoryView";
+import {
+  HISTORY_ACTION_EMOJIS,
+  buildUserHistoryEmbeds,
+} from "../views/HistoryView";
 
 export class HistoryCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -30,6 +34,7 @@ export class HistoryCommand extends SlashCommandHandler {
 
   constructor(
     private readonly historyUserService: HistoryUserService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -76,10 +81,13 @@ export class HistoryCommand extends SlashCommandHandler {
       log.debug({ err }, "User not found in guild");
     }
 
+    const emojis = await this.emojiRepository.getEmojis(HISTORY_ACTION_EMOJIS);
+
     const historyEmbeds = buildUserHistoryEmbeds(
       user,
       member || null,
       historyResult.val,
+      emojis,
     );
 
     log.info(

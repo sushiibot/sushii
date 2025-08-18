@@ -8,12 +8,16 @@ import {
 import { ApplicationCommandType } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 
 import type { HistoryUserService } from "../../application/HistoryUserService";
 import type { LookupUserService } from "../../application/LookupUserService";
-import { buildUserHistoryContextEmbed } from "../views/HistoryView";
+import {
+  HISTORY_ACTION_EMOJIS,
+  buildUserHistoryContextEmbed,
+} from "../views/HistoryView";
 import { buildUserLookupContextEmbed } from "../views/UserInfoContextView";
 
 export class UserInfoContextMenuHandler extends ContextMenuHandler {
@@ -25,6 +29,7 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
   constructor(
     private readonly historyUserService: HistoryUserService,
     private readonly lookupUserService: LookupUserService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -82,10 +87,15 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
 
     // Add history embed (case history in current server - recent 3 cases only)
     if (historyResult.ok) {
+      const emojis = await this.emojiRepository.getEmojis(
+        HISTORY_ACTION_EMOJIS,
+      );
+
       const historyEmbed = buildUserHistoryContextEmbed(
         targetUser,
         targetMember,
         historyResult.val,
+        emojis,
       );
       embeds.push(historyEmbed);
     } else {
