@@ -76,6 +76,7 @@ export function buildUserHistoryEmbeds(
 
   // No description if no cases
   if (moderationHistory.length === 0) {
+    addUserAccountInfo(mainEmbed, targetUser, member);
     return [mainEmbed];
   }
 
