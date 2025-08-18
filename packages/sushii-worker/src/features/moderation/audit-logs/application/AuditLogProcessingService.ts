@@ -48,27 +48,6 @@ export class AuditLogProcessingService {
         "Processing moderation audit log event",
       );
 
-      // Check guild configuration
-      const guildConfig = await this.guildConfigRepository.findByGuildId(
-        guild.id,
-      );
-      if (
-        !guildConfig.loggingSettings.modLogChannel ||
-        !guildConfig.loggingSettings.modLogEnabled
-      ) {
-        this.logger.debug(
-          {
-            guildId: guild.id,
-            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
-            modLogEnabled: guildConfig.loggingSettings.modLogEnabled,
-          },
-          "Mod log not configured or disabled",
-        );
-
-        // Cannot continue
-        return Ok(null);
-      }
-
       // Validate target
       if (!entry.targetId || entry.targetType !== "User") {
         this.logger.debug(
@@ -82,11 +61,34 @@ export class AuditLogProcessingService {
       // Fetch target user
       const targetUser = await guild.client.users.fetch(entry.targetId);
 
-      // Find or create mod log case
+      // Find or create mod log case (always do this to mark pending cases as complete)
       const { modLogCase, wasPendingCase } = await this.findOrCreateModLogCase(
         auditLogEvent,
         targetUser,
       );
+
+      // Check guild configuration for mod log posting
+      const guildConfig = await this.guildConfigRepository.findByGuildId(
+        guild.id,
+      );
+      if (
+        !guildConfig.loggingSettings.modLogChannel ||
+        !guildConfig.loggingSettings.modLogEnabled
+      ) {
+        this.logger.debug(
+          {
+            guildId: guild.id,
+            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+            modLogEnabled: guildConfig.loggingSettings.modLogEnabled,
+            wasPendingCase,
+            caseId: modLogCase.caseId,
+          },
+          "Case processed but mod log not configured or disabled",
+        );
+
+        // Case has been processed (marked as not pending), but no mod log posting
+        return Ok(null);
+      }
 
       return Ok({
         auditLogEvent,
@@ -118,13 +120,19 @@ export class AuditLogProcessingService {
     auditLogEvent: AuditLogEvent,
     targetUser: User,
   ): Promise<{ modLogCase: ModerationCase; wasPendingCase: boolean }> {
-    const actionTypesToSearch =
-      auditLogEvent.actionType === ActionType.Ban
-        ? // Ban audit log can be triggered by either ban or tempban actions
-          [ActionType.Ban, ActionType.TempBan]
-        : [auditLogEvent.actionType];
+    let actionTypesToSearch: ActionType[];
 
-    let foundPendingCase;
+    if (auditLogEvent.actionType === ActionType.Ban) {
+      // Ban audit log can be triggered by either ban or tempban actions
+      actionTypesToSearch = [ActionType.Ban, ActionType.TempBan];
+    } else if (auditLogEvent.actionType === ActionType.Timeout) {
+      // Discord always sends Timeout events, but bot may have saved as TimeoutAdjust
+      actionTypesToSearch = [ActionType.Timeout, ActionType.TimeoutAdjust];
+    } else {
+      actionTypesToSearch = [auditLogEvent.actionType];
+    }
+
+    const foundPendingCases: ModerationCase[] = [];
     for (const actionType of actionTypesToSearch) {
       // Look for pending case created in the last minute
       const pendingCase = await this.modLogRepository.findPendingCase(
@@ -143,7 +151,28 @@ export class AuditLogProcessingService {
 
       // Not null, found result
       if (pendingCase.val) {
-        foundPendingCase = pendingCase.val;
+        foundPendingCases.push(pendingCase.val);
+      }
+    }
+
+    // Select the most recent case if multiple found
+    let foundPendingCase: ModerationCase | undefined;
+    if (foundPendingCases.length > 0) {
+      foundPendingCase = foundPendingCases.reduce((mostRecent, current) =>
+        current.actionTime > mostRecent.actionTime ? current : mostRecent,
+      );
+
+      // Log if we found a case with different action type than audit log
+      if (foundPendingCase.actionType !== auditLogEvent.actionType) {
+        this.logger.debug(
+          {
+            auditLogActionType: auditLogEvent.actionType,
+            pendingCaseActionType: foundPendingCase.actionType,
+            caseId: foundPendingCase.caseId,
+            guildId: auditLogEvent.guildId,
+          },
+          "Found pending case with different action type than audit log",
+        );
       }
     }
 
