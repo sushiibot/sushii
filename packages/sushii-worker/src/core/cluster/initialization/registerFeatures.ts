@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
+import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
@@ -101,6 +102,14 @@ export function registerFeatures(
     deploymentService,
   });
 
+  // Bot emoji feature (setup early for other features to use)
+  const botEmojiFeature = setupBotEmojiFeature({
+    db,
+    client,
+    logger: logger.child({ feature: "BotEmoji" }),
+    webhookService: webhookLoggingFeature.services.webhookService,
+  });
+
   // Legacy audit logs feature
   const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({ logger });
 
@@ -172,6 +181,7 @@ export function registerFeatures(
   );
 
   const handlers = [
+    ...botEmojiFeature.eventHandlers, // Early in the list for startup sync
     ...interactionHandlerFeature.eventHandlers,
     ...levelingFeature.eventHandlers,
     deploymentHandler,
@@ -285,5 +295,6 @@ export function registerFeatures(
     },
     tempBanRepository: moderationFeature.services.tempBanRepository,
     webhookLoggingServices: webhookLoggingFeature.services,
+    botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
   };
 }

@@ -775,3 +775,20 @@ export const mutesInAppPublic = appPublic.table(
     }),
   ],
 );
+
+export const botEmojisInAppPublic = appPublic.table(
+  "bot_emojis",
+  {
+    name: text().primaryKey().notNull(),
+    id: text().notNull(),
+    sha256: text().notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("bot_emojis_name_idx").using(
+      "btree",
+      table.name.asc().nullsLast().op("text_ops"),
+    ),
+  ],
+);

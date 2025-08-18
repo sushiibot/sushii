@@ -1,0 +1,1 @@
+export { DrizzleBotEmojiRepository } from "./DrizzleBotEmojiRepository";
