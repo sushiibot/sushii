@@ -9,7 +9,10 @@ import toTimestamp from "@/utils/toTimestamp";
 import { getCleanFilename } from "@/utils/url";
 
 import { ActionType } from "../domain/value-objects/ActionType";
-import { formatActionType } from "./views/ActionTypeFormatter";
+import {
+  formatActionType,
+  getActionTypeColor,
+} from "./views/ActionTypeFormatter";
 
 interface ModCase {
   case_id: string;
@@ -134,7 +137,7 @@ export default async function buildModLogEmbed(
     });
   }
 
-  const color = Color.Info;
+  const color = getActionTypeColor(actionType) || Color.Info;
 
   return new EmbedBuilder()
     .setAuthor({
