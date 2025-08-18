@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { SlashCommandHandler } from "@/interactions/handlers";
@@ -76,6 +77,7 @@ interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
   client: Client;
   logger: Logger;
+  emojiRepository: BotEmojiRepository;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -86,6 +88,7 @@ export function createModerationServices({
   db,
   client,
   logger,
+  emojiRepository,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -250,6 +253,9 @@ export function createModerationServices({
     modLogPostingService,
     auditLogOrchestrationService,
     discordAuditLogService,
+
+    // Additional dependencies
+    emojiRepository,
   };
 }
 
@@ -269,6 +275,7 @@ export function createModerationCommands(
     reasonUpdateService,
     caseRangeAutocompleteService,
     guildConfigRepository,
+    emojiRepository,
   } = services;
 
   // Iterate over all COMMAND_CONFIGS and build commands
@@ -279,6 +286,7 @@ export function createModerationCommands(
         moderationService,
         targetResolutionService,
         guildConfigRepository,
+        emojiRepository,
       );
     },
   );
@@ -384,10 +392,16 @@ export function setupModerationFeature({
   client,
   logger,
   deploymentService,
+  emojiRepository,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
-  const services = createModerationServices({ db, client, logger });
+  const services = createModerationServices({
+    db,
+    client,
+    logger,
+    emojiRepository,
+  });
   const commands = createModerationCommands(services, logger);
   const events = createModerationEventHandlers(services, logger);
   const tasks = createModerationTasks(services, client, deploymentService);

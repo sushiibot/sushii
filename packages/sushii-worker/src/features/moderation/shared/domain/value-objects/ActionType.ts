@@ -1,3 +1,5 @@
+import type { BotEmojiNameType } from "@/features/bot-emojis";
+
 export enum ActionType {
   Ban = "ban",
   TempBan = "temp_ban",
@@ -69,3 +71,16 @@ export function actionTypeFromString(s: string): ActionType {
       throw new Error(`Invalid action ${s}`);
   }
 }
+
+export const ActionTypeBotEmojis = [
+  "ban",
+  "tempban",
+  "unban",
+  "kick",
+  "timeout",
+  "untimeout",
+  "warn",
+  "note",
+  "history",
+  "lookup",
+] as const satisfies readonly BotEmojiNameType[];

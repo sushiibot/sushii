@@ -1,6 +1,8 @@
+import type { BotEmojiName } from "@/features/bot-emojis/domain";
 import Color from "@/utils/colors";
 import toSentenceCase from "@/utils/toSentenceCase";
 
+import type { ActionTypeBotEmojis } from "../../domain/value-objects/ActionType";
 import { ActionType } from "../../domain/value-objects/ActionType";
 
 export function formatActionType(action: ActionType): string {
@@ -85,6 +87,34 @@ export function formatActionTypeAsPastTense(action: ActionType): string {
       return "got history for";
     case ActionType.Lookup:
       return "looked up";
+  }
+}
+
+export function getActionTypeBotEmoji(
+  action: ActionType,
+): (typeof ActionTypeBotEmojis)[number] {
+  switch (action) {
+    case ActionType.Ban:
+      return "ban";
+    case ActionType.TempBan:
+      return "tempban";
+    case ActionType.BanRemove:
+      return "unban";
+    case ActionType.Kick:
+      return "kick";
+    case ActionType.Timeout:
+    case ActionType.TimeoutAdjust:
+      return "timeout";
+    case ActionType.TimeoutRemove:
+      return "untimeout";
+    case ActionType.Warn:
+      return "warn";
+    case ActionType.Note:
+      return "note";
+    case ActionType.History:
+      return "history";
+    case ActionType.Lookup:
+      return "lookup";
   }
 }
 

@@ -37,6 +37,20 @@ export function registerFeatures(
   // --------------------------------------------------------------------------
   // Build commands
 
+  // Webhook logging feature
+  const webhookLoggingFeature = setupWebhookLoggingFeature({
+    logger,
+    deploymentService,
+  });
+
+  // Bot emoji feature, used by other features for custom emojis
+  const botEmojiFeature = setupBotEmojiFeature({
+    db,
+    client,
+    logger: logger.child({ feature: "BotEmoji" }),
+    webhookService: webhookLoggingFeature.services.webhookService,
+  });
+
   // Cache feature
   const cacheFeature = createCacheFeature({ db });
 
@@ -55,59 +69,27 @@ export function registerFeatures(
     logger,
   });
 
-  // Ban cache feature
   const banCacheFeature = setupBanCacheFeature({ db, logger });
-
-  // Leveling feature
   const levelingFeature = setupLevelingFeature({ db, logger });
-
-  // Tags feature
   const tagFeature = setupTagFeature({ db, logger });
-
-  // User profile feature
   const userProfileFeature = setupUserProfileFeature({ db, client, logger });
-
-  // Social feature
   const socialFeature = setupSocialFeature({ db, client, logger });
-
-  // Notification feature
   const notificationFeature = setupNotificationFeature({ db, logger });
-
-  // Guild settings feature
   const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
-
-  // Member events feature
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
-
-  // Moderation feature
   const moderationFeature = setupModerationFeature({
     db,
     client,
     logger,
     deploymentService,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
-
-  // Giveaway feature
   const giveawayFeature = setupGiveawayFeature({
     db,
     userLevelRepository: levelingFeature.services.userLevelRepository,
     logger,
     client,
     deploymentService,
-  });
-
-  // Webhook logging feature
-  const webhookLoggingFeature = setupWebhookLoggingFeature({
-    logger,
-    deploymentService,
-  });
-
-  // Bot emoji feature (setup early for other features to use)
-  const botEmojiFeature = setupBotEmojiFeature({
-    db,
-    client,
-    logger: logger.child({ feature: "BotEmoji" }),
-    webhookService: webhookLoggingFeature.services.webhookService,
   });
 
   // Legacy audit logs feature

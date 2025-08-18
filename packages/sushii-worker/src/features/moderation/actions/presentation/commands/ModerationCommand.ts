@@ -10,7 +10,11 @@ import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
+import type { BotEmojiRepository } from "@/features/bot-emojis";
+import {
+  MODERATION_ACTION_EMOJIS,
+  buildActionResultMessage,
+} from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
@@ -67,6 +71,7 @@ export class ModerationCommand extends SlashCommandHandler {
     private readonly moderationService: ModerationService,
     private readonly targetResolutionService: TargetResolutionService,
     private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly emojiRepository: BotEmojiRepository,
   ) {
     super();
 
@@ -326,6 +331,10 @@ export class ModerationCommand extends SlashCommandHandler {
       action.guildId,
     );
 
+    const emojis = await this.emojiRepository.getEmojis(
+      MODERATION_ACTION_EMOJIS,
+    );
+
     const message = buildActionResultMessage(
       this.config.actionType,
       interaction.user,
@@ -333,6 +342,7 @@ export class ModerationCommand extends SlashCommandHandler {
       executeResults,
       guildConfig || GuildConfig.createDefault(action.guildId),
       action,
+      emojis,
     );
 
     await interaction.editReply(message);

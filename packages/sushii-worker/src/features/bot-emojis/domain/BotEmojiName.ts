@@ -14,19 +14,29 @@ export const BotEmojiName = z.enum([
   "untimeout",
   "timeout",
   "kick",
+  "warn",
 
   // Moderation Tools UI
+  "attachment",
   "lookup",
   "reason",
   "tip",
   "dm_message",
   "additional_message",
+  "history",
+  "duration",
 
   // General
+
+  // States
   "success",
   "fail",
   "disabled",
   "enabled",
+  "warning",
+
+  // UI
+  "user",
 ]);
 
 export type BotEmojiName = z.infer<typeof BotEmojiName>;

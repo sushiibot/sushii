@@ -2,19 +2,34 @@ import type { InteractionEditReplyOptions, User } from "discord.js";
 import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
 import type { Result } from "ts-results";
 
+import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
-  formatActionTypeAsPastTense,
+  ActionType,
+  ActionTypeBotEmojis,
+} from "@/features/moderation/shared/domain/value-objects/ActionType";
+import {
   formatActionTypeAsSentence,
+  getActionTypeBotEmoji,
   getActionTypeColor,
-  getActionTypeEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 import { getCleanFilename } from "@/utils/url";
+
+export const MODERATION_ACTION_EMOJIS = [
+  ...ActionTypeBotEmojis,
+  "reason",
+  "success",
+  "fail",
+  "additional_message",
+  "dm_message",
+  "duration",
+  "attachment",
+  "warning",
+] as const satisfies readonly BotEmojiNameType[];
 
 interface ActionResult {
   target: ModerationTarget;
@@ -81,7 +96,8 @@ export function buildActionResultMessage(
   targets: ModerationTarget[],
   cases: Result<ModerationCase, string>[],
   guildConfig: GuildConfig,
-  action?: ModerationAction,
+  action: ModerationAction,
+  emojis: EmojiMap<typeof MODERATION_ACTION_EMOJIS>,
 ): InteractionEditReplyOptions {
   // Map targets and cases together for cleaner data handling
   const actionResults: ActionResult[] = targets.map((target, index) => ({
@@ -92,7 +108,9 @@ export function buildActionResultMessage(
   const successful = actionResults.filter((r) => r.result.ok);
   const failed = actionResults.filter((r) => !r.result.ok);
 
-  const emoji = getActionTypeEmoji(actionType);
+  const emojiName = getActionTypeBotEmoji(actionType);
+  const emoji = emojis[emojiName];
+
   const actionName = formatActionTypeAsSentence(actionType);
 
   // Determine title and color based on results
@@ -119,7 +137,7 @@ export function buildActionResultMessage(
 
   // Format users in order with failure indicators
   for (const actionResult of actionResults) {
-    const failureIcon = !actionResult.result.ok ? "❌ " : "";
+    const failureIcon = !actionResult.result.ok ? `${emojis.fail} ` : "";
     fullContent += `> ${failureIcon}<@${actionResult.target.id}> — \`${actionResult.target.user.username}\` — \`${actionResult.target.id}\`\n`;
 
     if (!actionResult.result.ok) {
@@ -128,7 +146,7 @@ export function buildActionResultMessage(
       // Add DM failure indicator for successful moderation cases
       const moderationCase = actionResult.result.val as ModerationCase;
       if (moderationCase.dmFailed) {
-        fullContent += `> -# \\↪ 📭 DM Failed (privacy settings or bot blocked)\n`;
+        fullContent += `> -# ${emojis.fail} DM Failed (privacy settings or bot blocked)\n`;
       }
     }
   }
@@ -138,7 +156,7 @@ export function buildActionResultMessage(
 
     // Add reason if available
     if (firstSuccessfulCase.reason) {
-      fullContent += `### 📝 Reason`;
+      fullContent += `### ${emojis.reason} Reason`;
       fullContent += `\n> ${firstSuccessfulCase.reason.value}\n`;
     }
 
@@ -158,7 +176,7 @@ export function buildActionResultMessage(
     // Only show the configured DM message if DMs were actually attempted
     const configuredDMText = getConfiguredDMText(actionType, guildConfig);
     if (configuredDMText && dmAttemptedCount > 0) {
-      fullContent += `### 📋 Additional DM Message\n`;
+      fullContent += `### ${emojis.additional_message} Additional DM Message\n`;
       fullContent += `> ${configuredDMText}\n`;
       fullContent += "-# As configured in `/settings`\n";
     }
@@ -167,16 +185,15 @@ export function buildActionResultMessage(
     if (
       (actionType === ActionType.Timeout ||
         actionType === ActionType.TimeoutAdjust) &&
-      action?.isTimeoutAction &&
       action.isTimeoutAction()
     ) {
-      fullContent += `### ⏱️ Timeout Duration`;
+      fullContent += `### ${emojis.duration} Timeout Duration`;
       fullContent += ` \n> ${action.duration.originalString}\n`;
     }
 
     // Add attachments if available
     if (firstSuccessfulCase.attachments.length > 0) {
-      fullContent += `### 📎 Attachments\n`;
+      fullContent += `### ${emojis.attachment} Attachments\n`;
 
       fullContent += "> ";
       fullContent += firstSuccessfulCase.attachments
@@ -215,7 +232,7 @@ export function buildActionResultMessage(
       }
     } else if (dmSuccessCount === dmAttemptedCount) {
       // All attempted DMs sent successfully
-      dmSectionContent += `✅ **Sent successfully** — Delivered to ${dmAttemptedCount === 1 ? "user" : `all ${dmAttemptedCount} users`}`;
+      dmSectionContent += `${emojis.success} **Sent successfully** — Delivered to ${dmAttemptedCount === 1 ? "user" : `all ${dmAttemptedCount} users`}`;
     } else if (dmSuccessCount === 0) {
       // All DM attempts failed - check failure reasons
       const failureReasons = successfulCases
@@ -227,19 +244,19 @@ export function buildActionResultMessage(
       );
 
       if (allUserCannotReceive) {
-        dmSectionContent += `❌ **Failed to send** — Could not deliver to any users (privacy settings or bot blocked)`;
+        dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (privacy settings or bot blocked)`;
       } else {
-        dmSectionContent += `❌ **Failed to send**`;
+        dmSectionContent += `${emojis.fail} **Failed to send**`;
       }
     } else {
       // Mixed results - some succeeded, some failed
-      dmSectionContent += `⚠️ **Partially sent** — Delivered to ${dmSuccessCount} of ${dmAttemptedCount} users`;
-      dmSectionContent += `\n> ❌ Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
+      dmSectionContent += `${emojis.warning} **Partially sent** — Delivered to ${dmSuccessCount} of ${dmAttemptedCount} users`;
+      dmSectionContent += `\n> ${emojis.fail} Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
     }
 
     // Don't show User DMs section for Note actions as they are private
     if (actionType !== ActionType.Note) {
-      fullContent += `### 📨 DM Notifications\n`;
+      fullContent += `### ${emojis.dm_message} DM Notifications\n`;
       fullContent += dmSectionContent;
     }
   }
