@@ -53,8 +53,10 @@ export class TimeoutChange {
     // Validate that the timeout change data has the expected string format
     if (
       (timeoutChangeData.new !== undefined &&
+        timeoutChangeData.new !== null &&
         typeof timeoutChangeData.new !== "string") ||
       (timeoutChangeData.old !== undefined &&
+        timeoutChangeData.old !== null &&
         typeof timeoutChangeData.old !== "string")
     ) {
       logger.error(

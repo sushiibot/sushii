@@ -307,6 +307,17 @@ export function createMockGuild(
       cache: new Map(),
       fetch: membersFetchSpy,
     },
+    channels: {
+      fetch: mock((channelId: string) =>
+        Promise.resolve({
+          id: channelId,
+          isTextBased: () => true,
+          send: mock(() => Promise.resolve({
+            id: "123456789012345678",
+          })),
+        }),
+      ),
+    },
     client: {
       users: {
         fetch: userFetchSpy,

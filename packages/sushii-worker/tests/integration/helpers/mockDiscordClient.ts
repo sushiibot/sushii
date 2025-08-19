@@ -80,6 +80,15 @@ export function createMockDiscordClient(): MockDiscordClient {
 
   // Create mock client structure
   const mockClient = {
+    user: {
+      id: "300000000000000001",
+      tag: "TestBot#9999",
+      username: "TestBot",
+      discriminator: "9999",
+      bot: true,
+      displayAvatarURL: () =>
+        "https://cdn.discordapp.com/avatars/300000000000000001/avatar.png",
+    } as unknown as User,
     guilds: {
       cache: new Collection<string, Guild>(),
     },

@@ -1,4 +1,5 @@
 import { expect } from "bun:test";
+import { AuditLogEvent } from "discord.js";
 
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
@@ -240,12 +241,27 @@ export async function runModerationTest(
 
   // 10. Handle audit log if specified
   if (testCase.expectations.auditLog) {
+    // Create appropriate changes array based on the action type
+    let changes: unknown[] = [];
+    if (testCase.expectations.auditLog.event === AuditLogEvent.MemberUpdate) {
+      // For timeout actions, add communication_disabled_until change
+      const timeoutEnd = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes from now
+      changes = [
+        {
+          key: "communication_disabled_until",
+          old: null,
+          new: timeoutEnd,
+        },
+      ];
+    }
+
     const auditLogEntry = createMockAuditLogEntry({
       action: testCase.expectations.auditLog.event,
       targetId: testCase.setup.targetUser.id,
       executorId: testCase.setup.executorUser.id,
       reason: testCase.commandOptions.reason || "Test reason",
       guildId: testCase.setup.guildId,
+      changes,
     });
 
     const { guild } = createMockGuild({ id: testCase.setup.guildId });
@@ -267,6 +283,7 @@ export async function runModerationTest(
         );
 
       if (finalCases.ok) {
+        expect(finalCases.val.length).toBeGreaterThan(0);
         const completedCase = finalCases.val[0];
         expect(completedCase.pending).toBe(false);
       }
