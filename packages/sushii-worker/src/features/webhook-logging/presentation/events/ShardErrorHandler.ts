@@ -8,6 +8,7 @@ import type { WebhookService } from "../../infrastructure/WebhookService";
 
 export class ShardErrorHandler extends EventHandler<Events.ShardError> {
   readonly eventType = Events.ShardError;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(
     private readonly webhookService: WebhookService,

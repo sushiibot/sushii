@@ -10,6 +10,7 @@ import type { WebhookService } from "../../infrastructure/WebhookService";
 
 export class BotLifecycleHandler extends EventHandler<Events.ClientReady> {
   readonly eventType = Events.ClientReady;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(
     private readonly webhookService: WebhookService,

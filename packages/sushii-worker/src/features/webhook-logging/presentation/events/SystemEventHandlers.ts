@@ -6,6 +6,7 @@ import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 // Debug event handler - logs debug messages from Discord.js
 export class DebugEventHandler extends EventHandler<Events.Debug> {
   readonly eventType = Events.Debug;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(private readonly logger: Logger) {
     super();
@@ -19,6 +20,7 @@ export class DebugEventHandler extends EventHandler<Events.Debug> {
 // Shard reconnecting handler - logs when a shard starts reconnecting
 export class ShardReconnectingHandler extends EventHandler<Events.ShardReconnecting> {
   readonly eventType = Events.ShardReconnecting;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(private readonly logger: Logger) {
     super();
@@ -32,6 +34,7 @@ export class ShardReconnectingHandler extends EventHandler<Events.ShardReconnect
 // Shard resume handler - logs when a shard resumes with replay count
 export class ShardResumeHandler extends EventHandler<Events.ShardResume> {
   readonly eventType = Events.ShardResume;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(private readonly logger: Logger) {
     super();

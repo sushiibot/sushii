@@ -26,11 +26,14 @@ import type * as schema from "@/infrastructure/database/schema";
 import logger from "@/shared/infrastructure/logger";
 
 import type InteractionRouter from "../discord/InteractionRouter";
-import type { EventHandler } from "../presentation/EventHandler";
+import type { EventHandler, EventType } from "../presentation/EventHandler";
 import { registerTasks } from "../tasks/registerTasks";
 
 // Extract channelId from event arguments based on event type
-function extractChannelIdFromEvent(eventType: string, args: unknown[]): string | undefined {
+function extractChannelIdFromEvent(
+  eventType: string,
+  args: unknown[],
+): string | undefined {
   // Check for MessageCreate events
   if (eventType === Events.MessageCreate && args.length > 0) {
     const firstArg = args[0];
@@ -38,7 +41,7 @@ function extractChannelIdFromEvent(eventType: string, args: unknown[]): string |
       return firstArg.channelId;
     }
   }
-  
+
   return undefined;
 }
 
@@ -227,31 +230,45 @@ export function registerFeatures(
 
     client.on(eventType, async (...args) => {
       try {
-        // Check if deployment is active
+        // Check deployment status once per event
         const channelId = extractChannelIdFromEvent(eventType, args);
-        if (!deploymentService.isCurrentDeploymentActive(channelId)) {
-          return;
-        }
+        const isDeploymentActive =
+          deploymentService.isCurrentDeploymentActive(channelId);
 
+        // Track which handlers execute and their promise indices
+        const executedHandlers: {
+          handler: EventHandler<EventType>;
+          promiseIndex: number;
+        }[] = [];
         const promises = [];
+        let promiseIndex = 0;
 
         for (const handler of group) {
+          // Skip non-exempt handlers when deployment is inactive
+          if (!handler.isExemptFromDeploymentCheck && !isDeploymentActive) {
+            continue;
+          }
+
+          // Handler is either exempt OR deployment is active
+          executedHandlers.push({ handler, promiseIndex });
           // TODO: Add trace span here
           const p = handler.handle(...args);
           promises.push(p);
+          promiseIndex++;
         }
-        // Run all handlers concurrently and wait for all to settle
+
+        // Run all handlers that should execute
         const results = await Promise.allSettled(promises);
 
         // Log any errors that occurred in the handlers
-        for (let i = 0; i < results.length; i++) {
-          const result = results[i];
-          if (result.status === "rejected") {
+        for (const { handler, promiseIndex: index } of executedHandlers) {
+          const result = results[index];
+          if (result && result.status === "rejected") {
             logger.error(
               {
                 error: result.reason,
                 eventType,
-                handler: group[i].constructor.name,
+                handler: handler.constructor.name,
               },
               `Error in handler for event ${eventType}`,
             );

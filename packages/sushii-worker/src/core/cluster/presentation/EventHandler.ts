@@ -12,5 +12,12 @@ export type EventArgs<T> = T extends keyof ClientEvents
 export abstract class EventHandler<T extends EventType> {
   abstract readonly eventType: T;
 
+  /**
+   * Whether this handler should be exempt from deployment active checks.
+   * If true, the handler will always run regardless of deployment status.
+   * Defaults to false for backward compatibility.
+   */
+  readonly isExemptFromDeploymentCheck: boolean = false;
+
   abstract handle(...data: EventArgs<T>): Promise<void>;
 }

@@ -3,9 +3,7 @@ import type { Logger } from "pino";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { BaseFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
-import { CriticalErrorService } from "./infrastructure/CriticalErrorService";
 import { WebhookService } from "./infrastructure/WebhookService";
-import { initializeCriticalErrorService } from "./infrastructure/criticalError";
 import { BotLifecycleHandler } from "./presentation/events/BotLifecycleHandler";
 import { GuildJoinHandler } from "./presentation/events/GuildJoinHandler";
 import { GuildLeaveHandler } from "./presentation/events/GuildLeaveHandler";
@@ -29,14 +27,9 @@ export function setupWebhookLoggingFeature({
 }: WebhookLoggingDependencies): BaseFeatureSetupReturn & {
   services: {
     webhookService: WebhookService;
-    criticalErrorService: CriticalErrorService;
   };
 } {
-  const webhookService = new WebhookService(logger);
-  const criticalErrorService = new CriticalErrorService(webhookService);
-
-  // Initialize singleton service for critical error reporting in legacy code
-  initializeCriticalErrorService();
+  const webhookService = new WebhookService(logger, deploymentService);
 
   const eventHandlers = [
     new BotLifecycleHandler(webhookService, logger),
@@ -45,7 +38,7 @@ export function setupWebhookLoggingFeature({
     new ShardErrorHandler(webhookService, logger),
     new ShardReconnectingHandler(logger),
     new ShardResumeHandler(logger),
-    new GuildJoinHandler(webhookService, logger, deploymentService),
+    new GuildJoinHandler(webhookService, logger),
     new GuildLeaveHandler(webhookService, logger),
     new DebugEventHandler(logger),
   ];
@@ -58,7 +51,6 @@ export function setupWebhookLoggingFeature({
     eventHandlers,
     services: {
       webhookService,
-      criticalErrorService,
     },
   };
 }

@@ -9,6 +9,7 @@ import type { WebhookService } from "../../infrastructure/WebhookService";
 
 export class GuildLeaveHandler extends EventHandler<Events.GuildDelete> {
   readonly eventType = Events.GuildDelete;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(
     private readonly webhookService: WebhookService,

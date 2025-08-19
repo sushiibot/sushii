@@ -9,6 +9,7 @@ import type { WebhookService } from "../../infrastructure/WebhookService";
 
 export class ShardDisconnectHandler extends EventHandler<Events.ShardDisconnect> {
   readonly eventType = Events.ShardDisconnect;
+  readonly isExemptFromDeploymentCheck = true;
 
   constructor(
     private readonly webhookService: WebhookService,

@@ -8,6 +8,7 @@ import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 import type { WebhookService } from "../webhook-logging/infrastructure/WebhookService";
 import { BotEmojiSyncService } from "./application/BotEmojiSyncService";
 import { DrizzleBotEmojiRepository } from "./infrastructure/DrizzleBotEmojiRepository";
+
 interface BotEmojiDependencies {
   db: NodePgDatabase<typeof schema>;
   client: Client;

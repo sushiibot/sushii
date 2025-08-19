@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 
 import { BotEmojiSyncService } from "@/features/bot-emojis/application/BotEmojiSyncService";
 import { DrizzleBotEmojiRepository } from "@/features/bot-emojis/infrastructure/DrizzleBotEmojiRepository";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -15,6 +16,7 @@ export async function initStandaloneServices(
   db: NodePgDatabase<typeof schema>,
   client: Client,
   logger: Logger,
+  deploymentService: DeploymentService,
 ): Promise<void> {
   // Emoji sync - only runs on shard 0
   if (!client.cluster.shardList.includes(0)) {
@@ -26,7 +28,7 @@ export async function initStandaloneServices(
     logger.info("Initializing standalone services");
 
     // Initialize bot emoji sync
-    const webhookService = new WebhookService(logger);
+    const webhookService = new WebhookService(logger, deploymentService);
     const botEmojiRepository = new DrizzleBotEmojiRepository(db);
     const syncService = new BotEmojiSyncService(
       client,
