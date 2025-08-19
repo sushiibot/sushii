@@ -237,7 +237,7 @@ export function addLoggingContent(
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setMinValues(0)
         .setMaxValues(25) // Discord's limit
-        .setDefaultChannels(ignoredChannelIds)
+        .setDefaultChannels(ignoredChannelIds.slice(0, 25))
         .setDisabled(disabled),
     );
   container.addActionRowComponents(msgLogChannelSelectRow);
