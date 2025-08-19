@@ -88,6 +88,11 @@ export class GiveawayAutocomplete extends AutocompleteHandler {
 
         name += ` - Prize: ${giveaway.prize}`;
 
+        // Truncate to max length
+        if (name.length > 100) {
+          name = name.slice(0, 97) + "...";
+        }
+
         return {
           name,
           value: giveaway.id,
