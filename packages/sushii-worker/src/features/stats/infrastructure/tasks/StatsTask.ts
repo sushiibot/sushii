@@ -1,8 +1,11 @@
 import type { Client } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { guildGauge, membersGauge } from "@/infrastructure/metrics/metrics";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
+import {
+  guildGauge,
+  membersGauge,
+} from "@/shared/infrastructure/opentelemetry/metrics/feature";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import type { StatsService } from "../../application/StatsService";
@@ -41,7 +44,7 @@ export class StatsTask extends AbstractBackgroundTask {
       "set",
     );
 
-    guildGauge.set(totalGuilds);
-    membersGauge.set(totalMembers);
+    guildGauge.record(totalGuilds);
+    membersGauge.record(totalMembers);
   }
 }

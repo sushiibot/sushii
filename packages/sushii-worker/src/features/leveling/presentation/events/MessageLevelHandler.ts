@@ -5,7 +5,7 @@ import { DiscordAPIError, Events, RESTJSONErrorCodes } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import { startCaughtActiveSpan } from "@/shared/infrastructure/tracing";
+import { startCaughtActiveSpan } from "@/shared/infrastructure/opentelemetry/otel";
 
 import type { UpdateUserXpService } from "../../application/UpdateUserXpService";
 

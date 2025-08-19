@@ -2,12 +2,12 @@ import type { Client } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import dayjs from "@/shared/domain/dayjs";
+import { newModuleLogger } from "@/shared/infrastructure/logger";
 import {
   pendingRemindersGauge,
   sentRemindersCounter,
-} from "@/infrastructure/metrics/metrics";
-import dayjs from "@/shared/domain/dayjs";
-import { newModuleLogger } from "@/shared/infrastructure/logger";
+} from "@/shared/infrastructure/opentelemetry/metrics/feature";
 
 import {
   countAllPendingReminders,
@@ -62,21 +62,15 @@ export class RemindersTask extends AbstractBackgroundTask {
       }
     }
 
-    sentRemindersCounter.inc(
-      {
-        status: "success",
-      },
-      numSuccess,
-    );
+    sentRemindersCounter.add(numSuccess, {
+      status: "success",
+    });
 
-    sentRemindersCounter.inc(
-      {
-        status: "failed",
-      },
-      numFailed,
-    );
+    sentRemindersCounter.add(numFailed, {
+      status: "failed",
+    });
 
     const pendingReminderCount = await countAllPendingReminders(db);
-    pendingRemindersGauge.set(pendingReminderCount);
+    pendingRemindersGauge.record(pendingReminderCount);
   }
 }

@@ -6,7 +6,7 @@ import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import {
   activeNotificationsGauge,
   sentNotificationsCounter,
-} from "@/infrastructure/metrics/metrics";
+} from "@/shared/infrastructure/opentelemetry/metrics/feature";
 
 import type { NotificationMessageService } from "../../application/NotificationMessageService";
 import type { NotificationService } from "../../application/NotificationService";
@@ -33,7 +33,7 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
       try {
         await this.messageService.processMessage(message);
       } catch (error) {
-        sentNotificationsCounter.inc({
+        sentNotificationsCounter.add(1, {
           status: "failed",
         });
         throw error;
@@ -43,7 +43,8 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
 
       const totalActiveKeywords =
         await this.notificationService.getTotalNotificationCount();
-      activeNotificationsGauge.set(totalActiveKeywords);
+
+      activeNotificationsGauge.record(totalActiveKeywords);
     });
   }
 }

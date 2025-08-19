@@ -18,7 +18,7 @@ import "@/shared/domain/dayjs";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
-import sdk from "@/shared/infrastructure/tracing";
+import sdk from "@/shared/infrastructure/opentelemetry/otel";
 
 Error.stackTraceLimit = 50;
 

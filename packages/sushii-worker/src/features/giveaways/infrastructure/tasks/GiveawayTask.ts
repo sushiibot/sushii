@@ -8,11 +8,11 @@ import type { GiveawayService } from "@/features/giveaways/application/GiveawayS
 import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
 import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
 import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
+import { newModuleLogger } from "@/shared/infrastructure/logger";
 import {
   activeGiveawaysGauge,
   endedGiveawaysCounter,
-} from "@/infrastructure/metrics/metrics";
-import { newModuleLogger } from "@/shared/infrastructure/logger";
+} from "@/shared/infrastructure/opentelemetry/metrics/feature";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 export class GiveawayTask extends AbstractBackgroundTask {
@@ -122,12 +122,12 @@ export class GiveawayTask extends AbstractBackgroundTask {
     }
 
     // Increment ended metric
-    endedGiveawaysCounter.inc(expiredGiveaways.length);
+    endedGiveawaysCounter.add(expiredGiveaways.length);
 
     // Update total active metric
     const totalActiveResult = await this.giveawayService.countActiveGiveaways();
     if (totalActiveResult.ok) {
-      activeGiveawaysGauge.set(totalActiveResult.val);
+      activeGiveawaysGauge.record(totalActiveResult.val);
     }
   }
 

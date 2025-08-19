@@ -23,7 +23,6 @@ import {
 import { t } from "i18next";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { updateInteractionMetrics } from "@/infrastructure/metrics/interactionMetrics";
 import type {
   AutocompleteHandler,
   ButtonHandler,
@@ -34,6 +33,7 @@ import type {
 import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
+import { updateInteractionMetrics } from "@/shared/infrastructure/opentelemetry/metrics/interactions";
 import getFullCommandName from "@/utils/getFullCommandName";
 import validationErrorToString from "@/utils/validationErrorToString";
 

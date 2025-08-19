@@ -2,7 +2,7 @@ import type { GuildMember, Message } from "discord.js";
 import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
-import { sentNotificationsCounter } from "@/infrastructure/metrics/metrics";
+import { sentNotificationsCounter } from "@/shared/infrastructure/opentelemetry/metrics/feature";
 
 import type { Notification } from "../domain/entities/Notification";
 import { createNotificationEmbed } from "../presentation/views/NotificationEmbedView";
@@ -38,7 +38,7 @@ export class NotificationMessageService {
     const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
     await this.sendNotifications(message, uniqueNotifications);
 
-    sentNotificationsCounter.inc({
+    sentNotificationsCounter.add(1, {
       status: "success",
     });
   }
@@ -108,7 +108,7 @@ export class NotificationMessageService {
         "Sent notification",
       );
 
-      sentNotificationsCounter.inc({ status: "success" });
+      sentNotificationsCounter.add(1, { status: "success" });
     } catch (error) {
       await this.handleDmFailure(notification, error);
     }
@@ -123,7 +123,7 @@ export class NotificationMessageService {
 
     this.dmFailureCount.set(notification.userId, newFailureCount);
 
-    sentNotificationsCounter.inc({ status: "failed" });
+    sentNotificationsCounter.add(1, { status: "failed" });
 
     this.logger.debug(
       {

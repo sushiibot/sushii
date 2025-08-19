@@ -3,7 +3,7 @@ import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
-import sdk from "@/shared/infrastructure/tracing";
+import sdk from "@/shared/infrastructure/opentelemetry/otel";
 
 import registerLegacyInteractionHandlers from "../../interactions/commands";
 import "../../shared/domain/dayjs";

@@ -1,43 +1,43 @@
+import { metrics } from "@opentelemetry/api";
 import type { ClusterManager } from "discord-hybrid-sharding";
 import type { GatewayDispatchEvents } from "discord.js";
-import { Counter, Gauge } from "prom-client";
 
-import { prefixedName } from "./metrics";
+import { prefixedName } from "./feature";
+
+const meter = metrics.getMeter("gateway", "1.0");
 
 // -----------------------------------------------------------------------------
 // Events
-const gatewayEventsCounter = new Counter({
-  name: prefixedName("discord_events"),
-  help: "Discord gateway events",
-  labelNames: ["event_name"],
-});
+const gatewayEventsCounter = meter.createCounter(
+  prefixedName("discord_events"),
+  {
+    description: "Discord gateway events",
+  },
+);
 
 export function updateGatewayDispatchEventMetrics(
   event: GatewayDispatchEvents,
 ): void {
-  gatewayEventsCounter.inc({ event_name: event });
+  gatewayEventsCounter.add(1, { event_name: event });
 }
 
 // -----------------------------------------------------------------------------
 // Shards
 
-const shardStatusGauge = new Gauge({
-  name: prefixedName("shard_status"),
-  help: "Discord shard status",
-  labelNames: ["shard_id"],
+const shardStatusGauge = meter.createGauge(prefixedName("shard_status"), {
+  description: "Discord shard status",
 });
 
-const shardLatencyGauge = new Gauge({
-  name: prefixedName("shard_latency_ms"),
-  help: "Discord shard latency",
-  labelNames: ["shard_id"],
+const shardLatencyGauge = meter.createGauge(prefixedName("shard_latency_ms"), {
+  description: "Discord shard latency",
 });
 
-const shardLastPingTimestampGauge = new Gauge({
-  name: prefixedName("shard_last_ping_timestamp"),
-  help: "Discord shard last ping timestamp",
-  labelNames: ["shard_id"],
-});
+const shardLastPingTimestampGauge = meter.createGauge(
+  prefixedName("shard_last_ping_timestamp"),
+  {
+    description: "Discord shard last ping timestamp",
+  },
+);
 
 export async function updateShardMetrics(
   shardManager: ClusterManager,
@@ -62,8 +62,8 @@ export async function updateShardMetrics(
       shard_id: shard.id,
     };
 
-    shardStatusGauge.set(labels, shard.status);
-    shardLatencyGauge.set(labels, shard.ping);
-    shardLastPingTimestampGauge.set(labels, shard.lastPingTimestamp);
+    shardStatusGauge.record(shard.status, labels);
+    shardLatencyGauge.record(shard.ping, labels);
+    shardLastPingTimestampGauge.record(shard.lastPingTimestamp, labels);
   }
 }
