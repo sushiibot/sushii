@@ -64,10 +64,14 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
 
       const userLookupBans: UserLookupBan[] = bans.map((ban) => ({
         guildId: ban.guildId.toString(),
-        guildName: null, // Will be filled in by the service layer
         reason: ban.reason,
         actionTime: ban.actionTime,
         lookupDetailsOptIn: ban.lookupDetailsOptIn ?? false,
+
+        // To be filled in by service layer
+        guildName: null,
+        guildMembers: 0,
+        guildFeatures: [],
       }));
 
       this.logger.debug(

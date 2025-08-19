@@ -107,6 +107,11 @@ export class LookupUserService {
       (ban) => ban.guildName !== null,
     );
 
+    // sort by members, largest servers first
+    filteredCrossServerBans.sort((a, b) => {
+      return b.guildMembers - a.guildMembers;
+    });
+
     const result: UserLookupResult = {
       userInfo: {
         id: user.id,

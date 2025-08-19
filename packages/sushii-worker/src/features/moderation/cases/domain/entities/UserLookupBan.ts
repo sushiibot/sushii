@@ -5,8 +5,8 @@
 export interface UserLookupBan {
   guildId: string;
   guildName: string | null;
-  guildFeatures?: string[];
-  guildMembers?: number;
+  guildFeatures: string[];
+  guildMembers: number;
   reason: string | null;
   actionTime: Date | null;
   lookupDetailsOptIn: boolean;
