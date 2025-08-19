@@ -377,7 +377,7 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Handles post-action tasks (simplified version without context)
+   * Handles post-action tasks
    */
   private async handleExternalPostActionTasks(
     action: ModerationAction,

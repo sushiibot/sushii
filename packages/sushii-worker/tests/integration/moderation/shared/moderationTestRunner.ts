@@ -251,20 +251,14 @@ export async function runModerationTest(
     const { guild } = createMockGuild({ id: testCase.setup.guildId });
 
     const auditResult =
-      await moderationFeature.services.auditLogProcessingService.processAuditLogEntry(
+      await moderationFeature.services.auditLogService.handleAuditLogEntry(
         auditLogEntry,
         guild,
       );
 
     expect(auditResult.ok).toBe(true);
 
-    if (
-      testCase.expectations.auditLog.completesCase &&
-      auditResult.ok &&
-      auditResult.val
-    ) {
-      expect(auditResult.val.wasPendingCase).toBe(true);
-
+    if (testCase.expectations.auditLog.completesCase) {
       // Verify case is no longer pending
       const finalCases =
         await moderationFeature.services.modLogRepository.findByUserIdNotPending(

@@ -20,8 +20,7 @@ import { ModerationCommand } from "./actions/presentation";
 import { AuditLogEventHandler } from "./audit-logs";
 // Audit logs sub-feature
 import {
-  AuditLogOrchestrationService,
-  AuditLogProcessingService,
+  AuditLogService,
   ModLogPostingService,
   NativeTimeoutDMService,
 } from "./audit-logs/application";
@@ -200,12 +199,6 @@ export function createModerationServices({
   );
 
   // Audit log services
-  const auditLogProcessingService = new AuditLogProcessingService(
-    modLogRepository,
-    guildConfigRepository,
-    logger.child({ module: "auditLogProcessingService" }),
-  );
-
   const nativeTimeoutDMService = new NativeTimeoutDMService(
     dmNotificationService,
     logger.child({ module: "nativeTimeoutDMService" }),
@@ -215,12 +208,12 @@ export function createModerationServices({
     logger.child({ module: "modLogPostingService" }),
   );
 
-  const auditLogOrchestrationService = new AuditLogOrchestrationService(
-    auditLogProcessingService,
+  const auditLogService = new AuditLogService(
+    modLogRepository,
     nativeTimeoutDMService,
     modLogPostingService,
     guildConfigRepository,
-    logger.child({ module: "auditLogOrchestrationService" }),
+    logger.child({ module: "auditLogService" }),
   );
 
   return {
@@ -242,10 +235,9 @@ export function createModerationServices({
     caseRangeAutocompleteService,
 
     // Audit log services
-    auditLogProcessingService,
+    auditLogService,
     nativeTimeoutDMService,
     modLogPostingService,
-    auditLogOrchestrationService,
 
     // Additional dependencies
     emojiRepository,
@@ -356,10 +348,10 @@ export function createModerationEventHandlers(
   services: ReturnType<typeof createModerationServices>,
   logger: Logger,
 ) {
-  const { auditLogProcessingService } = services;
+  const { auditLogService } = services;
 
   const auditLogEventHandler = new AuditLogEventHandler(
-    auditLogProcessingService,
+    auditLogService,
     logger.child({ eventHandler: "auditLog" }),
   );
 

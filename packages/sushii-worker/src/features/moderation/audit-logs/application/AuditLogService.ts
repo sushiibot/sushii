@@ -3,30 +3,134 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
-import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { ActionType } from "../../shared";
 import { AuditLogEvent } from "../domain/entities";
+import type { ModLogPostingService } from "./ModLogPostingService";
+import type {
+  DMSentResult,
+  NativeTimeoutDMService,
+} from "./NativeTimeoutDMService";
 
 /**
- * Application service for processing Discord audit log events.
- * Orchestrates the creation and updating of mod log cases.
+ * Application service for handling Discord audit log events end-to-end.
+ * Orchestrates the complete workflow from audit log entry to mod log posting.
  */
-export class AuditLogProcessingService {
+export class AuditLogService {
   constructor(
     private readonly modLogRepository: ModLogRepository,
+    private readonly nativeTimeoutDMService: NativeTimeoutDMService,
+    private readonly modLogPostingService: ModLogPostingService,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
   /**
-   * Processes a Discord audit log entry and creates/updates mod log cases.
+   * Handles the complete audit log processing workflow.
+   * This is the main entry point that orchestrates all steps.
    */
-  async processAuditLogEntry(
+  async handleAuditLogEntry(
+    entry: GuildAuditLogsEntry,
+    guild: Guild,
+  ): Promise<Result<void, string>> {
+    try {
+      // Step 1: Convert audit log entry to moderation case
+      const caseResult = await this.findOrCreateModCase(entry, guild);
+
+      if (caseResult.err) {
+        return caseResult as Err<string>;
+      }
+
+      const processedLog = caseResult.val;
+      if (!processedLog) {
+        // Not a moderation-related event or mod log disabled
+        return Ok.EMPTY;
+      }
+
+      // Step 2: Handle native timeout DMs if applicable
+      let updatedModLogCase = processedLog.modLogCase;
+      const dmResult = await this.sendTimeoutDMIfNeeded(
+        processedLog.auditLogEvent,
+        processedLog.targetUser,
+        guild,
+        processedLog.modLogCase.caseId,
+        processedLog.wasPendingCase,
+      );
+      if (dmResult.err) {
+        this.logger?.warn(
+          { err: dmResult.val },
+          "Failed to send native timeout DM, continuing with mod log posting",
+        );
+      } else if (dmResult.ok) {
+        // Update the case object with DM information if DM was sent successfully
+        const dmInfo = dmResult.val;
+        if (dmInfo) {
+          const dmResultForCase: DMResult = {};
+
+          if (dmInfo.channelId) {
+            dmResultForCase.channelId = dmInfo.channelId;
+          }
+
+          if (dmInfo.messageId) {
+            dmResultForCase.messageId = dmInfo.messageId;
+          }
+
+          if (dmInfo.error) {
+            dmResultForCase.error = dmInfo.error;
+          }
+
+          updatedModLogCase =
+            processedLog.modLogCase.withDMResult(dmResultForCase);
+        }
+      }
+
+      // Step 3: Post mod log message with updated case
+      const postResult = await this.modLogPostingService.postModLogMessage(
+        processedLog.auditLogEvent,
+        updatedModLogCase,
+        processedLog.targetUser,
+        guild,
+        processedLog.guildConfig.modLogChannelId,
+      );
+
+      if (postResult.err) {
+        return postResult as Err<string>;
+      }
+
+      // Step 4: Update mod log case with message ID
+      const messageId = postResult.val;
+      await this.updateCaseMessageId(
+        processedLog.modLogCase.guildId,
+        processedLog.modLogCase.caseId,
+        messageId,
+      );
+
+      return Ok.EMPTY;
+    } catch (error) {
+      this.logger?.error(
+        {
+          err: error,
+          guildId: guild.id,
+          entryAction: entry.action,
+        },
+        "Failed to handle audit log entry",
+      );
+      return Err(`Failed to handle audit log entry: ${error}`);
+    }
+  }
+
+  /**
+   * Converts Discord audit log entry to moderation case.
+   * Finds existing pending case or creates a new one.
+   * Checks guild configuration for mod log posting.
+   */
+  private async findOrCreateModCase(
     entry: GuildAuditLogsEntry,
     guild: Guild,
   ): Promise<Result<ProcessedAuditLog | null, string>> {
@@ -62,10 +166,8 @@ export class AuditLogProcessingService {
       const targetUser = await guild.client.users.fetch(entry.targetId);
 
       // Find or create mod log case (always do this to mark pending cases as complete)
-      const { modLogCase, wasPendingCase } = await this.findOrCreateModLogCase(
-        auditLogEvent,
-        targetUser,
-      );
+      const { modLogCase, wasPendingCase } =
+        await this.resolvePendingOrCreateCase(auditLogEvent, targetUser);
 
       // Check guild configuration for mod log posting
       const guildConfig = await this.guildConfigRepository.findByGuildId(
@@ -106,20 +208,19 @@ export class AuditLogProcessingService {
           guildId: guild.id,
           entryAction: entry.action,
         },
-        "Failed to process audit log entry",
+        "Failed to find or create mod case",
       );
-      return Err(`Failed to process audit log entry: ${error}`);
+      return Err(`Failed to find or create mod case: ${error}`);
     }
   }
 
   /**
-   * Finds an existing pending mod log case or creates a new one.
-   * Returns the moderation case and whether it was a pending case.
+   * Finds pending cases for the given audit log event.
+   * Handles action type variations (Ban/TempBan, Timeout/TimeoutAdjust).
    */
-  private async findOrCreateModLogCase(
+  private async findPendingCases(
     auditLogEvent: AuditLogEvent,
-    targetUser: User,
-  ): Promise<{ modLogCase: ModerationCase; wasPendingCase: boolean }> {
+  ): Promise<ModerationCase | null> {
     let actionTypesToSearch: ActionType[];
 
     if (auditLogEvent.actionType === ActionType.Ban) {
@@ -156,25 +257,39 @@ export class AuditLogProcessingService {
     }
 
     // Select the most recent case if multiple found
-    let foundPendingCase: ModerationCase | undefined;
-    if (foundPendingCases.length > 0) {
-      foundPendingCase = foundPendingCases.reduce((mostRecent, current) =>
-        current.actionTime > mostRecent.actionTime ? current : mostRecent,
-      );
-
-      // Log if we found a case with different action type than audit log
-      if (foundPendingCase.actionType !== auditLogEvent.actionType) {
-        this.logger.debug(
-          {
-            auditLogActionType: auditLogEvent.actionType,
-            pendingCaseActionType: foundPendingCase.actionType,
-            caseId: foundPendingCase.caseId,
-            guildId: auditLogEvent.guildId,
-          },
-          "Found pending case with different action type than audit log",
-        );
-      }
+    if (foundPendingCases.length === 0) {
+      return null;
     }
+
+    const foundPendingCase = foundPendingCases.reduce((mostRecent, current) =>
+      current.actionTime > mostRecent.actionTime ? current : mostRecent,
+    );
+
+    // Log if we found a case with different action type than audit log
+    if (foundPendingCase.actionType !== auditLogEvent.actionType) {
+      this.logger.debug(
+        {
+          auditLogActionType: auditLogEvent.actionType,
+          pendingCaseActionType: foundPendingCase.actionType,
+          caseId: foundPendingCase.caseId,
+          guildId: auditLogEvent.guildId,
+        },
+        "Found pending case with different action type than audit log",
+      );
+    }
+
+    return foundPendingCase;
+  }
+
+  /**
+   * Finds an existing pending mod log case or creates a new one.
+   * Returns the moderation case and whether it was a pending case.
+   */
+  private async resolvePendingOrCreateCase(
+    auditLogEvent: AuditLogEvent,
+    targetUser: User,
+  ): Promise<{ modLogCase: ModerationCase; wasPendingCase: boolean }> {
+    const foundPendingCase = await this.findPendingCases(auditLogEvent);
 
     if (foundPendingCase) {
       this.logger.debug(
@@ -199,6 +314,18 @@ export class AuditLogProcessingService {
       };
     }
 
+    const newCase = await this.createNewCase(auditLogEvent, targetUser);
+
+    return {
+      modLogCase: newCase,
+      wasPendingCase: false,
+    };
+  }
+
+  private async createNewCase(
+    auditLogEvent: AuditLogEvent,
+    targetUser: User,
+  ): Promise<ModerationCase> {
     // Create new case if no matching case found
     this.logger.debug("No pending case found, creating new case");
 
@@ -239,16 +366,70 @@ export class AuditLogProcessingService {
       "Created new mod log case",
     );
 
-    return {
-      modLogCase: createdCase,
-      wasPendingCase: false,
-    };
+    return createdCase;
+  }
+
+  /**
+   * Handles native timeout DM sending if applicable.
+   * Contains the business logic for when and how to send timeout DMs.
+   * Returns the DM information if a DM was sent successfully.
+   */
+  private async sendTimeoutDMIfNeeded(
+    auditLogEvent: AuditLogEvent,
+    targetUser: User,
+    guild: Guild,
+    caseId: string,
+    wasPendingCase: boolean,
+  ): Promise<Result<DMSentResult | null, string>> {
+    // Check if we should send a DM for this event
+    let guildConfig: GuildConfig | undefined;
+    try {
+      guildConfig = await this.guildConfigRepository.findByGuildId(guild.id);
+    } catch (error) {
+      this.logger.warn(
+        { err: error, guildId: guild.id },
+        "Failed to fetch guild config for native timeout DM, using default",
+      );
+    }
+
+    const shouldSend = auditLogEvent.shouldSendTimeoutDM(
+      wasPendingCase,
+      guildConfig,
+    );
+
+    if (!shouldSend) {
+      return Ok(null);
+    }
+
+    // Send the DM
+    const dmResult = await this.nativeTimeoutDMService.sendTimeoutDM(
+      auditLogEvent,
+      targetUser,
+      guild,
+      guildConfig,
+    );
+
+    if (dmResult.err) {
+      return dmResult as Err<string>;
+    }
+
+    // Update mod log case with DM information
+    const dmSentResult = dmResult.val;
+    await this.updateCaseDMInfo(
+      guild.id,
+      caseId,
+      dmSentResult.channelId,
+      dmSentResult.messageId,
+      dmSentResult.error,
+    );
+
+    return Ok(dmSentResult);
   }
 
   /**
    * Updates a mod log case with message ID.
    */
-  async updateModLogCaseMessageId(
+  private async updateCaseMessageId(
     guildId: string,
     caseId: string,
     messageId: string,
@@ -272,7 +453,7 @@ export class AuditLogProcessingService {
   /**
    * Updates a mod log case with DM information.
    */
-  async updateModLogCaseDMInfo(
+  private async updateCaseDMInfo(
     guildId: string,
     caseId: string,
     dmChannelId: string | null,
@@ -299,21 +480,6 @@ export class AuditLogProcessingService {
     }
 
     return result;
-  }
-
-  /**
-   * Builds mod log components for the given action and case data.
-   */
-  buildModLogComponents(
-    auditLogEvent: AuditLogEvent,
-    modLogCase: ModerationCase,
-    dmDeleted: boolean = false,
-  ): ModLogComponentBuilder {
-    return new ModLogComponentBuilder(
-      auditLogEvent.actionType,
-      modLogCase,
-      dmDeleted,
-    );
   }
 }
 
