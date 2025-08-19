@@ -70,7 +70,7 @@ export class DeploymentEventHandler extends EventHandler<Events.MessageCreate> {
 
       const content =
         `Active deployment: \`${deployment}\`` +
-        `Process name: \`${this.deploymentService.getProcessName()}\`` +
+        `\nProcess name: \`${this.deploymentService.getProcessName()}\`` +
         `\nuptime: ${dur.humanize()}` +
         `\nstarted: ${startTimestamp}`;
 
