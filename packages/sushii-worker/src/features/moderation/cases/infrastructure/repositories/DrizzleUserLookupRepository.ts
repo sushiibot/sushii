@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
@@ -29,12 +29,16 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
   ): Promise<Result<UserLookupBan[], string>> {
     try {
       const bans = await this.db
-        .select({
-          guildId: guildBansInAppPublic.guildId,
-          reason: modLogsInAppPublic.reason,
-          actionTime: modLogsInAppPublic.actionTime,
-          lookupDetailsOptIn: guildConfigsInAppPublic.lookupDetailsOptIn,
-        })
+        .selectDistinctOn(
+          // Ensure only 1 per guild
+          [guildBansInAppPublic.guildId],
+          {
+            guildId: guildBansInAppPublic.guildId,
+            reason: modLogsInAppPublic.reason,
+            actionTime: modLogsInAppPublic.actionTime,
+            lookupDetailsOptIn: guildConfigsInAppPublic.lookupDetailsOptIn,
+          },
+        )
         .from(guildBansInAppPublic)
         .leftJoin(
           modLogsInAppPublic,
@@ -48,8 +52,15 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
           guildConfigsInAppPublic,
           eq(guildConfigsInAppPublic.id, guildBansInAppPublic.guildId),
         )
-        .where(eq(guildBansInAppPublic.userId, BigInt(userId)))
-        .orderBy(modLogsInAppPublic.actionTime);
+        .where(
+          and(
+            eq(guildBansInAppPublic.userId, BigInt(userId)),
+            // Exclude pending bans
+            eq(modLogsInAppPublic.pending, false),
+          ),
+        )
+        // Only get the latest row with the distinct on
+        .orderBy(desc(modLogsInAppPublic.actionTime));
 
       const userLookupBans: UserLookupBan[] = bans.map((ban) => ({
         guildId: ban.guildId.toString(),

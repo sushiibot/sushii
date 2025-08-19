@@ -178,7 +178,7 @@ export function buildActionResultMessage(
     if (configuredDMText && dmAttemptedCount > 0) {
       fullContent += `### ${emojis.additional_message} Additional DM Message\n`;
       fullContent += `> ${configuredDMText}\n`;
-      fullContent += "-# As configured in `/settings`\n";
+      fullContent += "-# configured in `/settings`\n";
     }
 
     // Add timeout duration if this is a timeout action
