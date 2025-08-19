@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
@@ -55,12 +55,18 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
         .where(
           and(
             eq(guildBansInAppPublic.userId, BigInt(userId)),
-            // Exclude pending bans
-            eq(modLogsInAppPublic.pending, false),
+            or(
+              // Exclude pending bans
+              eq(modLogsInAppPublic.pending, false),
+              // Allow missing mod cases for the bans
+              isNull(modLogsInAppPublic.pending),
+            ),
           ),
         )
         // Only get the latest row with the distinct on
-        .orderBy(desc(modLogsInAppPublic.actionTime));
+        // Need to sort by guild ID first to de-duplicate with the DISTINCT
+        // Actual order is by memberCount, which is handled by service layer.
+        .orderBy(desc(guildBansInAppPublic.guildId));
 
       const userLookupBans: UserLookupBan[] = bans.map((ban) => ({
         guildId: ban.guildId.toString(),
@@ -85,7 +91,8 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
         { err: error, userId },
         "Failed to fetch user cross-server bans",
       );
-      return Err("Cross-server ban fetch failed");
+
+      return Err(`Cross-server ban fetch failed`);
     }
   }
 }

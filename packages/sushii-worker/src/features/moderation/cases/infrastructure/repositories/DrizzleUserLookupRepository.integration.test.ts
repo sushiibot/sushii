@@ -124,7 +124,7 @@ describe("DrizzleUserLookupRepository (Integration)", () => {
 
     const result = await repo.getUserCrossServerBans(userId);
 
-    expect(result.ok).toBe(true);
+    expect(result.ok, JSON.stringify(result.val)).toBe(true);
     if (result.ok) {
       expect(result.val).toHaveLength(2);
 
@@ -230,7 +230,7 @@ describe("DrizzleUserLookupRepository (Integration)", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.val).toBe("Cross-server ban fetch failed");
+      expect(result.val).toInclude("Cross-server ban fetch failed");
     }
   });
 });
