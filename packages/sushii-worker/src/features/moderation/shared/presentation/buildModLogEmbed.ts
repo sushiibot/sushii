@@ -142,7 +142,9 @@ export default async function buildModLogEmbed(
   return new EmbedBuilder()
     .setAuthor({
       name: executorUser.tag,
-      iconURL: executorUser.displayAvatarURL?.() || `https://cdn.discordapp.com/avatars/${executorUser.id}/avatar.png`,
+      iconURL:
+        executorUser.displayAvatarURL?.() ||
+        `https://cdn.discordapp.com/avatars/${executorUser.id}/avatar.png`,
     })
     .setFields(fields)
     .setColor(color)

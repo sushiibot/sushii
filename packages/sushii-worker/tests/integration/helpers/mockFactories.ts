@@ -312,9 +312,11 @@ export function createMockGuild(
         Promise.resolve({
           id: channelId,
           isTextBased: () => true,
-          send: mock(() => Promise.resolve({
-            id: "123456789012345678",
-          })),
+          send: mock(() =>
+            Promise.resolve({
+              id: "123456789012345678",
+            }),
+          ),
         }),
       ),
     },
