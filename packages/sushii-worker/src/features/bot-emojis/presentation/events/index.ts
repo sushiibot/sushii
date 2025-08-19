@@ -1,1 +1,0 @@
-export { BotEmojiSyncHandler } from "./BotEmojiSyncHandler";

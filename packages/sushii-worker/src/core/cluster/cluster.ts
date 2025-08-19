@@ -11,6 +11,7 @@ import initI18next from "../../shared/infrastructure/i18next";
 import log from "../../shared/infrastructure/logger";
 import { initCore } from "./initialization/initCore";
 import { registerFeatures } from "./initialization/registerFeatures";
+import { initStandaloneServices } from "./initialization/initStandaloneServices";
 
 Error.stackTraceLimit = 50;
 
@@ -107,6 +108,9 @@ async function initializeShard(): Promise<void> {
     "starting Discord client shard cluster",
   );
   await client.login(config.discord.token);
+
+  // Initialize standalone services that don't depend on other features
+  await initStandaloneServices(db, client, log);
 }
 
 initializeShard().catch((e) => {

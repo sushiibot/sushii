@@ -8,8 +8,6 @@ import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 import type { WebhookService } from "../webhook-logging/infrastructure/WebhookService";
 import { BotEmojiSyncService } from "./application/BotEmojiSyncService";
 import { DrizzleBotEmojiRepository } from "./infrastructure/DrizzleBotEmojiRepository";
-import { BotEmojiSyncHandler } from "./presentation/events/BotEmojiSyncHandler";
-
 interface BotEmojiDependencies {
   db: NodePgDatabase<typeof schema>;
   client: Client;
@@ -37,20 +35,6 @@ export function createBotEmojiServices({
   };
 }
 
-export function createBotEmojiEventHandlers(
-  services: ReturnType<typeof createBotEmojiServices>,
-  logger: Logger,
-) {
-  const syncHandler = new BotEmojiSyncHandler(
-    services.syncService,
-    logger.child({ module: "BotEmojiSyncHandler" }),
-  );
-
-  return {
-    eventHandlers: [syncHandler],
-  };
-}
-
 export function setupBotEmojiFeature({
   db,
   client,
@@ -65,7 +49,6 @@ export function setupBotEmojiFeature({
     logger,
     webhookService,
   });
-  const events = createBotEmojiEventHandlers(services, logger);
 
   return {
     services, // Includes botEmojiRepository for other features
@@ -73,6 +56,6 @@ export function setupBotEmojiFeature({
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
-    eventHandlers: events.eventHandlers,
+    eventHandlers: [], // No event handlers - emoji sync now runs independently
   };
 }

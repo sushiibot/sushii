@@ -1,4 +1,5 @@
 import type { Client } from "discord.js";
+import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
@@ -27,6 +28,19 @@ import logger from "@/shared/infrastructure/logger";
 import type InteractionRouter from "../discord/InteractionRouter";
 import type { EventHandler } from "../presentation/EventHandler";
 import { registerTasks } from "../tasks/registerTasks";
+
+// Extract channelId from event arguments based on event type
+function extractChannelIdFromEvent(eventType: string, args: unknown[]): string | undefined {
+  // Check for MessageCreate events
+  if (eventType === Events.MessageCreate && args.length > 0) {
+    const firstArg = args[0];
+    if (firstArg instanceof Message) {
+      return firstArg.channelId;
+    }
+  }
+  
+  return undefined;
+}
 
 export function registerFeatures(
   db: NodePgDatabase<typeof schema>,
@@ -214,7 +228,8 @@ export function registerFeatures(
     client.on(eventType, async (...args) => {
       try {
         // Check if deployment is active
-        if (!deploymentService.isCurrentDeploymentActive()) {
+        const channelId = extractChannelIdFromEvent(eventType, args);
+        if (!deploymentService.isCurrentDeploymentActive(channelId)) {
           return;
         }
 
