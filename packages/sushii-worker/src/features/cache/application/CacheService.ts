@@ -81,7 +81,7 @@ export class CacheService {
     }
     const deduplicatedBatch = Array.from(deduplicatedMap.values());
 
-    logger.info(
+    logger.trace(
       {
         originalCount: batch.length,
         deduplicatedCount: deduplicatedBatch.length,

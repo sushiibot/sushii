@@ -2,7 +2,9 @@ import * as dotenv from "dotenv";
 import pino from "pino";
 import { z } from "zod";
 
-dotenv.config();
+dotenv.config({
+  quiet: true,
+});
 
 const deploymentNameSchema = z.enum(["blue", "green"]);
 

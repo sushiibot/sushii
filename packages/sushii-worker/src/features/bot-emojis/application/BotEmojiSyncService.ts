@@ -143,7 +143,7 @@ export class BotEmojiSyncService {
       if (dbEmoji.sha256 === hash) {
         // Up to date - skip
         result.skipped++;
-        this.logger.debug({ name }, "Emoji up to date");
+        this.logger.debug({ emojiName: name }, "Emoji up to date");
       } else {
         // Hash differs - replace emoji
         const newId = await this.emojiService.replaceEmoji(

@@ -2,9 +2,8 @@ import type { GuildMember, Message } from "discord.js";
 import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
-import { sentNotificationsCounter } from "@/shared/infrastructure/opentelemetry/metrics/features";
-
 import type { Notification } from "../domain/entities/Notification";
+import type { NotificationMetrics } from "../infrastructure/metrics/NotificationMetrics";
 import { createNotificationEmbed } from "../presentation/views/NotificationEmbedView";
 import type { NotificationService } from "./NotificationService";
 
@@ -15,6 +14,7 @@ export class NotificationMessageService {
   constructor(
     private readonly notificationService: NotificationService,
     private readonly logger: Logger,
+    private readonly notificationMetrics: NotificationMetrics,
   ) {}
 
   async processMessage(message: Message): Promise<void> {
@@ -38,7 +38,7 @@ export class NotificationMessageService {
     const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
     await this.sendNotifications(message, uniqueNotifications);
 
-    sentNotificationsCounter.add(1, {
+    this.notificationMetrics.sentNotificationsCounter.add(1, {
       status: "success",
     });
   }
@@ -108,7 +108,7 @@ export class NotificationMessageService {
         "Sent notification",
       );
 
-      sentNotificationsCounter.add(1, { status: "success" });
+      this.notificationMetrics.sentNotificationsCounter.add(1, { status: "success" });
     } catch (error) {
       await this.handleDmFailure(notification, error);
     }
@@ -123,7 +123,7 @@ export class NotificationMessageService {
 
     this.dmFailureCount.set(notification.userId, newFailureCount);
 
-    sentNotificationsCounter.add(1, { status: "failed" });
+    this.notificationMetrics.sentNotificationsCounter.add(1, { status: "failed" });
 
     this.logger.debug(
       {

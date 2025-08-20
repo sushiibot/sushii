@@ -18,6 +18,7 @@ import { DrizzleGiveawayEntryRepository } from "./infrastructure/DrizzleGiveaway
 import { DrizzleGiveawayRepository } from "./infrastructure/DrizzleGiveawayRepository";
 // Tasks
 import { GiveawayTask } from "./infrastructure/tasks/GiveawayTask";
+import { GiveawayMetrics } from "./infrastructure/metrics/GiveawayMetrics";
 import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutocomplete";
 // Presentation
 import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
@@ -149,6 +150,7 @@ export function createGiveawayTasks(
   services: ReturnType<typeof createGiveawayServices>,
   client: Client,
   deploymentService: DeploymentService,
+  giveawayMetrics: GiveawayMetrics,
 ) {
   const { giveawayService, giveawayDrawService, giveawayEntryService } =
     services;
@@ -160,6 +162,7 @@ export function createGiveawayTasks(
       giveawayService,
       giveawayDrawService,
       giveawayEntryService,
+      giveawayMetrics,
     ),
   ];
 
@@ -177,10 +180,11 @@ export function setupGiveawayFeature({
 }: GiveawayTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createGiveawayServices>
 > {
+  const giveawayMetrics = new GiveawayMetrics();
   const services = createGiveawayServices({ db, userLevelRepository, logger });
   const commands = createGiveawayCommands(services, logger);
   const events = createGiveawayEventHandlers(services, logger);
-  const tasks = createGiveawayTasks(services, client, deploymentService);
+  const tasks = createGiveawayTasks(services, client, deploymentService, giveawayMetrics);
 
   return {
     services,

@@ -3,7 +3,6 @@ import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
-import { registerShardMetrics } from "@/shared/infrastructure/opentelemetry/metrics/gateway";
 import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
 
 import registerLegacyInteractionHandlers from "../../interactions/commands";
@@ -23,16 +22,18 @@ async function initializeShardCluster(): Promise<void> {
     tracesSampleRate: 1.0,
   });
 
+  const clusterInfo = getInfo();
+
   // Per-process otel instrumentation
-  const otelSdk = initializeOtel(log);
+  const otelSdk = initializeOtel(log, clusterInfo.CLUSTER);
 
   await initI18next();
 
   // Create a new client instance
   const client = new Client({
     // Hybrid sharding options
-    shards: getInfo().SHARD_LIST, // Array of shards that will be spawned
-    shardCount: getInfo().TOTAL_SHARDS, // Total number of shards
+    shards: clusterInfo.SHARD_LIST, // Array of shards that will be spawned
+    shardCount: clusterInfo.TOTAL_SHARDS, // Total number of shards
 
     // Base options
     intents: [
@@ -64,11 +65,14 @@ async function initializeShardCluster(): Promise<void> {
   client.cluster = new ClusterClient(client);
   client.rest.setToken(config.discord.token);
 
-  // Telemetry
-  registerShardMetrics(client);
+  // Telemetry - will register after client login
 
   // START NEW REGISTRATION
-  const { db, deploymentService, interactionRouter } = await initCore(client);
+  const { db, deploymentService, interactionRouter, coreMetrics } =
+    await initCore(client);
+
+  // Register shard metrics now that client is logged in
+  coreMetrics.registerShardCallbacks(client);
 
   registerLegacyInteractionHandlers(interactionRouter);
 
@@ -100,7 +104,11 @@ async function initializeShardCluster(): Promise<void> {
       await deploymentService.stop();
       await client.destroy();
       await Sentry.close(2000);
+
+      // Force flush metrics before shutdown to ensure they're exported
+      log.info("Flushing metrics before shutdown");
       await otelSdk.shutdown();
+      log.info("OTEL SDK shutdown complete");
     } catch (err) {
       log.error(err, "error shutting down shard");
     }

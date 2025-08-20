@@ -33,7 +33,7 @@ import type {
 import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
-import { updateInteractionMetrics } from "@/shared/infrastructure/opentelemetry/metrics/interactions";
+import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
 import getFullCommandName from "@/utils/getFullCommandName";
 import validationErrorToString from "@/utils/validationErrorToString";
 
@@ -104,6 +104,11 @@ export default class InteractionRouter {
   private deploymentService: DeploymentService;
 
   /**
+   * Metrics for recording interaction events
+   */
+  private interactionMetrics: InteractionMetrics;
+
+  /**
    * Command handlers
    */
   private commands: Collection<string, SlashCommandHandler>;
@@ -135,9 +140,14 @@ export default class InteractionRouter {
    */
   private selectMenuHandlers: SelectMenuHandler[];
 
-  constructor(client: Client, deploymentService: DeploymentService) {
+  constructor(
+    client: Client,
+    deploymentService: DeploymentService,
+    interactionMetrics: InteractionMetrics,
+  ) {
     this.client = client;
     this.deploymentService = deploymentService;
+    this.interactionMetrics = interactionMetrics;
     this.commands = new Collection();
     this.autocompleteHandlers = new Collection();
     this.modalHandlers = [];
@@ -192,7 +202,7 @@ export default class InteractionRouter {
 
         this.autocompleteHandlers.set(path, handler);
 
-        log.debug(
+        log.trace(
           {
             path,
             handlerClass: handler.constructor.name,
@@ -742,7 +752,7 @@ export default class InteractionRouter {
         }
 
         const status = success ? "success" : "error";
-        updateInteractionMetrics(interaction, status);
+        this.interactionMetrics.recordInteraction(interaction, status);
 
         return undefined;
       } catch (err) {

@@ -7,6 +7,8 @@ import { drizzleDb } from "@/infrastructure/database/db";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
+import { CoreMetrics } from "@/shared/infrastructure/metrics/CoreMetrics";
+import { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
 
 import InteractionRouter from "../discord/InteractionRouter";
 
@@ -40,13 +42,22 @@ export async function initCore(client: Client) {
 
   await deploymentService.start();
 
+  // Initialize metrics
+  const coreMetrics = new CoreMetrics();
+  const interactionMetrics = new InteractionMetrics();
+
   // Initialize interaction router
-  const interactionRouter = new InteractionRouter(client, deploymentService);
+  const interactionRouter = new InteractionRouter(
+    client,
+    deploymentService,
+    interactionMetrics,
+  );
 
   return {
     db,
     deploymentService,
     eventBus,
     interactionRouter,
+    coreMetrics,
   };
 }

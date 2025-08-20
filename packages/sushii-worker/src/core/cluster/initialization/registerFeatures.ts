@@ -219,13 +219,13 @@ export function registerFeatures(
 
   // Build event listeners
   for (const [eventType, group] of handlerGroups.entries()) {
-    logger.info(
+    logger.trace(
       {
         eventType,
         handlerNames: group.map((h) => h.constructor.name),
         count: group.length,
       },
-      `Registering event handler for ${eventType}`,
+      `Registering event handler`,
     );
 
     client.on(eventType, async (...args) => {

@@ -8,6 +8,7 @@ import { NotificationMessageService } from "./application/NotificationMessageSer
 import { NotificationService } from "./application/NotificationService";
 import { DrizzleNotificationBlockRepository } from "./infrastructure/DrizzleNotificationBlockRepository";
 import { DrizzleNotificationRepository } from "./infrastructure/DrizzleNotificationRepository";
+import { NotificationMetrics } from "./infrastructure/metrics/NotificationMetrics";
 import { NotificationAutocomplete } from "./presentation/autocompletes/NotificationAutocomplete";
 import { NotificationCommand } from "./presentation/commands/NotificationCommand";
 import { NotificationMessageHandler } from "./presentation/events/NotificationMessageHandler";
@@ -20,7 +21,7 @@ interface NotificationDependencies {
 export function createNotificationServices({
   db,
   logger,
-}: NotificationDependencies) {
+}: NotificationDependencies, notificationMetrics: NotificationMetrics) {
   const notificationRepository = new DrizzleNotificationRepository(db);
   const notificationBlockRepository = new DrizzleNotificationBlockRepository(
     db,
@@ -35,6 +36,7 @@ export function createNotificationServices({
   const notificationMessageService = new NotificationMessageService(
     notificationService,
     logger.child({ module: "notificationMessageService" }),
+    notificationMetrics,
   );
 
   return {
@@ -64,6 +66,7 @@ export function createNotificationCommands(
 export function createNotificationEventHandlers(
   services: ReturnType<typeof createNotificationServices>,
   _logger: Logger,
+  notificationMetrics: NotificationMetrics,
 ) {
   const { notificationMessageService, notificationService } = services;
 
@@ -71,6 +74,7 @@ export function createNotificationEventHandlers(
     new NotificationMessageHandler(
       notificationMessageService,
       notificationService,
+      notificationMetrics,
     ),
   ];
 
@@ -85,9 +89,10 @@ export function setupNotificationFeature({
 }: NotificationDependencies): FeatureSetupWithServices<
   ReturnType<typeof createNotificationServices>
 > {
-  const services = createNotificationServices({ db, logger });
+  const notificationMetrics = new NotificationMetrics();
+  const services = createNotificationServices({ db, logger }, notificationMetrics);
   const commands = createNotificationCommands(services, logger);
-  const events = createNotificationEventHandlers(services, logger);
+  const events = createNotificationEventHandlers(services, logger, notificationMetrics);
 
   return {
     services,

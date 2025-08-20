@@ -3,13 +3,10 @@ import type { Message } from "discord.js";
 import { Events } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-import {
-  activeNotificationsGauge,
-  sentNotificationsCounter,
-} from "@/shared/infrastructure/opentelemetry/metrics/features";
 
 import type { NotificationMessageService } from "../../application/NotificationMessageService";
 import type { NotificationService } from "../../application/NotificationService";
+import type { NotificationMetrics } from "../../infrastructure/metrics/NotificationMetrics";
 
 const tracer = opentelemetry.trace.getTracer("notification-handler");
 
@@ -17,6 +14,7 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
   constructor(
     private readonly messageService: NotificationMessageService,
     private readonly notificationService: NotificationService,
+    private readonly notificationMetrics: NotificationMetrics,
   ) {
     super();
   }
@@ -33,7 +31,7 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
       try {
         await this.messageService.processMessage(message);
       } catch (error) {
-        sentNotificationsCounter.add(1, {
+        this.notificationMetrics.sentNotificationsCounter.add(1, {
           status: "failed",
         });
         throw error;
@@ -44,7 +42,7 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
       const totalActiveKeywords =
         await this.notificationService.getTotalNotificationCount();
 
-      activeNotificationsGauge.record(totalActiveKeywords);
+      this.notificationMetrics.activeNotificationsGauge.record(totalActiveKeywords);
     });
   }
 }

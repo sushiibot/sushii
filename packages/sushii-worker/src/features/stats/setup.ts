@@ -8,6 +8,7 @@ import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import { StatsService } from "./application/StatsService";
 import { DrizzleStatsRepository } from "./infrastructure/DrizzleStatsRepository";
+import { StatsMetrics } from "./infrastructure/metrics/StatsMetrics";
 import { StatsTask } from "./infrastructure/tasks/StatsTask";
 
 interface StatsDependencies {
@@ -41,10 +42,11 @@ export function createStatsTasks(
   services: ReturnType<typeof createStatsServices>,
   client: Client,
   deploymentService: DeploymentService,
+  statsMetrics: StatsMetrics,
 ): AbstractBackgroundTask[] {
   const { statsService } = services;
 
-  const tasks = [new StatsTask(client, deploymentService, statsService)];
+  const tasks = [new StatsTask(client, deploymentService, statsService, statsMetrics)];
 
   return tasks;
 }
@@ -55,8 +57,9 @@ export function setupStatsFeature({
   client,
   deploymentService,
 }: StatsTaskDependencies) {
+  const statsMetrics = new StatsMetrics();
   const services = createStatsServices({ db, logger });
-  const tasks = createStatsTasks(services, client, deploymentService);
+  const tasks = createStatsTasks(services, client, deploymentService, statsMetrics);
 
   return {
     services,

@@ -9,11 +9,9 @@ import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
 import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
 import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import {
-  activeGiveawaysGauge,
-  endedGiveawaysCounter,
-} from "@/shared/infrastructure/opentelemetry/metrics/features";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+
+import type { GiveawayMetrics } from "../metrics/GiveawayMetrics";
 
 export class GiveawayTask extends AbstractBackgroundTask {
   readonly name = "Check for expired giveaways";
@@ -25,6 +23,7 @@ export class GiveawayTask extends AbstractBackgroundTask {
     private readonly giveawayService: GiveawayService,
     private readonly giveawayDrawService: GiveawayDrawService,
     private readonly giveawayEntryService: GiveawayEntryService,
+    private readonly giveawayMetrics: GiveawayMetrics,
   ) {
     super(client, deploymentService, newModuleLogger("GiveawayTask"));
   }
@@ -122,12 +121,12 @@ export class GiveawayTask extends AbstractBackgroundTask {
     }
 
     // Increment ended metric
-    endedGiveawaysCounter.add(expiredGiveaways.length);
+    this.giveawayMetrics.endedGiveawaysCounter.add(expiredGiveaways.length);
 
     // Update total active metric
     const totalActiveResult = await this.giveawayService.countActiveGiveaways();
     if (totalActiveResult.ok) {
-      activeGiveawaysGauge.record(totalActiveResult.val);
+      this.giveawayMetrics.activeGiveawaysGauge.record(totalActiveResult.val);
     }
   }
 

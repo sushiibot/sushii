@@ -2,14 +2,11 @@ import type { Client } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import {
-  guildGauge,
-  membersGauge,
-} from "@/shared/infrastructure/opentelemetry/metrics/features";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import type { StatsService } from "../../application/StatsService";
 import { StatName } from "../../domain/StatName";
+import type { StatsMetrics } from "../metrics/StatsMetrics";
 
 export class StatsTask extends AbstractBackgroundTask {
   readonly name = "Update bot stats in db";
@@ -19,6 +16,7 @@ export class StatsTask extends AbstractBackgroundTask {
     client: Client,
     deploymentService: DeploymentService,
     private readonly statsService: StatsService,
+    private readonly statsMetrics: StatsMetrics,
   ) {
     super(client, deploymentService, newModuleLogger("StatsTask"));
   }
@@ -44,7 +42,7 @@ export class StatsTask extends AbstractBackgroundTask {
       "set",
     );
 
-    guildGauge.record(totalGuilds);
-    membersGauge.record(totalMembers);
+    this.statsMetrics.guildGauge.record(totalGuilds);
+    this.statsMetrics.membersGauge.record(totalMembers);
   }
 }
