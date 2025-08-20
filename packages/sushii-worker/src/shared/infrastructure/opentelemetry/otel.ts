@@ -2,63 +2,66 @@ import type { Span, Tracer } from "@opentelemetry/api";
 import opentelemetry from "@opentelemetry/api";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import {
   defaultResource,
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import {
-  ConsoleMetricExporter,
   MeterProvider,
   PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import type { Logger } from "pino";
 
 import { config } from "@/shared/infrastructure/config";
 
-import logger from "../logger";
+export function initializeOtel(logger: Logger) {
+  const exporterOptions = {
+    // Default URL
+    url: config.tracing.exporterUrl || "http://localhost:4318/v1/traces",
+  };
 
-const exporterOptions = {
-  // Default URL
-  url: config.tracing.exporterUrl || "http://localhost:4318/v1/traces",
-};
+  const resource = defaultResource().merge(
+    resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: "sushii_worker",
+      // No version yet
+      // [ATTR_SERVICE_VERSION]: "v1.0.0"
+    }),
+  );
 
-const resource = defaultResource().merge(
-  resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "sushii_worker",
-    // No version yet
-    // [ATTR_SERVICE_VERSION]: "v1.0.0"
-  }),
-);
+  const sdk = new NodeSDK({
+    traceExporter: new OTLPTraceExporter(exporterOptions),
+    instrumentations: [getNodeAutoInstrumentations()],
+    resource: resource,
+    sampler: new TraceIdRatioBasedSampler(config.tracing.samplePercentage),
+  });
 
-const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter(exporterOptions),
-  instrumentations: [getNodeAutoInstrumentations()],
-  resource: resource,
-  sampler: new TraceIdRatioBasedSampler(config.tracing.samplePercentage),
-});
+  // Configured via env vars, e.g. `OTEL_EXPORTER_OTLP_ENDPOINT`
+  const metricExporter = new OTLPMetricExporter();
+  const meterProvider = new MeterProvider({
+    resource: resource,
+    readers: [
+      new PeriodicExportingMetricReader({
+        exporter: metricExporter,
+        exportIntervalMillis: 60_000,
+      }),
+    ],
+  });
 
-const metricReader = new PeriodicExportingMetricReader({
-  exporter: new ConsoleMetricExporter(),
-  exportIntervalMillis: 60000,
-});
+  // Set this MeterProvider to be global to the app being instrumented.
+  opentelemetry.metrics.setGlobalMeterProvider(meterProvider);
 
-const meterProvider = new MeterProvider({
-  resource: resource,
-  readers: [metricReader],
-});
+  // initialize the SDK and register with the OpenTelemetry API
+  // this enables the API to record telemetry
+  sdk.start();
+  logger.info(exporterOptions, "Tracing initialized");
 
-// Set this MeterProvider to be global to the app being instrumented.
-opentelemetry.metrics.setGlobalMeterProvider(meterProvider);
-
-// initialize the SDK and register with the OpenTelemetry API
-// this enables the API to record telemetry
-sdk.start();
-logger.info(exporterOptions, "Tracing initialized");
-
-export default sdk;
+  return sdk;
+}
 
 /**
  * Starts a new active span and automatically catches errors and ends the span.

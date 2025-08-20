@@ -3,7 +3,8 @@ import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
-import sdk from "@/shared/infrastructure/opentelemetry/otel";
+import { registerShardMetrics } from "@/shared/infrastructure/opentelemetry/metrics/gateway";
+import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
 
 import registerLegacyInteractionHandlers from "../../interactions/commands";
 import "../../shared/domain/dayjs";
@@ -15,12 +16,15 @@ import { registerFeatures } from "./initialization/registerFeatures";
 
 Error.stackTraceLimit = 50;
 
-async function initializeShard(): Promise<void> {
+async function initializeShardCluster(): Promise<void> {
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.sentry.environment,
     tracesSampleRate: 1.0,
   });
+
+  // Per-process otel instrumentation
+  const otelSdk = initializeOtel(log);
 
   await initI18next();
 
@@ -60,6 +64,9 @@ async function initializeShard(): Promise<void> {
   client.cluster = new ClusterClient(client);
   client.rest.setToken(config.discord.token);
 
+  // Telemetry
+  registerShardMetrics(client);
+
   // START NEW REGISTRATION
   const { db, deploymentService, interactionRouter } = await initCore(client);
 
@@ -93,7 +100,7 @@ async function initializeShard(): Promise<void> {
       await deploymentService.stop();
       await client.destroy();
       await Sentry.close(2000);
-      await sdk.shutdown();
+      await otelSdk.shutdown();
     } catch (err) {
       log.error(err, "error shutting down shard");
     }
@@ -113,11 +120,11 @@ async function initializeShard(): Promise<void> {
   await initStandaloneServices(db, client, log, deploymentService);
 }
 
-initializeShard().catch((e) => {
-  Sentry.captureException(e, {
+initializeShardCluster().catch((err) => {
+  Sentry.captureException(err, {
     level: "fatal",
   });
 
-  log.error(e, "fatal error in shard");
+  log.error({ err }, "fatal error in shard");
   process.exit(1);
 });

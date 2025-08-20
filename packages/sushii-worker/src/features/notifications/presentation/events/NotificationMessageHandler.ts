@@ -6,7 +6,7 @@ import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import {
   activeNotificationsGauge,
   sentNotificationsCounter,
-} from "@/shared/infrastructure/opentelemetry/metrics/feature";
+} from "@/shared/infrastructure/opentelemetry/metrics/features";
 
 import type { NotificationMessageService } from "../../application/NotificationMessageService";
 import type { NotificationService } from "../../application/NotificationService";

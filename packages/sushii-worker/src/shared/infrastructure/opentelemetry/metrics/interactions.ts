@@ -1,50 +1,45 @@
-import { metrics } from "@opentelemetry/api";
+import { ValueType, metrics } from "@opentelemetry/api";
 import { InteractionType } from "discord.js";
 import type { Interaction } from "discord.js";
 import { ApplicationCommandType } from "discord.js";
 
 import logger from "@/shared/infrastructure/logger";
 
-import { prefixedName } from "./feature";
-
 const meter = metrics.getMeter("interactions", "1.0");
 
 // -----------------------------------------------------------------------------
 // Interactions
-const slashCommandsCounter = meter.createCounter(
-  prefixedName("slash_command"),
-  {
-    description: "Slash commands",
-  },
-);
-
-const userCommandsCounter = meter.createCounter(prefixedName("user_command"), {
-  description: "User commands",
+const slashCommandsCounter = meter.createCounter("slash_command", {
+  description: "Slash commands",
+  valueType: ValueType.INT,
 });
 
-const messageCommandsCounter = meter.createCounter(
-  prefixedName("message_command"),
-  {
-    description: "Message commands",
-  },
-);
+const userCommandsCounter = meter.createCounter("user_command", {
+  description: "User commands",
+  valueType: ValueType.INT,
+});
 
-const autocompleteCounter = meter.createCounter(
-  prefixedName("autocomplete_interaction"),
-  {
-    description: "Autocomplete interactions",
-  },
-);
+const messageCommandsCounter = meter.createCounter("message_command", {
+  description: "Message commands",
+  valueType: ValueType.INT,
+});
+
+const autocompleteCounter = meter.createCounter("autocomplete_interaction", {
+  description: "Autocomplete interactions",
+  valueType: ValueType.INT,
+});
 
 const messageComponentCounter = meter.createCounter(
-  prefixedName("message_component_interaction"),
+  "message_component_interaction",
   {
     description: "Message component interactions, e.g. buttons",
+    valueType: ValueType.INT,
   },
 );
 
-const modalCounter = meter.createCounter(prefixedName("modal_interaction"), {
+const modalCounter = meter.createCounter("modal_interaction", {
   description: "Modal submit interactions",
+  valueType: ValueType.INT,
 });
 
 export function updateInteractionMetrics(

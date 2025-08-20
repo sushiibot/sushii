@@ -18,7 +18,6 @@ import "@/shared/domain/dayjs";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
-import sdk from "@/shared/infrastructure/opentelemetry/otel";
 
 Error.stackTraceLimit = 50;
 
@@ -149,9 +148,6 @@ async function main(): Promise<void> {
 
       log.info("closing sentry");
       await Sentry.close(2000);
-
-      log.info("closing tracing");
-      await sdk.shutdown();
 
       log.info("closing servers");
       servers.forEach((s) => s.stop());

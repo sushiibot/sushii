@@ -12,7 +12,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 import {
   activeGiveawaysGauge,
   endedGiveawaysCounter,
-} from "@/shared/infrastructure/opentelemetry/metrics/feature";
+} from "@/shared/infrastructure/opentelemetry/metrics/features";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 export class GiveawayTask extends AbstractBackgroundTask {

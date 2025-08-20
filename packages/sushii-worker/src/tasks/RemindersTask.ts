@@ -7,7 +7,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 import {
   pendingRemindersGauge,
   sentRemindersCounter,
-} from "@/shared/infrastructure/opentelemetry/metrics/feature";
+} from "@/shared/infrastructure/opentelemetry/metrics/features";
 
 import {
   countAllPendingReminders,

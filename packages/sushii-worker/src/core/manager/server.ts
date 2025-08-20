@@ -1,16 +1,13 @@
-import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
 import type { Server } from "bun";
 import type { Child, ClusterManager } from "discord-hybrid-sharding";
 import type { RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
-import type { IncomingMessage, ServerResponse } from "http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { config } from "@/shared/infrastructure/config";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import { updateShardMetrics } from "@/shared/infrastructure/opentelemetry/metrics/gateway";
 
 // Reverse mapping of the Status enum to get the name
 export const ShardStatusToName = {
@@ -136,28 +133,6 @@ function createMonitoringServer(
     });
   });
 
-  const exporter = new PrometheusExporter({
-    // Only using the handler, so don't start the server
-    preventServerStart: true,
-  });
-
-  // Prometheus metrics
-  app.get("/metrics", async (c) => {
-    try {
-      // Update shard metrics
-      await updateShardMetrics(manager);
-
-      // Use otel exporter's handler
-      exporter.getMetricsRequestHandler(c.env.incoming, c.env.outgoing);
-    } catch (err) {
-      logger.error({ err }, "Error generating metrics");
-
-      throw new HTTPException(500, {
-        message: "Error generating metrics",
-      });
-    }
-  });
-
   return Bun.serve({
     port: config.metrics.port,
     fetch: app.fetch,
@@ -173,9 +148,6 @@ export default function server(
 
   logger.info(
     `health endpoint listening on http://localhost:${config.metrics.healthPort}/health`,
-  );
-  logger.info(
-    `metrics endpoint listening on http://localhost:${config.metrics.port}/metrics`,
   );
   logger.info(
     `status endpoint listening on http://localhost:${config.metrics.port}/status`,

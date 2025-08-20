@@ -5,7 +5,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 import {
   guildGauge,
   membersGauge,
-} from "@/shared/infrastructure/opentelemetry/metrics/feature";
+} from "@/shared/infrastructure/opentelemetry/metrics/features";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import type { StatsService } from "../../application/StatsService";
