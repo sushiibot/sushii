@@ -6,3 +6,7 @@ services:
   sushii_db:
     ports:
       - "5432:5432"
+  otel-collector-agent:
+    ports:
+      - 4317:4317
+      - 4318:4318

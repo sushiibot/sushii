@@ -1,5 +1,5 @@
 services:
-  sushii_worker: &sushii_worker_base
+  sushii_worker:
     build:
       dockerfile: ./packages/sushii-worker/Dockerfile
       context: .
@@ -59,32 +59,6 @@ services:
 
       - "prometheus.scrape.enable=true"
       - "prometheus.scrape.port=9090"
-  sushii_worker_green:
-    <<: *sushii_worker_base
-    environment:
-      - DEPLOYMENT_NAME=green
-      - NODE_ENV=development
-
-      - LOG_LEVEL=debug
-      - DISCORD_TOKEN=$DISCORD_TOKEN
-      - APPLICATION_ID=193163942502072320
-      - DEPLOYMENT_EXEMPT_CHANNEL_IDS=435581617088626709
-
-      # External dependencies
-      - DATABASE_URL=$DATABASE_URL
-      - DISCORD_API_PROXY_URL=http://discord_api_proxy:8080/api
-      - SUSHII_IMAGE_SERVER_URL=http://sushii-image-server:3000
-
-      # Sentry
-      - SENTRY_DSN=$SENTRY_DSN
-
-      # Tracing
-      - TRACING_EXPORTER_URL=http://jaeger:4318/v1/traces
-      - TRACING_SAMPLE_PERCENTAGE=0.01
-
-      # Notifications
-      - NOTIFY_WEBHOOK_URL=$NOTIFY_WEBHOOK_URL
-      - NOTIFY_WEBHOOK_USERNAME=$NOTIFY_WEBHOOK_USERNAME
 
   sushii_db:
     image: postgres:17-bookworm
@@ -132,6 +106,22 @@ services:
       - ~/docker/jaeger:/badger
     networks:
       - sushii_net
+
+  otel-collector-agent:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector-agent
+    restart: unless-stopped
+    # nobody:docker - runs as nobody user with docker group permissions
+    user: "65534:988"
+    environment:
+      - OTEL_SERVICE_NAME=otel-collector-agent
+    volumes:
+      - ./otel-collector-agent-config.yaml:/etc/otelcol-contrib/config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /:/hostfs:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
 
 networks:
   web:
