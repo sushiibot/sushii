@@ -18,7 +18,6 @@ export function initDatabase(url: string, maxConnections: number) {
     dbLogger.error(err, "pg pool error");
   });
 
-  // For new drizzle ORM to replace Kysely
   const db = drizzle({ client: pool, schema });
 
   dbLogger.info("pg connected");
