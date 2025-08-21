@@ -3,8 +3,8 @@ import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import { t } from "i18next";
 import type { Logger } from "pino";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorMessage } from "@/interactions/responses/error";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { TagService } from "../../application/TagService";
 import {

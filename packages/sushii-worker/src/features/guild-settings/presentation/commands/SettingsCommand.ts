@@ -13,9 +13,9 @@ import {
 import type { ModalMessageModalSubmitInteraction } from "discord.js";
 import type { Logger } from "pino";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { GuildSettingsService } from "../../application/GuildSettingsService";
 import type { MessageLogBlockService } from "../../application/MessageLogBlockService";

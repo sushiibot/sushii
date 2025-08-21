@@ -32,13 +32,13 @@ import { dmChoiceFromString } from "@/features/moderation/shared/domain/value-ob
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
-import { SlashCommandHandler } from "@/interactions/handlers";
 import {
   getErrorMessage,
   getErrorMessageEdit,
 } from "@/interactions/responses/error";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { ModerationService } from "../../application/ModerationService";
 import type { TargetResolutionService } from "../../application/TargetResolutionService";

@@ -5,9 +5,9 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 import Paginator from "@/shared/presentation/Paginator";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type {

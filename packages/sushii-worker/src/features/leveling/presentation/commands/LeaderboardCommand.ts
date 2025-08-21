@@ -1,13 +1,13 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import type {
   EmbedModifierFn,
   GetPageFn,
   GetTotalEntriesFn,
 } from "@/shared/presentation/Paginator";
 import Paginator from "@/shared/presentation/Paginator";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { GetLeaderboardService } from "../../application/GetLeaderboardService";

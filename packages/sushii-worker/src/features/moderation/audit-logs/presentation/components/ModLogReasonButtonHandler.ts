@@ -7,7 +7,7 @@ import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/serv
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import customIds from "@/interactions/customIds";
-import { ButtonHandler } from "@/interactions/handlers";
+import { ButtonHandler } from "@/shared/presentation/handlers";
 
 /**
  * Button handler for setting reasons on moderation cases.

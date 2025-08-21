@@ -5,8 +5,8 @@ import type { Logger } from "pino";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
-import type { SlashCommandHandler } from "@/interactions/handlers";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
+import type { SlashCommandHandler } from "@/shared/presentation/handlers";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Actions sub-feature

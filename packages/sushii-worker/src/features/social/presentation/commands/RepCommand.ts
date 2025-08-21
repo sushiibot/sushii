@@ -2,7 +2,7 @@ import { isDayjs } from "dayjs";
 import type { ChatInputCommandInteraction } from "discord.js";
 import { SlashCommandBuilder } from "discord.js";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { ReputationService } from "../../application";
 import { createRepCooldownEmbed, createRepSuccessEmbed } from "../views";

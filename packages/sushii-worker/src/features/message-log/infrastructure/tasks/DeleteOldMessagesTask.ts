@@ -3,7 +3,7 @@ import type { Client } from "discord.js";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import dayjs from "@/shared/domain/dayjs";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import type { MessageLogEventRepository } from "../../domain/repositories/MessageLogEventRepository";
 

@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 import { t } from "i18next";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { NotificationService } from "../../application/NotificationService";

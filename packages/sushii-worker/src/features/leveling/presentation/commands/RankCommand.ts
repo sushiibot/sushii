@@ -2,8 +2,8 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import type { Logger } from "pino";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import { getErrorMessage } from "@/interactions/responses/error";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { GetUserRankService } from "../../application/GetUserRankService";
 import { formatRankCard } from "../views/RankDisplayView";

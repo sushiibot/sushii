@@ -7,8 +7,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import { getErrorMessage } from "@/interactions/responses/error";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { LookupUserService } from "../../application/LookupUserService";
 import { buildUserLookupReply } from "../views/UserLookupView";

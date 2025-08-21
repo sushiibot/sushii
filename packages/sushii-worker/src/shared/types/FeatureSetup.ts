@@ -6,9 +6,9 @@ import type {
   AutocompleteHandler,
   ButtonHandler,
   SlashCommandHandler,
-} from "@/interactions/handlers";
-import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
-import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+} from "@/shared/presentation/handlers";
+import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
+import type { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 /**
  * Type aliases for handler collections

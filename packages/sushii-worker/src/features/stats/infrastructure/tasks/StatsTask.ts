@@ -2,7 +2,7 @@ import type { Client } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import type { StatsService } from "../../application/StatsService";
 import { StatName } from "../../domain/StatName";

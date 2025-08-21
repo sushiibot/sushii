@@ -2,7 +2,7 @@ import type { Client } from "discord.js";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import type { ReminderService } from "../application/ReminderService";
 import type { ReminderMetrics } from "./metrics/ReminderMetrics";

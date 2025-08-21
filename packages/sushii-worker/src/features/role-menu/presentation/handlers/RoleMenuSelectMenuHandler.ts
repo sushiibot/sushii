@@ -3,7 +3,7 @@ import { EmbedBuilder, MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
 import customIds from "@/interactions/customIds";
-import { SelectMenuHandler } from "@/interactions/handlers";
+import { SelectMenuHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { RoleMenuInteractionService } from "../../application/RoleMenuInteractionService";

@@ -3,7 +3,7 @@ import { CronJob } from "cron";
 import type { Client } from "discord.js";
 
 import logger from "@/shared/infrastructure/logger";
-import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import type { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 export function registerTasks(
   client: Client,

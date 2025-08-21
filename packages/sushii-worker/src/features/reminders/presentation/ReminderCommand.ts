@@ -1,8 +1,8 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
 import dayjs from "@/shared/domain/dayjs";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import parseDurationOrTimestamp from "@/utils/parseDurationOrTimestamp";
 
 import type { ReminderService } from "../application/ReminderService";

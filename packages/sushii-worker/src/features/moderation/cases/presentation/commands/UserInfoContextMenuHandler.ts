@@ -10,7 +10,7 @@ import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
-import ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
+import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
 import type { HistoryUserService } from "../../application/HistoryUserService";
 import type { LookupUserService } from "../../application/LookupUserService";

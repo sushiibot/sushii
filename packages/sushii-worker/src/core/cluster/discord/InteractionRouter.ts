@@ -23,17 +23,17 @@ import {
 import { t } from "i18next";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { config } from "@/shared/infrastructure/config";
+import log from "@/shared/infrastructure/logger";
+import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
 import type {
   AutocompleteHandler,
   ButtonHandler,
   ModalHandler,
   SelectMenuHandler,
   SlashCommandHandler,
-} from "@/interactions/handlers";
-import type ContextMenuHandler from "@/interactions/handlers/ContextMenuHandler";
-import { config } from "@/shared/infrastructure/config";
-import log from "@/shared/infrastructure/logger";
-import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
+} from "@/shared/presentation/handlers";
+import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import getFullCommandName from "@/utils/getFullCommandName";
 import validationErrorToString from "@/utils/validationErrorToString";
 

@@ -9,7 +9,7 @@ import type { Giveaway } from "@/features/giveaways/domain/entities/Giveaway";
 import { buildGiveawayComponents } from "@/features/giveaways/presentation/views/GiveawayComponentBuilder";
 import { buildGiveawayEmbed } from "@/features/giveaways/presentation/views/GiveawayEmbedBuilder";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
-import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import type { GiveawayMetrics } from "../metrics/GiveawayMetrics";
 

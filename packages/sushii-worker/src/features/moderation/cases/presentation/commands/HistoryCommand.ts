@@ -8,7 +8,7 @@ import {
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
-import { SlashCommandHandler } from "@/interactions/handlers";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { HistoryUserService } from "../../application/HistoryUserService";
 import {

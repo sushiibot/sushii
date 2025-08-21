@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { DrizzleStatusRepository } from "../infrastructure/DrizzleStatusRepository";

@@ -4,7 +4,7 @@ import type {
 } from "discord.js";
 import { ApplicationCommandOptionType } from "discord.js";
 
-import { AutocompleteHandler } from "@/interactions/handlers";
+import { AutocompleteHandler } from "@/shared/presentation/handlers";
 
 import type { NotificationService } from "../../application/NotificationService";
 

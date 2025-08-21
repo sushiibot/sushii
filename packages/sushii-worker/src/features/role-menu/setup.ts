@@ -2,7 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
-import type { SelectMenuHandler } from "@/interactions/handlers";
+import type { SelectMenuHandler } from "@/shared/presentation/handlers";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import {

@@ -12,7 +12,7 @@ import type { Logger } from "pino";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import customIds from "@/interactions/customIds";
-import { ButtonHandler } from "@/interactions/handlers";
+import { ButtonHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 /**

@@ -4,7 +4,7 @@ import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
-import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
+import type { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import { StatsService } from "./application/StatsService";
 import { DrizzleStatsRepository } from "./infrastructure/DrizzleStatsRepository";

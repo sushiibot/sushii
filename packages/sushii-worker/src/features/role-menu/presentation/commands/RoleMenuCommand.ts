@@ -15,11 +15,11 @@ import {
 import type { Logger } from "pino";
 
 import customIds from "@/interactions/customIds";
-import { SlashCommandHandler } from "@/interactions/handlers";
 import {
   interactionReplyErrorMessage,
   interactionReplyErrorPlainMessage,
 } from "@/interactions/responses/error";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 import parseEmoji from "@/utils/parseEmoji";
 

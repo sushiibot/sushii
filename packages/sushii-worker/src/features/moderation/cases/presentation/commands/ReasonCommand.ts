@@ -10,8 +10,8 @@ import type { Logger } from "pino";
 
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import customIds from "@/interactions/customIds";
-import { SlashCommandHandler } from "@/interactions/handlers";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { ReasonUpdateService } from "../../application/ReasonUpdateService";
 import {

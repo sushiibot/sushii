@@ -5,7 +5,7 @@ import type {
 import type { Logger } from "pino";
 
 import type { CaseRangeAutocompleteService } from "@/features/moderation/cases/application/CaseRangeAutocompleteService";
-import { AutocompleteHandler } from "@/interactions/handlers";
+import { AutocompleteHandler } from "@/shared/presentation/handlers";
 
 export class ReasonAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = ["reason", "uncase"];

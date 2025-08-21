@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import { SlashCommandHandler } from "@/interactions/handlers";
+import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { SlowmodeService } from "../../application/SlowmodeService";
 import { slowmodeErrorView, slowmodeSuccessView } from "../views/SlowmodeView";
