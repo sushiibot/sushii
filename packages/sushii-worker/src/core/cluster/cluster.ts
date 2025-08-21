@@ -5,7 +5,6 @@ import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 import { config } from "@/shared/infrastructure/config";
 import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
 
-import registerLegacyInteractionHandlers from "../../interactions/commands";
 import "../../shared/domain/dayjs";
 import initI18next from "../../shared/infrastructure/i18next";
 import log from "../../shared/infrastructure/logger";
@@ -74,9 +73,7 @@ async function initializeShardCluster(): Promise<void> {
   // Register shard metrics now that client is logged in
   coreMetrics.registerShardCallbacks(client);
 
-  registerLegacyInteractionHandlers(interactionRouter);
-
-  // New registration of features -- also adds commands to the router and starts tasks
+  // Register features -- adds commands to the router and starts tasks
   registerFeatures(db, client, deploymentService, interactionRouter);
 
   // AFTER features are registered (includes registering commands)

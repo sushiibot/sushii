@@ -18,6 +18,7 @@ import { setupMessageLog } from "@/features/message-log/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
+import { setupRoleMenuFeature } from "@/features/role-menu/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
 import { setupStatusFeature } from "@/features/status/setup";
@@ -103,6 +104,10 @@ export function registerFeatures(
     deploymentService,
     logger: logger.child({ feature: "Reminders" }),
   });
+  const roleMenuFeature = setupRoleMenuFeature({
+    db,
+    logger: logger.child({ feature: "RoleMenu" }),
+  });
   const moderationFeature = setupModerationFeature({
     db,
     client,
@@ -119,7 +124,10 @@ export function registerFeatures(
   });
 
   // Legacy audit logs feature
-  const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({ logger });
+  const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({
+    guildConfigRepository: guildSettingsFeature.services.guildConfigurationRepository,
+    logger,
+  });
 
   // Emoji stats feature
   const emojiStatsFeature = setupEmojiStatsFeature({
@@ -146,6 +154,7 @@ export function registerFeatures(
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
     ...remindersFeature.commands,
+    ...roleMenuFeature.commands,
     ...moderationFeature.commands,
     ...giveawayFeature.commands,
     ...emojiStatsFeature.commands,
@@ -159,6 +168,7 @@ export function registerFeatures(
     ...notificationFeature.autocompletes,
     ...guildSettingsFeature.autocompletes,
     ...remindersFeature.autocompletes,
+    ...roleMenuFeature.autocompletes,
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
     ...emojiStatsFeature.autocompletes,
@@ -178,9 +188,15 @@ export function registerFeatures(
     ...notificationFeature.buttonHandlers,
     ...guildSettingsFeature.buttonHandlers,
     ...remindersFeature.buttonHandlers,
+    ...roleMenuFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
     ...emojiStatsFeature.buttonHandlers,
+  );
+
+  // Select menu handlers
+  interactionRouter.addSelectMenus(
+    ...roleMenuFeature.selectMenuHandlers,
   );
 
   // ---------------------------------------------------------------------------
