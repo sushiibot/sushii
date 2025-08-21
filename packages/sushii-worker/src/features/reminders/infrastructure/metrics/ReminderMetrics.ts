@@ -25,7 +25,10 @@ export class ReminderMetrics {
 
       logger.info("ReminderMetrics initialized successfully");
     } catch (error) {
-      logger.error({ err: error }, "Failed to initialize ReminderMetrics - OTEL SDK may not be initialized yet");
+      logger.error(
+        { err: error },
+        "Failed to initialize ReminderMetrics - OTEL SDK may not be initialized yet",
+      );
       throw error;
     }
   }

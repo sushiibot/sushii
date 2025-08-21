@@ -16,36 +16,34 @@ export class DrizzleReminderRepository implements ReminderRepository {
     private readonly logger: Logger,
   ) {}
 
-  async save(reminder: Reminder): Promise<void> {
+  async save(reminder: Reminder): Promise<Reminder> {
     const reminderData = reminder.toData();
 
-    await this.db
+    const result = await this.db
       .insert(schema.remindersInAppPublic)
       .values({
         userId: BigInt(reminderData.userId),
-        id: BigInt(reminderData.id),
+        id: sql`(SELECT COALESCE(MAX(id), 0) + 1 FROM app_public.reminders WHERE user_id = ${BigInt(reminderData.userId)})`,
         description: reminderData.description,
         setAt: reminderData.setAt.toISOString(),
         expireAt: reminderData.expireAt.toISOString(),
       })
-      .onConflictDoUpdate({
-        target: [
-          schema.remindersInAppPublic.userId,
-          schema.remindersInAppPublic.id,
-        ],
-        set: {
-          description: reminderData.description,
-          expireAt: reminderData.expireAt.toISOString(),
-        },
-      });
+      .returning();
+
+    const savedReminder = this.mapToReminder(result[0]);
 
     this.logger.debug(
-      { userId: reminderData.userId, reminderId: reminderData.id },
+      { userId: reminderData.userId, reminderId: savedReminder.getId() },
       "Reminder saved to database",
     );
+
+    return savedReminder;
   }
 
-  async findByUserIdAndId(userId: string, id: string): Promise<Reminder | null> {
+  async findByUserIdAndId(
+    userId: string,
+    id: string,
+  ): Promise<Reminder | null> {
     const result = await this.db
       .select()
       .from(schema.remindersInAppPublic)
@@ -71,21 +69,24 @@ export class DrizzleReminderRepository implements ReminderRepository {
       .where(eq(schema.remindersInAppPublic.userId, BigInt(userId)))
       .orderBy(schema.remindersInAppPublic.expireAt);
 
-    return result.map(row => this.mapToReminder(row));
+    return result.map((row) => this.mapToReminder(row));
   }
 
   async findExpired(): Promise<Reminder[]> {
     const now = new Date().toISOString();
-    
+
     const result = await this.db
       .select()
       .from(schema.remindersInAppPublic)
       .where(lte(schema.remindersInAppPublic.expireAt, now));
 
-    return result.map(row => this.mapToReminder(row));
+    return result.map((row) => this.mapToReminder(row));
   }
 
-  async deleteByUserIdAndId(userId: string, id: string): Promise<Reminder | null> {
+  async deleteByUserIdAndId(
+    userId: string,
+    id: string,
+  ): Promise<Reminder | null> {
     const result = await this.db
       .delete(schema.remindersInAppPublic)
       .where(
@@ -103,20 +104,9 @@ export class DrizzleReminderRepository implements ReminderRepository {
     return this.mapToReminder(result[0]);
   }
 
-  async deleteExpired(): Promise<Reminder[]> {
-    const now = new Date().toISOString();
-    
-    const result = await this.db
-      .delete(schema.remindersInAppPublic)
-      .where(lte(schema.remindersInAppPublic.expireAt, now))
-      .returning();
-
-    return result.map(row => this.mapToReminder(row));
-  }
-
   async countPending(): Promise<number> {
     const now = new Date().toISOString();
-    
+
     const result = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(schema.remindersInAppPublic)
@@ -125,7 +115,10 @@ export class DrizzleReminderRepository implements ReminderRepository {
     return result[0]?.count ?? 0;
   }
 
-  async findForAutocomplete(userId: string, query: string): Promise<Reminder[]> {
+  async findForAutocomplete(
+    userId: string,
+    query: string,
+  ): Promise<Reminder[]> {
     const result = await this.db
       .select()
       .from(schema.remindersInAppPublic)
@@ -138,10 +131,12 @@ export class DrizzleReminderRepository implements ReminderRepository {
       .orderBy(schema.remindersInAppPublic.expireAt)
       .limit(25);
 
-    return result.map(row => this.mapToReminder(row));
+    return result.map((row) => this.mapToReminder(row));
   }
 
-  private mapToReminder(row: typeof schema.remindersInAppPublic.$inferSelect): Reminder {
+  private mapToReminder(
+    row: typeof schema.remindersInAppPublic.$inferSelect,
+  ): Reminder {
     const reminderData: ReminderData = {
       id: row.id.toString(),
       userId: row.userId.toString(),

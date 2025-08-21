@@ -5,9 +5,9 @@ import type {
 } from "discord.js";
 import { ApplicationCommandOptionType } from "discord.js";
 
+import { AutocompleteHandler } from "@/interactions/handlers";
 import dayjs from "@/shared/domain/dayjs";
 import { getDurationFromNow } from "@/utils/getDuration";
-import { AutocompleteHandler } from "@/interactions/handlers";
 
 import type { ReminderService } from "../application/ReminderService";
 
@@ -34,10 +34,18 @@ export class ReminderDeleteAutocomplete extends AutocompleteHandler {
     const choices: APIApplicationCommandOptionChoice[] = matching
       .slice(0, 25)
       .map((reminder) => {
-        const durStr = getDurationFromNow(dayjs.utc(reminder.getExpireAt())).humanize();
+        const durStr = getDurationFromNow(
+          dayjs.utc(reminder.getExpireAt()),
+        ).humanize();
+
+        let str = `ID: ${reminder.getId()} - Expiring in: ${durStr} - Description: ${reminder.getDescription()}`;
+
+        if (str.length > 100) {
+          str = str.substring(0, 97) + "...";
+        }
 
         return {
-          name: `ID: ${reminder.getId()} - Expiring in: ${durStr} - Description: ${reminder.getDescription()}`,
+          name: str,
           value: reminder.getId(),
         };
       });

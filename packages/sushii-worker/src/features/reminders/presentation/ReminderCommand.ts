@@ -1,9 +1,9 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
 
+import { SlashCommandHandler } from "@/interactions/handlers";
 import dayjs from "@/shared/domain/dayjs";
 import parseDurationOrTimestamp from "@/utils/parseDurationOrTimestamp";
-import { SlashCommandHandler } from "@/interactions/handlers";
 
 import type { ReminderService } from "../application/ReminderService";
 import {
@@ -63,7 +63,7 @@ export class ReminderCommand extends SlashCommandHandler {
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const subcommand = interaction.options.getSubcommand();
-    
+
     switch (subcommand) {
       case "add":
         return this.handleAdd(interaction);
@@ -77,7 +77,9 @@ export class ReminderCommand extends SlashCommandHandler {
     }
   }
 
-  private async handleAdd(interaction: ChatInputCommandInteraction): Promise<void> {
+  private async handleAdd(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
     const durationStr = interaction.options.getString("duration", true);
     const description = interaction.options.getString("description", true);
 
@@ -114,8 +116,12 @@ export class ReminderCommand extends SlashCommandHandler {
     });
   }
 
-  private async handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-    const reminders = await this.reminderService.listUserReminders(interaction.user.id);
+  private async handleList(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    const reminders = await this.reminderService.listUserReminders(
+      interaction.user.id,
+    );
 
     await interaction.reply({
       embeds: [buildListEmbed(reminders)],
@@ -123,7 +129,9 @@ export class ReminderCommand extends SlashCommandHandler {
     });
   }
 
-  private async handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
+  private async handleDelete(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
     const reminderId = interaction.options.getString("reminder_id", true);
 
     const result = await this.reminderService.deleteReminder(

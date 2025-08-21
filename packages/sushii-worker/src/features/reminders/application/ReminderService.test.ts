@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { Client } from "discord.js";
 import pino from "pino";
 
@@ -11,51 +11,82 @@ import { ReminderService } from "./ReminderService";
 class MockReminderRepository implements ReminderRepository {
   private reminders: Reminder[] = [];
 
-  async save(reminder: Reminder): Promise<void> {
+  async save(reminder: Reminder): Promise<Reminder> {
     const existing = this.reminders.findIndex(
-      r => r.getUserId() === reminder.getUserId() && r.getId() === reminder.getId()
+      (r) =>
+        r.getUserId() === reminder.getUserId() &&
+        r.getId() === reminder.getId(),
     );
-    
+
     if (existing >= 0) {
       this.reminders[existing] = reminder;
+      return reminder;
     } else {
-      this.reminders.push(reminder);
+      // For testing, generate a new ID if it's "0" (placeholder)
+      if (reminder.getId() === "0") {
+        const maxId = this.reminders
+          .filter((r) => r.getUserId() === reminder.getUserId())
+          .map((r) => parseInt(r.getId(), 10))
+          .filter((id) => !isNaN(id))
+          .reduce((max, current) => Math.max(max, current), 0);
+
+        const nextId = (maxId + 1).toString();
+        const reminderData = reminder.toData();
+        reminderData.id = nextId;
+        const newReminder = ReminderEntity.createFromDatabase(reminderData);
+        this.reminders.push(newReminder);
+        return newReminder;
+      } else {
+        this.reminders.push(reminder);
+        return reminder;
+      }
     }
   }
 
-  async findByUserIdAndId(userId: string, id: string): Promise<Reminder | null> {
-    return this.reminders.find(r => r.getUserId() === userId && r.getId() === id) || null;
+  async findByUserIdAndId(
+    userId: string,
+    id: string,
+  ): Promise<Reminder | null> {
+    return (
+      this.reminders.find(
+        (r) => r.getUserId() === userId && r.getId() === id,
+      ) || null
+    );
   }
 
   async findByUserId(userId: string): Promise<Reminder[]> {
-    return this.reminders.filter(r => r.getUserId() === userId);
+    return this.reminders.filter((r) => r.getUserId() === userId);
   }
 
   async findExpired(): Promise<Reminder[]> {
-    return this.reminders.filter(r => r.isExpired());
+    return this.reminders.filter((r) => r.isExpired());
   }
 
-  async deleteByUserIdAndId(userId: string, id: string): Promise<Reminder | null> {
-    const index = this.reminders.findIndex(r => r.getUserId() === userId && r.getId() === id);
+  async deleteByUserIdAndId(
+    userId: string,
+    id: string,
+  ): Promise<Reminder | null> {
+    const index = this.reminders.findIndex(
+      (r) => r.getUserId() === userId && r.getId() === id,
+    );
     if (index >= 0) {
       return this.reminders.splice(index, 1)[0];
     }
     return null;
   }
 
-  async deleteExpired(): Promise<Reminder[]> {
-    const expired = this.reminders.filter(r => r.isExpired());
-    this.reminders = this.reminders.filter(r => !r.isExpired());
-    return expired;
-  }
-
   async countPending(): Promise<number> {
-    return this.reminders.filter(r => !r.isExpired()).length;
+    return this.reminders.filter((r) => !r.isExpired()).length;
   }
 
-  async findForAutocomplete(userId: string, query: string): Promise<Reminder[]> {
+  async findForAutocomplete(
+    userId: string,
+    query: string,
+  ): Promise<Reminder[]> {
     return this.reminders
-      .filter(r => r.getUserId() === userId && r.getDescription().includes(query))
+      .filter(
+        (r) => r.getUserId() === userId && r.getDescription().includes(query),
+      )
       .slice(0, 25);
   }
 
@@ -82,7 +113,11 @@ describe("ReminderService", () => {
 
   beforeEach(() => {
     mockRepository = new MockReminderRepository();
-    reminderService = new ReminderService(mockRepository, mockClient, mockLogger);
+    reminderService = new ReminderService(
+      mockRepository,
+      mockClient,
+      mockLogger,
+    );
   });
 
   describe("createReminder", () => {
@@ -120,7 +155,7 @@ describe("ReminderService", () => {
 
       expect(result1.ok).toBe(true);
       expect(result2.ok).toBe(true);
-      
+
       if (result1.ok && result2.ok) {
         expect(result1.val.getId()).toBe("1");
         expect(result2.val.getId()).toBe("2");
@@ -205,9 +240,11 @@ describe("ReminderService", () => {
     it("should return error for non-existent reminder", async () => {
       const result = await reminderService.deleteReminder("123", "999");
       expect(result.err).toBe(true);
-      
+
       if (result.err) {
-        expect(result.val).toBe("Reminder not found or you don't have permission to delete it");
+        expect(result.val).toBe(
+          "Reminder not found or you don't have permission to delete it",
+        );
       }
     });
   });
@@ -228,7 +265,7 @@ describe("ReminderService", () => {
       await mockRepository.save(reminder);
 
       const result = await reminderService.processExpiredReminders();
-      
+
       expect(result.sent).toBe(1);
       expect(result.failed).toBe(0);
 

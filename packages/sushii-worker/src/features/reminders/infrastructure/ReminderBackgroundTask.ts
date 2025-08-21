@@ -11,6 +11,8 @@ export class ReminderBackgroundTask extends AbstractBackgroundTask {
   readonly name = "Check for expired reminders";
   readonly cronTime = "*/30 * * * * *"; // Every 30 seconds
 
+  private isProcessing = false;
+
   constructor(
     client: Client,
     deploymentService: DeploymentService,
@@ -22,13 +24,26 @@ export class ReminderBackgroundTask extends AbstractBackgroundTask {
   }
 
   protected async execute(): Promise<void> {
-    const { sent, failed } = await this.reminderService.processExpiredReminders();
+    if (this.isProcessing) {
+      this.logger.debug(
+        "Skipping reminder processing - previous run still in progress",
+      );
+      return;
+    }
 
-    // Update metrics
-    this.metrics.sentRemindersCounter.add(sent, { status: "success" });
-    this.metrics.sentRemindersCounter.add(failed, { status: "failed" });
+    try {
+      this.isProcessing = true;
+      const { sent, failed } =
+        await this.reminderService.processExpiredReminders();
 
-    const pendingCount = await this.reminderService.countPendingReminders();
-    this.metrics.pendingRemindersGauge.record(pendingCount);
+      // Update metrics
+      this.metrics.sentRemindersCounter.add(sent, { status: "success" });
+      this.metrics.sentRemindersCounter.add(failed, { status: "failed" });
+
+      const pendingCount = await this.reminderService.countPendingReminders();
+      this.metrics.pendingRemindersGauge.record(pendingCount);
+    } finally {
+      this.isProcessing = false;
+    }
   }
 }
