@@ -1,20 +1,22 @@
 import type { Client } from "discord.js";
-import { lt } from "drizzle-orm";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { drizzleDb } from "@/infrastructure/database/db";
-import { emojiStickerStatsRateLimitsInAppPublic } from "@/infrastructure/database/schema";
 import dayjs from "@/shared/domain/dayjs";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 import { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
 
 import { USER_EMOJI_RATE_LIMIT_DURATION } from "../../domain/constants";
+import type { RateLimitRepository } from "../../domain/repositories";
 
 export class RateLimitCleanupTask extends AbstractBackgroundTask {
   readonly name = "Emoji Stats Rate Limit Cleanup";
   readonly cronTime = "0 0 * * *"; // Once a day at midnight
 
-  constructor(client: Client, deploymentService: DeploymentService) {
+  constructor(
+    client: Client,
+    deploymentService: DeploymentService,
+    private rateLimitRepository: RateLimitRepository,
+  ) {
     super(client, deploymentService, newModuleLogger("RateLimitCleanupTask"));
   }
 
@@ -22,15 +24,11 @@ export class RateLimitCleanupTask extends AbstractBackgroundTask {
     const cutoffDate = dayjs()
       .utc()
       .subtract(USER_EMOJI_RATE_LIMIT_DURATION)
-      .toISOString();
+      .toDate();
 
     this.logger.debug({ cutoffDate }, "Starting rate limit cleanup");
 
-    const result = await drizzleDb
-      .delete(emojiStickerStatsRateLimitsInAppPublic)
-      .where(lt(emojiStickerStatsRateLimitsInAppPublic.lastUsed, cutoffDate));
-
-    const deletedCount = result.rowCount || 0;
+    const deletedCount = await this.rateLimitRepository.deleteExpiredRateLimits(cutoffDate);
 
     this.logger.info(
       { deletedCount, cutoffDate },

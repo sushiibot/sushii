@@ -3,7 +3,7 @@ import type { Client } from "discord.js";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentChanged } from "@/features/deployment/domain/events/DeploymentChanged";
 import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
-import { drizzleDb } from "@/infrastructure/database/db";
+import { initDatabase } from "@/infrastructure/database/db";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
@@ -15,7 +15,7 @@ import InteractionRouter from "../discord/InteractionRouter";
 export async function initCore(client: Client) {
   // This just returns the global existing database for now, until we fully
   // integrate the database into the core
-  const db = drizzleDb;
+  const db = initDatabase(config.database.url, 3);
 
   // Create shared infrastructure
   const eventBus = new SimpleEventBus();

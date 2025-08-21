@@ -15,4 +15,9 @@ export interface RateLimitRepository {
    * Upsert rate limit records
    */
   upsertRateLimits(rateLimits: RateLimit[]): Promise<void>;
+
+  /**
+   * Delete rate limit records older than the given date
+   */
+  deleteExpiredRateLimits(cutoffDate: Date): Promise<number>;
 }

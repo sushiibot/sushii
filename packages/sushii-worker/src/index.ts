@@ -13,7 +13,7 @@ import { registerShutdownSignals } from "@/core/manager/signals";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentChanged } from "@/features/deployment/domain/events/DeploymentChanged";
 import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
-import { drizzleDb } from "@/infrastructure/database/db";
+import { initDatabase } from "@/infrastructure/database/db";
 import "@/shared/domain/dayjs";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
 import { config } from "@/shared/infrastructure/config";
@@ -30,15 +30,17 @@ async function main(): Promise<void> {
 
   log.info("Running migrations");
 
+  const db = initDatabase(config.database.url, 3);
+
   // Initial migration skipped manually for graphile-migrate -> drizzle migration
   // Run database migrations
-  await migrate(drizzleDb, {
+  await migrate(db, {
     migrationsFolder: "./drizzle",
   });
 
   // Close the database connection, as we don't need it in the main process
   // anymore (deployment service has its own connection)
-  await drizzleDb.$client.end();
+  await db.$client.end();
 
   // ---------------------------------------------------------------------------
   // Initialize main process core components

@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";
@@ -74,5 +74,13 @@ export class DrizzleRateLimitRepository implements RateLimitRepository {
           lastUsed: sql`excluded.last_used`,
         },
       });
+  }
+
+  async deleteExpiredRateLimits(cutoffDate: Date): Promise<number> {
+    const result = await this.db
+      .delete(emojiStickerStatsRateLimitsInAppPublic)
+      .where(lt(emojiStickerStatsRateLimitsInAppPublic.lastUsed, cutoffDate.toISOString()));
+
+    return result.rowCount || 0;
   }
 }

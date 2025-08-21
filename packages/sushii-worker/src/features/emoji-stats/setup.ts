@@ -101,6 +101,7 @@ export function setupEmojiStatsFeature(
   const rateLimitCleanupTask = new RateLimitCleanupTask(
     client,
     deploymentService,
+    rateLimitRepository,
   );
 
   return {
