@@ -2,8 +2,7 @@ import type { GuildBan } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 import type { Logger } from "pino";
 
-import { getGuildConfig } from "@/db/GuildConfig/GuildConfig.repository";
-import db from "@/infrastructure/database/db";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import Color from "@/utils/colors";
 
 /**
@@ -13,7 +12,10 @@ import Color from "@/utils/colors";
 export class LegacyAuditLogNotificationService {
   private readonly notifiedCache = new Set<string>();
 
-  constructor(private readonly logger: Logger) {}
+  constructor(
+    private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly logger: Logger,
+  ) {}
 
   /**
    * Handles a guild ban event and potentially sends an audit log permission notification.
@@ -28,10 +30,13 @@ export class LegacyAuditLogNotificationService {
       return;
     }
 
-    const config = await getGuildConfig(db, ban.guild.id);
+    const config = await this.guildConfigRepository.findByGuildId(ban.guild.id);
 
     // No guild config found, or mod log not configured/enabled
-    if (!config || !config.log_mod || !config.log_mod_enabled) {
+    if (
+      !config.loggingSettings.modLogChannel ||
+      !config.loggingSettings.modLogEnabled
+    ) {
       return;
     }
 
@@ -45,7 +50,10 @@ export class LegacyAuditLogNotificationService {
     }
 
     // Send notification about missing permissions
-    await this.sendPermissionNotification(ban, config.log_mod);
+    await this.sendPermissionNotification(
+      ban,
+      config.loggingSettings.modLogChannel,
+    );
   }
 
   private async sendPermissionNotification(

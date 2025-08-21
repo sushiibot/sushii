@@ -112,6 +112,7 @@ export function createModerationServices({
   const timeoutDetectionService = new TimeoutDetectionService();
   const modLogService = new DiscordModLogService(
     client,
+    guildConfigRepository,
     logger.child({ module: "modLogService" }),
   );
 

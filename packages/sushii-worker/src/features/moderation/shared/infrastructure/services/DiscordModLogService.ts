@@ -3,9 +3,8 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import { getGuildConfig } from "@/db/GuildConfig/GuildConfig.repository";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
-import db from "@/infrastructure/database/db";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationCase } from "../../domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../domain/entities/ModerationTarget";
@@ -20,6 +19,7 @@ import { ActionType } from "../../domain/value-objects/ActionType";
 export class DiscordModLogService implements ModLogService {
   constructor(
     private readonly client: Client,
+    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -36,9 +36,13 @@ export class DiscordModLogService implements ModLogService {
       }
 
       // Get guild configuration for mod log channel
-      const guildConfig = await getGuildConfig(db, guildId);
+      const guildConfig =
+        await this.guildConfigRepository.findByGuildId(guildId);
 
-      if (!guildConfig?.log_mod_enabled || !guildConfig.log_mod) {
+      if (
+        !guildConfig.loggingSettings.modLogEnabled ||
+        !guildConfig.loggingSettings.modLogChannel
+      ) {
         this.logger.debug(
           { guildId, actionType },
           "Mod log not enabled or channel not configured",
@@ -72,7 +76,9 @@ export class DiscordModLogService implements ModLogService {
         return Err("Guild not found");
       }
 
-      const modLogChannel = await guild.channels.fetch(guildConfig.log_mod);
+      const modLogChannel = await guild.channels.fetch(
+        guildConfig.loggingSettings.modLogChannel,
+      );
       if (!modLogChannel || !modLogChannel.isTextBased()) {
         return Err("Mod log channel not found or not text-based");
       }
