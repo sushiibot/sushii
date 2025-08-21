@@ -17,6 +17,7 @@ import { setupMemberEventsFeature } from "@/features/member-events/setup";
 import { setupMessageLog } from "@/features/message-log/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
+import { setupRemindersFeature } from "@/features/reminders/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
 import { setupTagFeature } from "@/features/tags/setup";
@@ -27,7 +28,7 @@ import logger from "@/shared/infrastructure/logger";
 
 import type InteractionRouter from "../discord/InteractionRouter";
 import type { EventHandler, EventType } from "../presentation/EventHandler";
-import { registerTasks } from "../tasks/registerTasks";
+import { registerTasks } from "./registerTasks";
 
 // Extract channelId from event arguments based on event type
 function extractChannelIdFromEvent(
@@ -94,6 +95,12 @@ export function registerFeatures(
   const notificationFeature = setupNotificationFeature({ db, logger });
   const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
+  const remindersFeature = setupRemindersFeature({
+    db,
+    client,
+    deploymentService,
+    logger: logger.child({ feature: "Reminders" }),
+  });
   const moderationFeature = setupModerationFeature({
     db,
     client,
@@ -136,6 +143,7 @@ export function registerFeatures(
     ...socialFeature.commands,
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
+    ...remindersFeature.commands,
     ...moderationFeature.commands,
     ...giveawayFeature.commands,
     ...emojiStatsFeature.commands,
@@ -147,6 +155,7 @@ export function registerFeatures(
     ...socialFeature.autocompletes,
     ...notificationFeature.autocompletes,
     ...guildSettingsFeature.autocompletes,
+    ...remindersFeature.autocompletes,
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
     ...emojiStatsFeature.autocompletes,
@@ -165,6 +174,7 @@ export function registerFeatures(
     ...socialFeature.buttonHandlers,
     ...notificationFeature.buttonHandlers,
     ...guildSettingsFeature.buttonHandlers,
+    ...remindersFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
     ...emojiStatsFeature.buttonHandlers,
@@ -296,9 +306,10 @@ export function registerFeatures(
     ...emojiStatsFeature.tasks,
     ...messageLogFeature.tasks,
     ...statsFeature.tasks,
+    ...remindersFeature.tasks,
   ];
 
-  registerTasks(client, deploymentService, featureTasks);
+  registerTasks(client, featureTasks);
 
   // Return services for backwards compatibility (can be removed later)
   return {

@@ -2,14 +2,11 @@ import * as Sentry from "@sentry/node";
 import { CronJob } from "cron";
 import type { Client } from "discord.js";
 
-import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import logger from "@/shared/infrastructure/logger";
 import type { AbstractBackgroundTask } from "@/tasks/AbstractBackgroundTask";
-import { RemindersTask } from "@/tasks/RemindersTask";
 
 export function registerTasks(
   client: Client,
-  deploymentService: DeploymentService,
   featureTasks: AbstractBackgroundTask[],
 ): void {
   const isCluster0 = client.cluster.shardList.includes(0);
@@ -36,14 +33,7 @@ export function registerTasks(
     "Starting background tasks on cluster with shard 0",
   );
 
-  // Combine legacy tasks with feature tasks
-  const legacyTasks: AbstractBackgroundTask[] = [
-    new RemindersTask(client, deploymentService),
-  ];
-
-  const allTasks = [...legacyTasks, ...featureTasks];
-
-  for (const task of allTasks) {
+  for (const task of featureTasks) {
     const cron = new CronJob(task.cronTime, async () => {
       try {
         logger.info(
