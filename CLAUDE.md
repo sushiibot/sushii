@@ -1,18 +1,18 @@
 # CLAUDE.md
 
-Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Migrating from Kysely to Drizzle ORM and from legacy structure to Clean Architecture with DDD.
+Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Uses Drizzle ORM and follows Clean Architecture with DDD.
 
 ## Commands
 
 **Root**: `bun dev` | `bun test:worker`
-**Worker**: `bun dev` | `bun test` | `bun typecheck` | `bun lint` | `bun prettier` | `bun codegen:pg` (legacy) | `bunx drizzle-kit generate/migrate/studio` (new)
+**Worker**: `bun dev` | `bun test` | `bun typecheck` | `bun lint` | `bun prettier` | `bunx drizzle-kit generate/migrate/studio`
 
 ## Architecture
 
 **Current (Legacy)**: `src/interactions/`, `src/events/`, `src/db/`, `src/tasks/`, `src/metrics/`
 **Target (Clean)**: 4-layer DDD with `src/core/`, `src/shared/`, `src/infrastructure/`, `src/features/{feature}/{domain,application,infrastructure,presentation}/`
 
-**Database**: PostgreSQL with 3 schemas (app_public, app_private, app_hidden). Migrating Kysely → Drizzle.
+**Database**: PostgreSQL with 3 schemas (app_public, app_private, app_hidden). Uses Drizzle ORM.
 **Core**: client.ts, index.ts (sharding), shard.ts. Prometheus metrics :9090, pino logging.
 
 ## Migration Guidelines
