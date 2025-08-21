@@ -28,7 +28,8 @@ export class RateLimitCleanupTask extends AbstractBackgroundTask {
 
     this.logger.debug({ cutoffDate }, "Starting rate limit cleanup");
 
-    const deletedCount = await this.rateLimitRepository.deleteExpiredRateLimits(cutoffDate);
+    const deletedCount =
+      await this.rateLimitRepository.deleteExpiredRateLimits(cutoffDate);
 
     this.logger.info(
       { deletedCount, cutoffDate },

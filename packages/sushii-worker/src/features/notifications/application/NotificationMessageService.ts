@@ -108,7 +108,9 @@ export class NotificationMessageService {
         "Sent notification",
       );
 
-      this.notificationMetrics.sentNotificationsCounter.add(1, { status: "success" });
+      this.notificationMetrics.sentNotificationsCounter.add(1, {
+        status: "success",
+      });
     } catch (error) {
       await this.handleDmFailure(notification, error);
     }
@@ -123,7 +125,9 @@ export class NotificationMessageService {
 
     this.dmFailureCount.set(notification.userId, newFailureCount);
 
-    this.notificationMetrics.sentNotificationsCounter.add(1, { status: "failed" });
+    this.notificationMetrics.sentNotificationsCounter.add(1, {
+      status: "failed",
+    });
 
     this.logger.debug(
       {

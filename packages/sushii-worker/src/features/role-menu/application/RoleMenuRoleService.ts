@@ -2,7 +2,10 @@ import type { Guild } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
-import type { RoleMenuRole, UpdateRoleMenuRoleRequest } from "../domain/entities/RoleMenuRole";
+import type {
+  RoleMenuRole,
+  UpdateRoleMenuRoleRequest,
+} from "../domain/entities/RoleMenuRole";
 import type { RoleMenuRepository } from "../domain/repositories/RoleMenuRepository";
 
 const RE_ROLE = /(?:<@&)?(\d{17,20})>?/g;
@@ -19,8 +22,13 @@ export class RoleMenuRoleService {
     rolesString: string,
     guild: Guild,
     userHighestRolePosition?: number,
-  ): Promise<Result<{ addedRoles: string[]; newTotalRoles: string[] }, string>> {
-    this.logger.debug({ guildId, menuName, rolesString }, "Adding roles to menu");
+  ): Promise<
+    Result<{ addedRoles: string[]; newTotalRoles: string[] }, string>
+  > {
+    this.logger.debug(
+      { guildId, menuName, rolesString },
+      "Adding roles to menu",
+    );
 
     try {
       // Check if menu exists
@@ -30,7 +38,9 @@ export class RoleMenuRoleService {
       }
 
       // Parse role IDs from string
-      const roleIds = [...rolesString.matchAll(RE_ROLE)].map((match) => match[1]);
+      const roleIds = [...rolesString.matchAll(RE_ROLE)].map(
+        (match) => match[1],
+      );
       if (roleIds.length === 0) {
         return Err("No valid roles provided.");
       }
@@ -46,15 +56,20 @@ export class RoleMenuRoleService {
       }
 
       // Get current roles to check limits
-      const currentRoles = await this.roleMenuRepository.findRolesByMenu(guildId, menuName);
-      const currentRoleIds = currentRoles.map(r => r.roleId);
-      
+      const currentRoles = await this.roleMenuRepository.findRolesByMenu(
+        guildId,
+        menuName,
+      );
+      const currentRoleIds = currentRoles.map((r) => r.roleId);
+
       // Combine and deduplicate
       const newTotalRoles = [...new Set([...currentRoleIds, ...roleIds])];
 
       // Check Discord's 25 role limit for components
       if (newTotalRoles.length > 25) {
-        return Err("Cannot have more than 25 roles in a menu (Discord limitation).");
+        return Err(
+          "Cannot have more than 25 roles in a menu (Discord limitation).",
+        );
       }
 
       await this.roleMenuRepository.addRoles(guildId, menuName, roleIds);
@@ -64,7 +79,10 @@ export class RoleMenuRoleService {
         newTotalRoles,
       });
     } catch (error) {
-      this.logger.error({ err: error, guildId, menuName, rolesString }, "Failed to add roles to menu");
+      this.logger.error(
+        { err: error, guildId, menuName, rolesString },
+        "Failed to add roles to menu",
+      );
       throw new Error("Failed to add roles to menu", { cause: error });
     }
   }
@@ -73,8 +91,13 @@ export class RoleMenuRoleService {
     guildId: string,
     menuName: string,
     rolesString: string,
-  ): Promise<Result<{ removedRoles: string[]; remainingRoles: string[] }, string>> {
-    this.logger.debug({ guildId, menuName, rolesString }, "Removing roles from menu");
+  ): Promise<
+    Result<{ removedRoles: string[]; remainingRoles: string[] }, string>
+  > {
+    this.logger.debug(
+      { guildId, menuName, rolesString },
+      "Removing roles from menu",
+    );
 
     try {
       // Check if menu exists
@@ -84,31 +107,48 @@ export class RoleMenuRoleService {
       }
 
       // Parse role IDs from string
-      const roleIdsToRemove = [...rolesString.matchAll(RE_ROLE)].map((match) => match[1]);
+      const roleIdsToRemove = [...rolesString.matchAll(RE_ROLE)].map(
+        (match) => match[1],
+      );
       if (roleIdsToRemove.length === 0) {
         return Err("No valid roles provided.");
       }
 
       // Get current roles
-      const currentRoles = await this.roleMenuRepository.findRolesByMenu(guildId, menuName);
-      const currentRoleIds = currentRoles.map(r => r.roleId);
-      
-      // Calculate remaining roles
-      const remainingRoles = currentRoleIds.filter(id => !roleIdsToRemove.includes(id));
+      const currentRoles = await this.roleMenuRepository.findRolesByMenu(
+        guildId,
+        menuName,
+      );
+      const currentRoleIds = currentRoles.map((r) => r.roleId);
 
-      await this.roleMenuRepository.removeRoles(guildId, menuName, roleIdsToRemove);
+      // Calculate remaining roles
+      const remainingRoles = currentRoleIds.filter(
+        (id) => !roleIdsToRemove.includes(id),
+      );
+
+      await this.roleMenuRepository.removeRoles(
+        guildId,
+        menuName,
+        roleIdsToRemove,
+      );
 
       return Ok({
         removedRoles: roleIdsToRemove,
         remainingRoles,
       });
     } catch (error) {
-      this.logger.error({ err: error, guildId, menuName, rolesString }, "Failed to remove roles from menu");
+      this.logger.error(
+        { err: error, guildId, menuName, rolesString },
+        "Failed to remove roles from menu",
+      );
       throw new Error("Failed to remove roles from menu", { cause: error });
     }
   }
 
-  async getRoles(guildId: string, menuName: string): Promise<Result<RoleMenuRole[], string>> {
+  async getRoles(
+    guildId: string,
+    menuName: string,
+  ): Promise<Result<RoleMenuRole[], string>> {
     this.logger.debug({ guildId, menuName }, "Getting roles for menu");
 
     try {
@@ -118,26 +158,41 @@ export class RoleMenuRoleService {
         return Err(`Menu "${menuName}" not found.`);
       }
 
-      const roles = await this.roleMenuRepository.findRolesByMenu(guildId, menuName);
+      const roles = await this.roleMenuRepository.findRolesByMenu(
+        guildId,
+        menuName,
+      );
       return Ok(roles);
     } catch (error) {
-      this.logger.error({ err: error, guildId, menuName }, "Failed to get roles for menu");
+      this.logger.error(
+        { err: error, guildId, menuName },
+        "Failed to get roles for menu",
+      );
       throw new Error("Failed to get roles for menu", { cause: error });
     }
   }
 
-  async updateRoleOptions(request: UpdateRoleMenuRoleRequest): Promise<Result<void, string>> {
+  async updateRoleOptions(
+    request: UpdateRoleMenuRoleRequest,
+  ): Promise<Result<void, string>> {
     this.logger.debug({ request }, "Updating role options");
 
     try {
       // Check if menu exists
-      const menu = await this.roleMenuRepository.findByName(request.guildId, request.menuName);
+      const menu = await this.roleMenuRepository.findByName(
+        request.guildId,
+        request.menuName,
+      );
       if (menu.none) {
         return Err(`Menu "${request.menuName}" not found.`);
       }
 
       // Check if role exists in menu
-      const role = await this.roleMenuRepository.findRole(request.guildId, request.menuName, request.roleId);
+      const role = await this.roleMenuRepository.findRole(
+        request.guildId,
+        request.menuName,
+        request.roleId,
+      );
       if (role.none) {
         return Err("Role is not in this menu.");
       }
@@ -150,7 +205,10 @@ export class RoleMenuRoleService {
       await this.roleMenuRepository.updateRole(request);
       return Ok(undefined);
     } catch (error) {
-      this.logger.error({ err: error, request }, "Failed to update role options");
+      this.logger.error(
+        { err: error, request },
+        "Failed to update role options",
+      );
       throw new Error("Failed to update role options", { cause: error });
     }
   }
@@ -160,7 +218,10 @@ export class RoleMenuRoleService {
     menuName: string,
     rolesString: string,
   ): Promise<Result<{ newOrder: string[]; previousOrder: string[] }, string>> {
-    this.logger.debug({ guildId, menuName, rolesString }, "Reordering roles in menu");
+    this.logger.debug(
+      { guildId, menuName, rolesString },
+      "Reordering roles in menu",
+    );
 
     try {
       // Check if menu exists
@@ -170,14 +231,19 @@ export class RoleMenuRoleService {
       }
 
       // Parse role IDs from string
-      const newOrderRoleIds = [...rolesString.matchAll(RE_ROLE)].map((match) => match[1]);
+      const newOrderRoleIds = [...rolesString.matchAll(RE_ROLE)].map(
+        (match) => match[1],
+      );
       if (newOrderRoleIds.length === 0) {
         return Err("No valid roles provided.");
       }
 
       // Get current roles
-      const currentRoles = await this.roleMenuRepository.findRolesByMenu(guildId, menuName);
-      const currentRoleIds = currentRoles.map(r => r.roleId);
+      const currentRoles = await this.roleMenuRepository.findRolesByMenu(
+        guildId,
+        menuName,
+      );
+      const currentRoleIds = currentRoles.map((r) => r.roleId);
 
       // Validate that new order contains exactly the same roles
       const currentRoleIdsSet = new Set(currentRoleIds);
@@ -185,19 +251,28 @@ export class RoleMenuRoleService {
 
       if (
         currentRoleIdsSet.size !== newOrderRoleIdsSet.size ||
-        !currentRoleIds.every(id => newOrderRoleIdsSet.has(id))
+        !currentRoleIds.every((id) => newOrderRoleIdsSet.has(id))
       ) {
-        return Err(`New order must contain exactly the same roles. Expected: ${currentRoleIds.map(id => `<@&${id}>`).join(", ")}`);
+        return Err(
+          `New order must contain exactly the same roles. Expected: ${currentRoleIds.map((id) => `<@&${id}>`).join(", ")}`,
+        );
       }
 
-      await this.roleMenuRepository.reorderRoles(guildId, menuName, newOrderRoleIds);
+      await this.roleMenuRepository.reorderRoles(
+        guildId,
+        menuName,
+        newOrderRoleIds,
+      );
 
       return Ok({
         newOrder: newOrderRoleIds,
         previousOrder: currentRoleIds,
       });
     } catch (error) {
-      this.logger.error({ err: error, guildId, menuName, rolesString }, "Failed to reorder roles");
+      this.logger.error(
+        { err: error, guildId, menuName, rolesString },
+        "Failed to reorder roles",
+      );
       throw new Error("Failed to reorder roles", { cause: error });
     }
   }

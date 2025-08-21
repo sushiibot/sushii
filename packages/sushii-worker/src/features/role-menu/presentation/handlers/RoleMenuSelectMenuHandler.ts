@@ -32,12 +32,13 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
     const requiredRole = getRoleMenuRequiredRole(interaction.message);
     const menuRoles = getRoleMenuMessageSelectRoles(interaction.message);
 
-    const result = await this.roleMenuInteractionService.handleSelectMenuInteraction(
-      interaction.member,
-      interaction.values,
-      menuRoles,
-      requiredRole || undefined,
-    );
+    const result =
+      await this.roleMenuInteractionService.handleSelectMenuInteraction(
+        interaction.member,
+        interaction.values,
+        menuRoles,
+        requiredRole || undefined,
+      );
 
     if (result.err) {
       await interaction.reply({

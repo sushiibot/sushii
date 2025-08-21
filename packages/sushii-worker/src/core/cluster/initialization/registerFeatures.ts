@@ -125,7 +125,8 @@ export function registerFeatures(
 
   // Legacy audit logs feature
   const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({
-    guildConfigRepository: guildSettingsFeature.services.guildConfigurationRepository,
+    guildConfigRepository:
+      guildSettingsFeature.services.guildConfigurationRepository,
     logger,
   });
 
@@ -195,9 +196,7 @@ export function registerFeatures(
   );
 
   // Select menu handlers
-  interactionRouter.addSelectMenus(
-    ...roleMenuFeature.selectMenuHandlers,
-  );
+  interactionRouter.addSelectMenus(...roleMenuFeature.selectMenuHandlers);
 
   // ---------------------------------------------------------------------------
   // Build event handlers

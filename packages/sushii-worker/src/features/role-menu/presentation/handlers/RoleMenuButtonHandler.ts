@@ -39,13 +39,14 @@ export class RoleMenuButtonHandler extends ButtonHandler {
     const maxRoles = getRoleMenuMaxRoles(interaction.message);
     const menuRoles = getRoleMenuMessageButtonRoles(interaction.message);
 
-    const result = await this.roleMenuInteractionService.handleButtonInteraction(
-      interaction.member,
-      roleToAddOrRemove,
-      menuRoles,
-      requiredRole || undefined,
-      maxRoles || undefined,
-    );
+    const result =
+      await this.roleMenuInteractionService.handleButtonInteraction(
+        interaction.member,
+        roleToAddOrRemove,
+        menuRoles,
+        requiredRole || undefined,
+        maxRoles || undefined,
+      );
 
     if (result.err) {
       await interaction.reply({
@@ -76,7 +77,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
 
     // Delete reply after 5 seconds
     await sleep(5000);
-    
+
     try {
       await reply.delete();
     } catch (error) {

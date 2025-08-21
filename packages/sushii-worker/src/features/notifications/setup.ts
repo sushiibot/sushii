@@ -18,10 +18,10 @@ interface NotificationDependencies {
   logger: Logger;
 }
 
-export function createNotificationServices({
-  db,
-  logger,
-}: NotificationDependencies, notificationMetrics: NotificationMetrics) {
+export function createNotificationServices(
+  { db, logger }: NotificationDependencies,
+  notificationMetrics: NotificationMetrics,
+) {
   const notificationRepository = new DrizzleNotificationRepository(db);
   const notificationBlockRepository = new DrizzleNotificationBlockRepository(
     db,
@@ -90,9 +90,16 @@ export function setupNotificationFeature({
   ReturnType<typeof createNotificationServices>
 > {
   const notificationMetrics = new NotificationMetrics();
-  const services = createNotificationServices({ db, logger }, notificationMetrics);
+  const services = createNotificationServices(
+    { db, logger },
+    notificationMetrics,
+  );
   const commands = createNotificationCommands(services, logger);
-  const events = createNotificationEventHandlers(services, logger, notificationMetrics);
+  const events = createNotificationEventHandlers(
+    services,
+    logger,
+    notificationMetrics,
+  );
 
   return {
     services,

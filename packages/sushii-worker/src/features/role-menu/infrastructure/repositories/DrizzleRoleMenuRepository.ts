@@ -1,13 +1,23 @@
 import { and, eq, ilike, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
-import { None, Some, type Option } from "ts-results";
+import { None, type Option, Some } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
-import { roleMenusInAppPublic, roleMenuRolesInAppPublic } from "@/infrastructure/database/schema";
+import {
+  roleMenuRolesInAppPublic,
+  roleMenusInAppPublic,
+} from "@/infrastructure/database/schema";
 
-import type { CreateRoleMenuRequest, RoleMenu, UpdateRoleMenuRequest } from "../../domain/entities/RoleMenu";
-import type { RoleMenuRole, UpdateRoleMenuRoleRequest } from "../../domain/entities/RoleMenuRole";
+import type {
+  CreateRoleMenuRequest,
+  RoleMenu,
+  UpdateRoleMenuRequest,
+} from "../../domain/entities/RoleMenu";
+import type {
+  RoleMenuRole,
+  UpdateRoleMenuRoleRequest,
+} from "../../domain/entities/RoleMenuRole";
 import type { RoleMenuRepository } from "../../domain/repositories/RoleMenuRepository";
 
 export class DrizzleRoleMenuRepository implements RoleMenuRepository {
@@ -17,28 +27,36 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
   ) {}
 
   async create(request: CreateRoleMenuRequest): Promise<void> {
-    this.logger.debug({ guildId: request.guildId, menuName: request.menuName }, "Creating role menu");
-    
+    this.logger.debug(
+      { guildId: request.guildId, menuName: request.menuName },
+      "Creating role menu",
+    );
+
     await this.db.insert(roleMenusInAppPublic).values({
       guildId: BigInt(request.guildId),
       menuName: request.menuName,
       description: request.description,
       maxCount: request.maxCount,
-      requiredRole: request.requiredRole ? BigInt(request.requiredRole) : undefined,
+      requiredRole: request.requiredRole
+        ? BigInt(request.requiredRole)
+        : undefined,
     });
   }
 
-  async findByName(guildId: string, menuName: string): Promise<Option<RoleMenu>> {
+  async findByName(
+    guildId: string,
+    menuName: string,
+  ): Promise<Option<RoleMenu>> {
     this.logger.debug({ guildId, menuName }, "Finding role menu by name");
-    
+
     const result = await this.db
       .select()
       .from(roleMenusInAppPublic)
       .where(
         and(
           eq(roleMenusInAppPublic.guildId, BigInt(guildId)),
-          eq(roleMenusInAppPublic.menuName, menuName)
-        )
+          eq(roleMenusInAppPublic.menuName, menuName),
+        ),
       );
 
     if (result.length === 0) {
@@ -57,13 +75,13 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
 
   async findByGuild(guildId: string): Promise<RoleMenu[]> {
     this.logger.debug({ guildId }, "Finding role menus by guild");
-    
+
     const results = await this.db
       .select()
       .from(roleMenusInAppPublic)
       .where(eq(roleMenusInAppPublic.guildId, BigInt(guildId)));
 
-    return results.map(menu => ({
+    return results.map((menu) => ({
       guildId: menu.guildId.toString(),
       menuName: menu.menuName,
       description: menu.description || undefined,
@@ -74,18 +92,18 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
 
   async search(guildId: string, query: string): Promise<RoleMenu[]> {
     this.logger.debug({ guildId, query }, "Searching role menus");
-    
+
     const results = await this.db
       .select()
       .from(roleMenusInAppPublic)
       .where(
         and(
           eq(roleMenusInAppPublic.guildId, BigInt(guildId)),
-          ilike(roleMenusInAppPublic.menuName, `${query}%`)
-        )
+          ilike(roleMenusInAppPublic.menuName, `${query}%`),
+        ),
       );
 
-    return results.map(menu => ({
+    return results.map((menu) => ({
       guildId: menu.guildId.toString(),
       menuName: menu.menuName,
       description: menu.description || undefined,
@@ -95,14 +113,17 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
   }
 
   async update(request: UpdateRoleMenuRequest): Promise<void> {
-    this.logger.debug({ 
-      guildId: request.guildId, 
-      menuName: request.menuName,
-      newMenuName: request.newMenuName 
-    }, "Updating role menu");
+    this.logger.debug(
+      {
+        guildId: request.guildId,
+        menuName: request.menuName,
+        newMenuName: request.newMenuName,
+      },
+      "Updating role menu",
+    );
 
     const updateValues: Partial<typeof roleMenusInAppPublic.$inferInsert> = {};
-    
+
     if (request.newMenuName !== undefined) {
       updateValues.menuName = request.newMenuName;
     }
@@ -113,7 +134,9 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       updateValues.maxCount = request.maxCount;
     }
     if (request.requiredRole !== undefined) {
-      updateValues.requiredRole = request.requiredRole ? BigInt(request.requiredRole) : null;
+      updateValues.requiredRole = request.requiredRole
+        ? BigInt(request.requiredRole)
+        : null;
     }
 
     await this.db
@@ -122,25 +145,29 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       .where(
         and(
           eq(roleMenusInAppPublic.guildId, BigInt(request.guildId)),
-          eq(roleMenusInAppPublic.menuName, request.menuName)
-        )
+          eq(roleMenusInAppPublic.menuName, request.menuName),
+        ),
       );
   }
 
   async delete(guildId: string, menuName: string): Promise<void> {
     this.logger.debug({ guildId, menuName }, "Deleting role menu");
-    
+
     await this.db
       .delete(roleMenusInAppPublic)
       .where(
         and(
           eq(roleMenusInAppPublic.guildId, BigInt(guildId)),
-          eq(roleMenusInAppPublic.menuName, menuName)
-        )
+          eq(roleMenusInAppPublic.menuName, menuName),
+        ),
       );
   }
 
-  async addRoles(guildId: string, menuName: string, roleIds: string[]): Promise<void> {
+  async addRoles(
+    guildId: string,
+    menuName: string,
+    roleIds: string[],
+  ): Promise<void> {
     if (roleIds.length === 0) {
       return;
     }
@@ -157,14 +184,15 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         .where(
           and(
             eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
-            eq(roleMenuRolesInAppPublic.menuName, menuName)
-          )
+            eq(roleMenuRolesInAppPublic.menuName, menuName),
+          ),
         )
         .orderBy(roleMenuRolesInAppPublic.position);
 
       let startPosition = 1;
       if (maxPositionResult.length > 0) {
-        const lastPosition = maxPositionResult[maxPositionResult.length - 1]?.maxPosition;
+        const lastPosition =
+          maxPositionResult[maxPositionResult.length - 1]?.maxPosition;
         if (lastPosition) {
           startPosition = lastPosition + 1;
         }
@@ -186,14 +214,21 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
     });
   }
 
-  async removeRoles(guildId: string, menuName: string, roleIds: string[]): Promise<void> {
+  async removeRoles(
+    guildId: string,
+    menuName: string,
+    roleIds: string[],
+  ): Promise<void> {
     if (roleIds.length === 0) {
       return;
     }
 
-    this.logger.debug({ guildId, menuName, roleIds }, "Removing roles from menu");
+    this.logger.debug(
+      { guildId, menuName, roleIds },
+      "Removing roles from menu",
+    );
 
-    const bigIntRoleIds = roleIds.map(id => BigInt(id));
+    const bigIntRoleIds = roleIds.map((id) => BigInt(id));
 
     await this.db
       .delete(roleMenuRolesInAppPublic)
@@ -201,26 +236,29 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         and(
           eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
           eq(roleMenuRolesInAppPublic.menuName, menuName),
-          inArray(roleMenuRolesInAppPublic.roleId, bigIntRoleIds)
-        )
+          inArray(roleMenuRolesInAppPublic.roleId, bigIntRoleIds),
+        ),
       );
   }
 
-  async findRolesByMenu(guildId: string, menuName: string): Promise<RoleMenuRole[]> {
+  async findRolesByMenu(
+    guildId: string,
+    menuName: string,
+  ): Promise<RoleMenuRole[]> {
     this.logger.debug({ guildId, menuName }, "Finding roles by menu");
-    
+
     const results = await this.db
       .select()
       .from(roleMenuRolesInAppPublic)
       .where(
         and(
           eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
-          eq(roleMenuRolesInAppPublic.menuName, menuName)
-        )
+          eq(roleMenuRolesInAppPublic.menuName, menuName),
+        ),
       )
       .orderBy(roleMenuRolesInAppPublic.position);
 
-    return results.map(role => ({
+    return results.map((role) => ({
       guildId: role.guildId.toString(),
       menuName: role.menuName,
       roleId: role.roleId.toString(),
@@ -230,9 +268,13 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
     }));
   }
 
-  async findRole(guildId: string, menuName: string, roleId: string): Promise<Option<RoleMenuRole>> {
+  async findRole(
+    guildId: string,
+    menuName: string,
+    roleId: string,
+  ): Promise<Option<RoleMenuRole>> {
     this.logger.debug({ guildId, menuName, roleId }, "Finding role in menu");
-    
+
     const result = await this.db
       .select()
       .from(roleMenuRolesInAppPublic)
@@ -240,8 +282,8 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         and(
           eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
           eq(roleMenuRolesInAppPublic.menuName, menuName),
-          eq(roleMenuRolesInAppPublic.roleId, BigInt(roleId))
-        )
+          eq(roleMenuRolesInAppPublic.roleId, BigInt(roleId)),
+        ),
       );
 
     if (result.length === 0) {
@@ -260,14 +302,18 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
   }
 
   async updateRole(request: UpdateRoleMenuRoleRequest): Promise<void> {
-    this.logger.debug({ 
-      guildId: request.guildId, 
-      menuName: request.menuName,
-      roleId: request.roleId 
-    }, "Updating role in menu");
+    this.logger.debug(
+      {
+        guildId: request.guildId,
+        menuName: request.menuName,
+        roleId: request.roleId,
+      },
+      "Updating role in menu",
+    );
 
-    const updateValues: Partial<typeof roleMenuRolesInAppPublic.$inferInsert> = {};
-    
+    const updateValues: Partial<typeof roleMenuRolesInAppPublic.$inferInsert> =
+      {};
+
     if (request.emoji !== undefined) {
       updateValues.emoji = request.emoji;
     }
@@ -282,13 +328,20 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         and(
           eq(roleMenuRolesInAppPublic.guildId, BigInt(request.guildId)),
           eq(roleMenuRolesInAppPublic.menuName, request.menuName),
-          eq(roleMenuRolesInAppPublic.roleId, BigInt(request.roleId))
-        )
+          eq(roleMenuRolesInAppPublic.roleId, BigInt(request.roleId)),
+        ),
       );
   }
 
-  async reorderRoles(guildId: string, menuName: string, roleIds: string[]): Promise<void> {
-    this.logger.debug({ guildId, menuName, roleIds }, "Reordering roles in menu");
+  async reorderRoles(
+    guildId: string,
+    menuName: string,
+    roleIds: string[],
+  ): Promise<void> {
+    this.logger.debug(
+      { guildId, menuName, roleIds },
+      "Reordering roles in menu",
+    );
 
     await this.db.transaction(async (trx) => {
       // Get current roles to validate input
@@ -298,12 +351,12 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         .where(
           and(
             eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
-            eq(roleMenuRolesInAppPublic.menuName, menuName)
-          )
+            eq(roleMenuRolesInAppPublic.menuName, menuName),
+          ),
         );
 
-      const currentRoleIds = currentRoles.map(role => role.roleId.toString());
-      
+      const currentRoleIds = currentRoles.map((role) => role.roleId.toString());
+
       // Validate that supplied roleIds matches current roles
       if (currentRoleIds.length !== roleIds.length) {
         throw new Error("Mismatched supplied roleIds");

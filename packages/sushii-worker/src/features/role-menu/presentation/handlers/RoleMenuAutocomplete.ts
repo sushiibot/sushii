@@ -53,7 +53,10 @@ export class RoleMenuAutocomplete extends AutocompleteHandler {
 
       await interaction.respond(choices || []);
     } catch (error) {
-      this.logger.error({ err: error, guildId: interaction.guildId, query: option.value }, "Failed to handle autocomplete");
+      this.logger.error(
+        { err: error, guildId: interaction.guildId, query: option.value },
+        "Failed to handle autocomplete",
+      );
       await interaction.respond([]);
     }
   }

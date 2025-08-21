@@ -24,28 +24,41 @@ export class RoleMenuInteractionService {
     requiredRole?: string,
     maxRoles?: number,
   ): Promise<Result<RoleInteractionResult, string>> {
-    this.logger.debug({ 
-      userId: member.id, 
-      guildId: member.guild.id, 
-      roleId 
-    }, "Handling button interaction");
+    this.logger.debug(
+      {
+        userId: member.id,
+        guildId: member.guild.id,
+        roleId,
+      },
+      "Handling button interaction",
+    );
 
     try {
       // Check if removing or adding role
       const isRemovingRole = member.roles.cache.has(roleId);
 
       // Check required role (but allow removing roles without required role)
-      if (requiredRole && !member.roles.cache.has(requiredRole) && !isRemovingRole) {
-        return Err(`You need to have the <@&${requiredRole}> role to use this menu.`);
+      if (
+        requiredRole &&
+        !member.roles.cache.has(requiredRole) &&
+        !isRemovingRole
+      ) {
+        return Err(
+          `You need to have the <@&${requiredRole}> role to use this menu.`,
+        );
       }
 
       // Check max roles (only when adding)
       if (!isRemovingRole && maxRoles) {
-        const menuRolesSet = new Set(menuRoles.map(r => r.roleId));
-        const memberSelectedRoles = member.roles.cache.filter(role => menuRolesSet.has(role.id));
-        
+        const menuRolesSet = new Set(menuRoles.map((r) => r.roleId));
+        const memberSelectedRoles = member.roles.cache.filter((role) =>
+          menuRolesSet.has(role.id),
+        );
+
         if (memberSelectedRoles.size >= maxRoles) {
-          return Err(`You can only have a max of ${maxRoles} roles from this menu. You will need to remove one of your roles before you can add another.`);
+          return Err(
+            `You can only have a max of ${maxRoles} roles from this menu. You will need to remove one of your roles before you can add another.`,
+          );
         }
       }
 
@@ -61,10 +74,14 @@ export class RoleMenuInteractionService {
         } catch (err) {
           if (err instanceof DiscordAPIError) {
             if (err.code === RESTJSONErrorCodes.UnknownRole) {
-              return Err("This role no longer exists - please notify the server moderators.");
+              return Err(
+                "This role no longer exists - please notify the server moderators.",
+              );
             }
             if (err.code === RESTJSONErrorCodes.MissingPermissions) {
-              return Err("I don't have permission to add this role to you - please notify the server moderators.");
+              return Err(
+                "I don't have permission to add this role to you - please notify the server moderators.",
+              );
             }
           }
           throw err;
@@ -77,12 +94,15 @@ export class RoleMenuInteractionService {
         description,
       });
     } catch (error) {
-      this.logger.error({ err: error, userId: member.id, roleId }, "Failed to handle button interaction");
-      
+      this.logger.error(
+        { err: error, userId: member.id, roleId },
+        "Failed to handle button interaction",
+      );
+
       if (error instanceof DiscordAPIError) {
         return Err(error.message);
       }
-      
+
       throw new Error("Failed to handle button interaction", { cause: error });
     }
   }
@@ -92,22 +112,32 @@ export class RoleMenuInteractionService {
     selectedRoleIds: string[],
     menuRoles: MenuRoleData[],
     requiredRole?: string,
-  ): Promise<Result<{ addedRoles: string[]; removedRoles: string[]; description: string }, string>> {
-    this.logger.debug({ 
-      userId: member.id, 
-      guildId: member.guild.id, 
-      selectedRoleIds 
-    }, "Handling select menu interaction");
+  ): Promise<
+    Result<
+      { addedRoles: string[]; removedRoles: string[]; description: string },
+      string
+    >
+  > {
+    this.logger.debug(
+      {
+        userId: member.id,
+        guildId: member.guild.id,
+        selectedRoleIds,
+      },
+      "Handling select menu interaction",
+    );
 
     try {
       // Check required role
       if (requiredRole && !member.roles.cache.has(requiredRole)) {
-        return Err(`You need to have the <@&${requiredRole}> role to use this menu.`);
+        return Err(
+          `You need to have the <@&${requiredRole}> role to use this menu.`,
+        );
       }
 
       const selectedRolesSet = new Set(selectedRoleIds);
       const memberCurrentRoles = new Set(member.roles.cache.keys());
-      
+
       const addedRoles: string[] = [];
       const removedRoles: string[] = [];
 
@@ -124,7 +154,10 @@ export class RoleMenuInteractionService {
 
       // Remove unselected menu roles
       for (const menuRole of menuRoles) {
-        if (!selectedRolesSet.has(menuRole.roleId) && memberCurrentRoles.has(menuRole.roleId)) {
+        if (
+          !selectedRolesSet.has(menuRole.roleId) &&
+          memberCurrentRoles.has(menuRole.roleId)
+        ) {
           memberNewRoles.delete(menuRole.roleId);
           removedRoles.push(menuRole.roleId);
         }
@@ -136,11 +169,13 @@ export class RoleMenuInteractionService {
       // Generate description
       let description = "";
       if (addedRoles.length > 0) {
-        const addedRolesMentions = addedRoles.map(r => `<@&${r}>`).join(", ");
+        const addedRolesMentions = addedRoles.map((r) => `<@&${r}>`).join(", ");
         description += `Added roles ${addedRolesMentions}\n`;
       }
       if (removedRoles.length > 0) {
-        const removedRolesMentions = removedRoles.map(r => `<@&${r}>`).join(", ");
+        const removedRolesMentions = removedRoles
+          .map((r) => `<@&${r}>`)
+          .join(", ");
         description += `Removed roles ${removedRolesMentions}`;
       }
       if (addedRoles.length === 0 && removedRoles.length === 0) {
@@ -153,13 +188,18 @@ export class RoleMenuInteractionService {
         description: description.trim(),
       });
     } catch (error) {
-      this.logger.error({ err: error, userId: member.id, selectedRoleIds }, "Failed to handle select menu interaction");
-      
+      this.logger.error(
+        { err: error, userId: member.id, selectedRoleIds },
+        "Failed to handle select menu interaction",
+      );
+
       if (error instanceof DiscordAPIError) {
         return Err(error.message);
       }
-      
-      throw new Error("Failed to handle select menu interaction", { cause: error });
+
+      throw new Error("Failed to handle select menu interaction", {
+        cause: error,
+      });
     }
   }
 }

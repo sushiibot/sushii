@@ -42,7 +42,9 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
       const totalActiveKeywords =
         await this.notificationService.getTotalNotificationCount();
 
-      this.notificationMetrics.activeNotificationsGauge.record(totalActiveKeywords);
+      this.notificationMetrics.activeNotificationsGauge.record(
+        totalActiveKeywords,
+      );
     });
   }
 }

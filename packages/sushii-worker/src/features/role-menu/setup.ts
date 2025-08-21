@@ -2,10 +2,14 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
-import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 import type { SelectMenuHandler } from "@/interactions/handlers";
+import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
-import { RoleMenuInteractionService, RoleMenuManagementService, RoleMenuRoleService } from "./application";
+import {
+  RoleMenuInteractionService,
+  RoleMenuManagementService,
+  RoleMenuRoleService,
+} from "./application";
 import { DrizzleRoleMenuRepository } from "./infrastructure/repositories/DrizzleRoleMenuRepository";
 import { RoleMenuCommand } from "./presentation/commands/RoleMenuCommand";
 import { RoleMenuAutocomplete } from "./presentation/handlers/RoleMenuAutocomplete";
@@ -23,10 +27,7 @@ interface RoleMenuFeatureSetupReturn<TServices = unknown>
   selectMenuHandlers: SelectMenuHandler[];
 }
 
-export function createRoleMenuServices({
-  db,
-  logger,
-}: RoleMenuDependencies) {
+export function createRoleMenuServices({ db, logger }: RoleMenuDependencies) {
   const roleMenuRepository = new DrizzleRoleMenuRepository(
     db,
     logger.child({ module: "roleMenuRepository" }),

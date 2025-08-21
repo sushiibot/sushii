@@ -79,7 +79,12 @@ export class DrizzleRateLimitRepository implements RateLimitRepository {
   async deleteExpiredRateLimits(cutoffDate: Date): Promise<number> {
     const result = await this.db
       .delete(emojiStickerStatsRateLimitsInAppPublic)
-      .where(lt(emojiStickerStatsRateLimitsInAppPublic.lastUsed, cutoffDate.toISOString()));
+      .where(
+        lt(
+          emojiStickerStatsRateLimitsInAppPublic.lastUsed,
+          cutoffDate.toISOString(),
+        ),
+      );
 
     return result.rowCount || 0;
   }

@@ -46,7 +46,9 @@ export function createStatsTasks(
 ): AbstractBackgroundTask[] {
   const { statsService } = services;
 
-  const tasks = [new StatsTask(client, deploymentService, statsService, statsMetrics)];
+  const tasks = [
+    new StatsTask(client, deploymentService, statsService, statsMetrics),
+  ];
 
   return tasks;
 }
@@ -59,7 +61,12 @@ export function setupStatsFeature({
 }: StatsTaskDependencies) {
   const statsMetrics = new StatsMetrics();
   const services = createStatsServices({ db, logger });
-  const tasks = createStatsTasks(services, client, deploymentService, statsMetrics);
+  const tasks = createStatsTasks(
+    services,
+    client,
+    deploymentService,
+    statsMetrics,
+  );
 
   return {
     services,
