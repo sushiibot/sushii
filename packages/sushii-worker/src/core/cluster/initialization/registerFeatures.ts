@@ -20,6 +20,7 @@ import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
+import { setupStatusFeature } from "@/features/status/setup";
 import { setupTagFeature } from "@/features/tags/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
@@ -95,6 +96,7 @@ export function registerFeatures(
   const notificationFeature = setupNotificationFeature({ db, logger });
   const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
+  const statusFeature = setupStatusFeature({ db });
   const remindersFeature = setupRemindersFeature({
     db,
     client,
@@ -147,6 +149,7 @@ export function registerFeatures(
     ...moderationFeature.commands,
     ...giveawayFeature.commands,
     ...emojiStatsFeature.commands,
+    ...statusFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
