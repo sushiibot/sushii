@@ -12,10 +12,6 @@
     "user_avatar_title": "{{username}}'s avatar",
     "member_avatar_title": "{{username}}'s server avatar"
   },
-  "ping": {
-    "title": "Pong!",
-    "description": "Discord REST API (message send): `{{restMs}}ms`\nsushii DB: `{{sushiiDbMs}}μs`"
-  },
   "kick": {
     "success": "User kicked",
     "failure": "Failed to kick <@{{id}}> ({{id}})"
