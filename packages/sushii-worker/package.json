@@ -55,7 +55,6 @@
     "@types/bun": "^1.2.19",
     "@types/cron": "^2.4.3",
     "@types/i18next-fs-backend": "^1.2.0",
-    "@types/node": "^24.0.10",
     "@types/node-fetch": "^2.6.12",
     "@types/pg": "^8.15.4",
     "@types/pg-cursor": "^2.7.2",
