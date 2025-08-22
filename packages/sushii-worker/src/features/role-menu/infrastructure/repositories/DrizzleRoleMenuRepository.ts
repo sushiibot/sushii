@@ -1,4 +1,4 @@
-import { and, eq, ilike, sql } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import { None, type Option, Some } from "ts-results";

@@ -25,4 +25,5 @@ export interface RoleMenuBuilderState {
   disabled: boolean;
   expired: boolean;
   isEdit?: boolean;
+  readOnly?: boolean;
 }

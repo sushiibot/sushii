@@ -63,22 +63,24 @@ export function createRoleMenuBuilderMessage(
     }
   }
 
-  // Action buttons row
-  const actionButtons = createActionButtons(state);
-  if (actionButtons.components.length > 0) {
-    container.addActionRowComponents(actionButtons);
-  }
+  // Action buttons row (only in edit mode)
+  if (!state.readOnly) {
+    const actionButtons = createActionButtons(state);
+    if (actionButtons.components.length > 0) {
+      container.addActionRowComponents(actionButtons);
+    }
 
-  // Role select menu row
-  const roleSelectMenu = createRoleSelectMenu(roles, state);
-  if (roleSelectMenu) {
-    container.addActionRowComponents(roleSelectMenu);
-  }
+    // Role select menu row
+    const roleSelectMenu = createRoleSelectMenu(roles, state);
+    if (roleSelectMenu) {
+      container.addActionRowComponents(roleSelectMenu);
+    }
 
-  // Required role select menu row
-  const requiredRoleSelectMenu = createRequiredRoleSelectMenu(menu, state);
-  if (requiredRoleSelectMenu) {
-    container.addActionRowComponents(requiredRoleSelectMenu);
+    // Required role select menu row
+    const requiredRoleSelectMenu = createRequiredRoleSelectMenu(menu, state);
+    if (requiredRoleSelectMenu) {
+      container.addActionRowComponents(requiredRoleSelectMenu);
+    }
   }
 
   // Expiration notice if expired
@@ -86,7 +88,7 @@ export function createRoleMenuBuilderMessage(
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        "⏱️ This menu editor has expired. Run `/rolemenu create` again to continue editing.",
+        "-# ⏱️ This menu editor has expired. Run `/rolemenu edit` to continue editing.",
       ),
     );
   }
@@ -128,17 +130,24 @@ function createRoleSection(
     content += `\n> 📝 **Description:** ${role.description}`;
   }
 
-  const editButton = new ButtonBuilder()
-    .setCustomId(
-      `${ROLE_MENU_BUILDER_CUSTOM_IDS.EDIT_ROLE_OPTIONS}:${role.roleId}`,
-    )
-    .setLabel("Edit")
-    .setStyle(ButtonStyle.Secondary)
-    .setDisabled(state.disabled);
+  const section = new SectionBuilder().addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(content),
+  );
 
-  return new SectionBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
-    .setButtonAccessory(editButton);
+  // Only add edit button if not in read-only mode
+  if (!state.readOnly) {
+    const editButton = new ButtonBuilder()
+      .setCustomId(
+        `${ROLE_MENU_BUILDER_CUSTOM_IDS.EDIT_ROLE_OPTIONS}:${role.roleId}`,
+      )
+      .setLabel("Edit")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(state.disabled);
+
+    section.setButtonAccessory(editButton);
+  }
+
+  return section;
 }
 
 function sortRolesByHierarchy(

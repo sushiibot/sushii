@@ -7,6 +7,7 @@ import {
   DiscordAPIError,
   EmbedBuilder,
   InteractionContextType,
+  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
@@ -23,6 +24,7 @@ import parseEmoji from "@/utils/parseEmoji";
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
 import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
+import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
 
 enum RoleMenuOption {
   Name = "menu_name",
@@ -187,7 +189,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     if (menuResult.err) {
       await interaction.reply({
         content: menuResult.val,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -200,65 +202,28 @@ export class RoleMenuCommand extends SlashCommandHandler {
     if (rolesResult.err) {
       await interaction.reply({
         content: rolesResult.val,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     const roles = rolesResult.val;
-    const rolesStr = roles
-      .map((r) => {
-        let s = `<@&${r.roleId}>`;
 
-        if (r.emoji && !r.description) {
-          s += `\n┗ **Emoji:** ${r.emoji}`;
-        } else if (r.emoji) {
-          s += `\n┣ **Emoji:** ${r.emoji}`;
-        }
-
-        if (r.description) {
-          s += `\n┗ **Description:** ${r.description}`;
-        }
-
-        return s;
-      })
-      .join("\n");
-
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Role menu information")
-          .setFields([
-            {
-              name: "Name",
-              value: name,
-            },
-            {
-              name: "Description",
-              value: menu.description || "No description set.",
-            },
-            {
-              name: "Max Roles",
-              value: menu.maxCount?.toString() || "No limit on max roles.",
-            },
-            {
-              name: "Required Role",
-              value: menu.requiredRole
-                ? `<@&${menu.requiredRole}>`
-                : "No required role.",
-            },
-            {
-              name: "Roles",
-              value: rolesStr || "No roles are added yet!",
-            },
-          ])
-          .setColor(Color.Success)
-          .setFooter({
-            text: "Emojis may not show up here but they will still display in menus.",
-          })
-          .toJSON(),
-      ],
+    // Create read-only builder message
+    const builderMessage = createRoleMenuBuilderMessage({
+      menu,
+      roles,
+      guild: interaction.guild,
+      state: {
+        guildId: interaction.guildId,
+        menuName: name,
+        disabled: true,
+        expired: false,
+        readOnly: true,
+      },
     });
+
+    await interaction.reply(builderMessage);
   }
 
   private async listHandler(
