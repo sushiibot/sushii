@@ -17,6 +17,7 @@ import {
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
+import { quoteMarkdownString } from "@/utils/markdown";
 import { getCleanFilename } from "@/utils/url";
 
 export const MODERATION_ACTION_EMOJIS = [
@@ -157,7 +158,9 @@ export function buildActionResultMessage(
     // Add reason if available
     if (firstSuccessfulCase.reason) {
       fullContent += `### ${emojis.reason} Reason`;
-      fullContent += `\n> ${firstSuccessfulCase.reason.value}\n`;
+      fullContent += `\n`;
+      fullContent += quoteMarkdownString(firstSuccessfulCase.reason.value);
+      fullContent += `\n`;
     }
 
     // Add DM status
