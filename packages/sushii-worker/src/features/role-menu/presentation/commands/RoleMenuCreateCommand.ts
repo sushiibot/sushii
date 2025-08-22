@@ -30,7 +30,19 @@ enum RoleMenuOption {
   Name = "menu_name",
 }
 
+interface RoleMenuEditSession {
+  userId: string;
+  userName: string;
+  interactionId: string;
+  channelId: string;
+  messageId: string;
+  startTime: Date;
+}
+
 export class RoleMenuCreateCommand {
+  private static readonly SESSION_TIMEOUT_MS = 300000; // 5 minutes
+  private readonly activeSessions = new Map<string, RoleMenuEditSession>();
+
   constructor(
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
@@ -53,108 +65,183 @@ export class RoleMenuCreateCommand {
     };
   }
 
+  private async validateSession(
+    interaction: ChatInputCommandInteraction<"cached">,
+    menuName: string,
+  ): Promise<boolean> {
+    const sessionKey = `${interaction.guildId}:${menuName}`;
+    const existingSession = this.activeSessions.get(sessionKey);
+
+    if (!existingSession) {
+      return true; // No existing session, can proceed
+    }
+
+    // Check if session is stale (>5 minutes old)
+    const sessionAge = Date.now() - existingSession.startTime.getTime();
+    if (sessionAge > RoleMenuCreateCommand.SESSION_TIMEOUT_MS) {
+      // Clean up stale session
+      this.activeSessions.delete(sessionKey);
+      this.logger.debug(
+        { sessionKey, sessionAge },
+        "Cleaned up stale session during validation",
+      );
+      return true;
+    }
+
+    if (existingSession.userId === interaction.user.id) {
+      // Same user - direct them to existing session with friendly message
+      const messageLink = `https://discord.com/channels/${interaction.guildId}/${existingSession.channelId}/${existingSession.messageId}`;
+      await interaction.reply({
+        content: `You're already editing **${menuName}** here: ${messageLink}\n\nPlease use that one instead!`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return false;
+    }
+
+    // Different user - block access with friendly message
+    const messageLink = `https://discord.com/channels/${interaction.guildId}/${existingSession.channelId}/${existingSession.messageId}`;
+    await interaction.reply({
+      content: `**${existingSession.userName}** is currently editing **${menuName}**.\n\nYou can view their progress here: ${messageLink}\n\nPlease wait for them to finish or try again in a few minutes.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
   async handle(
     interaction: ChatInputCommandInteraction<"cached">,
     isEdit: boolean,
   ): Promise<void> {
     const menuName = interaction.options.getString(RoleMenuOption.Name, true);
+    const sessionKey = `${interaction.guildId}:${menuName}`;
 
-    // For create mode, create or get existing menu
-    // For edit mode, just get the existing menu
-    if (!isEdit) {
-      await this.roleMenuManagementService.createMenu({
-        guildId: interaction.guildId,
-        menuName,
-      });
+    // Clean up any stale sessions before proceeding
+    this.cleanupStaleSessions();
+
+    // Validate session before proceeding
+    const canProceed = await this.validateSession(interaction, menuName);
+    if (!canProceed) {
+      return;
     }
 
-    // Get menu and roles data
-    const { menu, roles } = await this.getMenuData(
-      interaction.guildId,
-      menuName,
-    );
-
-    // Create initial builder message
-    const builderMessage = createRoleMenuBuilderMessage({
-      menu,
-      roles,
-      guild: interaction.guild,
-      state: {
-        guildId: interaction.guildId,
-        menuName,
-        disabled: false,
-        expired: false,
-        isEdit,
-      },
-    });
-
-    const msg = await interaction.reply(builderMessage);
-
-    // Create component collector
-    const collector = msg.createMessageComponentCollector({
-      idle: 600000, // 10 minutes
-      dispose: true,
-    });
-
-    collector.on("collect", async (i) => {
-      try {
-        this.logger.debug(
-          {
-            interactionId: i.id,
-            customId: i.customId,
-            userId: i.user.id,
-            guildId: interaction.guildId,
-          },
-          "Handling role menu builder interaction",
-        );
-
-        // Validate user
-        if (i.user.id !== interaction.user.id) {
-          await i.reply({
-            content: "These controls aren't for you!",
-            flags: MessageFlags.Ephemeral,
-          });
-          await sleep(2500);
-          return;
-        }
-
-        await this.handleBuilderComponentInteraction(i, menuName, isEdit);
-      } catch (err) {
-        this.logger.error(
-          err,
-          "Failed to handle role menu builder interaction",
-        );
-      }
-    });
-
-    collector.on("end", async () => {
-      try {
-        // Get current state
-        const { menu: currentMenu, roles: currentRoles } =
-          await this.getMenuData(interaction.guildId, menuName);
-
-        // Create disabled message with expiration notice
-        const disabledMessage = createRoleMenuBuilderMessage({
-          menu: currentMenu,
-          roles: currentRoles,
-          guild: interaction.guild,
-          state: {
-            guildId: interaction.guildId,
-            menuName,
-            disabled: true,
-            expired: true,
-            isEdit,
-          },
+    try {
+      // For create mode, create or get existing menu
+      // For edit mode, just get the existing menu
+      if (!isEdit) {
+        await this.roleMenuManagementService.createMenu({
+          guildId: interaction.guildId,
+          menuName,
         });
-
-        await msg.edit(disabledMessage);
-      } catch (err) {
-        this.logger.error(
-          err,
-          "Failed to disable role menu builder components",
-        );
       }
-    });
+
+      // Get menu and roles data
+      const { menu, roles } = await this.getMenuData(
+        interaction.guildId,
+        menuName,
+      );
+
+      // Create initial builder message
+      const builderMessage = createRoleMenuBuilderMessage({
+        menu,
+        roles,
+        guild: interaction.guild,
+        state: {
+          guildId: interaction.guildId,
+          menuName,
+          disabled: false,
+          expired: false,
+          isEdit,
+        },
+      });
+
+      const msg = await interaction.reply(builderMessage);
+
+      // Register the session
+      this.activeSessions.set(sessionKey, {
+        userId: interaction.user.id,
+        userName: interaction.user.username,
+        interactionId: interaction.id,
+        channelId: interaction.channelId,
+        messageId: msg.id,
+        startTime: new Date(),
+      });
+
+      // Create component collector with session timeout
+      const collector = msg.createMessageComponentCollector({
+        idle: RoleMenuCreateCommand.SESSION_TIMEOUT_MS,
+        dispose: true,
+      });
+
+      collector.on("collect", async (i) => {
+        try {
+          this.logger.debug(
+            {
+              interactionId: i.id,
+              customId: i.customId,
+              userId: i.user.id,
+              guildId: interaction.guildId,
+            },
+            "Handling role menu builder interaction",
+          );
+
+          // Validate user
+          if (i.user.id !== interaction.user.id) {
+            await i.reply({
+              content: "These controls aren't for you!",
+              flags: MessageFlags.Ephemeral,
+            });
+            await sleep(2500);
+            return;
+          }
+
+          await this.handleBuilderComponentInteraction(i, menuName, isEdit);
+        } catch (err) {
+          this.logger.error(
+            err,
+            "Failed to handle role menu builder interaction",
+          );
+        }
+      });
+
+      collector.on("end", async () => {
+        try {
+          // Get current state
+          const { menu: currentMenu, roles: currentRoles } =
+            await this.getMenuData(interaction.guildId, menuName);
+
+          // Create disabled message with expiration notice
+          const disabledMessage = createRoleMenuBuilderMessage({
+            menu: currentMenu,
+            roles: currentRoles,
+            guild: interaction.guild,
+            state: {
+              guildId: interaction.guildId,
+              menuName,
+              disabled: true,
+              expired: true,
+              isEdit,
+            },
+          });
+
+          await msg.edit(disabledMessage);
+        } catch (err) {
+          this.logger.error(
+            err,
+            "Failed to disable role menu builder components",
+          );
+        } finally {
+          // Always cleanup session when collector ends
+          this.activeSessions.delete(sessionKey);
+          this.logger.debug(
+            { sessionKey, userId: interaction.user.id },
+            "Role menu editing session ended",
+          );
+        }
+      });
+    } catch (error) {
+      // Clean up session if setup fails
+      this.activeSessions.delete(sessionKey);
+      throw error;
+    }
   }
 
   private async handleBuilderComponentInteraction(
@@ -414,7 +501,8 @@ export class RoleMenuCreateCommand {
 
         if (!parsedEmoji) {
           await modalSubmission.reply({
-            content: "Invalid emoji format. Use standard Unicode emojis (😀) or Discord custom emojis (<:name:id>). Example: 🎮 or <:gaming:123456789>.",
+            content:
+              "Invalid emoji format. Use standard Unicode emojis (😀) or Discord custom emojis (<:name:id>). Example: 🎮 or <:gaming:123456789>.",
             flags: MessageFlags.Ephemeral,
           });
 
@@ -516,5 +604,34 @@ export class RoleMenuCreateCommand {
     });
 
     await interaction.update(updatedMessage);
+  }
+
+  private cleanupStaleSessions(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    this.activeSessions.forEach((session, key) => {
+      const age = now - session.startTime.getTime();
+      if (age > RoleMenuCreateCommand.SESSION_TIMEOUT_MS) {
+        // 5 minutes
+        this.activeSessions.delete(key);
+        cleanedCount++;
+        this.logger.debug(
+          {
+            sessionKey: key,
+            userId: session.userId,
+            age: Math.floor(age / 1000) + "s",
+          },
+          "Cleaned up stale role menu editing session",
+        );
+      }
+    });
+
+    if (cleanedCount > 0) {
+      this.logger.info(
+        { cleanedCount, remainingSessions: this.activeSessions.size },
+        "Cleaned up stale role menu sessions",
+      );
+    }
   }
 }
