@@ -57,10 +57,7 @@ export class RoleMenuCreateCommand {
     interaction: ChatInputCommandInteraction<"cached">,
     isEdit: boolean,
   ): Promise<void> {
-    const menuName = interaction.options.getString(RoleMenuOption.Name);
-    if (!menuName) {
-      throw new Error("No menu name provided.");
-    }
+    const menuName = interaction.options.getString(RoleMenuOption.Name, true);
 
     // For create mode, create or get existing menu
     // For edit mode, just get the existing menu
@@ -326,7 +323,7 @@ export class RoleMenuCreateCommand {
         const parsed = parseInt(maxRolesStr, 10);
         if (isNaN(parsed) || parsed < 1 || parsed > 25) {
           await modalSubmission.reply({
-            content: "Invalid number. Please enter a number between 1 and 25.",
+            content: `Invalid max roles value "${maxRolesStr}". Please enter a number between 1 and 25.`,
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -361,7 +358,7 @@ export class RoleMenuCreateCommand {
     const role = roles.find((r) => r.roleId === roleId);
     if (!role) {
       await interaction.reply({
-        content: "Role not found in menu.",
+        content: `Role <@&${roleId}> isn't in this menu yet. Use the role selector below to add it first, then you can edit its options.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -417,7 +414,7 @@ export class RoleMenuCreateCommand {
 
         if (!parsedEmoji) {
           await modalSubmission.reply({
-            content: "Invalid emoji provided.",
+            content: "Invalid emoji format. Use standard Unicode emojis (😀) or Discord custom emojis (<:name:id>). Example: 🎮 or <:gaming:123456789>.",
             flags: MessageFlags.Ephemeral,
           });
 

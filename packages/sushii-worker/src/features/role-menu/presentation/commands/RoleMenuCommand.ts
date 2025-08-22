@@ -23,8 +23,8 @@ import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
-import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
+import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
 
 enum RoleMenuOption {
   Name = "menu_name",
@@ -104,6 +104,16 @@ export class RoleMenuCommand extends SlashCommandHandler {
             .setRequired(true)
             .setAutocomplete(true),
         )
+        .addChannelOption((o) =>
+          o
+            .setName(RoleMenuOption.Channel)
+            .setDescription("The channel to send the role menu to.")
+            .addChannelTypes(
+              ChannelType.GuildAnnouncement,
+              ChannelType.GuildText,
+            )
+            .setRequired(true),
+        )
         .addStringOption((o) =>
           o
             .setName(RoleMenuOption.Type)
@@ -119,18 +129,6 @@ export class RoleMenuCommand extends SlashCommandHandler {
                 value: RoleMenuType.Buttons,
               },
             ),
-        )
-        .addChannelOption((o) =>
-          o
-            .setName(RoleMenuOption.Channel)
-            .setDescription(
-              "The channel to send the role menu to, by default the current channel.",
-            )
-            .addChannelTypes(
-              ChannelType.GuildAnnouncement,
-              ChannelType.GuildText,
-            )
-            .setRequired(false),
         ),
     )
     .toJSON();
@@ -342,7 +340,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     if (roles.length === 0) {
       await interactionReplyErrorMessage(
         interaction,
-        "This menu has no roles. Add some roles before sending it.",
+`This menu has no roles. Use \`/rolemenu edit menu_name:${name}\` to add roles before sending it.`,
       );
       return;
     }

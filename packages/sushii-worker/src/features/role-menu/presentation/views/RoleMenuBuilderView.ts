@@ -61,6 +61,12 @@ export function createRoleMenuBuilderMessage(
       const roleSection = createRoleSection(role, index + 1, guild, state);
       container.addSectionComponents(roleSection);
     }
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `-# Roles are in order of their position in the server.`,
+      ),
+    );
   }
 
   // Action buttons row (only in edit mode)
