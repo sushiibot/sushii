@@ -27,7 +27,9 @@ export class RoleMenuRoleService {
       // Check if menu exists
       const menu = await this.roleMenuRepository.findByName(guildId, menuName);
       if (menu.none) {
-        return Err(`Menu "${menuName}" doesn't exist. Use \`/rolemenu create menu_name:${menuName}\` to create it first, or check the spelling with \`/rolemenu list\`.`);
+        return Err(
+          `Menu "${menuName}" doesn't exist. Use \`/rolemenu create menu_name:${menuName}\` to create it first, or check the spelling with \`/rolemenu list\`.`,
+        );
       }
 
       // Validate role hierarchy if user position is provided (not guild owner)
@@ -36,7 +38,9 @@ export class RoleMenuRoleService {
           const role = guild.roles.cache.get(roleId);
 
           if (role && role.position > userHighestRolePosition) {
-            return Err(`Cannot add role <@&${roleId}> - it's higher than your highest role. Ask someone with a higher role to add it, or lower the role's position in Server Settings.`);
+            return Err(
+              `Cannot add role <@&${roleId}> - it's higher than your highest role. Ask someone with a higher role to add it, or lower the role's position in Server Settings.`,
+            );
           }
         }
       }
@@ -70,7 +74,9 @@ export class RoleMenuRoleService {
       // Check if menu exists
       const menu = await this.roleMenuRepository.findByName(guildId, menuName);
       if (menu.none) {
-        return Err(`Menu "${menuName}" doesn't exist. Use \`/rolemenu create menu_name:${menuName}\` to create it first, or check the spelling with \`/rolemenu list\`.`);
+        return Err(
+          `Menu "${menuName}" doesn't exist. Use \`/rolemenu create menu_name:${menuName}\` to create it first, or check the spelling with \`/rolemenu list\`.`,
+        );
       }
 
       const roles = await this.roleMenuRepository.findRolesByMenu(

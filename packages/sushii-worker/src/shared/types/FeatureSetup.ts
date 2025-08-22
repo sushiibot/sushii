@@ -2,13 +2,13 @@ import type {
   EventHandler,
   EventType,
 } from "@/core/cluster/presentation/EventHandler";
+import type { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 import type {
   AutocompleteHandler,
   ButtonHandler,
   SlashCommandHandler,
 } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
-import type { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 /**
  * Type aliases for handler collections

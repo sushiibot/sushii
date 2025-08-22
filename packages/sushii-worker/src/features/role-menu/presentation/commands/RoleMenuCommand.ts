@@ -340,7 +340,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     if (roles.length === 0) {
       await interactionReplyErrorMessage(
         interaction,
-`This menu has no roles. Use \`/rolemenu edit menu_name:${name}\` to add roles before sending it.`,
+        `This menu has no roles. Use \`/rolemenu edit menu_name:${name}\` to add roles before sending it.`,
       );
       return;
     }
