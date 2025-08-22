@@ -12,6 +12,7 @@ import {
 } from "./application";
 import { DrizzleRoleMenuRepository } from "./infrastructure/repositories/DrizzleRoleMenuRepository";
 import { RoleMenuCommand } from "./presentation/commands/RoleMenuCommand";
+import { RoleMenuCreateCommand } from "./presentation/commands/RoleMenuCreateCommand";
 import { RoleMenuAutocomplete } from "./presentation/handlers/RoleMenuAutocomplete";
 import { RoleMenuButtonHandler } from "./presentation/handlers/RoleMenuButtonHandler";
 import { RoleMenuSelectMenuHandler } from "./presentation/handlers/RoleMenuSelectMenuHandler";
@@ -65,10 +66,17 @@ export function createRoleMenuCommands(
     roleMenuInteractionService,
   } = services;
 
+  const roleMenuCreateCommand = new RoleMenuCreateCommand(
+    roleMenuManagementService,
+    roleMenuRoleService,
+    logger.child({ command: "rolemenu.create" }),
+  );
+
   const commands = [
     new RoleMenuCommand(
       roleMenuManagementService,
       roleMenuRoleService,
+      roleMenuCreateCommand,
       logger.child({ commandHandler: "rolemenu" }),
     ),
   ];

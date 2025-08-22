@@ -20,12 +20,7 @@ export interface RoleMenuRepository {
   delete(guildId: string, menuName: string): Promise<void>;
 
   // Role Menu Role operations
-  addRoles(guildId: string, menuName: string, roleIds: string[]): Promise<void>;
-  removeRoles(
-    guildId: string,
-    menuName: string,
-    roleIds: string[],
-  ): Promise<void>;
+  setRoles(guildId: string, menuName: string, roleIds: string[]): Promise<void>;
   findRolesByMenu(guildId: string, menuName: string): Promise<RoleMenuRole[]>;
   findRole(
     guildId: string,
@@ -33,9 +28,4 @@ export interface RoleMenuRepository {
     roleId: string,
   ): Promise<Option<RoleMenuRole>>;
   updateRole(request: UpdateRoleMenuRoleRequest): Promise<void>;
-  reorderRoles(
-    guildId: string,
-    menuName: string,
-    roleIds: string[],
-  ): Promise<void>;
 }

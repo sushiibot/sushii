@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, eq, ilike, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import { None, type Option, Some } from "ts-results";
@@ -163,82 +163,36 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       );
   }
 
-  async addRoles(
+  async setRoles(
     guildId: string,
     menuName: string,
     roleIds: string[],
   ): Promise<void> {
-    if (roleIds.length === 0) {
-      return;
-    }
-
-    this.logger.debug({ guildId, menuName, roleIds }, "Adding roles to menu");
+    this.logger.debug({ guildId, menuName, roleIds }, "Setting roles for menu");
 
     await this.db.transaction(async (trx) => {
-      // Get the max position of existing roles
-      const maxPositionResult = await trx
-        .select({
-          maxPosition: roleMenuRolesInAppPublic.position,
-        })
-        .from(roleMenuRolesInAppPublic)
+      // Delete all existing roles for this menu
+      await trx
+        .delete(roleMenuRolesInAppPublic)
         .where(
           and(
             eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
             eq(roleMenuRolesInAppPublic.menuName, menuName),
           ),
-        )
-        .orderBy(roleMenuRolesInAppPublic.position);
+        );
 
-      let startPosition = 1;
-      if (maxPositionResult.length > 0) {
-        const lastPosition =
-          maxPositionResult[maxPositionResult.length - 1]?.maxPosition;
-        if (lastPosition) {
-          startPosition = lastPosition + 1;
-        }
+      // Insert new roles if any provided
+      if (roleIds.length > 0) {
+        const values = roleIds.map((roleId, index) => ({
+          guildId: BigInt(guildId),
+          menuName,
+          roleId: BigInt(roleId),
+          position: index + 1,
+        }));
+
+        await trx.insert(roleMenuRolesInAppPublic).values(values);
       }
-
-      // Create values for bulk insert
-      const values = roleIds.map((roleId, index) => ({
-        guildId: BigInt(guildId),
-        menuName,
-        roleId: BigInt(roleId),
-        position: startPosition + index,
-      }));
-
-      // Insert roles, ignoring conflicts (roles already in menu)
-      await trx
-        .insert(roleMenuRolesInAppPublic)
-        .values(values)
-        .onConflictDoNothing();
     });
-  }
-
-  async removeRoles(
-    guildId: string,
-    menuName: string,
-    roleIds: string[],
-  ): Promise<void> {
-    if (roleIds.length === 0) {
-      return;
-    }
-
-    this.logger.debug(
-      { guildId, menuName, roleIds },
-      "Removing roles from menu",
-    );
-
-    const bigIntRoleIds = roleIds.map((id) => BigInt(id));
-
-    await this.db
-      .delete(roleMenuRolesInAppPublic)
-      .where(
-        and(
-          eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
-          eq(roleMenuRolesInAppPublic.menuName, menuName),
-          inArray(roleMenuRolesInAppPublic.roleId, bigIntRoleIds),
-        ),
-      );
   }
 
   async findRolesByMenu(
@@ -331,74 +285,5 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
           eq(roleMenuRolesInAppPublic.roleId, BigInt(request.roleId)),
         ),
       );
-  }
-
-  async reorderRoles(
-    guildId: string,
-    menuName: string,
-    roleIds: string[],
-  ): Promise<void> {
-    this.logger.debug(
-      { guildId, menuName, roleIds },
-      "Reordering roles in menu",
-    );
-
-    await this.db.transaction(async (trx) => {
-      // Get current roles to validate input
-      const currentRoles = await trx
-        .select()
-        .from(roleMenuRolesInAppPublic)
-        .where(
-          and(
-            eq(roleMenuRolesInAppPublic.guildId, BigInt(guildId)),
-            eq(roleMenuRolesInAppPublic.menuName, menuName),
-          ),
-        );
-
-      const currentRoleIds = currentRoles.map((role) => role.roleId.toString());
-
-      // Validate that supplied roleIds matches current roles
-      if (currentRoleIds.length !== roleIds.length) {
-        throw new Error("Mismatched supplied roleIds");
-      }
-
-      const roleIdsSet = new Set(roleIds);
-      for (const roleId of currentRoleIds) {
-        if (!roleIdsSet.has(roleId)) {
-          throw new Error("Mismatched supplied roleIds");
-        }
-      }
-
-      // Generate new position mappings
-      const positionMap = new Map<string, number>();
-      for (let i = 0; i < roleIds.length; i++) {
-        positionMap.set(roleIds[i], i + 1);
-      }
-
-      // Create updated values for bulk upsert
-      const updatedValues = currentRoles.map((role) => ({
-        guildId: role.guildId,
-        menuName: role.menuName,
-        roleId: role.roleId,
-        emoji: role.emoji,
-        description: role.description,
-        position: positionMap.get(role.roleId.toString()) || role.position,
-      }));
-
-      // Bulk update using upsert pattern for better performance
-      await trx
-        .insert(roleMenuRolesInAppPublic)
-        .values(updatedValues)
-        .onConflictDoUpdate({
-          target: [
-            roleMenuRolesInAppPublic.guildId,
-            roleMenuRolesInAppPublic.menuName,
-            roleMenuRolesInAppPublic.roleId,
-          ],
-          set: {
-            position: sql`excluded.position`,
-          },
-        });
-    });
   }
 }
