@@ -7,6 +7,7 @@ import type { ReactionStarterService } from "./ReactionStarterService";
 export class ReactionBatchProcessor {
   private batches = new Map<string, ReactionBatch>();
   private timers = new Map<string, NodeJS.Timeout>();
+  private creatingBatches = new Set<string>(); // Track batches being created to prevent race conditions
   private readonly BATCH_WINDOW_MS = 30000; // 30 seconds
   
   constructor(
@@ -49,29 +50,40 @@ export class ReactionBatchProcessor {
       }
       
       // Batch management - Only create timer for new batches
-      if (!this.batches.has(messageKey)) {
-        this.batches.set(messageKey, {
-          messageId: event.messageId,
-          channelId: event.channelId,
-          guildId: event.guildId,
-          actions: [],
-          startTime: new Date()
-        });
+      if (!this.batches.has(messageKey) && !this.creatingBatches.has(messageKey)) {
+        // Mark as being created to prevent race condition
+        this.creatingBatches.add(messageKey);
         
-        this.logger.debug({ messageKey }, "Created new reaction batch");
-        
-        // Only set timer for new batch
-        this.timers.set(messageKey, setTimeout(() => {
-          this.processBatch(messageKey);
-        }, this.BATCH_WINDOW_MS));
+        try {
+          this.batches.set(messageKey, {
+            messageId: event.messageId,
+            channelId: event.channelId,
+            guildId: event.guildId,
+            actions: [],
+            startTime: new Date()
+          });
+          
+          this.logger.debug({ messageKey }, "Created new reaction batch");
+          
+          // Only set timer for new batch
+          this.timers.set(messageKey, setTimeout(() => {
+            this.processBatch(messageKey);
+          }, this.BATCH_WINDOW_MS));
+        } finally {
+          // Remove from creating set once done
+          this.creatingBatches.delete(messageKey);
+        }
       }
       
-      // Add event to existing or new batch
-      this.batches.get(messageKey)!.actions.push(event);
-      this.logger.trace(
-        { messageKey, actionCount: this.batches.get(messageKey)!.actions.length },
-        "Added event to batch"
-      );
+      // Add event to existing or new batch (safely)
+      const batch = this.batches.get(messageKey);
+      if (batch) {
+        batch.actions.push(event);
+        this.logger.trace(
+          { messageKey, actionCount: batch.actions.length },
+          "Added event to batch"
+        );
+      }
       
     } catch (err) {
       this.logger.error(

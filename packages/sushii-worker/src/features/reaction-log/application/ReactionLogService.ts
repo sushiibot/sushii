@@ -1,4 +1,5 @@
-import type { Client } from "discord.js";
+import type { Client, TextChannel, NewsChannel } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
 import type { Logger } from "pino";
 
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -54,10 +55,59 @@ export class ReactionLogService {
         return;
       }
       
+      // Validate bot permissions in the channel
+      if (channel.isThread()) {
+        this.logger.warn(
+          {
+            guildId: batch.guildId,
+            channelId: config.loggingSettings.reactionLogChannel,
+          },
+          "Reaction log channel is a thread - threads are not supported"
+        );
+        return;
+      }
+      
+      const textChannel = channel as TextChannel | NewsChannel;
+      const botMember = textChannel.guild.members.me;
+      
+      if (!botMember) {
+        this.logger.warn(
+          {
+            guildId: batch.guildId,
+            channelId: config.loggingSettings.reactionLogChannel,
+          },
+          "Bot member not found in guild"
+        );
+        return;
+      }
+      
+      const permissions = textChannel.permissionsFor(botMember);
+      const requiredPermissions = [
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.ViewChannel
+      ];
+      
+      const missingPermissions = requiredPermissions.filter(
+        permission => !permissions?.has(permission)
+      );
+      
+      if (missingPermissions.length > 0) {
+        this.logger.warn(
+          {
+            guildId: batch.guildId,
+            channelId: config.loggingSettings.reactionLogChannel,
+            missingPermissions: missingPermissions.map(p => p.toString())
+          },
+          "Bot missing required permissions for reaction log channel"
+        );
+        return;
+      }
+      
       // Create and send the log message
       const message = createReactionLogMessage(batch);
       
-      await channel.send(message);
+      await textChannel.send(message);
       
       this.logger.debug(
         {

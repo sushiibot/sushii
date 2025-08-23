@@ -19,44 +19,68 @@ export class DrizzleReactionStarterRepository implements ReactionStarterReposito
       "Saving reaction starter"
     );
 
-    await this.db
-      .insert(reactionStartersInAppPublic)
-      .values({
-        messageId: BigInt(messageId),
-        emoji,
-        userId: BigInt(userId),
-        guildId: BigInt(guildId),
-      })
-      .onConflictDoNothing(); // If already exists, that's fine
+    try {
+      await this.db
+        .insert(reactionStartersInAppPublic)
+        .values({
+          messageId: BigInt(messageId),
+          emoji,
+          userId: BigInt(userId),
+          guildId: BigInt(guildId),
+        })
+        .onConflictDoNothing(); // If already exists, that's fine
+    } catch (err) {
+      this.logger.error(
+        { err, messageId, emoji, userId, guildId },
+        "Failed to save reaction starter"
+      );
+      throw new Error("Database error while saving reaction starter", { cause: err });
+    }
   }
 
   async getStarter(messageId: string, emoji: string): Promise<string | null> {
     this.logger.trace({ messageId, emoji }, "Getting reaction starter");
 
-    const result = await this.db
-      .select({ userId: reactionStartersInAppPublic.userId })
-      .from(reactionStartersInAppPublic)
-      .where(
-        and(
-          eq(reactionStartersInAppPublic.messageId, BigInt(messageId)),
-          eq(reactionStartersInAppPublic.emoji, emoji)
+    try {
+      const result = await this.db
+        .select({ userId: reactionStartersInAppPublic.userId })
+        .from(reactionStartersInAppPublic)
+        .where(
+          and(
+            eq(reactionStartersInAppPublic.messageId, BigInt(messageId)),
+            eq(reactionStartersInAppPublic.emoji, emoji)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    return result[0]?.userId.toString() ?? null;
+      return result[0]?.userId.toString() ?? null;
+    } catch (err) {
+      this.logger.error(
+        { err, messageId, emoji },
+        "Failed to get reaction starter"
+      );
+      throw new Error("Database error while getting reaction starter", { cause: err });
+    }
   }
 
   async deleteOldStarters(beforeDate: Date): Promise<number> {
     this.logger.debug({ beforeDate }, "Deleting old reaction starters");
 
-    const result = await this.db
-      .delete(reactionStartersInAppPublic)
-      .where(lt(reactionStartersInAppPublic.createdAt, beforeDate));
+    try {
+      const result = await this.db
+        .delete(reactionStartersInAppPublic)
+        .where(lt(reactionStartersInAppPublic.createdAt, beforeDate));
 
-    const deleted = result.rowCount ?? 0;
-    this.logger.debug({ deleted, beforeDate }, "Deleted old reaction starters");
-    
-    return deleted;
+      const deleted = result.rowCount ?? 0;
+      this.logger.debug({ deleted, beforeDate }, "Deleted old reaction starters");
+      
+      return deleted;
+    } catch (err) {
+      this.logger.error(
+        { err, beforeDate },
+        "Failed to delete old reaction starters"
+      );
+      throw new Error("Database error while deleting old reaction starters", { cause: err });
+    }
   }
 }
