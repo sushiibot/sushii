@@ -45,7 +45,7 @@ async function initializeShardCluster(): Promise<void> {
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildExpressions,
     ],
-    partials: [Partials.Message, Partials.Reaction, Partials.GuildMember],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User, Partials.GuildMember],
     rest: {
       version: "10",
       // Optional proxy URL

@@ -92,6 +92,20 @@
       "when": 1755905456372,
       "tag": "0012_add-role-menu-messages",
       "breakpoints": false
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1755912433088,
+      "tag": "0013_add-reaction-starters-table",
+      "breakpoints": false
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1755914469689,
+      "tag": "0014_add-reaction-log-to-guild-configs",
+      "breakpoints": false
     }
   ]
 }

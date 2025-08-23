@@ -72,6 +72,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         memberLogEnabled: false,
         messageLogChannel: "777888999",
         messageLogEnabled: true,
+        reactionLogChannel: "111000111",
+        reactionLogEnabled: true,
       },
       {
         timeoutDmText: "You have been muted",
@@ -124,6 +126,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         memberLogEnabled: false,
         messageLogChannel: null,
         messageLogEnabled: false,
+        reactionLogChannel: null,
+        reactionLogEnabled: false,
       },
       {
         timeoutDmText: null,
@@ -158,6 +162,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         memberLogEnabled: false,
         messageLogChannel: null,
         messageLogEnabled: false,
+        reactionLogChannel: null,
+        reactionLogEnabled: false,
       },
       {
         timeoutDmText: "Muted!",
@@ -204,6 +210,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         memberLogEnabled: false,
         messageLogChannel: null,
         messageLogEnabled: false,
+        reactionLogChannel: null,
+        reactionLogEnabled: false,
       },
       {
         timeoutDmText: null,
@@ -267,6 +275,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         memberLogEnabled: false,
         messageLogChannel: null,
         messageLogEnabled: false,
+        reactionLogChannel: null,
+        reactionLogEnabled: false,
       },
       {
         timeoutDmText: null,

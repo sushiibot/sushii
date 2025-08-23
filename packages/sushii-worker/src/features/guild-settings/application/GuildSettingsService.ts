@@ -130,6 +130,11 @@ export class GuildSettingsService {
           !config.loggingSettings.messageLogEnabled,
         );
         break;
+      case "reactionLog":
+        updatedConfig = config.setReactionLogEnabled(
+          !config.loggingSettings.reactionLogEnabled,
+        );
+        break;
       case "lookupOptIn":
         updatedConfig = config.setLookupOptInEnabled(
           !config.moderationSettings.lookupDetailsOptIn,

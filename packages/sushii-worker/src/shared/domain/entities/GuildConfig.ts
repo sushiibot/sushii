@@ -13,6 +13,8 @@ export interface LoggingSettings {
   memberLogEnabled: boolean;
   messageLogChannel: string | null;
   messageLogEnabled: boolean;
+  reactionLogChannel: string | null;
+  reactionLogEnabled: boolean;
 }
 
 export interface ModerationSettings {
@@ -36,6 +38,7 @@ export type ToggleableSetting =
   | "modLog"
   | "memberLog"
   | "messageLog"
+  | "reactionLog"
   | "lookupOptIn"
   | "timeoutCommandDm"
   | "timeoutNativeDm"
@@ -82,6 +85,8 @@ export class GuildConfig {
         memberLogEnabled: true,
         messageLogChannel: null,
         messageLogEnabled: true,
+        reactionLogChannel: null,
+        reactionLogEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -177,7 +182,7 @@ export class GuildConfig {
   }
 
   updateLogChannel(
-    type: "mod" | "member" | "message",
+    type: "mod" | "member" | "message" | "reaction",
     channelId: string | null,
   ): GuildConfig {
     const config = this.clone();
@@ -192,13 +197,16 @@ export class GuildConfig {
       case "message":
         config.loggingSettings.messageLogChannel = channelId;
         break;
+      case "reaction":
+        config.loggingSettings.reactionLogChannel = channelId;
+        break;
     }
 
     return config;
   }
 
   setLoggingEnabled(
-    type: "mod" | "member" | "message",
+    type: "mod" | "member" | "message" | "reaction",
     enabled: boolean,
   ): GuildConfig {
     const config = this.clone();
@@ -212,6 +220,9 @@ export class GuildConfig {
         break;
       case "message":
         config.loggingSettings.messageLogEnabled = enabled;
+        break;
+      case "reaction":
+        config.loggingSettings.reactionLogEnabled = enabled;
         break;
     }
 
@@ -233,6 +244,12 @@ export class GuildConfig {
   setMessageLogEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.loggingSettings.messageLogEnabled = enabled;
+    return config;
+  }
+
+  setReactionLogEnabled(enabled: boolean): GuildConfig {
+    const config = this.clone();
+    config.loggingSettings.reactionLogEnabled = enabled;
     return config;
   }
 

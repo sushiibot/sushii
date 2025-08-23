@@ -74,6 +74,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         memberLogEnabled: data.logMemberEnabled ?? false,
         messageLogChannel: data.logMsg ? data.logMsg.toString() : null,
         messageLogEnabled: data.logMsgEnabled ?? false,
+        reactionLogChannel: data.logReaction ? data.logReaction.toString() : null,
+        reactionLogEnabled: data.logReactionEnabled ?? false,
       },
       {
         timeoutDmText: data.timeoutDmText,
@@ -114,6 +116,10 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         ? BigInt(config.loggingSettings.messageLogChannel)
         : null,
       logMsgEnabled: config.loggingSettings.messageLogEnabled,
+      logReaction: config.loggingSettings.reactionLogChannel
+        ? BigInt(config.loggingSettings.reactionLogChannel)
+        : null,
+      logReactionEnabled: config.loggingSettings.reactionLogEnabled,
       timeoutDmText: config.moderationSettings.timeoutDmText,
       timeoutCommandDmEnabled:
         config.moderationSettings.timeoutCommandDmEnabled,

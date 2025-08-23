@@ -159,6 +159,8 @@ export const guildConfigsInAppPublic = appPublic.table(
     logModEnabled: boolean("log_mod_enabled").default(true).notNull(),
     logMember: bigint("log_member", { mode: "bigint" }),
     logMemberEnabled: boolean("log_member_enabled").default(true).notNull(),
+    logReaction: bigint("log_reaction", { mode: "bigint" }),
+    logReactionEnabled: boolean("log_reaction_enabled").default(true).notNull(),
 
     // Moderation action default behavior
     timeoutDmText: text("timeout_dm_text"),
@@ -831,5 +833,24 @@ export const botEmojisInAppPublic = appPublic.table(
       "btree",
       table.name.asc().nullsLast().op("text_ops"),
     ),
+  ],
+);
+
+export const reactionStartersInAppPublic = appPublic.table(
+  "reaction_starters",
+  {
+    messageId: bigint("message_id", { mode: "bigint" }).notNull(),
+    emoji: text().notNull(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ 
+      columns: [table.messageId, table.emoji], 
+      name: "reaction_starters_pkey" 
+    }),
+    index("reaction_starters_guild_idx").on(table.guildId),
+    index("reaction_starters_created_at_idx").on(table.createdAt),
   ],
 );

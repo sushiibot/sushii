@@ -17,6 +17,7 @@ import { setupMemberEventsFeature } from "@/features/member-events/setup";
 import { setupMessageLog } from "@/features/message-log/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
+import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
 import { setupRoleMenuFeature } from "@/features/role-menu/setup";
 import { setupSocialFeature } from "@/features/social/setup";
@@ -146,6 +147,15 @@ export function registerFeatures(
     logger.child({ component: "MessageLogFeature" }),
   );
 
+  // Reaction log feature
+  const reactionLogFeature = setupReactionLog(
+    db,
+    client,
+    guildSettingsFeature.services.guildConfigurationRepository,
+    deploymentService,
+    logger.child({ component: "ReactionLogFeature" }),
+  );
+
   // Register commands and handlers on interaction router
   interactionRouter.addCommands(
     ...levelingFeature.commands,
@@ -221,6 +231,7 @@ export function registerFeatures(
     ...legacyAuditLogsFeature.eventHandlers,
     ...emojiStatsFeature.eventHandlers,
     ...messageLogFeature.eventHandlers,
+    ...reactionLogFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -323,6 +334,7 @@ export function registerFeatures(
     ...moderationFeature.tasks,
     ...emojiStatsFeature.tasks,
     ...messageLogFeature.tasks,
+    ...reactionLogFeature.tasks,
     ...statsFeature.tasks,
     ...remindersFeature.tasks,
   ];
