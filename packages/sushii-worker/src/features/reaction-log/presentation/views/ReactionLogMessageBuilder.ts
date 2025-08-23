@@ -60,13 +60,13 @@ export function createReactionLogMessage(
 function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
   const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
 
-  let content = "### 📊 Reaction Activity\n";
+  let content = "### Reaction Activity\n";
   content += `**Message:** ${messageLink}\n`;
 
   // Add spam detection warning if applicable
   const hasSpamPattern = hasQuickTogglePattern(batch.actions);
   if (hasSpamPattern) {
-    content += "⚠️ **Potential rapid toggling detected**\n";
+    content += "⚠️ **Repeated reaction multiple times**\n";
   }
 
   return new TextDisplayBuilder().setContent(content);
