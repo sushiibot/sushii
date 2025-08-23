@@ -584,6 +584,47 @@ export const roleMenuRolesInAppPublic = appPublic.table(
   ],
 );
 
+export const roleMenuMessagesInAppPublic = appPublic.table(
+  "role_menu_messages",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    menuName: text("menu_name").notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    messageId: bigint("message_id", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "string" })
+      .defaultNow()
+      .notNull(),
+    needsUpdate: boolean("needs_update").default(false).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.guildId, table.menuName],
+      foreignColumns: [
+        roleMenusInAppPublic.guildId,
+        roleMenusInAppPublic.menuName,
+      ],
+      name: "role_menu_messages_guild_id_menu_name_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    index("idx_role_menu_messages_lookup").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.menuName.asc().nullsLast().op("text_ops"),
+    ),
+    primaryKey({
+      columns: [table.guildId, table.menuName, table.messageId],
+      name: "role_menu_messages_pkey",
+    }),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
 export const emojiStickerStatsInAppPublic = appPublic.table(
   "emoji_sticker_stats",
   {

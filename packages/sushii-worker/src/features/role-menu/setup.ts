@@ -8,6 +8,7 @@ import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 import {
   RoleMenuInteractionService,
   RoleMenuManagementService,
+  RoleMenuMessageService,
   RoleMenuRoleService,
 } from "./application";
 import { DrizzleRoleMenuRepository } from "./infrastructure/repositories/DrizzleRoleMenuRepository";
@@ -48,11 +49,17 @@ export function createRoleMenuServices({ db, logger }: RoleMenuDependencies) {
     logger.child({ module: "roleMenuInteractionService" }),
   );
 
+  const roleMenuMessageService = new RoleMenuMessageService(
+    roleMenuRepository,
+    logger.child({ module: "roleMenuMessageService" }),
+  );
+
   return {
     roleMenuRepository,
     roleMenuManagementService,
     roleMenuRoleService,
     roleMenuInteractionService,
+    roleMenuMessageService,
   };
 }
 
@@ -64,11 +71,13 @@ export function createRoleMenuCommands(
     roleMenuManagementService,
     roleMenuRoleService,
     roleMenuInteractionService,
+    roleMenuMessageService,
   } = services;
 
   const roleMenuCreateCommand = new RoleMenuCreateCommand(
     roleMenuManagementService,
     roleMenuRoleService,
+    roleMenuMessageService,
     logger.child({ command: "rolemenu.create" }),
   );
 
@@ -76,6 +85,7 @@ export function createRoleMenuCommands(
     new RoleMenuCommand(
       roleMenuManagementService,
       roleMenuRoleService,
+      roleMenuMessageService,
       roleMenuCreateCommand,
       logger.child({ commandHandler: "rolemenu" }),
     ),
@@ -91,6 +101,8 @@ export function createRoleMenuCommands(
   const buttonHandlers = [
     new RoleMenuButtonHandler(
       roleMenuInteractionService,
+      roleMenuManagementService,
+      roleMenuRoleService,
       logger.child({ buttonHandler: "rolemenu" }),
     ),
   ];
@@ -98,6 +110,8 @@ export function createRoleMenuCommands(
   const selectMenuHandlers = [
     new RoleMenuSelectMenuHandler(
       roleMenuInteractionService,
+      roleMenuManagementService,
+      roleMenuRoleService,
       logger.child({ selectMenuHandler: "rolemenu" }),
     ),
   ];

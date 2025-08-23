@@ -85,6 +85,13 @@
       "when": 1755493608609,
       "tag": "0011_add-bot-emojis-table",
       "breakpoints": false
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1755905456372,
+      "tag": "0012_add-role-menu-messages",
+      "breakpoints": false
     }
   ]
 }

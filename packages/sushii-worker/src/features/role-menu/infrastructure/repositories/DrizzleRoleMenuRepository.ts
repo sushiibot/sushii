@@ -5,6 +5,7 @@ import { None, type Option, Some } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 import {
+  roleMenuMessagesInAppPublic,
   roleMenuRolesInAppPublic,
   roleMenusInAppPublic,
 } from "@/infrastructure/database/schema";
@@ -14,6 +15,10 @@ import type {
   RoleMenu,
   UpdateRoleMenuRequest,
 } from "../../domain/entities/RoleMenu";
+import type {
+  CreateRoleMenuMessageRequest,
+  RoleMenuMessage,
+} from "../../domain/entities/RoleMenuMessage";
 import type {
   RoleMenuRole,
   UpdateRoleMenuRoleRequest,
@@ -283,6 +288,151 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
           eq(roleMenuRolesInAppPublic.guildId, BigInt(request.guildId)),
           eq(roleMenuRolesInAppPublic.menuName, request.menuName),
           eq(roleMenuRolesInAppPublic.roleId, BigInt(request.roleId)),
+        ),
+      );
+  }
+
+  // Message tracking methods
+  async trackMessage(request: CreateRoleMenuMessageRequest): Promise<void> {
+    this.logger.debug(
+      {
+        guildId: request.guildId,
+        menuName: request.menuName,
+        messageId: request.messageId,
+      },
+      "Tracking role menu message",
+    );
+
+    await this.db.insert(roleMenuMessagesInAppPublic).values({
+      guildId: BigInt(request.guildId),
+      menuName: request.menuName,
+      channelId: BigInt(request.channelId),
+      messageId: BigInt(request.messageId),
+    });
+  }
+
+  async getActiveMessages(
+    guildId: string,
+    menuName: string,
+  ): Promise<RoleMenuMessage[]> {
+    this.logger.debug(
+      { guildId, menuName },
+      "Getting active messages for menu",
+    );
+
+    const results = await this.db
+      .select()
+      .from(roleMenuMessagesInAppPublic)
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
+        ),
+      )
+      .orderBy(roleMenuMessagesInAppPublic.createdAt);
+
+    return results.map((message) => ({
+      guildId: message.guildId.toString(),
+      menuName: message.menuName,
+      channelId: message.channelId.toString(),
+      messageId: message.messageId.toString(),
+      createdAt: new Date(message.createdAt),
+      needsUpdate: message.needsUpdate,
+    }));
+  }
+
+  async countActiveMessages(
+    guildId: string,
+    menuName: string,
+  ): Promise<number> {
+    this.logger.debug(
+      { guildId, menuName },
+      "Counting active messages for menu",
+    );
+
+    const result = await this.db
+      .select()
+      .from(roleMenuMessagesInAppPublic)
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
+        ),
+      );
+
+    return result.length;
+  }
+
+  async markMessagesNeedUpdate(
+    guildId: string,
+    menuName: string,
+  ): Promise<void> {
+    this.logger.debug(
+      { guildId, menuName },
+      "Marking messages as needing update",
+    );
+
+    await this.db
+      .update(roleMenuMessagesInAppPublic)
+      .set({ needsUpdate: true })
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
+        ),
+      );
+  }
+
+  async markMessagesUpdated(
+    guildId: string,
+    menuName: string,
+  ): Promise<void> {
+    this.logger.debug(
+      { guildId, menuName },
+      "Marking messages as updated (clearing needs update flag)",
+    );
+
+    await this.db
+      .update(roleMenuMessagesInAppPublic)
+      .set({ needsUpdate: false })
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
+        ),
+      );
+  }
+
+  async deleteMessage(
+    guildId: string,
+    menuName: string,
+    messageId: string,
+  ): Promise<void> {
+    this.logger.debug(
+      { guildId, menuName, messageId },
+      "Deleting tracked message",
+    );
+
+    await this.db
+      .delete(roleMenuMessagesInAppPublic)
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
+          eq(roleMenuMessagesInAppPublic.messageId, BigInt(messageId)),
+        ),
+      );
+  }
+
+  async deleteAllMessages(guildId: string, menuName: string): Promise<void> {
+    this.logger.debug({ guildId, menuName }, "Deleting all tracked messages");
+
+    await this.db
+      .delete(roleMenuMessagesInAppPublic)
+      .where(
+        and(
+          eq(roleMenuMessagesInAppPublic.guildId, BigInt(guildId)),
+          eq(roleMenuMessagesInAppPublic.menuName, menuName),
         ),
       );
   }

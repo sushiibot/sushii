@@ -12,9 +12,8 @@ interface MenuRoleData {
   label: string;
 }
 
-// TODO: This parsing approach is brittle and relies on parsing Discord embed content.
-// Consider storing menu metadata in a more reliable way (e.g., database lookup by message ID
-// or encoding data in custom_id fields) to make interactions more robust.
+// LEGACY SUPPORT: These parsing utilities are ONLY used for legacy role menu messages.
+// New role menus use database-driven configuration and throw fatal errors if database is unavailable.
 
 export function getRoleMenuRequiredRole(
   msg: ButtonInteraction["message"],

@@ -15,14 +15,15 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import customIds from "@/interactions/customIds";
 import { interactionReplyErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
+import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
+import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
 import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
 
@@ -136,6 +137,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
   constructor(
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
+    private readonly roleMenuMessageService: RoleMenuMessageService,
     private readonly roleMenuCreateCommand: RoleMenuCreateCommand,
     private readonly logger: Logger,
   ) {
@@ -207,6 +209,12 @@ export class RoleMenuCommand extends SlashCommandHandler {
 
     const roles = rolesResult.val;
 
+    // Get active menus for this specific menu
+    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+      interaction.guildId,
+      name,
+    );
+
     // Create read-only builder message
     const builderMessage = createRoleMenuBuilderMessage({
       menu,
@@ -220,6 +228,54 @@ export class RoleMenuCommand extends SlashCommandHandler {
         readOnly: true,
       },
     });
+
+    // Add active menu information if any exist
+    if (activeMessages.length > 0) {
+      const needsUpdateCount = activeMessages.filter(
+        (m) => m.needsUpdate,
+      ).length;
+      const links = activeMessages.map(
+        (msg) =>
+          `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId} ${msg.needsUpdate ? "⚠️" : "✅"}`,
+      );
+
+      const statusText =
+        needsUpdateCount === 0
+          ? `📍 **Active Menus:** ${activeMessages.length} total`
+          : `📍 **Active Menus:** ${activeMessages.length} total (${needsUpdateCount} need updates)`;
+
+      const activeMenuEmbed = new EmbedBuilder()
+        .setTitle(statusText)
+        .setDescription(links.join("\n"))
+        .setColor(needsUpdateCount > 0 ? Color.Warning : Color.Success);
+
+      // Add update button if needed
+      const components = [];
+      if (needsUpdateCount > 0) {
+        const updateButton = new ButtonBuilder()
+          .setCustomId(`update_outdated_menus:${name}`)
+          .setLabel("Update Outdated Menus")
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji("🔄");
+
+        components.push(
+          new ActionRowBuilder<ButtonBuilder>().addComponents(updateButton),
+        );
+      }
+
+      if (builderMessage.embeds) {
+        builderMessage.embeds = [
+          ...builderMessage.embeds,
+          activeMenuEmbed.toJSON(),
+        ];
+      }
+      if (components.length > 0 && builderMessage.components) {
+        builderMessage.components = [
+          ...builderMessage.components,
+          ...components.map((c) => c.toJSON()),
+        ];
+      }
+    }
 
     await interaction.reply(builderMessage);
   }
@@ -238,11 +294,34 @@ export class RoleMenuCommand extends SlashCommandHandler {
       return;
     }
 
+    // Get active menu status
+    const activeMenusStatus =
+      await this.roleMenuMessageService.getActiveMenusWithStatus(
+        interaction.guildId,
+      );
+
+    const menuDescriptions = menus.map((menu) => {
+      const status = activeMenusStatus.get(menu.menuName);
+      if (!status || status.count === 0) {
+        return `• **${menu.menuName}** - No active menus`;
+      }
+
+      if (status.needsUpdate === 0) {
+        return `• **${menu.menuName}** - ${status.count} active ✅`;
+      }
+
+      if (status.count >= 5) {
+        return `• **${menu.menuName}** - ${status.count} active (${status.needsUpdate} need updates) ⚠️ (at limit)`;
+      }
+
+      return `• **${menu.menuName}** - ${status.count} active (${status.needsUpdate} need updates)`;
+    });
+
     await interaction.reply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("All role menus")
-          .setDescription(menus.map((n) => n.menuName).join("\n"))
+          .setTitle("📋 Your Role Menus")
+          .setDescription(menuDescriptions.join("\n"))
           .setColor(Color.Success)
           .toJSON(),
       ],
@@ -263,6 +342,64 @@ export class RoleMenuCommand extends SlashCommandHandler {
       throw new Error("No name provided.");
     }
 
+    // Check if menu exists first
+    const menuResult = await this.roleMenuManagementService.getMenu(
+      interaction.guildId,
+      name,
+    );
+
+    if (menuResult.err) {
+      await interaction.reply({
+        content: menuResult.val,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Get active messages for confirmation
+    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+      interaction.guildId,
+      name,
+    );
+
+    if (activeMessages.length > 0) {
+      const links = activeMessages.map(
+        (msg) =>
+          `• https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId}`,
+      );
+
+      const confirmButton = new ButtonBuilder()
+        .setCustomId(`confirm_delete_menu:${name}`)
+        .setLabel("Delete menu and remove all")
+        .setStyle(ButtonStyle.Danger);
+
+      const cancelButton = new ButtonBuilder()
+        .setCustomId(`cancel_delete_menu:${name}`)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary);
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        confirmButton,
+        cancelButton,
+      );
+
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("⚠️ Delete Confirmation")
+            .setDescription(
+              `This will delete "${name}" and remove ${activeMessages.length} active menus:\n${links.join("\n")}`,
+            )
+            .setColor(Color.Warning)
+            .toJSON(),
+        ],
+        components: [row.toJSON()],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // No active messages, proceed with deletion
     const result = await this.roleMenuManagementService.deleteMenu(
       interaction.guildId,
       name,
@@ -280,6 +417,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
       embeds: [
         new EmbedBuilder()
           .setTitle("Deleted role menu")
+          .setDescription(`Menu "${name}" has been deleted.`)
           .setColor(Color.Success)
           .toJSON(),
       ],
@@ -345,6 +483,25 @@ export class RoleMenuCommand extends SlashCommandHandler {
       return;
     }
 
+    // Check if we've hit the limit of 5 active menus
+    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+      interaction.guildId,
+      name,
+    );
+
+    if (activeMessages.length >= 5) {
+      const links = activeMessages.map(
+        (msg) =>
+          `• https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId}`,
+      );
+
+      await interactionReplyErrorMessage(
+        interaction,
+        `❌ This menu already has 5 active copies (maximum).\nRemove an existing one first:\n${links.join("\n")}`,
+      );
+      return;
+    }
+
     // Get guild role names
     const guildRoles = Array.from(interaction.guild.roles.cache.values());
     const guildRolesMap = guildRoles.reduce((map, role) => {
@@ -392,7 +549,9 @@ export class RoleMenuCommand extends SlashCommandHandler {
 
       for (const { roleId, emoji } of roles) {
         let button = new ButtonBuilder()
-          .setCustomId(customIds.roleMenuButton.compile({ roleId }))
+          .setCustomId(
+            roleMenuCustomIds.button.compile({ menuName: name, roleId }),
+          )
           .setLabel(guildRolesMap.get(roleId)?.name || roleId)
           .setStyle(ButtonStyle.Secondary);
 
@@ -448,7 +607,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
 
       const selectMenu = new StringSelectMenuBuilder()
         .setPlaceholder("Select your roles!")
-        .setCustomId(customIds.roleMenuSelect.compile())
+        .setCustomId(roleMenuCustomIds.select.compile({ menuName: name }))
         .addOptions(selectOptions)
         .setMaxValues(menu.maxCount || roles.length)
         .setMinValues(0); // Allow clearing all roles
@@ -460,10 +619,26 @@ export class RoleMenuCommand extends SlashCommandHandler {
     }
 
     try {
-      await sendChannel.send({
+      const sentMessage = await sendChannel.send({
         embeds: [embed.toJSON()],
         components,
       });
+
+      // Track the sent message
+      const trackResult = await this.roleMenuMessageService.trackSentMenu(
+        interaction.guildId,
+        name,
+        sendChannel.id,
+        sentMessage.id,
+      );
+
+      if (trackResult.err) {
+        this.logger.warn(
+          { err: trackResult.val, messageId: sentMessage.id },
+          "Failed to track sent menu message",
+        );
+        // Don't fail the command, just warn
+      }
     } catch (err) {
       this.logger.error({ err }, "Error sending role menu message");
       if (err instanceof DiscordAPIError) {

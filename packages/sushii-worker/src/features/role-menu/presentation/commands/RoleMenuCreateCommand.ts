@@ -1,29 +1,46 @@
 import { sleep } from "bun";
 import type {
+  APIEmbed,
   ButtonInteraction,
   ChatInputCommandInteraction,
+  Guild,
+  JSONEncodable,
+  MessageActionRowComponentBuilder,
   MessageComponentInteraction,
   ModalMessageModalSubmitInteraction,
+  Role,
   RoleSelectMenuInteraction,
+  TextChannel,
 } from "discord.js";
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
 import type { Logger } from "pino";
 
 import parseEmoji from "@/utils/parseEmoji";
+import Color from "@/utils/colors";
+import { Err, Ok, type Result } from "ts-results";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
+import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
+import type { RoleMenu } from "../../domain/entities/RoleMenu";
+import type { RoleMenuRole } from "../../domain/entities/RoleMenuRole";
 import {
   ROLE_MENU_BUILDER_CUSTOM_IDS,
   ROLE_MENU_BUILDER_INPUTS,
   ROLE_MENU_BUILDER_MODALS,
 } from "../views/RoleMenuBuilderConstants";
+import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
 
 enum RoleMenuOption {
@@ -46,23 +63,34 @@ export class RoleMenuCreateCommand {
   constructor(
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
+    private readonly roleMenuMessageService: RoleMenuMessageService,
     private readonly logger: Logger,
   ) {}
 
-  private async getMenuData(guildId: string, menuName: string) {
+  private async getMenuData(
+    guildId: string,
+    menuName: string,
+  ): Promise<Result<{ menu: RoleMenu; roles: RoleMenuRole[] }, string>> {
     const menuResult = await this.roleMenuManagementService.getMenu(
       guildId,
       menuName,
     );
+    if (menuResult.err) {
+      return Err(menuResult.val);
+    }
+
     const rolesResult = await this.roleMenuRoleService.getRoles(
       guildId,
       menuName,
     );
+    if (rolesResult.err) {
+      return Err(rolesResult.val);
+    }
 
-    return {
-      menu: menuResult.ok ? menuResult.val : null,
-      roles: rolesResult.ok ? rolesResult.val : [],
-    };
+    return Ok({
+      menu: menuResult.val,
+      roles: rolesResult.val,
+    });
   }
 
   private async validateSession(
@@ -134,10 +162,18 @@ export class RoleMenuCreateCommand {
       }
 
       // Get menu and roles data
-      const { menu, roles } = await this.getMenuData(
+      const menuDataResult = await this.getMenuData(
         interaction.guildId,
         menuName,
       );
+      if (menuDataResult.err) {
+        await interaction.reply({
+          content: menuDataResult.val,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      const { menu, roles } = menuDataResult.val;
 
       // Create initial builder message
       const builderMessage = createRoleMenuBuilderMessage({
@@ -205,8 +241,17 @@ export class RoleMenuCreateCommand {
       collector.on("end", async () => {
         try {
           // Get current state
-          const { menu: currentMenu, roles: currentRoles } =
-            await this.getMenuData(interaction.guildId, menuName);
+          const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+          if (menuDataResult.err) {
+            // Menu was deleted while editing - show a simple disabled message
+            await interaction.editReply({
+              content: "⏰ **Menu builder session expired**\nThis menu may have been deleted or is no longer accessible.",
+              embeds: [],
+              components: [],
+            });
+            return;
+          }
+          const { menu: currentMenu, roles: currentRoles } = menuDataResult.val;
 
           // Create disabled message with expiration notice
           const disabledMessage = createRoleMenuBuilderMessage({
@@ -272,6 +317,8 @@ export class RoleMenuCreateCommand {
         return this.handleEditDescriptionButton(interaction, menuName, isEdit);
       case ROLE_MENU_BUILDER_CUSTOM_IDS.SET_MAX_ROLES:
         return this.handleSetMaxRolesButton(interaction, menuName, isEdit);
+      case ROLE_MENU_BUILDER_CUSTOM_IDS.FINISH_AND_UPDATE:
+        return this.handleFinishAndUpdateButton(interaction, menuName, isEdit);
       default:
         // Handle role edit buttons (format: edit_role_options:roleId)
         if (
@@ -312,8 +359,15 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current description
-    const { menu } = await this.getMenuData(interaction.guildId, menuName);
-    const currentDescription = menu?.description || "";
+    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    if (menuDataResult.err) {
+      await interaction.reply({
+        content: menuDataResult.val,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const currentDescription = menuDataResult.val.menu.description || "";
 
     // Create modal
     const modal = new ModalBuilder()
@@ -369,8 +423,15 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current max roles
-    const { menu } = await this.getMenuData(interaction.guildId, menuName);
-    const currentMaxRoles = menu?.maxCount?.toString() || "";
+    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    if (menuDataResult.err) {
+      await interaction.reply({
+        content: menuDataResult.val,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const currentMaxRoles = menuDataResult.val.menu.maxCount?.toString() || "";
 
     // Create modal
     const modal = new ModalBuilder()
@@ -434,6 +495,108 @@ export class RoleMenuCreateCommand {
     }
   }
 
+  private async handleFinishAndUpdateButton(
+    interaction: ButtonInteraction<"cached">,
+    menuName: string,
+    isEdit: boolean,
+  ): Promise<void> {
+    // Get active messages for this menu
+    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+      interaction.guildId,
+      menuName,
+    );
+
+    if (activeMessages.length === 0) {
+      await interaction.reply({
+        content: "No active menus to update!",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // Defer the reply as updating can take time
+    await interaction.deferReply({ ephemeral: true });
+
+    // Get current menu data to build the message content
+    // const { menu, roles } = await this.getMenuData(interaction.guildId, menuName);
+
+    // Build the new message content (same logic as in RoleMenuCommand.sendHandler)
+    // For now, we'll delegate to the service to handle the actual updating
+    if (!interaction.channel?.isTextBased()) {
+      await interaction.editReply({
+        content: "This command must be used in a text channel.",
+      });
+      return;
+    }
+
+    // Build the updated menu content for both button and select menu formats
+    const menuContent = await this.buildMenuContent(
+      interaction.guildId,
+      menuName,
+      interaction.guild,
+    );
+
+    if (menuContent.err) {
+      await interaction.editReply({
+        content: `Failed to build menu content: ${menuContent.val}`,
+      });
+      return;
+    }
+
+    const updateResult = await this.roleMenuMessageService.updateActiveMenus(
+      interaction.guildId,
+      menuName,
+      interaction.channel as TextChannel,
+      menuContent.val,
+    );
+
+    if (updateResult.err) {
+      await interaction.editReply({
+        content: `Failed to update active menus: ${updateResult.val}`,
+      });
+      return;
+    }
+
+    // End the editing session
+    const sessionKey = `${interaction.guildId}:${menuName}`;
+    this.activeSessions.delete(sessionKey);
+
+    // Disable the builder components
+    const menuDataResult = await this.getMenuData(
+      interaction.guildId,
+      menuName,
+    );
+    if (menuDataResult.err) {
+      // Menu was deleted during editing - show simple completion message
+      await interaction.editReply({
+        content: "✅ **Menu update completed**\nThe menu may have been deleted during editing.",
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    const { menu: currentMenu, roles: currentRoles } = menuDataResult.val;
+
+    const disabledMessage = createRoleMenuBuilderMessage({
+      menu: currentMenu,
+      roles: currentRoles,
+      guild: interaction.guild,
+      state: {
+        guildId: interaction.guildId,
+        menuName,
+        disabled: true,
+        expired: true,
+        isEdit,
+      },
+    });
+
+    await interaction.message.edit(disabledMessage);
+
+    await interaction.editReply({
+      content: `✅ Updated ${updateResult.val} active menus successfully!`,
+    });
+  }
+
   private async handleEditRoleOptionsButton(
     interaction: ButtonInteraction<"cached">,
     menuName: string,
@@ -441,8 +604,15 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current role options
-    const { roles } = await this.getMenuData(interaction.guildId, menuName);
-    const role = roles.find((r) => r.roleId === roleId);
+    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    if (menuDataResult.err) {
+      await interaction.reply({
+        content: menuDataResult.val,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const role = menuDataResult.val.roles.find((r) => r.roleId === roleId);
     if (!role) {
       await interaction.reply({
         content: `Role <@&${roleId}> isn't in this menu yet. Use the role selector below to add it first, then you can edit its options.`,
@@ -584,10 +754,51 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get updated data
-    const { menu, roles } = await this.getMenuData(
+    const menuDataResult = await this.getMenuData(
       interaction.guildId,
       menuName,
     );
+    if (menuDataResult.err) {
+      await interaction.reply({
+        content: menuDataResult.val,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const { menu, roles } = menuDataResult.val;
+
+    // Mark active menus as needing update when editing
+    if (isEdit) {
+      try {
+        await this.roleMenuMessageService.markMenuNeedsUpdate(
+          interaction.guildId,
+          menuName,
+        );
+      } catch (error) {
+        this.logger.warn(
+          { err: error, guildId: interaction.guildId, menuName },
+          "Failed to mark menu as needing update",
+        );
+        // Don't fail the refresh, just log the warning
+      }
+    }
+
+    // Get active menu count for display
+    let activeMenuCount = 0;
+    if (isEdit) {
+      try {
+        const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+          interaction.guildId,
+          menuName,
+        );
+        activeMenuCount = activeMessages.length;
+      } catch (error) {
+        this.logger.warn(
+          { err: error, guildId: interaction.guildId, menuName },
+          "Failed to get active menu count for builder",
+        );
+      }
+    }
 
     // Create updated message
     const updatedMessage = createRoleMenuBuilderMessage({
@@ -600,6 +811,7 @@ export class RoleMenuCreateCommand {
         disabled: false,
         expired: false,
         isEdit,
+        activeMenuCount,
       },
     });
 
@@ -633,5 +845,153 @@ export class RoleMenuCreateCommand {
         "Cleaned up stale role menu sessions",
       );
     }
+  }
+
+  private async buildMenuContent(
+    guildId: string,
+    menuName: string,
+    guild: Guild,
+  ): Promise<Result<{
+    embeds: (APIEmbed | JSONEncodable<APIEmbed>)[];
+    components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
+  }, string>> {
+    // Get menu from database
+    const menuResult = await this.roleMenuManagementService.getMenu(
+      guildId,
+      menuName,
+    );
+    if (menuResult.err) {
+      return Err(menuResult.val);
+    }
+
+    const menu = menuResult.val;
+
+    // Get roles for the menu
+    const rolesResult = await this.roleMenuRoleService.getRoles(
+      guildId,
+      menuName,
+    );
+    if (rolesResult.err) {
+      return Err(rolesResult.val);
+    }
+
+    const roles = rolesResult.val;
+
+    if (roles.length === 0) {
+      return Err("This menu has no roles configured.");
+    }
+
+    // Get guild role names
+    const guildRoles = Array.from(guild.roles.cache.values());
+    const guildRolesMap = guildRoles.reduce((map, role) => {
+      if (role) {
+        map.set(role.id, role);
+      }
+      return map;
+    }, new Map<string, Role>());
+
+    // Build embed
+    const fields = [];
+    if (menu.requiredRole) {
+      fields.push({
+        name: "Required role",
+        value: `<@&${menu.requiredRole}>`,
+      });
+    }
+
+    if (menu.maxCount) {
+      fields.push({
+        name: "Maximum roles you can pick",
+        value: menu.maxCount.toString(),
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(menuName)
+      .setDescription(menu.description || null)
+      .setFields(fields)
+      .setColor(Color.Info);
+
+    // Build components for both button and select menu formats
+    const buttonComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+    const selectComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+    // Build button components
+    let buttonRow = new ActionRowBuilder<ButtonBuilder>();
+    for (const { roleId, emoji } of roles) {
+      let button = new ButtonBuilder()
+        .setCustomId(
+          roleMenuCustomIds.button.compile({ menuName, roleId }),
+        )
+        .setLabel(guildRolesMap.get(roleId)?.name || roleId)
+        .setStyle(ButtonStyle.Secondary);
+
+      const parsedEmoji = emoji ? parseEmoji(emoji) : null;
+      if (parsedEmoji) {
+        button = button.setEmoji({
+          id: parsedEmoji.emoji.id || undefined,
+          animated: parsedEmoji.emoji.animated,
+          name: parsedEmoji.emoji.name || undefined,
+        });
+      }
+
+      // Row full, push to component rows list
+      if (buttonRow.components.length === 5) {
+        buttonComponents.push(buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+        buttonRow = new ActionRowBuilder<ButtonBuilder>();
+      }
+
+      buttonRow = buttonRow.addComponents([button]);
+    }
+
+    // Add any remaining buttons
+    if (buttonRow.components.length > 0) {
+      buttonComponents.push(buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+    }
+
+    // Build select menu components
+    const selectOptions = [];
+    for (const { roleId, emoji, description } of roles) {
+      let option = new StringSelectMenuOptionBuilder()
+        .setValue(roleId)
+        .setLabel(guildRolesMap.get(roleId)?.name || roleId);
+
+      const parsedEmoji = emoji ? parseEmoji(emoji) : null;
+      if (parsedEmoji) {
+        option = option.setEmoji({
+          id: parsedEmoji.emoji.id || undefined,
+          animated: parsedEmoji.emoji.animated,
+          name: parsedEmoji.emoji.name || undefined,
+        });
+      }
+
+      if (description) {
+        option = option.setDescription(description);
+      }
+
+      selectOptions.push(option);
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setPlaceholder("Select your roles!")
+      .setCustomId(roleMenuCustomIds.select.compile({ menuName }))
+      .addOptions(selectOptions)
+      .setMaxValues(menu.maxCount || roles.length)
+      .setMinValues(0);
+
+    const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
+      .addComponents([selectMenu]);
+    selectComponents.push(selectRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+
+    // Set footer based on available interaction types
+    embed.setFooter({
+      text: "Click buttons or use the select menu to manage your roles",
+    });
+
+    // Return content with both button and select menu components for maximum compatibility
+    return Ok({
+      embeds: [embed.toJSON()],
+      components: [...buttonComponents, ...selectComponents],
+    });
   }
 }

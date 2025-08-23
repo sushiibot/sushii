@@ -89,6 +89,27 @@ export function createRoleMenuBuilderMessage(
     }
   }
 
+  // Finish & Update section for editing with active menus
+  if (!state.readOnly && state.isEdit && state.activeMenuCount && state.activeMenuCount > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `📍 ${state.activeMenuCount} active menus will be updated when you finish`,
+      ),
+    );
+
+    const finishButton = new ButtonBuilder()
+      .setCustomId(ROLE_MENU_BUILDER_CUSTOM_IDS.FINISH_AND_UPDATE)
+      .setLabel("Finish & Update Menus 🔄")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(state.disabled);
+
+    const finishButtonRow = new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(finishButton);
+    
+    container.addActionRowComponents(finishButtonRow);
+  }
+
   // Expiration notice if expired
   if (state.expired) {
     container.addSeparatorComponents(new SeparatorBuilder());
