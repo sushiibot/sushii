@@ -49,7 +49,11 @@ function createLogSection(
     }
   }
 
-  const content = formatToggleSetting(config.title, config.enabled, description);
+  const content = formatToggleSetting(
+    config.title,
+    config.enabled,
+    description,
+  );
   const text = new TextDisplayBuilder().setContent(content);
   const section = new SectionBuilder()
     .addTextDisplayComponents(text)
@@ -96,7 +100,8 @@ export function addLoggingContent(
       title: "🛡️ Mod Logs",
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
-      baseDescription: "Logs staff actions like bans, kicks, timeouts, and warnings",
+      baseDescription:
+        "Logs staff actions like bans, kicks, timeouts, and warnings",
       toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG,
       selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_MOD_LOG,
       selectPlaceholder: "Set mod log channel",

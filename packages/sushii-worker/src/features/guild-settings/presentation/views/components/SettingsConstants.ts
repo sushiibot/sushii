@@ -28,11 +28,11 @@ export const SETTINGS_CUSTOM_IDS = {
     MEMBER_LOG: "settings_toggle_member_log",
     MESSAGE_LOG: "settings_toggle_message_log",
     REACTION_LOG: "settings_toggle_reaction_log",
-    
+
     // Message Toggles
     JOIN_MSG: "settings_toggle_join_msg",
     LEAVE_MSG: "settings_toggle_leave_msg",
-    
+
     // Moderation Toggles
     LOOKUP_OPT_IN: "settings_toggle_lookup_opt_in",
     TIMEOUT_COMMAND_DM: "settings_toggle_timeout_command_dm",
@@ -46,10 +46,10 @@ export const SETTINGS_CUSTOM_IDS = {
     SET_MEMBER_LOG: "settings_set_member_log_channel",
     SET_MESSAGE_LOG: "settings_set_message_log_channel",
     SET_REACTION_LOG: "settings_set_reaction_log_channel",
-    
+
     // Message Channels
     SET_JOIN_LEAVE: "settings_set_join_leave_channel",
-    
+
     // Special Configuration
     MESSAGE_LOG_IGNORE: "settings_msglog_ignore_channels",
   },

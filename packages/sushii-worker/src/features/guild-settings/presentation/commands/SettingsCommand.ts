@@ -399,7 +399,9 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE) {
+    if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE
+    ) {
       const modal = createLeaveMessageModal(
         currentConfig.messageSettings.leaveMessage,
       );
@@ -428,7 +430,9 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT) {
+    if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT
+    ) {
       const modal = createTimeoutDmTextModal(
         currentConfig.moderationSettings.timeoutDmText,
       );
@@ -626,12 +630,16 @@ export default class SettingsCommand extends SlashCommandHandler {
       );
       await this.guildSettingsService.updateTimeoutDmText(guildId, newText);
       targetPage = "moderation";
-    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT) {
+    } else if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT
+    ) {
       const newText =
         interaction.fields.getTextInputValue("warn_dm_text_input");
       await this.guildSettingsService.updateWarnDmText(guildId, newText);
       targetPage = "moderation";
-    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT) {
+    } else if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT
+    ) {
       const newText = interaction.fields.getTextInputValue("ban_dm_text_input");
       await this.guildSettingsService.updateBanDmText(guildId, newText);
       targetPage = "moderation";

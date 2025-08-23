@@ -111,7 +111,7 @@ export class ReactionLogService {
 
       try {
         await textChannel.send(message);
-        
+
         this.logger.debug(
           {
             guildId: batch.guildId,

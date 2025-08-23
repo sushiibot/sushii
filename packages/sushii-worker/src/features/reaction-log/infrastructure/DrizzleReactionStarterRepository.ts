@@ -1,4 +1,4 @@
-import { and, eq, lt, inArray } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -74,7 +74,10 @@ export class DrizzleReactionStarterRepository
     }
   }
 
-  async getBatchStarters(messageId: string, emojis: string[]): Promise<Map<string, string>> {
+  async getBatchStarters(
+    messageId: string,
+    emojis: string[],
+  ): Promise<Map<string, string>> {
     this.logger.trace({ messageId, emojis }, "Getting batch reaction starters");
 
     if (emojis.length === 0) {
@@ -83,9 +86,9 @@ export class DrizzleReactionStarterRepository
 
     try {
       const result = await this.db
-        .select({ 
+        .select({
           emoji: reactionStartersInAppPublic.emoji,
-          userId: reactionStartersInAppPublic.userId
+          userId: reactionStartersInAppPublic.userId,
         })
         .from(reactionStartersInAppPublic)
         .where(
@@ -101,7 +104,11 @@ export class DrizzleReactionStarterRepository
       }
 
       this.logger.trace(
-        { messageId, requestedEmojis: emojis.length, foundStarters: startersMap.size },
+        {
+          messageId,
+          requestedEmojis: emojis.length,
+          foundStarters: startersMap.size,
+        },
         "Retrieved batch reaction starters",
       );
 

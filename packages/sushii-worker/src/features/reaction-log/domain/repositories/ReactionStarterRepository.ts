@@ -21,7 +21,10 @@ export interface ReactionStarterRepository {
    * Returns a Map of emoji -> starter userId for found starters
    * Performance optimization to avoid N+1 queries
    */
-  getBatchStarters(messageId: string, emojis: string[]): Promise<Map<string, string>>;
+  getBatchStarters(
+    messageId: string,
+    emojis: string[],
+  ): Promise<Map<string, string>>;
 
   /**
    * Delete old reaction starter records before the specified date
