@@ -36,6 +36,12 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Uses Drizz
 **Logging Errors**: Always use `{ err: error, ...context }` format with pino
 **Error Context**: Put debugging info in logger context, not error message: `logger.error({ err, userId, guildId }, "Ban failed")`
 
+**Layer-Specific Rules**:
+- **Application Services**: NO try-catch blocks. Let infrastructure errors naturally throw. Use Result<T, string> for business validations only.
+- **Repository/Infrastructure**: Let database/API errors throw naturally. No Result types at this layer.
+- **Presentation**: Handle both Result types (business errors) and catch thrown errors (infrastructure failures) appropriately.
+- **When in doubt**: Business logic failures = Result, Infrastructure failures = throw
+
 ## Layer Structure & Rules
 
 **Domain** (`/domain/`): Pure business logic, entities, interfaces. No external dependencies.
