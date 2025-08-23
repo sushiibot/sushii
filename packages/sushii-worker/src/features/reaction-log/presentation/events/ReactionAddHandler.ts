@@ -49,7 +49,6 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
         timestamp: new Date(),
         // Will be set by processor based on database lookup
         isInitial: false,
-        userName: user.username || undefined,
       };
 
       await this.batchProcessor.queueReactionEvent(event);

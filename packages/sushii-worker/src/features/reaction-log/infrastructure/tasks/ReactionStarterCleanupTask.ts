@@ -10,7 +10,7 @@ export class ReactionStarterCleanupTask extends AbstractBackgroundTask {
   readonly name = "ReactionStarterCleanup";
   readonly cronTime = "0 2 * * *"; // Run daily at 2 AM
 
-  private readonly CLEANUP_DAYS = 30; // Keep data for 30 days
+  private readonly CLEANUP_DAYS = 7; // Keep data for 7 days
 
   constructor(
     client: Client,

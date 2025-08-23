@@ -9,7 +9,6 @@ export interface ReactionEvent {
   type: "add" | "remove";
   timestamp: Date;
   isInitial: boolean; // True if this user started this emoji reaction
-  userName?: string; // Cached username if available
 }
 
 export interface ReactionBatch {

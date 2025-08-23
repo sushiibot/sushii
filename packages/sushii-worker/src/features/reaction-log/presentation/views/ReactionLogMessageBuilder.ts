@@ -60,8 +60,8 @@ export function createReactionLogMessage(
 function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
   const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
 
-  let content = "### 📊 **Reaction Activity**\n";
-  content += `**Message:** [Jump to message](${messageLink})\n`;
+  let content = "### 📊 Reaction Activity\n";
+  content += `**Message:** ${messageLink}\n`;
 
   // Add spam detection warning if applicable
   const hasSpamPattern = hasQuickTogglePattern(batch.actions);
@@ -75,7 +75,7 @@ function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
 function buildAddedReactionsSection(
   addGroups: EmojiGroup[],
 ): TextDisplayBuilder {
-  let content = "### ✅ **Added Reactions**\n";
+  let content = "### Added Reactions\n";
 
   for (const group of addGroups) {
     const groupContent = formatEmojiGroup(group, "add");
@@ -88,7 +88,7 @@ function buildAddedReactionsSection(
 function buildRemovedReactionsSection(
   removeGroups: EmojiGroup[],
 ): TextDisplayBuilder {
-  let content = "### ❌ **Removed Reactions**\n";
+  let content = "### Removed Reactions\n";
 
   for (const group of removeGroups) {
     const groupContent = formatEmojiGroup(group, "remove");
@@ -100,13 +100,13 @@ function buildRemovedReactionsSection(
 
 function buildTimeInfoSection(batch: ReactionBatch): TextDisplayBuilder {
   const endTime = new Date();
-  const startTime = batch.startTime.toLocaleTimeString();
-  const endTimeStr = endTime.toLocaleTimeString();
+  const startTime = batch.startTime.getTime() / 1000;
+  const endTimeStr = endTime.getTime() / 1000;
 
   const timeInfo =
     startTime !== endTimeStr
-      ? `**Time Range:** ${startTime} - ${endTimeStr}`
-      : `**Time:** ${startTime}`;
+      ? `<t:${startTime}:f> – <t:${endTimeStr}:f>`
+      : `<t:${startTime}:f>`;
 
   return new TextDisplayBuilder().setContent(timeInfo);
 }
@@ -163,6 +163,7 @@ function getOrCreateEmojiGroup(
   if (!group) {
     throw new Error(`Emoji group not found for emoji: ${emoji}`);
   }
+
   return group;
 }
 
@@ -171,7 +172,7 @@ function formatEmojiGroup(group: EmojiGroup, type: "add" | "remove"): string {
   if (reactions.length === 0) return "";
 
   const formattedUsers = formatReactionUsers(reactions, type === "add");
-  return `• ${group.emoji} ${formattedUsers}`;
+  return `- ${group.emoji} ${formattedUsers}`;
 }
 
 function formatReactionUsers(
@@ -182,8 +183,7 @@ function formatReactionUsers(
   const others = reactions.filter((action) => !action.isInitial);
 
   const formatUser = (action: ReactionEvent, isStarter = false): string => {
-    const username = action.userName || `<@${action.userId}>`;
-    return isStarter ? `**${username}** *(starter)*` : username;
+    return isStarter ? `<@${action.userId}> (starter)` : `<@${action.userId}>`;
   };
 
   const userStrings: string[] = [];
