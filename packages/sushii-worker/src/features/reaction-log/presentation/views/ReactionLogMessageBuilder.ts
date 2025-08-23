@@ -126,7 +126,9 @@ function getReactionLogColor(actions: ReactionEvent[]): number {
 }
 
 interface EmojiGroup {
-  emoji: string;
+  emojiString: string;
+  emojiId?: string;
+  emojiName?: string;
   adds: ReactionEvent[];
   removes: ReactionEvent[];
 }
@@ -135,7 +137,7 @@ function groupByEmoji(actions: ReactionEvent[]): EmojiGroup[] {
   const emojiMap = new Map<string, EmojiGroup>();
 
   for (const action of actions) {
-    const group = getOrCreateEmojiGroup(emojiMap, action.emoji);
+    const group = getOrCreateEmojiGroup(emojiMap, action);
 
     if (action.type === "add") {
       group.adds.push(action);
@@ -149,30 +151,46 @@ function groupByEmoji(actions: ReactionEvent[]): EmojiGroup[] {
 
 function getOrCreateEmojiGroup(
   emojiMap: Map<string, EmojiGroup>,
-  emoji: string,
+  action: ReactionEvent,
 ): EmojiGroup {
-  if (!emojiMap.has(emoji)) {
-    emojiMap.set(emoji, {
-      emoji,
+  if (!emojiMap.has(action.emojiString)) {
+    emojiMap.set(action.emojiString, {
+      emojiString: action.emojiString,
+      emojiId: action.emojiId,
+      emojiName: action.emojiName,
       adds: [],
       removes: [],
     });
   }
 
-  const group = emojiMap.get(emoji);
+  const group = emojiMap.get(action.emojiString);
   if (!group) {
-    throw new Error(`Emoji group not found for emoji: ${emoji}`);
+    throw new Error(`Emoji group not found for emoji: ${action.emojiString}`);
   }
 
   return group;
+}
+
+function formatEmojiWithUrl(group: EmojiGroup): string {
+  // For custom emojis, include the ID and image URL
+  if (group.emojiId && group.emojiName) {
+    const isAnimated = group.emojiString.startsWith("<a:");
+    const extension = isAnimated ? "gif" : "png";
+    const imageUrl = `https://cdn.discordapp.com/emojis/${group.emojiId}.${extension}`;
+    return `${group.emojiString} – ([${group.emojiName}](${imageUrl}))`;
+  }
+
+  // For Unicode emojis, just return the emoji
+  return group.emojiString;
 }
 
 function formatEmojiGroup(group: EmojiGroup, type: "add" | "remove"): string {
   const reactions = type === "add" ? group.adds : group.removes;
   if (reactions.length === 0) return "";
 
+  const formattedEmoji = formatEmojiWithUrl(group);
   const formattedUsers = formatReactionUsers(reactions, type === "add");
-  return `- ${group.emoji} ${formattedUsers}`;
+  return `- ${formattedEmoji} ${formattedUsers}`;
 }
 
 function formatReactionUsers(
@@ -225,7 +243,7 @@ function groupActionsByUserAndEmoji(
   const groups = new Map<string, ReactionEvent[]>();
 
   for (const action of actions) {
-    const key = `${action.userId}-${action.emoji}`;
+    const key = `${action.userId}-${action.emojiString}`;
     if (!groups.has(key)) {
       groups.set(key, []);
     }

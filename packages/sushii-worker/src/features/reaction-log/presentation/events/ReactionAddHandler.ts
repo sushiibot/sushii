@@ -42,7 +42,7 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
         channelId: reaction.message.channelId,
         guildId: reaction.message.guildId,
         userId: user.id,
-        emoji: reaction.emoji.toString(),
+        emojiString: reaction.emoji.toString(),
         emojiName: reaction.emoji.name || undefined,
         emojiId: reaction.emoji.id || undefined,
         type: "add",

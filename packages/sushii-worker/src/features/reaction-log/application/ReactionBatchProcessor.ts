@@ -32,7 +32,7 @@ export class ReactionBatchProcessor {
       if (event.type === "add") {
         const { starterId, isNew } = await this.starterService.getOrSetStarter(
           event.messageId,
-          event.emoji,
+          event.emojiString,
           event.userId,
           event.guildId,
         );
@@ -40,7 +40,7 @@ export class ReactionBatchProcessor {
         this.logger.trace(
           {
             messageId: event.messageId,
-            emoji: event.emoji,
+            emoji: event.emojiString,
             userId: event.userId,
             isInitial: event.isInitial,
           },
@@ -49,13 +49,13 @@ export class ReactionBatchProcessor {
       } else if (event.type === "remove") {
         const starterId = await this.starterService.getStarter(
           event.messageId,
-          event.emoji,
+          event.emojiString,
         );
         event.isInitial = starterId === event.userId;
         this.logger.trace(
           {
             messageId: event.messageId,
-            emoji: event.emoji,
+            emoji: event.emojiString,
             userId: event.userId,
             isInitial: event.isInitial,
           },

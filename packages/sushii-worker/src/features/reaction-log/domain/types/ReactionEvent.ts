@@ -3,7 +3,7 @@ export interface ReactionEvent {
   channelId: string;
   guildId: string;
   userId: string;
-  emoji: string; // Unicode or <:name:id> format
+  emojiString: string; // Unicode or <:name:id> format
   emojiName?: string; // Name for custom emojis
   emojiId?: string; // ID for custom emojis
   type: "add" | "remove";
