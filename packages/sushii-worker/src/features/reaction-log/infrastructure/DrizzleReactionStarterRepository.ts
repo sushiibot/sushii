@@ -125,7 +125,7 @@ export class DrizzleReactionStarterRepository
   }
 
   async deleteOldStarters(beforeDate: Date): Promise<number> {
-    this.logger.debug({ beforeDate }, "Deleting old reaction starters");
+    this.logger.trace({ beforeDate }, "Deleting old reaction starters");
 
     try {
       const result = await this.db
@@ -133,7 +133,7 @@ export class DrizzleReactionStarterRepository
         .where(lt(reactionStartersInAppPublic.createdAt, beforeDate));
 
       const deleted = result.rowCount ?? 0;
-      this.logger.debug(
+      this.logger.trace(
         { deleted, beforeDate },
         "Deleted old reaction starters",
       );

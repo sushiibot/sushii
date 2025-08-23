@@ -39,14 +39,11 @@ export function setupReactionLog(
     reactionStarterRepository,
     logger,
   );
-  const reactionLogService = new ReactionLogService(
-    client,
-    guildConfigRepository,
-    logger,
-  );
+  const reactionLogService = new ReactionLogService(client, logger);
   const batchProcessor = new ReactionBatchProcessor(
     starterService,
     reactionLogService,
+    guildConfigRepository,
     logger,
   );
 

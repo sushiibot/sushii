@@ -44,7 +44,8 @@ export class ReactionStarterService {
       // Save as new starter with retry logic
       await this.repository.saveStarter(messageId, emoji, userId, guildId);
       this.cacheStarter(key, userId);
-      this.logger.debug(
+
+      this.logger.trace(
         { messageId, emoji, userId },
         "New reaction starter created",
       );

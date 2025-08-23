@@ -1,5 +1,7 @@
 import type { Logger } from "pino";
 
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+
 import type {
   ReactionBatch,
   ReactionEvent,
@@ -17,6 +19,7 @@ export class ReactionBatchProcessor {
   constructor(
     private readonly starterService: ReactionStarterService,
     private readonly reactionLogService: ReactionLogService,
+    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -28,6 +31,18 @@ export class ReactionBatchProcessor {
     const messageKey = event.messageId;
 
     try {
+      // Check if reaction logging is enabled for this guild
+      const config = await this.guildConfigRepository.findByGuildId(
+        event.guildId,
+      );
+
+      if (
+        !config.loggingSettings.reactionLogEnabled ||
+        !config.loggingSettings.reactionLogChannel
+      ) {
+        return;
+      }
+
       // Determine if user started this reaction
       if (event.type === "add") {
         const { starterId, isNew } = await this.starterService.getOrSetStarter(
@@ -83,21 +98,39 @@ export class ReactionBatchProcessor {
   private async processBatch(messageKey: string): Promise<void> {
     const batch = this.batches.get(messageKey);
     if (!batch || batch.actions.length === 0) {
-      this.logger.debug({ messageKey }, "No batch to process or empty batch");
+      this.logger.trace({ messageKey }, "No batch to process or empty batch");
       this.cleanup(messageKey);
       return;
     }
 
-    this.logger.debug(
+    this.logger.trace(
       { messageKey, actionCount: batch.actions.length },
       "Processing reaction batch",
     );
 
     try {
-      await this.reactionLogService.logBatch(batch);
-      this.logger.debug({ messageKey }, "Successfully processed batch");
+      const config = await this.guildConfigRepository.findByGuildId(
+        batch.guildId,
+      );
+      if (
+        !config.loggingSettings.reactionLogEnabled ||
+        !config.loggingSettings.reactionLogChannel
+      ) {
+        this.logger.debug(
+          { messageKey },
+          "Reaction logging disabled during batch processing",
+        );
+        return;
+      }
+
+      // We have logging enabled, continue
+      await this.reactionLogService.logBatch(
+        batch,
+        config.loggingSettings.reactionLogChannel,
+      );
+      this.logger.trace({ messageKey }, "Successfully processed batch");
     } catch (err) {
-      this.logger.error({ err, batch }, "Failed to process reaction batch");
+      this.logger.trace({ err, batch }, "Failed to process reaction batch");
     } finally {
       // Always cleanup resources even if processing fails
       this.cleanup(messageKey);
@@ -182,7 +215,7 @@ export class ReactionBatchProcessor {
     };
 
     this.batches.set(messageKey, batch);
-    this.logger.debug({ messageKey }, "Created new reaction batch");
+    this.logger.trace({ messageKey }, "Created new reaction batch");
 
     // Set timer for batch processing
     this.timers.set(

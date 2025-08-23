@@ -2,55 +2,31 @@ import type { Client, NewsChannel, TextChannel } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 import type { Logger } from "pino";
 
-import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
-
 import type { ReactionBatch } from "../domain/types/ReactionEvent";
 import { createReactionLogMessage } from "../presentation/views/ReactionLogMessageBuilder";
 
 export class ReactionLogService {
   constructor(
     private readonly client: Client,
-    private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
   /**
    * Log a completed reaction batch to Discord
    */
-  async logBatch(batch: ReactionBatch): Promise<void> {
+  async logBatch(
+    batch: ReactionBatch,
+    reactionLogChannelId: string,
+  ): Promise<void> {
     try {
-      // Get guild configuration
-      const config = await this.guildConfigRepository.findByGuildId(
-        batch.guildId,
-      );
-
-      // Check if reaction logging is enabled and channel is configured
-      if (!config.loggingSettings.reactionLogEnabled) {
-        this.logger.debug(
-          { guildId: batch.guildId },
-          "Reaction logging disabled for guild",
-        );
-        return;
-      }
-
-      if (!config.loggingSettings.reactionLogChannel) {
-        this.logger.debug(
-          { guildId: batch.guildId },
-          "No reaction log channel configured for guild",
-        );
-        return;
-      }
-
       // Get the log channel
-      const channel = this.client.channels.cache.get(
-        config.loggingSettings.reactionLogChannel,
-      );
+      const channel = this.client.channels.cache.get(reactionLogChannelId);
 
       if (!channel?.isSendable()) {
         this.logger.warn(
           {
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
           },
           "Reaction log channel not found or not sendable",
         );
@@ -62,7 +38,7 @@ export class ReactionLogService {
         this.logger.warn(
           {
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
           },
           "Reaction log channel is a thread - threads are not supported",
         );
@@ -76,7 +52,7 @@ export class ReactionLogService {
         this.logger.warn(
           {
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
           },
           "Bot member not found in guild",
         );
@@ -98,7 +74,7 @@ export class ReactionLogService {
         this.logger.warn(
           {
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
             missingPermissions: missingPermissions.map((p) => p.toString()),
           },
           "Bot missing required permissions for reaction log channel",
@@ -112,10 +88,10 @@ export class ReactionLogService {
       try {
         await textChannel.send(message);
 
-        this.logger.debug(
+        this.logger.trace(
           {
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
             actionCount: batch.actions.length,
           },
           "Successfully sent reaction log message",
@@ -125,7 +101,7 @@ export class ReactionLogService {
           {
             err,
             guildId: batch.guildId,
-            channelId: config.loggingSettings.reactionLogChannel,
+            channelId: reactionLogChannelId,
           },
           "Failed to send reaction log message",
         );
