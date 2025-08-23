@@ -60,8 +60,7 @@ export function createReactionLogMessage(
 function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
   const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
 
-  let content = "### Reaction Activity\n";
-  content += `**Message:** ${messageLink}\n`;
+  let content = `**Reacted to:** ${messageLink}\n`;
 
   // Add spam detection warning if applicable
   const hasSpamPattern = hasQuickTogglePattern(batch.actions);
@@ -100,8 +99,8 @@ function buildRemovedReactionsSection(
 
 function buildTimeInfoSection(batch: ReactionBatch): TextDisplayBuilder {
   const endTime = new Date();
-  const startTime = batch.startTime.getTime() / 1000;
-  const endTimeStr = endTime.getTime() / 1000;
+  const startTime = Math.floor(batch.startTime.getTime() / 1000);
+  const endTimeStr = Math.floor(endTime.getTime() / 1000);
 
   const timeInfo =
     startTime !== endTimeStr
@@ -177,7 +176,7 @@ function formatEmojiWithUrl(group: EmojiGroup): string {
     const isAnimated = group.emojiString.startsWith("<a:");
     const extension = isAnimated ? "gif" : "png";
     const imageUrl = `https://cdn.discordapp.com/emojis/${group.emojiId}.${extension}`;
-    return `${group.emojiString} – ([${group.emojiName}](${imageUrl}))`;
+    return `${group.emojiString} – [${group.emojiName}](${imageUrl})`;
   }
 
   // For Unicode emojis, just return the emoji
