@@ -17,6 +17,61 @@ import {
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
+interface LogSectionConfig {
+  title: string;
+  enabled: boolean;
+  channel: string | null;
+  baseDescription: string;
+  toggleCustomId: string;
+  selectCustomId: string;
+  selectPlaceholder: string;
+}
+
+function createLogSection(
+  container: ContainerBuilder,
+  config: LogSectionConfig,
+  options: SettingsMessageOptions,
+  disabled = false,
+): void {
+  let description = `${config.baseDescription}\n${
+    config.channel
+      ? `**Channel:** <#${config.channel}>`
+      : "**Channel:** No channel set"
+  }`;
+
+  // Add permission warning if needed
+  if (config.channel && options.channelPermissions?.[config.channel]) {
+    const warning = formatPermissionWarning(
+      options.channelPermissions[config.channel],
+    );
+    if (warning) {
+      description += `\n${warning}`;
+    }
+  }
+
+  const content = formatToggleSetting(config.title, config.enabled, description);
+  const text = new TextDisplayBuilder().setContent(content);
+  const section = new SectionBuilder()
+    .addTextDisplayComponents(text)
+    .setButtonAccessory(
+      createToggleButton(config.enabled, config.toggleCustomId, disabled),
+    );
+  container.addSectionComponents(section);
+
+  // Channel Selection
+  const channelSelectRow = new ActionRowBuilder<ChannelSelectMenuBuilder>();
+  const channelSelect = new ChannelSelectMenuBuilder()
+    .setCustomId(config.selectCustomId)
+    .setPlaceholder(config.selectPlaceholder)
+    .setDefaultChannels(config.channel ? [config.channel] : [])
+    .setMaxValues(1)
+    .setMinValues(0)
+    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setDisabled(disabled);
+  channelSelectRow.addComponents(channelSelect);
+  container.addActionRowComponents(channelSelectRow);
+}
+
 export function addLoggingContent(
   container: ContainerBuilder,
   options: SettingsMessageOptions,
@@ -35,171 +90,58 @@ export function addLoggingContent(
   container.addTextDisplayComponents(loggingIntro);
 
   // Mod Logs Section
-  let modLogDescription = `Logs staff actions like bans, kicks, timeouts, and warnings\n${
-    config.loggingSettings.modLogChannel
-      ? `**Channel:** <#${config.loggingSettings.modLogChannel}>`
-      : "**Channel:** No channel set"
-  }`;
-
-  // Add permission warning if needed
-  if (
-    config.loggingSettings.modLogChannel &&
-    options.channelPermissions?.[config.loggingSettings.modLogChannel]
-  ) {
-    const warning = formatPermissionWarning(
-      options.channelPermissions[config.loggingSettings.modLogChannel],
-    );
-    if (warning) {
-      modLogDescription += `\n${warning}`;
-    }
-  }
-
-  const modLogContent = formatToggleSetting(
-    "🛡️ Mod Logs",
-    config.loggingSettings.modLogEnabled,
-    modLogDescription,
+  createLogSection(
+    container,
+    {
+      title: "🛡️ Mod Logs",
+      enabled: config.loggingSettings.modLogEnabled,
+      channel: config.loggingSettings.modLogChannel,
+      baseDescription: "Logs staff actions like bans, kicks, timeouts, and warnings",
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MOD_LOG_CHANNEL,
+      selectPlaceholder: "Set mod log channel",
+    },
+    options,
+    disabled,
   );
-  const modLogText = new TextDisplayBuilder().setContent(modLogContent);
-  const modLogSection = new SectionBuilder()
-    .addTextDisplayComponents(modLogText)
-    .setButtonAccessory(
-      createToggleButton(
-        config.loggingSettings.modLogEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG,
-        disabled,
-      ),
-    );
-  container.addSectionComponents(modLogSection);
-
-  // Mod Log Channel Selection
-  const modLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>();
-  const modLogSelect = new ChannelSelectMenuBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.SET_MOD_LOG_CHANNEL)
-    .setPlaceholder("Set mod log channel")
-    .setDefaultChannels(
-      config.loggingSettings.modLogChannel
-        ? [config.loggingSettings.modLogChannel]
-        : [],
-    )
-    .setMaxValues(1)
-    .setMinValues(0)
-    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-    .setDisabled(disabled);
-  modLogChannelSelectRow.addComponents(modLogSelect);
-  container.addActionRowComponents(modLogChannelSelectRow);
 
   // Divider
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Member Logs Section
-  let memberLogDescription = `Logs member joins and leaves\n${
-    config.loggingSettings.memberLogChannel
-      ? `**Channel:** <#${config.loggingSettings.memberLogChannel}>`
-      : "**Channel:** No channel set"
-  }`;
-
-  // Add permission warning if needed
-  if (
-    config.loggingSettings.memberLogChannel &&
-    options.channelPermissions?.[config.loggingSettings.memberLogChannel]
-  ) {
-    const warning = formatPermissionWarning(
-      options.channelPermissions[config.loggingSettings.memberLogChannel],
-    );
-    if (warning) {
-      memberLogDescription += `\n${warning}`;
-    }
-  }
-
-  const memberLogContent = formatToggleSetting(
-    "👥 Member Logs",
-    config.loggingSettings.memberLogEnabled,
-    memberLogDescription,
+  createLogSection(
+    container,
+    {
+      title: "👥 Member Logs",
+      enabled: config.loggingSettings.memberLogEnabled,
+      channel: config.loggingSettings.memberLogChannel,
+      baseDescription: "Logs member joins and leaves",
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MEMBER_LOG_CHANNEL,
+      selectPlaceholder: "Set member log channel",
+    },
+    options,
+    disabled,
   );
-  const memberLogText = new TextDisplayBuilder().setContent(memberLogContent);
-  const memberLogSection = new SectionBuilder()
-    .addTextDisplayComponents(memberLogText)
-    .setButtonAccessory(
-      createToggleButton(
-        config.loggingSettings.memberLogEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG,
-        disabled,
-      ),
-    );
-  container.addSectionComponents(memberLogSection);
-
-  // Member Log Channel Selection
-  const memberLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>();
-  const memberLogSelect = new ChannelSelectMenuBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.SET_MEMBER_LOG_CHANNEL)
-    .setPlaceholder("Set member log channel")
-    .setDefaultChannels(
-      config.loggingSettings.memberLogChannel
-        ? [config.loggingSettings.memberLogChannel]
-        : [],
-    )
-    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-    .setDisabled(disabled);
-  memberLogChannelSelectRow.addComponents(memberLogSelect);
-  container.addActionRowComponents(memberLogChannelSelectRow);
 
   // Divider
   container.addSeparatorComponents(new SeparatorBuilder());
 
   // Message Logs Section
-  let messageLogDescription = `Logs message edits and deletions\n${
-    config.loggingSettings.messageLogChannel
-      ? `**Channel:** <#${config.loggingSettings.messageLogChannel}>`
-      : "**Channel:** No channel set"
-  }`;
-
-  // Add permission warning if needed
-  if (
-    config.loggingSettings.messageLogChannel &&
-    options.channelPermissions?.[config.loggingSettings.messageLogChannel]
-  ) {
-    const warning = formatPermissionWarning(
-      options.channelPermissions[config.loggingSettings.messageLogChannel],
-    );
-    if (warning) {
-      messageLogDescription += `\n${warning}`;
-    }
-  }
-
-  const messageLogContent = formatToggleSetting(
-    "📝 Message Logs",
-    config.loggingSettings.messageLogEnabled,
-    messageLogDescription,
+  createLogSection(
+    container,
+    {
+      title: "📝 Message Logs",
+      enabled: config.loggingSettings.messageLogEnabled,
+      channel: config.loggingSettings.messageLogChannel,
+      baseDescription: "Logs message edits and deletions",
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MESSAGE_LOG_CHANNEL,
+      selectPlaceholder: "Set message log channel",
+    },
+    options,
+    disabled,
   );
-  const messageLogText = new TextDisplayBuilder().setContent(messageLogContent);
-  const messageLogSection = new SectionBuilder()
-    .addTextDisplayComponents(messageLogText)
-    .setButtonAccessory(
-      createToggleButton(
-        config.loggingSettings.messageLogEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG,
-        disabled,
-      ),
-    );
-  container.addSectionComponents(messageLogSection);
-
-  // Message Log Channel Selection
-  const messageLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>();
-  const messageLogSelect = new ChannelSelectMenuBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.SET_MESSAGE_LOG_CHANNEL)
-    .setPlaceholder("Set message log channel")
-    .setDefaultChannels(
-      config.loggingSettings.messageLogChannel
-        ? [config.loggingSettings.messageLogChannel]
-        : [],
-    )
-    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-    .setDisabled(disabled);
-  messageLogChannelSelectRow.addComponents(messageLogSelect);
-  container.addActionRowComponents(messageLogChannelSelectRow);
 
   // Separator
   container.addSeparatorComponents(
@@ -241,4 +183,25 @@ export function addLoggingContent(
         .setDisabled(disabled),
     );
   container.addActionRowComponents(msgLogChannelSelectRow);
+
+  // Separator
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
+  // Reaction Logs Section
+  createLogSection(
+    container,
+    {
+      title: "⭐ Reaction Logs",
+      enabled: config.loggingSettings.reactionLogEnabled,
+      channel: config.loggingSettings.reactionLogChannel,
+      baseDescription: "Logs reaction additions and removals",
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_REACTION_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.SET_REACTION_LOG_CHANNEL,
+      selectPlaceholder: "Set reaction log channel",
+    },
+    options,
+    disabled,
+  );
 }

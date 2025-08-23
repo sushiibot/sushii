@@ -80,6 +80,9 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (config.loggingSettings.messageLogChannel) {
       channelIds.push(config.loggingSettings.messageLogChannel);
     }
+    if (config.loggingSettings.reactionLogChannel) {
+      channelIds.push(config.loggingSettings.reactionLogChannel);
+    }
     if (config.messageSettings.messageChannel) {
       channelIds.push(config.messageSettings.messageChannel);
     }
@@ -269,8 +272,8 @@ export default class SettingsCommand extends SlashCommandHandler {
     interaction: ChannelSelectMenuInteraction<"cached">,
     guildId: string,
   ): Promise<SettingsPage> {
-    const channelId = interaction.values[0];
-    let logType: "mod" | "member" | "message" | "joinleave";
+    const channelId = interaction.values[0] ?? null;
+    let logType: "mod" | "member" | "message" | "reaction" | "joinleave";
     let currentPage: SettingsPage;
 
     switch (interaction.customId) {
@@ -286,6 +289,10 @@ export default class SettingsCommand extends SlashCommandHandler {
         logType = "message";
         currentPage = "logging";
         break;
+      case SETTINGS_CUSTOM_IDS.SET_REACTION_LOG_CHANNEL:
+        logType = "reaction";
+        currentPage = "logging";
+        break;
       case SETTINGS_CUSTOM_IDS.SET_JOIN_LEAVE_CHANNEL:
         logType = "joinleave";
         currentPage = "messages";
@@ -294,14 +301,27 @@ export default class SettingsCommand extends SlashCommandHandler {
         throw new Error("Unknown channel select custom ID");
     }
 
-    if (logType === "joinleave") {
-      await this.guildSettingsService.updateMessageChannel(guildId, channelId);
+    if (channelId) {
+      if (logType === "joinleave") {
+        await this.guildSettingsService.updateMessageChannel(guildId, channelId);
+      } else {
+        await this.guildSettingsService.updateLogChannel(
+          guildId,
+          logType,
+          channelId,
+        );
+      }
     } else {
-      await this.guildSettingsService.updateLogChannel(
-        guildId,
-        logType,
-        channelId,
-      );
+      // Handle clearing the channel setting by passing null
+      if (logType !== "joinleave") {
+        await this.guildSettingsService.updateLogChannel(
+          guildId,
+          logType,
+          null,
+        );
+      }
+      // Note: joinleave channel clearing would need a separate method in the service
+      // For now, we skip clearing joinleave channel since the service method doesn't support null
     }
 
     const updatedConfig =
@@ -569,6 +589,8 @@ export default class SettingsCommand extends SlashCommandHandler {
         return { setting: "memberLog", page: "logging" };
       case SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG:
         return { setting: "messageLog", page: "logging" };
+      case SETTINGS_CUSTOM_IDS.TOGGLE_REACTION_LOG:
+        return { setting: "reactionLog", page: "logging" };
       case SETTINGS_CUSTOM_IDS.TOGGLE_JOIN_MSG:
         return { setting: "joinMessage", page: "messages" };
       case SETTINGS_CUSTOM_IDS.TOGGLE_LEAVE_MSG:

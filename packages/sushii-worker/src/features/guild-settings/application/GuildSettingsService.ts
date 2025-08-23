@@ -84,8 +84,8 @@ export class GuildSettingsService {
 
   async updateLogChannel(
     guildId: string,
-    type: "mod" | "member" | "message",
-    channelId: string,
+    type: "mod" | "member" | "message" | "reaction",
+    channelId: string | null,
   ): Promise<GuildConfig> {
     this.logger.info({ guildId, type, channelId }, "Updating log channel");
 
