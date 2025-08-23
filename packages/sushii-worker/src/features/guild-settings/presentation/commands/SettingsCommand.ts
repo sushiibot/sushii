@@ -209,7 +209,7 @@ export default class SettingsCommand extends SlashCommandHandler {
   ): Promise<SettingsPage | undefined> {
     // Handle multi-select message log ignore channels
     if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MESSAGE_LOG_IGNORE_CHANNELS
+      interaction.customId === SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE
     ) {
       await this.handleMessageLogIgnoreChannels(interaction, guildId);
       return "logging";
@@ -277,23 +277,23 @@ export default class SettingsCommand extends SlashCommandHandler {
     let currentPage: SettingsPage;
 
     switch (interaction.customId) {
-      case SETTINGS_CUSTOM_IDS.SET_MOD_LOG_CHANNEL:
+      case SETTINGS_CUSTOM_IDS.CHANNELS.SET_MOD_LOG:
         logType = "mod";
         currentPage = "logging";
         break;
-      case SETTINGS_CUSTOM_IDS.SET_MEMBER_LOG_CHANNEL:
+      case SETTINGS_CUSTOM_IDS.CHANNELS.SET_MEMBER_LOG:
         logType = "member";
         currentPage = "logging";
         break;
-      case SETTINGS_CUSTOM_IDS.SET_MESSAGE_LOG_CHANNEL:
+      case SETTINGS_CUSTOM_IDS.CHANNELS.SET_MESSAGE_LOG:
         logType = "message";
         currentPage = "logging";
         break;
-      case SETTINGS_CUSTOM_IDS.SET_REACTION_LOG_CHANNEL:
+      case SETTINGS_CUSTOM_IDS.CHANNELS.SET_REACTION_LOG:
         logType = "reaction";
         currentPage = "logging";
         break;
-      case SETTINGS_CUSTOM_IDS.SET_JOIN_LEAVE_CHANNEL:
+      case SETTINGS_CUSTOM_IDS.CHANNELS.SET_JOIN_LEAVE:
         logType = "joinleave";
         currentPage = "messages";
         break;
@@ -301,27 +301,14 @@ export default class SettingsCommand extends SlashCommandHandler {
         throw new Error("Unknown channel select custom ID");
     }
 
-    if (channelId) {
-      if (logType === "joinleave") {
-        await this.guildSettingsService.updateMessageChannel(guildId, channelId);
-      } else {
-        await this.guildSettingsService.updateLogChannel(
-          guildId,
-          logType,
-          channelId,
-        );
-      }
+    if (logType === "joinleave") {
+      await this.guildSettingsService.updateMessageChannel(guildId, channelId);
     } else {
-      // Handle clearing the channel setting by passing null
-      if (logType !== "joinleave") {
-        await this.guildSettingsService.updateLogChannel(
-          guildId,
-          logType,
-          null,
-        );
-      }
-      // Note: joinleave channel clearing would need a separate method in the service
-      // For now, we skip clearing joinleave channel since the service method doesn't support null
+      await this.guildSettingsService.updateLogChannel(
+        guildId,
+        logType,
+        channelId,
+      );
     }
 
     const updatedConfig =
@@ -383,7 +370,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     }
 
     // Handle modal-triggering buttons
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_JOIN_MESSAGE) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE) {
       const modal = createJoinMessageModal(
         currentConfig.messageSettings.joinMessage,
       );
@@ -412,7 +399,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_LEAVE_MESSAGE) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE) {
       const modal = createLeaveMessageModal(
         currentConfig.messageSettings.leaveMessage,
       );
@@ -441,7 +428,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_TIMEOUT_DM_TEXT) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT) {
       const modal = createTimeoutDmTextModal(
         currentConfig.moderationSettings.timeoutDmText,
       );
@@ -470,7 +457,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_WARN_DM_TEXT) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT) {
       const modal = createWarnDmTextModal(
         currentConfig.moderationSettings.warnDmText,
       );
@@ -499,7 +486,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_BAN_DM_TEXT) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT) {
       const modal = createBanDmTextModal(
         currentConfig.moderationSettings.banDmText,
       );
@@ -565,13 +552,13 @@ export default class SettingsCommand extends SlashCommandHandler {
 
   private getPageFromNavigationButton(customId: string): SettingsPage | null {
     switch (customId) {
-      case SETTINGS_CUSTOM_IDS.NAVIGATION_LOGGING:
+      case SETTINGS_CUSTOM_IDS.NAVIGATION.LOGGING:
         return "logging";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION_MODERATION:
+      case SETTINGS_CUSTOM_IDS.NAVIGATION.MODERATION:
         return "moderation";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION_MESSAGES:
+      case SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES:
         return "messages";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION_ADVANCED:
+      case SETTINGS_CUSTOM_IDS.NAVIGATION.ADVANCED:
         return "advanced";
       default:
         return null;
@@ -583,25 +570,25 @@ export default class SettingsCommand extends SlashCommandHandler {
     page: SettingsPage;
   } {
     switch (customId) {
-      case SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG:
         return { setting: "modLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.MEMBER_LOG:
         return { setting: "memberLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.MESSAGE_LOG:
         return { setting: "messageLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_REACTION_LOG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG:
         return { setting: "reactionLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_JOIN_MSG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG:
         return { setting: "joinMessage", page: "messages" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_LEAVE_MSG:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG:
         return { setting: "leaveMessage", page: "messages" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_LOOKUP_OPT_IN:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.LOOKUP_OPT_IN:
         return { setting: "lookupOptIn", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_COMMAND_DM:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM:
         return { setting: "timeoutCommandDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_NATIVE_DM:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM:
         return { setting: "timeoutNativeDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLE_BAN_DM:
+      case SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM:
         return { setting: "banDm", page: "moderation" };
       default:
         this.logger.warn(
@@ -618,13 +605,13 @@ export default class SettingsCommand extends SlashCommandHandler {
   ): Promise<void> {
     let targetPage: SettingsPage = "messages";
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_JOIN_MESSAGE) {
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE) {
       const newMessage =
         interaction.fields.getTextInputValue("join_message_input");
       await this.guildSettingsService.updateJoinMessage(guildId, newMessage);
       targetPage = "messages";
     } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_LEAVE_MESSAGE
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE
     ) {
       const newMessage = interaction.fields.getTextInputValue(
         "leave_message_input",
@@ -632,19 +619,19 @@ export default class SettingsCommand extends SlashCommandHandler {
       await this.guildSettingsService.updateLeaveMessage(guildId, newMessage);
       targetPage = "messages";
     } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_TIMEOUT_DM_TEXT
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT
     ) {
       const newText = interaction.fields.getTextInputValue(
         "timeout_dm_text_input",
       );
       await this.guildSettingsService.updateTimeoutDmText(guildId, newText);
       targetPage = "moderation";
-    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_WARN_DM_TEXT) {
+    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT) {
       const newText =
         interaction.fields.getTextInputValue("warn_dm_text_input");
       await this.guildSettingsService.updateWarnDmText(guildId, newText);
       targetPage = "moderation";
-    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.EDIT_BAN_DM_TEXT) {
+    } else if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT) {
       const newText = interaction.fields.getTextInputValue("ban_dm_text_input");
       await this.guildSettingsService.updateBanDmText(guildId, newText);
       targetPage = "moderation";

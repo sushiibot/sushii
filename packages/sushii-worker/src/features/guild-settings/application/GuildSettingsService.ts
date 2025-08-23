@@ -72,7 +72,7 @@ export class GuildSettingsService {
 
   async updateMessageChannel(
     guildId: string,
-    channelId: string,
+    channelId: string | null,
   ): Promise<GuildConfig> {
     this.logger.info({ guildId, channelId }, "Updating message channel");
 

@@ -14,45 +14,51 @@ export interface SettingsMessageOptions {
 }
 
 export const SETTINGS_CUSTOM_IDS = {
-  // Navigation
-  NAVIGATION: "settings_nav",
-  NAVIGATION_LOGGING: "settings_nav_logging",
-  NAVIGATION_MODERATION: "settings_nav_moderation",
-  NAVIGATION_MESSAGES: "settings_nav_messages",
-  NAVIGATION_ADVANCED: "settings_nav_advanced",
+  NAVIGATION: {
+    BASE: "settings_nav",
+    LOGGING: "settings_nav_logging",
+    MODERATION: "settings_nav_moderation",
+    MESSAGES: "settings_nav_messages",
+    ADVANCED: "settings_nav_advanced",
+  },
 
-  // Log Toggles
-  TOGGLE_MOD_LOG: "settings_toggle_mod_log",
-  TOGGLE_MEMBER_LOG: "settings_toggle_member_log",
-  TOGGLE_MESSAGE_LOG: "settings_toggle_message_log",
-  TOGGLE_REACTION_LOG: "settings_toggle_reaction_log",
+  TOGGLES: {
+    // Log Toggles
+    MOD_LOG: "settings_toggle_mod_log",
+    MEMBER_LOG: "settings_toggle_member_log",
+    MESSAGE_LOG: "settings_toggle_message_log",
+    REACTION_LOG: "settings_toggle_reaction_log",
+    
+    // Message Toggles
+    JOIN_MSG: "settings_toggle_join_msg",
+    LEAVE_MSG: "settings_toggle_leave_msg",
+    
+    // Moderation Toggles
+    LOOKUP_OPT_IN: "settings_toggle_lookup_opt_in",
+    TIMEOUT_COMMAND_DM: "settings_toggle_timeout_command_dm",
+    TIMEOUT_NATIVE_DM: "settings_toggle_timeout_native_dm",
+    BAN_DM: "settings_toggle_ban_dm",
+  },
 
-  // Message Toggles
-  TOGGLE_JOIN_MSG: "settings_toggle_join_msg",
-  TOGGLE_LEAVE_MSG: "settings_toggle_leave_msg",
+  CHANNELS: {
+    // Log Channels
+    SET_MOD_LOG: "settings_set_mod_log_channel",
+    SET_MEMBER_LOG: "settings_set_member_log_channel",
+    SET_MESSAGE_LOG: "settings_set_message_log_channel",
+    SET_REACTION_LOG: "settings_set_reaction_log_channel",
+    
+    // Message Channels
+    SET_JOIN_LEAVE: "settings_set_join_leave_channel",
+    
+    // Special Configuration
+    MESSAGE_LOG_IGNORE: "settings_msglog_ignore_channels",
+  },
 
-  // Moderation Toggles
-  TOGGLE_LOOKUP_OPT_IN: "settings_toggle_lookup_opt_in",
-  TOGGLE_TIMEOUT_COMMAND_DM: "settings_toggle_timeout_command_dm",
-  TOGGLE_TIMEOUT_NATIVE_DM: "settings_toggle_timeout_native_dm",
-  TOGGLE_BAN_DM: "settings_toggle_ban_dm",
-
-  // Log Channel Settings
-  SET_MOD_LOG_CHANNEL: "settings_set_mod_log_channel",
-  SET_MEMBER_LOG_CHANNEL: "settings_set_member_log_channel",
-  SET_MESSAGE_LOG_CHANNEL: "settings_set_message_log_channel",
-  SET_REACTION_LOG_CHANNEL: "settings_set_reaction_log_channel",
-
-  // Message Channel Settings
-  SET_JOIN_LEAVE_CHANNEL: "settings_set_join_leave_channel",
-
-  // Message Log Configuration
-  MESSAGE_LOG_IGNORE_CHANNELS: "settings_msglog_ignore_channels",
-
-  // Modal Editors
-  EDIT_JOIN_MESSAGE: "settings_edit_join_message",
-  EDIT_LEAVE_MESSAGE: "settings_edit_leave_message",
-  EDIT_TIMEOUT_DM_TEXT: "settings_edit_timeout_dm_text",
-  EDIT_WARN_DM_TEXT: "settings_edit_warn_dm_text",
-  EDIT_BAN_DM_TEXT: "settings_edit_ban_dm_text",
+  MODALS: {
+    EDIT_JOIN_MESSAGE: "settings_edit_join_message",
+    EDIT_LEAVE_MESSAGE: "settings_edit_leave_message",
+    EDIT_TIMEOUT_DM_TEXT: "settings_edit_timeout_dm_text",
+    EDIT_WARN_DM_TEXT: "settings_edit_warn_dm_text",
+    EDIT_BAN_DM_TEXT: "settings_edit_ban_dm_text",
+  },
 } as const;

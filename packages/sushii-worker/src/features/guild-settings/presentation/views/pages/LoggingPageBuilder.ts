@@ -97,8 +97,8 @@ export function addLoggingContent(
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
       baseDescription: "Logs staff actions like bans, kicks, timeouts, and warnings",
-      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MOD_LOG,
-      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MOD_LOG_CHANNEL,
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_MOD_LOG,
       selectPlaceholder: "Set mod log channel",
     },
     options,
@@ -116,8 +116,8 @@ export function addLoggingContent(
       enabled: config.loggingSettings.memberLogEnabled,
       channel: config.loggingSettings.memberLogChannel,
       baseDescription: "Logs member joins and leaves",
-      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MEMBER_LOG,
-      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MEMBER_LOG_CHANNEL,
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.MEMBER_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_MEMBER_LOG,
       selectPlaceholder: "Set member log channel",
     },
     options,
@@ -135,8 +135,8 @@ export function addLoggingContent(
       enabled: config.loggingSettings.messageLogEnabled,
       channel: config.loggingSettings.messageLogChannel,
       baseDescription: "Logs message edits and deletions",
-      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_MESSAGE_LOG,
-      selectCustomId: SETTINGS_CUSTOM_IDS.SET_MESSAGE_LOG_CHANNEL,
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.MESSAGE_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_MESSAGE_LOG,
       selectPlaceholder: "Set message log channel",
     },
     options,
@@ -174,7 +174,7 @@ export function addLoggingContent(
   const msgLogChannelSelectRow =
     new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
-        .setCustomId(SETTINGS_CUSTOM_IDS.MESSAGE_LOG_IGNORE_CHANNELS)
+        .setCustomId(SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE)
         .setPlaceholder("Add channels to ignore")
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setMinValues(0)
@@ -197,8 +197,8 @@ export function addLoggingContent(
       enabled: config.loggingSettings.reactionLogEnabled,
       channel: config.loggingSettings.reactionLogChannel,
       baseDescription: "Logs reaction additions and removals",
-      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLE_REACTION_LOG,
-      selectCustomId: SETTINGS_CUSTOM_IDS.SET_REACTION_LOG_CHANNEL,
+      toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG,
+      selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_REACTION_LOG,
       selectPlaceholder: "Set reaction log channel",
     },
     options,

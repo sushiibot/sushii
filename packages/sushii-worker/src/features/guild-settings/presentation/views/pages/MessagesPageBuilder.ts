@@ -83,7 +83,7 @@ export function addMessagesContent(
   const channelRow =
     new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
-        .setCustomId(SETTINGS_CUSTOM_IDS.SET_JOIN_LEAVE_CHANNEL)
+        .setCustomId(SETTINGS_CUSTOM_IDS.CHANNELS.SET_JOIN_LEAVE)
         .setPlaceholder("Set join/leave messages channel")
         .setDefaultChannels(
           config.messageSettings.messageChannel
@@ -136,7 +136,7 @@ export function addMessagesContent(
     .setButtonAccessory(
       createToggleButton(
         config.messageSettings.joinMessageEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_JOIN_MSG,
+        SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
         disabled,
       ),
     );
@@ -145,7 +145,7 @@ export function addMessagesContent(
   // Join Message Edit Button
   const joinEditRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_JOIN_MESSAGE)
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE)
       .setLabel("Edit Join Message")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),
@@ -192,7 +192,7 @@ export function addMessagesContent(
     .setButtonAccessory(
       createToggleButton(
         config.messageSettings.leaveMessageEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_LEAVE_MSG,
+        SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,
         disabled,
       ),
     );
@@ -201,7 +201,7 @@ export function addMessagesContent(
   // Leave Message Edit Button
   const leaveEditRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_LEAVE_MESSAGE)
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE)
       .setLabel("Edit Leave Message")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),

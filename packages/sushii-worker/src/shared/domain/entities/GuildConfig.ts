@@ -163,7 +163,7 @@ export class GuildConfig {
     return config;
   }
 
-  updateMessageChannel(channelId: string): GuildConfig {
+  updateMessageChannel(channelId: string | null): GuildConfig {
     const config = this.clone();
     config.messageSettings.messageChannel = channelId;
     return config;

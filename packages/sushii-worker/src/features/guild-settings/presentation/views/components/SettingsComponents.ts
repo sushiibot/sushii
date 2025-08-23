@@ -34,14 +34,14 @@ export function createNavigationRow(
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION_LOGGING)
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.LOGGING)
       .setLabel("Logging")
       .setStyle(
         currentPage === "logging" ? ButtonStyle.Primary : ButtonStyle.Secondary,
       )
       .setDisabled(currentPage === "logging" || disabled),
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION_MODERATION)
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.MODERATION)
       .setLabel("Moderation")
       .setStyle(
         currentPage === "moderation"
@@ -50,7 +50,7 @@ export function createNavigationRow(
       )
       .setDisabled(currentPage === "moderation" || disabled),
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION_MESSAGES)
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES)
       .setLabel("Messages")
       .setStyle(
         currentPage === "messages"
@@ -59,7 +59,7 @@ export function createNavigationRow(
       )
       .setDisabled(currentPage === "messages" || disabled),
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION_ADVANCED)
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.ADVANCED)
       .setLabel("Advanced")
       .setStyle(
         currentPage === "advanced"
@@ -161,7 +161,7 @@ export function createJoinMessageModal(
   currentMessage: string | null,
 ): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_JOIN_MESSAGE)
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE)
     .setTitle("Edit Join Message");
 
   const messageInput = new TextInputBuilder()
@@ -191,7 +191,7 @@ export function createLeaveMessageModal(
   currentMessage: string | null,
 ): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_LEAVE_MESSAGE)
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE)
     .setTitle("Edit Leave Message");
 
   const messageInput = new TextInputBuilder()
@@ -219,7 +219,7 @@ export function createTimeoutDmTextModal(
   currentText: string | null,
 ): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_TIMEOUT_DM_TEXT)
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT)
     .setTitle("Edit Timeout DM Text");
 
   const textInput = new TextInputBuilder()
@@ -247,7 +247,7 @@ export function createWarnDmTextModal(
   currentText: string | null,
 ): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_WARN_DM_TEXT)
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT)
     .setTitle("Edit Warn DM Text");
 
   const textInput = new TextInputBuilder()
@@ -273,7 +273,7 @@ export function createWarnDmTextModal(
 
 export function createBanDmTextModal(currentText: string | null): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_BAN_DM_TEXT)
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT)
     .setTitle("Edit Ban DM Text");
 
   const textInput = new TextInputBuilder()

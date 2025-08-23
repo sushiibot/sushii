@@ -54,7 +54,7 @@ export function addModerationContent(
     .setButtonAccessory(
       createToggleButton(
         config.moderationSettings.lookupDetailsOptIn,
-        SETTINGS_CUSTOM_IDS.TOGGLE_LOOKUP_OPT_IN,
+        SETTINGS_CUSTOM_IDS.TOGGLES.LOOKUP_OPT_IN,
         disabled,
       ),
     );
@@ -85,7 +85,7 @@ export function addModerationContent(
     .setButtonAccessory(
       createToggleButton(
         config.moderationSettings.timeoutCommandDmEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_COMMAND_DM,
+        SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM,
         disabled,
       ),
     );
@@ -110,7 +110,7 @@ export function addModerationContent(
     .setButtonAccessory(
       createToggleButton(
         config.moderationSettings.timeoutNativeDmEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_TIMEOUT_NATIVE_DM,
+        SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM,
         disabled,
       ),
     );
@@ -138,7 +138,7 @@ export function addModerationContent(
 
   const timeoutTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_TIMEOUT_DM_TEXT)
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT)
       .setLabel("Edit Timeout DM Message")
       .setEmoji("📝")
       .setStyle(ButtonStyle.Secondary)
@@ -164,7 +164,7 @@ export function addModerationContent(
   // Warn button
   const warnTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_WARN_DM_TEXT)
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT)
       .setLabel("Edit Warn DM Message")
       .setEmoji("📝")
       .setStyle(ButtonStyle.Secondary)
@@ -189,7 +189,7 @@ export function addModerationContent(
     .setButtonAccessory(
       createToggleButton(
         config.moderationSettings.banDmEnabled,
-        SETTINGS_CUSTOM_IDS.TOGGLE_BAN_DM,
+        SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM,
         disabled,
       ),
     );
@@ -210,7 +210,7 @@ export function addModerationContent(
 
   const banTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.EDIT_BAN_DM_TEXT)
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT)
       .setLabel("Edit Ban DM Text")
       .setEmoji("📝")
       .setStyle(ButtonStyle.Secondary)
