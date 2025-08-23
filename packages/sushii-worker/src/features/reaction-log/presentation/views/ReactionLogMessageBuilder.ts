@@ -61,14 +61,7 @@ export function createReactionLogMessage(
 function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
   const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
 
-  let content = `**Reacted to** ${messageLink}\n`;
-
-  // Add spam detection warning if applicable
-  const hasSpamPattern = hasQuickTogglePattern(batch.actions);
-  if (hasSpamPattern) {
-    content += "⚠️ **Repeated reaction multiple times**\n";
-  }
-
+  const content = `**Reacted to** ${messageLink}\n`;
   return new TextDisplayBuilder().setContent(content);
 }
 
