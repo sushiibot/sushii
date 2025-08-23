@@ -61,7 +61,7 @@ export function createReactionLogMessage(
 function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
   const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
 
-  let content = `**Reacted to:** ${messageLink}\n`;
+  let content = `**Reacted to** ${messageLink}\n`;
 
   // Add spam detection warning if applicable
   const hasSpamPattern = hasQuickTogglePattern(batch.actions);
@@ -117,15 +117,14 @@ function buildTimeInfoSection(batch: ReactionBatch): TextDisplayBuilder {
 function getReactionLogColor(actions: ReactionEvent[]): number {
   const emojiGroups = groupByEmoji(actions);
   const hasRemovals = emojiGroups.some((group) => group.removes.length > 0);
-  const hasQuickToggles = hasQuickTogglePattern(actions);
 
-  if (hasQuickToggles) {
-    return Color.Warning; // Yellow for potential spam
-  }
   if (hasRemovals) {
-    return Color.Error; // Red/pink for removals
+    // Red/pink for removals
+    return Color.Error;
   }
-  return Color.Info; // Default blue
+
+  // Default blue
+  return Color.Info;
 }
 
 interface EmojiGroup {
@@ -238,70 +237,4 @@ function formatReactionUsers(
   }
 
   return userStrings.join(", ");
-}
-
-function hasQuickTogglePattern(actions: ReactionEvent[]): boolean {
-  const RAPID_TOGGLE_THRESHOLD_MS = 10000; // 10 seconds
-  const MIN_TOGGLE_COUNT = 3;
-
-  // Group actions by user and emoji
-  const userEmojiGroups = groupActionsByUserAndEmoji(actions);
-
-  // Check each user-emoji combination for rapid toggles
-  for (const userActions of userEmojiGroups.values()) {
-    if (
-      hasRapidToggles(userActions, MIN_TOGGLE_COUNT, RAPID_TOGGLE_THRESHOLD_MS)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function groupActionsByUserAndEmoji(
-  actions: ReactionEvent[],
-): Map<string, ReactionEvent[]> {
-  const groups = new Map<string, ReactionEvent[]>();
-
-  for (const action of actions) {
-    const key = `${action.userId}-${action.emojiString}`;
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
-    const group = groups.get(key);
-    if (group) {
-      group.push(action);
-    }
-  }
-
-  return groups;
-}
-
-function hasRapidToggles(
-  userActions: ReactionEvent[],
-  minToggleCount: number,
-  thresholdMs: number,
-): boolean {
-  if (userActions.length < minToggleCount) {
-    return false;
-  }
-
-  // Sort by timestamp
-  const sortedActions = [...userActions].sort(
-    (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
-  );
-
-  // Check for rapid sequences
-  for (let i = 0; i <= sortedActions.length - minToggleCount; i++) {
-    const timeSpan =
-      sortedActions[i + minToggleCount - 1].timestamp.getTime() -
-      sortedActions[i].timestamp.getTime();
-
-    if (timeSpan < thresholdMs) {
-      return true;
-    }
-  }
-
-  return false;
 }
