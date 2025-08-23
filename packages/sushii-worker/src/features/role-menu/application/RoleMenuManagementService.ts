@@ -25,9 +25,7 @@ export class RoleMenuManagementService {
       request.menuName,
     );
     if (existingMenu.some) {
-      return Err(
-        `A menu with the name "${request.menuName}" already exists.`,
-      );
+      return Err(`A menu with the name "${request.menuName}" already exists.`);
     }
 
     // Create menu (infrastructure errors will naturally throw)

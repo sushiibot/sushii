@@ -1,4 +1,10 @@
-import type { APIEmbed, JSONEncodable, TextChannel, ActionRowBuilder, MessageActionRowComponentBuilder } from "discord.js";
+import type {
+  APIEmbed,
+  ActionRowBuilder,
+  JSONEncodable,
+  MessageActionRowComponentBuilder,
+  TextChannel,
+} from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
@@ -88,10 +94,11 @@ export class RoleMenuMessageService {
       // For each menu, get its active messages
       await Promise.all(
         allMenus.map(async (menu) => {
-          const activeMessages = await this.roleMenuRepository.getActiveMessages(
-            guildId,
-            menu.menuName,
-          );
+          const activeMessages =
+            await this.roleMenuRepository.getActiveMessages(
+              guildId,
+              menu.menuName,
+            );
 
           const needsUpdateCount = activeMessages.filter(
             (msg) => msg.needsUpdate,
@@ -116,14 +123,8 @@ export class RoleMenuMessageService {
     }
   }
 
-  async markMenuNeedsUpdate(
-    guildId: string,
-    menuName: string,
-  ): Promise<void> {
-    this.logger.debug(
-      { guildId, menuName },
-      "Marking menu as needing update",
-    );
+  async markMenuNeedsUpdate(guildId: string, menuName: string): Promise<void> {
+    this.logger.debug({ guildId, menuName }, "Marking menu as needing update");
 
     try {
       await this.roleMenuRepository.markMessagesNeedUpdate(guildId, menuName);
@@ -147,10 +148,7 @@ export class RoleMenuMessageService {
       components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
     },
   ): Promise<Result<number, string>> {
-    this.logger.debug(
-      { guildId, menuName },
-      "Updating active menus",
-    );
+    this.logger.debug({ guildId, menuName }, "Updating active menus");
 
     try {
       const activeMessages = await this.roleMenuRepository.getActiveMessages(
@@ -220,10 +218,7 @@ export class RoleMenuMessageService {
     menuName: string,
     channel: TextChannel,
   ): Promise<Result<number, string>> {
-    this.logger.debug(
-      { guildId, menuName },
-      "Removing active menus",
-    );
+    this.logger.debug({ guildId, menuName }, "Removing active menus");
 
     try {
       const activeMessages = await this.roleMenuRepository.getActiveMessages(

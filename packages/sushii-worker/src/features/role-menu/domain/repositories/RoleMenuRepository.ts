@@ -35,10 +35,17 @@ export interface RoleMenuRepository {
 
   // Role Menu Message tracking operations
   trackMessage(request: CreateRoleMenuMessageRequest): Promise<void>;
-  getActiveMessages(guildId: string, menuName: string): Promise<RoleMenuMessage[]>;
+  getActiveMessages(
+    guildId: string,
+    menuName: string,
+  ): Promise<RoleMenuMessage[]>;
   countActiveMessages(guildId: string, menuName: string): Promise<number>;
   markMessagesNeedUpdate(guildId: string, menuName: string): Promise<void>;
   markMessagesUpdated(guildId: string, menuName: string): Promise<void>;
-  deleteMessage(guildId: string, menuName: string, messageId: string): Promise<void>;
+  deleteMessage(
+    guildId: string,
+    menuName: string,
+    messageId: string,
+  ): Promise<void>;
   deleteAllMessages(guildId: string, menuName: string): Promise<void>;
 }

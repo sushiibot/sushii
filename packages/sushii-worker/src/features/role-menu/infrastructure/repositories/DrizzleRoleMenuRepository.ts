@@ -383,10 +383,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       );
   }
 
-  async markMessagesUpdated(
-    guildId: string,
-    menuName: string,
-  ): Promise<void> {
+  async markMessagesUpdated(guildId: string, menuName: string): Promise<void> {
     this.logger.debug(
       { guildId, menuName },
       "Marking messages as updated (clearing needs update flag)",

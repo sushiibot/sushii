@@ -90,7 +90,12 @@ export function createRoleMenuBuilderMessage(
   }
 
   // Finish & Update section for editing with active menus
-  if (!state.readOnly && state.isEdit && state.activeMenuCount && state.activeMenuCount > 0) {
+  if (
+    !state.readOnly &&
+    state.isEdit &&
+    state.activeMenuCount &&
+    state.activeMenuCount > 0
+  ) {
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
@@ -104,9 +109,10 @@ export function createRoleMenuBuilderMessage(
       .setStyle(ButtonStyle.Primary)
       .setDisabled(state.disabled);
 
-    const finishButtonRow = new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(finishButton);
-    
+    const finishButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      finishButton,
+    );
+
     container.addActionRowComponents(finishButtonRow);
   }
 

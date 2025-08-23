@@ -25,22 +25,22 @@ import {
   TextInputStyle,
 } from "discord.js";
 import type { Logger } from "pino";
-
-import parseEmoji from "@/utils/parseEmoji";
-import Color from "@/utils/colors";
 import { Err, Ok, type Result } from "ts-results";
+
+import Color from "@/utils/colors";
+import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
 import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
 import type { RoleMenu } from "../../domain/entities/RoleMenu";
 import type { RoleMenuRole } from "../../domain/entities/RoleMenuRole";
+import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
 import {
   ROLE_MENU_BUILDER_CUSTOM_IDS,
   ROLE_MENU_BUILDER_INPUTS,
   ROLE_MENU_BUILDER_MODALS,
 } from "../views/RoleMenuBuilderConstants";
-import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
 
 enum RoleMenuOption {
@@ -241,11 +241,15 @@ export class RoleMenuCreateCommand {
       collector.on("end", async () => {
         try {
           // Get current state
-          const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+          const menuDataResult = await this.getMenuData(
+            interaction.guildId,
+            menuName,
+          );
           if (menuDataResult.err) {
             // Menu was deleted while editing - show a simple disabled message
             await interaction.editReply({
-              content: "⏰ **Menu builder session expired**\nThis menu may have been deleted or is no longer accessible.",
+              content:
+                "⏰ **Menu builder session expired**\nThis menu may have been deleted or is no longer accessible.",
               embeds: [],
               components: [],
             });
@@ -359,7 +363,10 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current description
-    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    const menuDataResult = await this.getMenuData(
+      interaction.guildId,
+      menuName,
+    );
     if (menuDataResult.err) {
       await interaction.reply({
         content: menuDataResult.val,
@@ -423,7 +430,10 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current max roles
-    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    const menuDataResult = await this.getMenuData(
+      interaction.guildId,
+      menuName,
+    );
     if (menuDataResult.err) {
       await interaction.reply({
         content: menuDataResult.val,
@@ -569,7 +579,8 @@ export class RoleMenuCreateCommand {
     if (menuDataResult.err) {
       // Menu was deleted during editing - show simple completion message
       await interaction.editReply({
-        content: "✅ **Menu update completed**\nThe menu may have been deleted during editing.",
+        content:
+          "✅ **Menu update completed**\nThe menu may have been deleted during editing.",
         embeds: [],
         components: [],
       });
@@ -604,7 +615,10 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get current role options
-    const menuDataResult = await this.getMenuData(interaction.guildId, menuName);
+    const menuDataResult = await this.getMenuData(
+      interaction.guildId,
+      menuName,
+    );
     if (menuDataResult.err) {
       await interaction.reply({
         content: menuDataResult.val,
@@ -851,10 +865,15 @@ export class RoleMenuCreateCommand {
     guildId: string,
     menuName: string,
     guild: Guild,
-  ): Promise<Result<{
-    embeds: (APIEmbed | JSONEncodable<APIEmbed>)[];
-    components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
-  }, string>> {
+  ): Promise<
+    Result<
+      {
+        embeds: (APIEmbed | JSONEncodable<APIEmbed>)[];
+        components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
+      },
+      string
+    >
+  > {
     // Get menu from database
     const menuResult = await this.roleMenuManagementService.getMenu(
       guildId,
@@ -913,16 +932,16 @@ export class RoleMenuCreateCommand {
       .setColor(Color.Info);
 
     // Build components for both button and select menu formats
-    const buttonComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
-    const selectComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+    const buttonComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
+      [];
+    const selectComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
+      [];
 
     // Build button components
     let buttonRow = new ActionRowBuilder<ButtonBuilder>();
     for (const { roleId, emoji } of roles) {
       let button = new ButtonBuilder()
-        .setCustomId(
-          roleMenuCustomIds.button.compile({ menuName, roleId }),
-        )
+        .setCustomId(roleMenuCustomIds.button.compile({ menuName, roleId }))
         .setLabel(guildRolesMap.get(roleId)?.name || roleId)
         .setStyle(ButtonStyle.Secondary);
 
@@ -937,7 +956,9 @@ export class RoleMenuCreateCommand {
 
       // Row full, push to component rows list
       if (buttonRow.components.length === 5) {
-        buttonComponents.push(buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+        buttonComponents.push(
+          buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
+        );
         buttonRow = new ActionRowBuilder<ButtonBuilder>();
       }
 
@@ -946,7 +967,9 @@ export class RoleMenuCreateCommand {
 
     // Add any remaining buttons
     if (buttonRow.components.length > 0) {
-      buttonComponents.push(buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+      buttonComponents.push(
+        buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
+      );
     }
 
     // Build select menu components
@@ -979,9 +1002,13 @@ export class RoleMenuCreateCommand {
       .setMaxValues(menu.maxCount || roles.length)
       .setMinValues(0);
 
-    const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
-      .addComponents([selectMenu]);
-    selectComponents.push(selectRow as ActionRowBuilder<MessageActionRowComponentBuilder>);
+    const selectRow =
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents([
+        selectMenu,
+      ]);
+    selectComponents.push(
+      selectRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
+    );
 
     // Set footer based on available interaction types
     embed.setFooter({
