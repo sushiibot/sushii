@@ -78,7 +78,11 @@ function groupByEmoji(actions: ReactionEvent[]): EmojiGroup[] {
       });
     }
 
-    const group = groups.get(action.emoji)!;
+    const group = groups.get(action.emoji);
+    if (!group) {
+      continue;
+    }
+
     if (action.type === "add") {
       group.adds.push(action);
     } else {
@@ -191,7 +195,10 @@ function hasQuickTogglePattern(actions: ReactionEvent[]): boolean {
     if (!userEmojiActions.has(key)) {
       userEmojiActions.set(key, []);
     }
-    userEmojiActions.get(key)!.push(action);
+    const actions = userEmojiActions.get(key);
+    if (actions) {
+      actions.push(action);
+    }
   }
 
   // Check for rapid add/remove patterns

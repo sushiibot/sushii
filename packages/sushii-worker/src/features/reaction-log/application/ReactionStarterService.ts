@@ -100,8 +100,8 @@ export class ReactionStarterService {
    * Cache a starter with FIFO eviction when cache is full
    */
   private cacheStarter(key: string, userId: string): void {
-    // Simple FIFO eviction
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+    // Check if we need to evict before adding (unless updating existing)
+    if (!this.cache.has(key) && this.cache.size >= this.MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
         this.cache.delete(firstKey);
