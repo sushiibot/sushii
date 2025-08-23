@@ -1,4 +1,4 @@
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, inArray } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -69,6 +69,49 @@ export class DrizzleReactionStarterRepository
         "Failed to get reaction starter",
       );
       throw new Error("Database error while getting reaction starter", {
+        cause: err,
+      });
+    }
+  }
+
+  async getBatchStarters(messageId: string, emojis: string[]): Promise<Map<string, string>> {
+    this.logger.trace({ messageId, emojis }, "Getting batch reaction starters");
+
+    if (emojis.length === 0) {
+      return new Map();
+    }
+
+    try {
+      const result = await this.db
+        .select({ 
+          emoji: reactionStartersInAppPublic.emoji,
+          userId: reactionStartersInAppPublic.userId
+        })
+        .from(reactionStartersInAppPublic)
+        .where(
+          and(
+            eq(reactionStartersInAppPublic.messageId, BigInt(messageId)),
+            inArray(reactionStartersInAppPublic.emoji, emojis),
+          ),
+        );
+
+      const startersMap = new Map<string, string>();
+      for (const row of result) {
+        startersMap.set(row.emoji, row.userId.toString());
+      }
+
+      this.logger.trace(
+        { messageId, requestedEmojis: emojis.length, foundStarters: startersMap.size },
+        "Retrieved batch reaction starters",
+      );
+
+      return startersMap;
+    } catch (err) {
+      this.logger.error(
+        { err, messageId, emojis },
+        "Failed to get batch reaction starters",
+      );
+      throw new Error("Database error while getting batch reaction starters", {
         cause: err,
       });
     }

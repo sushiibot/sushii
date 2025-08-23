@@ -17,6 +17,13 @@ export interface ReactionStarterRepository {
   getStarter(messageId: string, emoji: string): Promise<string | null>;
 
   /**
+   * Get multiple reaction starters for a message in a single query
+   * Returns a Map of emoji -> starter userId for found starters
+   * Performance optimization to avoid N+1 queries
+   */
+  getBatchStarters(messageId: string, emojis: string[]): Promise<Map<string, string>>;
+
+  /**
    * Delete old reaction starter records before the specified date
    * Used for cleanup to prevent unlimited growth
    * Returns the number of deleted records

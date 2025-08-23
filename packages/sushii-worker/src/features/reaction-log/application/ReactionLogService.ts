@@ -106,10 +106,43 @@ export class ReactionLogService {
         return;
       }
 
-      // Create and send the log message
+      // Create and send the log message(s)
       const message = createReactionLogMessage(batch);
 
-      await textChannel.send(message);
+      // Send each embed as a separate message with rate limiting awareness
+      let messageCount = 0;
+      for (const embed of message.embeds) {
+        try {
+          await textChannel.send({ embeds: [embed] });
+          messageCount++;
+          
+          // Add small delay between messages to avoid rate limits
+          if (messageCount < message.embeds.length) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+          }
+        } catch (err) {
+          this.logger.error(
+            {
+              err,
+              guildId: batch.guildId,
+              channelId: config.loggingSettings.reactionLogChannel,
+              messageCount,
+              embedIndex: messageCount,
+            },
+            "Failed to send individual reaction log embed",
+          );
+          
+          // If it's a rate limit error, throw to stop sending more
+          if (err instanceof Error && err.message.includes("rate limit")) {
+            this.logger.warn(
+              { guildId: batch.guildId, messageCount },
+              "Hit rate limit while sending reaction logs",
+            );
+            throw err;
+          }
+          // For other errors, continue trying to send remaining embeds
+        }
+      }
 
       this.logger.debug(
         {
@@ -117,6 +150,7 @@ export class ReactionLogService {
           messageId: batch.messageId,
           channelId: config.loggingSettings.reactionLogChannel,
           actionCount: batch.actions.length,
+          messageCount,
         },
         "Sent reaction log",
       );

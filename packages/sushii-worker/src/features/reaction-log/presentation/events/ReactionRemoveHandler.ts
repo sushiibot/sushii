@@ -37,10 +37,9 @@ export class ReactionRemoveHandler extends EventHandler<Events.MessageReactionRe
         return;
       }
 
-      // Don't fetch partials - use data as-is per requirements
       const event: ReactionEvent = {
         messageId: reaction.message.id,
-        channelId: reaction.message.channelId!,
+        channelId: reaction.message.channelId,
         guildId: reaction.message.guildId,
         userId: user.id,
         emoji: reaction.emoji.toString(),
@@ -48,7 +47,8 @@ export class ReactionRemoveHandler extends EventHandler<Events.MessageReactionRe
         emojiId: reaction.emoji.id || undefined,
         type: "remove",
         timestamp: new Date(),
-        isInitial: false, // Will be set by processor based on database lookup
+        // Will be set by processor based on database lookup
+        isInitial: false,
         userName: user.username || undefined,
       };
 

@@ -31,7 +31,6 @@ export class ReactionStarterService {
         return { starterId: cached, isNew: false };
       }
 
-      // Check database
       const existing = await this.repository.getStarter(messageId, emoji);
       if (existing) {
         this.cacheStarter(key, existing);
@@ -42,7 +41,7 @@ export class ReactionStarterService {
         return { starterId: existing, isNew: false };
       }
 
-      // Save as new starter
+      // Save as new starter with retry logic
       await this.repository.saveStarter(messageId, emoji, userId, guildId);
       this.cacheStarter(key, userId);
       this.logger.debug(
@@ -75,7 +74,6 @@ export class ReactionStarterService {
         return cached;
       }
 
-      // Check database
       const existing = await this.repository.getStarter(messageId, emoji);
       if (existing) {
         this.cacheStarter(key, existing);
@@ -98,16 +96,25 @@ export class ReactionStarterService {
 
   /**
    * Cache a starter with FIFO eviction when cache is full
+   * Uses atomic operations to prevent race conditions
    */
   private cacheStarter(key: string, userId: string): void {
-    // Check if we need to evict before adding (unless updating existing)
-    if (!this.cache.has(key) && this.cache.size >= this.MAX_CACHE_SIZE) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
-        this.cache.delete(firstKey);
-        this.logger.trace({ evictedKey: firstKey }, "Evicted cache entry");
+    // Set the value first (atomic operation)
+    this.cache.set(key, userId);
+
+    // Then check if cleanup is needed and evict excess entries
+    if (this.cache.size > this.MAX_CACHE_SIZE) {
+      const toDelete = this.cache.size - this.MAX_CACHE_SIZE;
+      const iter = this.cache.keys();
+
+      for (let i = 0; i < toDelete; i++) {
+        const keyToDelete = iter.next().value;
+        if (keyToDelete && keyToDelete !== key) {
+          // Don't delete the key we just added
+          this.cache.delete(keyToDelete);
+          this.logger.trace({ evictedKey: keyToDelete }, "Evicted cache entry");
+        }
       }
     }
-    this.cache.set(key, userId);
   }
 }

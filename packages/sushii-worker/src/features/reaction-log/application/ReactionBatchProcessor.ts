@@ -10,8 +10,9 @@ import type { ReactionStarterService } from "./ReactionStarterService";
 export class ReactionBatchProcessor {
   private batches = new Map<string, ReactionBatch>();
   private timers = new Map<string, NodeJS.Timeout>();
-  private creatingBatches = new Set<string>(); // Track batches being created to prevent race conditions
+  private batchCreationPromises = new Map<string, Promise<ReactionBatch>>(); // Track in-progress batch creations
   private readonly BATCH_WINDOW_MS = 30000; // 30 seconds
+  private readonly MAX_BATCHES = 1000; // Memory leak prevention
 
   constructor(
     private readonly starterService: ReactionStarterService,
@@ -62,40 +63,8 @@ export class ReactionBatchProcessor {
         );
       }
 
-      // Batch management - Only create timer for new batches
-      if (
-        !this.batches.has(messageKey) &&
-        !this.creatingBatches.has(messageKey)
-      ) {
-        // Mark as being created to prevent race condition
-        this.creatingBatches.add(messageKey);
-
-        try {
-          this.batches.set(messageKey, {
-            messageId: event.messageId,
-            channelId: event.channelId,
-            guildId: event.guildId,
-            actions: [],
-            startTime: new Date(),
-          });
-
-          this.logger.debug({ messageKey }, "Created new reaction batch");
-
-          // Only set timer for new batch
-          this.timers.set(
-            messageKey,
-            setTimeout(() => {
-              this.processBatch(messageKey);
-            }, this.BATCH_WINDOW_MS),
-          );
-        } finally {
-          // Remove from creating set once done
-          this.creatingBatches.delete(messageKey);
-        }
-      }
-
-      // Add event to existing or new batch (safely)
-      const batch = this.batches.get(messageKey);
+      // Get or create batch using Promise coordination to prevent race conditions
+      const batch = await this.getOrCreateBatch(messageKey, event);
       if (batch) {
         batch.actions.push(event);
         this.logger.trace(
@@ -151,12 +120,146 @@ export class ReactionBatchProcessor {
   }
 
   /**
+   * Get or create a batch with Promise coordination to prevent race conditions
+   */
+  private async getOrCreateBatch(
+    messageKey: string,
+    event: ReactionEvent,
+  ): Promise<ReactionBatch | null> {
+    // Check if batch already exists
+    const existingBatch = this.batches.get(messageKey);
+    if (existingBatch) {
+      return existingBatch;
+    }
+
+    // Check if batch creation is already in progress
+    const existingPromise = this.batchCreationPromises.get(messageKey);
+    if (existingPromise) {
+      try {
+        return await existingPromise;
+      } catch (err) {
+        this.logger.error(
+          { err, messageKey },
+          "Failed to wait for batch creation",
+        );
+        return null;
+      }
+    }
+
+    // Create new batch creation promise
+    const creationPromise = this.createBatchInternal(messageKey, event);
+    this.batchCreationPromises.set(messageKey, creationPromise);
+
+    try {
+      const batch = await creationPromise;
+      return batch;
+    } catch (err) {
+      this.logger.error({ err, messageKey }, "Failed to create batch");
+      return null;
+    } finally {
+      // Always clean up the creation promise
+      this.batchCreationPromises.delete(messageKey);
+    }
+  }
+
+  /**
+   * Internal batch creation with memory leak prevention
+   */
+  private async createBatchInternal(
+    messageKey: string,
+    event: ReactionEvent,
+  ): Promise<ReactionBatch> {
+    // Memory leak prevention: cleanup old batches if needed
+    await this.cleanupStalesBatchesIfNeeded();
+
+    // Create new batch
+    const batch: ReactionBatch = {
+      messageId: event.messageId,
+      channelId: event.channelId,
+      guildId: event.guildId,
+      actions: [],
+      startTime: new Date(),
+    };
+
+    this.batches.set(messageKey, batch);
+    this.logger.debug({ messageKey }, "Created new reaction batch");
+
+    // Set timer for batch processing
+    this.timers.set(
+      messageKey,
+      setTimeout(() => {
+        this.processBatch(messageKey);
+      }, this.BATCH_WINDOW_MS),
+    );
+
+    return batch;
+  }
+
+  /**
+   * Clean up stale batches to prevent memory leaks
+   */
+  private async cleanupStalesBatchesIfNeeded(): Promise<void> {
+    if (this.batches.size < this.MAX_BATCHES) {
+      return; // No cleanup needed
+    }
+
+    const now = new Date();
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const staleBatches: string[] = [];
+
+    for (const [messageKey, batch] of this.batches) {
+      const age = now.getTime() - batch.startTime.getTime();
+      if (age > STALE_THRESHOLD_MS) {
+        staleBatches.push(messageKey);
+      }
+    }
+
+    // Clean up stale batches
+    for (const messageKey of staleBatches) {
+      this.logger.warn(
+        {
+          messageKey,
+          batchAge:
+            now.getTime() -
+            (this.batches.get(messageKey)?.startTime.getTime() || 0),
+        },
+        "Cleaning up stale batch to prevent memory leak",
+      );
+      this.cleanup(messageKey);
+    }
+
+    // If still over limit, clean up oldest batches
+    if (this.batches.size >= this.MAX_BATCHES) {
+      const sortedBatches = Array.from(this.batches.entries()).sort(
+        (a, b) => a[1].startTime.getTime() - b[1].startTime.getTime(),
+      );
+
+      const toCleanup = sortedBatches.slice(
+        0,
+        this.batches.size - this.MAX_BATCHES + 100,
+      ); // Clean up extra
+      for (const [messageKey] of toCleanup) {
+        this.logger.warn(
+          { messageKey },
+          "Force cleaning batch due to memory limit",
+        );
+        this.cleanup(messageKey);
+      }
+    }
+  }
+
+  /**
    * Get current statistics for monitoring
    */
-  public getStats(): { activeBatches: number; activeTimers: number } {
+  public getStats(): {
+    activeBatches: number;
+    activeTimers: number;
+    pendingCreations: number;
+  } {
     return {
       activeBatches: this.batches.size,
       activeTimers: this.timers.size,
+      pendingCreations: this.batchCreationPromises.size,
     };
   }
 }
