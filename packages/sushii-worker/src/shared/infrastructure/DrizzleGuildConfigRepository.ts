@@ -74,7 +74,9 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         memberLogEnabled: data.logMemberEnabled ?? false,
         messageLogChannel: data.logMsg ? data.logMsg.toString() : null,
         messageLogEnabled: data.logMsgEnabled ?? false,
-        reactionLogChannel: data.logReaction ? data.logReaction.toString() : null,
+        reactionLogChannel: data.logReaction
+          ? data.logReaction.toString()
+          : null,
         reactionLogEnabled: data.logReactionEnabled ?? false,
       },
       {

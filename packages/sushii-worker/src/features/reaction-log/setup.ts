@@ -3,9 +3,9 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
-import type * as schema from "@/infrastructure/database/schema";
 
 import { ReactionBatchProcessor } from "./application/ReactionBatchProcessor";
 import { ReactionLogService } from "./application/ReactionLogService";
@@ -26,37 +26,48 @@ export function setupReactionLog(
   client: Client,
   guildConfigRepository: GuildConfigRepository,
   deploymentService: DeploymentService,
-  logger: Logger
+  logger: Logger,
 ): FullFeatureSetupReturn<ReactionLogServices> {
   // Create infrastructure services
-  const reactionStarterRepository = new DrizzleReactionStarterRepository(db, logger);
-  
+  const reactionStarterRepository = new DrizzleReactionStarterRepository(
+    db,
+    logger,
+  );
+
   // Create application services
-  const starterService = new ReactionStarterService(reactionStarterRepository, logger);
+  const starterService = new ReactionStarterService(
+    reactionStarterRepository,
+    logger,
+  );
   const reactionLogService = new ReactionLogService(
     client,
     guildConfigRepository,
-    logger
+    logger,
   );
   const batchProcessor = new ReactionBatchProcessor(
     starterService,
     reactionLogService,
-    logger
+    logger,
   );
-  
+
   // Create event handlers
   const eventHandlers = [
     new ReactionAddHandler(batchProcessor, logger),
     new ReactionRemoveHandler(batchProcessor, logger),
   ];
-  
+
   // Create background tasks
   const tasks = [
-    new ReactionStarterCleanupTask(client, deploymentService, logger, reactionStarterRepository),
+    new ReactionStarterCleanupTask(
+      client,
+      deploymentService,
+      logger,
+      reactionStarterRepository,
+    ),
   ];
-  
+
   logger.info("Reaction log feature setup completed");
-  
+
   return {
     commands: [],
     autocompletes: [],

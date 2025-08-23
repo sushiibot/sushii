@@ -9,9 +9,9 @@ import type { ReactionStarterRepository } from "../../domain/repositories/Reacti
 export class ReactionStarterCleanupTask extends AbstractBackgroundTask {
   readonly name = "ReactionStarterCleanup";
   readonly cronTime = "0 2 * * *"; // Run daily at 2 AM
-  
+
   private readonly CLEANUP_DAYS = 30; // Keep data for 30 days
-  
+
   constructor(
     client: Client,
     deploymentService: DeploymentService,
@@ -20,29 +20,26 @@ export class ReactionStarterCleanupTask extends AbstractBackgroundTask {
   ) {
     super(client, deploymentService, logger);
   }
-  
+
   protected async execute(): Promise<void> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.CLEANUP_DAYS);
-      
+
       this.logger.info(
         { cutoffDate, cleanupDays: this.CLEANUP_DAYS },
-        "Starting reaction starter cleanup"
+        "Starting reaction starter cleanup",
       );
-      
-      const deletedCount = await this.reactionStarterRepository.deleteOldStarters(cutoffDate);
-      
+
+      const deletedCount =
+        await this.reactionStarterRepository.deleteOldStarters(cutoffDate);
+
       this.logger.info(
         { deletedCount, cutoffDate },
-        "Completed reaction starter cleanup"
+        "Completed reaction starter cleanup",
       );
-      
     } catch (err) {
-      this.logger.error(
-        { err },
-        "Failed to execute reaction starter cleanup"
-      );
+      this.logger.error({ err }, "Failed to execute reaction starter cleanup");
     }
   }
 }

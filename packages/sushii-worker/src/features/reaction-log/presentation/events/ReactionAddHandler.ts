@@ -1,4 +1,9 @@
-import type { MessageReaction, PartialMessageReaction, User, PartialUser } from "discord.js";
+import type {
+  MessageReaction,
+  PartialMessageReaction,
+  PartialUser,
+  User,
+} from "discord.js";
 import { Events } from "discord.js";
 import type { Logger } from "pino";
 
@@ -9,29 +14,29 @@ import type { ReactionEvent } from "../../domain/types/ReactionEvent";
 
 export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> {
   readonly eventType = Events.MessageReactionAdd;
-  
+
   constructor(
     private readonly batchProcessor: ReactionBatchProcessor,
-    private readonly logger: Logger
+    private readonly logger: Logger,
   ) {
     super();
   }
 
   async handle(
     reaction: MessageReaction | PartialMessageReaction,
-    user: User | PartialUser
+    user: User | PartialUser,
   ): Promise<void> {
     try {
       // Ignore DMs (guildId will be null)
       if (!reaction.message.guildId) {
         return;
       }
-      
+
       // Ignore bot reactions
       if (user.bot) {
         return;
       }
-      
+
       // Don't fetch partials - use data as-is per requirements
       const event: ReactionEvent = {
         messageId: reaction.message.id,
@@ -41,23 +46,22 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
         emoji: reaction.emoji.toString(),
         emojiName: reaction.emoji.name || undefined,
         emojiId: reaction.emoji.id || undefined,
-        type: 'add',
+        type: "add",
         timestamp: new Date(),
         isInitial: false, // Will be set by processor based on database lookup
-        userName: user.username || undefined
+        userName: user.username || undefined,
       };
 
       await this.batchProcessor.queueReactionEvent(event);
-      
     } catch (err) {
       this.logger.error(
-        { 
-          err, 
-          messageId: reaction.message.id, 
+        {
+          err,
+          messageId: reaction.message.id,
           userId: user.id,
-          emoji: reaction.emoji.toString()
+          emoji: reaction.emoji.toString(),
         },
-        "Failed to handle reaction add event"
+        "Failed to handle reaction add event",
       );
     }
   }

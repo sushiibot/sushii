@@ -6,7 +6,7 @@ export interface ReactionEvent {
   emoji: string; // Unicode or <:name:id> format
   emojiName?: string; // Name for custom emojis
   emojiId?: string; // ID for custom emojis
-  type: 'add' | 'remove';
+  type: "add" | "remove";
   timestamp: Date;
   isInitial: boolean; // True if this user started this emoji reaction
   userName?: string; // Cached username if available

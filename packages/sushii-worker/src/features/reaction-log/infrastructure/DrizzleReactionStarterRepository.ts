@@ -7,16 +7,23 @@ import type * as schema from "@/infrastructure/database/schema";
 
 import type { ReactionStarterRepository } from "../domain/repositories/ReactionStarterRepository";
 
-export class DrizzleReactionStarterRepository implements ReactionStarterRepository {
+export class DrizzleReactionStarterRepository
+  implements ReactionStarterRepository
+{
   constructor(
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly logger: Logger,
   ) {}
 
-  async saveStarter(messageId: string, emoji: string, userId: string, guildId: string): Promise<void> {
+  async saveStarter(
+    messageId: string,
+    emoji: string,
+    userId: string,
+    guildId: string,
+  ): Promise<void> {
     this.logger.trace(
       { messageId, emoji, userId, guildId },
-      "Saving reaction starter"
+      "Saving reaction starter",
     );
 
     try {
@@ -32,9 +39,11 @@ export class DrizzleReactionStarterRepository implements ReactionStarterReposito
     } catch (err) {
       this.logger.error(
         { err, messageId, emoji, userId, guildId },
-        "Failed to save reaction starter"
+        "Failed to save reaction starter",
       );
-      throw new Error("Database error while saving reaction starter", { cause: err });
+      throw new Error("Database error while saving reaction starter", {
+        cause: err,
+      });
     }
   }
 
@@ -48,8 +57,8 @@ export class DrizzleReactionStarterRepository implements ReactionStarterReposito
         .where(
           and(
             eq(reactionStartersInAppPublic.messageId, BigInt(messageId)),
-            eq(reactionStartersInAppPublic.emoji, emoji)
-          )
+            eq(reactionStartersInAppPublic.emoji, emoji),
+          ),
         )
         .limit(1);
 
@@ -57,9 +66,11 @@ export class DrizzleReactionStarterRepository implements ReactionStarterReposito
     } catch (err) {
       this.logger.error(
         { err, messageId, emoji },
-        "Failed to get reaction starter"
+        "Failed to get reaction starter",
       );
-      throw new Error("Database error while getting reaction starter", { cause: err });
+      throw new Error("Database error while getting reaction starter", {
+        cause: err,
+      });
     }
   }
 
@@ -72,15 +83,20 @@ export class DrizzleReactionStarterRepository implements ReactionStarterReposito
         .where(lt(reactionStartersInAppPublic.createdAt, beforeDate));
 
       const deleted = result.rowCount ?? 0;
-      this.logger.debug({ deleted, beforeDate }, "Deleted old reaction starters");
-      
+      this.logger.debug(
+        { deleted, beforeDate },
+        "Deleted old reaction starters",
+      );
+
       return deleted;
     } catch (err) {
       this.logger.error(
         { err, beforeDate },
-        "Failed to delete old reaction starters"
+        "Failed to delete old reaction starters",
       );
-      throw new Error("Database error while deleting old reaction starters", { cause: err });
+      throw new Error("Database error while deleting old reaction starters", {
+        cause: err,
+      });
     }
   }
 }

@@ -846,9 +846,9 @@ export const reactionStartersInAppPublic = appPublic.table(
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ 
-      columns: [table.messageId, table.emoji], 
-      name: "reaction_starters_pkey" 
+    primaryKey({
+      columns: [table.messageId, table.emoji],
+      name: "reaction_starters_pkey",
     }),
     index("reaction_starters_guild_idx").on(table.guildId),
     index("reaction_starters_created_at_idx").on(table.createdAt),
