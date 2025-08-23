@@ -4,6 +4,7 @@ import type {
   ReactionBatch,
   ReactionEvent,
 } from "../domain/types/ReactionEvent";
+import { BATCH_WINDOW_MS } from "../domain/types/ReactionEvent";
 import type { ReactionLogService } from "./ReactionLogService";
 import type { ReactionStarterService } from "./ReactionStarterService";
 
@@ -11,7 +12,6 @@ export class ReactionBatchProcessor {
   private batches = new Map<string, ReactionBatch>();
   private timers = new Map<string, NodeJS.Timeout>();
   private batchCreationPromises = new Map<string, Promise<ReactionBatch>>(); // Track in-progress batch creations
-  private readonly BATCH_WINDOW_MS = 30000; // 30 seconds
   private readonly MAX_BATCHES = 1000; // Memory leak prevention
 
   constructor(
@@ -189,7 +189,7 @@ export class ReactionBatchProcessor {
       messageKey,
       setTimeout(() => {
         this.processBatch(messageKey);
-      }, this.BATCH_WINDOW_MS),
+      }, BATCH_WINDOW_MS),
     );
 
     return batch;

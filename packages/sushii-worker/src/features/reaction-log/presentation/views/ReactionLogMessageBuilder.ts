@@ -12,6 +12,7 @@ import type {
   ReactionBatch,
   ReactionEvent,
 } from "../../domain/types/ReactionEvent";
+import { BATCH_WINDOW_MS } from "../../domain/types/ReactionEvent";
 
 /**
  * Creates a reaction log message using Components v2 for better visual hierarchy
@@ -102,10 +103,13 @@ function buildTimeInfoSection(batch: ReactionBatch): TextDisplayBuilder {
   const startTime = Math.floor(batch.startTime.getTime() / 1000);
   const endTimeStr = Math.floor(endTime.getTime() / 1000);
 
+  // Batches are always processed after the batch window timeout
+  const durationText = `${BATCH_WINDOW_MS / 1000} seconds`;
+
   const timeInfo =
     startTime !== endTimeStr
-      ? `<t:${startTime}:f> – <t:${endTimeStr}:f>`
-      : `<t:${startTime}:f>`;
+      ? `<t:${startTime}:T> – <t:${endTimeStr}:T> (${durationText})`
+      : `<t:${startTime}:T> (${durationText})`;
 
   return new TextDisplayBuilder().setContent(timeInfo);
 }

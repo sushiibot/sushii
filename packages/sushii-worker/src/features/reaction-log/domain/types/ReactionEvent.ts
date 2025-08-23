@@ -11,6 +11,8 @@ export interface ReactionEvent {
   isInitial: boolean; // True if this user started this emoji reaction
 }
 
+export const BATCH_WINDOW_MS = 30000; // 30 seconds
+
 export interface ReactionBatch {
   messageId: string;
   channelId: string;
