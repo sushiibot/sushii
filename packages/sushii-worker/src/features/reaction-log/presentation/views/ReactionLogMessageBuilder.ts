@@ -196,22 +196,41 @@ function formatReactionUsers(
   reactions: ReactionEvent[],
   isAddType: boolean,
 ): string {
-  const starter = reactions.find((action) => action.isInitial);
-  const others = reactions.filter((action) => !action.isInitial);
+  // Count occurrences per user
+  const userCounts = new Map<string, number>();
+  let starterId: string | undefined;
 
-  const formatUser = (action: ReactionEvent, isStarter = false): string => {
-    return isStarter ? `<@${action.userId}> (starter)` : `<@${action.userId}>`;
+  for (const action of reactions) {
+    userCounts.set(action.userId, (userCounts.get(action.userId) || 0) + 1);
+    if (action.isInitial) {
+      starterId = action.userId;
+    }
+  }
+
+  const formatUser = (
+    userId: string,
+    count: number,
+    isStarter = false,
+  ): string => {
+    const mention = `<@${userId}>`;
+    const countSuffix = count > 1 ? ` x${count}` : "";
+    const starterSuffix = isStarter ? " (starter)" : "";
+    return `${mention}${countSuffix}${starterSuffix}`;
   };
 
   const userStrings: string[] = [];
 
-  if (starter) {
-    userStrings.push(formatUser(starter, isAddType));
+  // Add starter first if present and this is an add type
+  if (starterId && isAddType) {
+    const count = userCounts.get(starterId) || 1;
+    userStrings.push(formatUser(starterId, count, true));
+    userCounts.delete(starterId);
   }
 
-  if (others.length > 0) {
-    const otherUserStrings = others.map((action) => formatUser(action));
-    userStrings.push(...otherUserStrings);
+  // Add remaining users
+  for (const [userId, count] of userCounts) {
+    const isStarter = userId === starterId && !isAddType;
+    userStrings.push(formatUser(userId, count, isStarter));
   }
 
   return userStrings.join(", ");
