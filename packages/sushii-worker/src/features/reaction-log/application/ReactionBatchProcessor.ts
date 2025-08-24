@@ -2,33 +2,39 @@ import type { Logger } from "pino";
 
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import type { ReactionStarterRepository } from "../domain/repositories/ReactionStarterRepository";
 import type {
-  ReactionBatch,
+  GuildReactionBatch,
   ReactionEvent,
 } from "../domain/types/ReactionEvent";
 import { BATCH_WINDOW_MS } from "../domain/types/ReactionEvent";
 import type { ReactionLogService } from "./ReactionLogService";
-import type { ReactionStarterService } from "./ReactionStarterService";
 
 export class ReactionBatchProcessor {
-  private batches = new Map<string, ReactionBatch>();
+  private guildBatches = new Map<string, GuildReactionBatch>();
   private timers = new Map<string, NodeJS.Timeout>();
-  private batchCreationPromises = new Map<string, Promise<ReactionBatch>>(); // Track in-progress batch creations
+  private batchCreationPromises = new Map<
+    string,
+    Promise<GuildReactionBatch>
+  >(); // Track in-progress batch creations
   private readonly MAX_BATCHES = 1000; // Memory leak prevention
 
   constructor(
-    private readonly starterService: ReactionStarterService,
+    private readonly starterRepository: ReactionStarterRepository,
     private readonly reactionLogService: ReactionLogService,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {}
 
   /**
-   * Queue a reaction event for batching
-   * Events are batched by messageId for 30 seconds
+   * Queue a reaction removal event for guild-wide batching
+   * Only removal events are batched and logged (additions are ignored)
    */
-  async queueReactionEvent(event: ReactionEvent): Promise<void> {
-    const messageKey = event.messageId;
+  async queueReactionRemoval(event: ReactionEvent): Promise<void> {
+    // Only process removal events
+    if (event.type !== "remove") {
+      return;
+    }
 
     try {
       // Check if reaction logging is enabled for this guild
@@ -43,240 +49,241 @@ export class ReactionBatchProcessor {
         return;
       }
 
-      // Determine if user started this reaction
-      if (event.type === "add") {
-        const { starterId, isNew } = await this.starterService.getOrSetStarter(
-          event.messageId,
-          event.emojiString,
-          event.userId,
-          event.guildId,
-        );
-        event.isInitial = isNew || starterId === event.userId;
-        this.logger.trace(
-          {
-            messageId: event.messageId,
-            emoji: event.emojiString,
-            userId: event.userId,
-            isInitial: event.isInitial,
-          },
-          "Processed reaction add",
-        );
-      } else if (event.type === "remove") {
-        const starterId = await this.starterService.getStarter(
-          event.messageId,
-          event.emojiString,
-        );
-        event.isInitial = starterId === event.userId;
-        this.logger.trace(
-          {
-            messageId: event.messageId,
-            emoji: event.emojiString,
-            userId: event.userId,
-            isInitial: event.isInitial,
-          },
-          "Processed reaction remove",
-        );
-      }
+      // Get starter information for context (even if they didn't remove it)
+      const starterId = await this.starterRepository.getStarter(
+        event.messageId,
+        event.emojiString,
+      );
+      event.isInitial = starterId === event.userId;
 
-      // Get or create batch using Promise coordination to prevent race conditions
-      const batch = await this.getOrCreateBatch(messageKey, event);
-      if (batch) {
-        batch.actions.push(event);
+      this.logger.trace(
+        {
+          messageId: event.messageId,
+          emoji: event.emojiString,
+          userId: event.userId,
+          starterId,
+          isInitial: event.isInitial,
+        },
+        "Processing reaction removal",
+      );
+
+      // Get or create guild batch using Promise coordination to prevent race conditions
+      const guildBatch = await this.getOrCreateGuildBatch(event.guildId);
+      if (guildBatch) {
+        // Add to the appropriate message's removal list
+        const messageEvents = guildBatch.removals.get(event.messageId) ?? [];
+        messageEvents.push(event);
+        guildBatch.removals.set(event.messageId, messageEvents);
+
+        const totalRemovals = Array.from(guildBatch.removals.values()).reduce(
+          (sum, events) => sum + events.length,
+          0,
+        );
+
         this.logger.trace(
-          { messageKey, actionCount: batch.actions.length },
-          "Added event to batch",
+          {
+            guildId: event.guildId,
+            messageId: event.messageId,
+            totalRemovals,
+          },
+          "Added removal to guild batch",
         );
       }
     } catch (err) {
-      this.logger.error({ err, event }, "Failed to queue reaction event");
+      this.logger.error({ err, event }, "Failed to queue reaction removal");
     }
   }
 
   /**
-   * Process a completed batch by sending it to the log service
+   * Process a completed guild batch by sending it to the log service
    */
-  private async processBatch(messageKey: string): Promise<void> {
-    const batch = this.batches.get(messageKey);
-    if (!batch || batch.actions.length === 0) {
-      this.logger.trace({ messageKey }, "No batch to process or empty batch");
-      this.cleanup(messageKey);
+  private async processGuildBatch(guildId: string): Promise<void> {
+    const guildBatch = this.guildBatches.get(guildId);
+    if (!guildBatch || guildBatch.removals.size === 0) {
+      this.logger.trace(
+        { guildId },
+        "No guild batch to process or empty batch",
+      );
+      this.cleanupGuild(guildId);
       return;
     }
 
+    const totalRemovals = Array.from(guildBatch.removals.values()).reduce(
+      (sum, events) => sum + events.length,
+      0,
+    );
+
     this.logger.trace(
-      { messageKey, actionCount: batch.actions.length },
-      "Processing reaction batch",
+      { guildId, messagesCount: guildBatch.removals.size, totalRemovals },
+      "Processing guild reaction batch",
     );
 
     try {
-      const config = await this.guildConfigRepository.findByGuildId(
-        batch.guildId,
-      );
+      const config = await this.guildConfigRepository.findByGuildId(guildId);
       if (
         !config.loggingSettings.reactionLogEnabled ||
         !config.loggingSettings.reactionLogChannel
       ) {
         this.logger.debug(
-          { messageKey },
+          { guildId },
           "Reaction logging disabled during batch processing",
         );
         return;
       }
 
-      // We have logging enabled, continue
-      await this.reactionLogService.logBatch(
-        batch,
+      // Convert guild batch to legacy format for the log service
+      await this.reactionLogService.logGuildBatch(
+        guildBatch,
         config.loggingSettings.reactionLogChannel,
       );
-      this.logger.trace({ messageKey }, "Successfully processed batch");
+      this.logger.trace({ guildId }, "Successfully processed guild batch");
     } catch (err) {
-      this.logger.trace({ err, batch }, "Failed to process reaction batch");
+      this.logger.error(
+        { err, guildId },
+        "Failed to process guild reaction batch",
+      );
     } finally {
       // Always cleanup resources even if processing fails
-      this.cleanup(messageKey);
+      this.cleanupGuild(guildId);
     }
   }
 
   /**
-   * Clean up batch and timer resources
+   * Clean up guild batch and timer resources
    */
-  private cleanup(messageKey: string): void {
-    this.batches.delete(messageKey);
+  private cleanupGuild(guildId: string): void {
+    this.guildBatches.delete(guildId);
 
-    const timer = this.timers.get(messageKey);
+    const timer = this.timers.get(guildId);
     if (timer) {
       clearTimeout(timer);
-      this.timers.delete(messageKey);
+      this.timers.delete(guildId);
     }
 
-    this.logger.trace({ messageKey }, "Cleaned up batch resources");
+    this.logger.trace({ guildId }, "Cleaned up guild batch resources");
   }
 
   /**
-   * Get or create a batch with Promise coordination to prevent race conditions
+   * Get or create a guild batch with Promise coordination to prevent race conditions
    */
-  private async getOrCreateBatch(
-    messageKey: string,
-    event: ReactionEvent,
-  ): Promise<ReactionBatch | null> {
-    // Check if batch already exists
-    const existingBatch = this.batches.get(messageKey);
+  private async getOrCreateGuildBatch(
+    guildId: string,
+  ): Promise<GuildReactionBatch | null> {
+    // Check if guild batch already exists
+    const existingBatch = this.guildBatches.get(guildId);
     if (existingBatch) {
       return existingBatch;
     }
 
     // Check if batch creation is already in progress
-    const existingPromise = this.batchCreationPromises.get(messageKey);
+    const existingPromise = this.batchCreationPromises.get(guildId);
     if (existingPromise) {
       try {
         return await existingPromise;
       } catch (err) {
         this.logger.error(
-          { err, messageKey },
-          "Failed to wait for batch creation",
+          { err, guildId },
+          "Failed to wait for guild batch creation",
         );
         return null;
       }
     }
 
-    // Create new batch creation promise
-    const creationPromise = this.createBatchInternal(messageKey, event);
-    this.batchCreationPromises.set(messageKey, creationPromise);
+    // Create new guild batch creation promise
+    const creationPromise = this.createGuildBatchInternal(guildId);
+    this.batchCreationPromises.set(guildId, creationPromise);
 
     try {
-      const batch = await creationPromise;
-      return batch;
+      const guildBatch = await creationPromise;
+      return guildBatch;
     } catch (err) {
-      this.logger.error({ err, messageKey }, "Failed to create batch");
+      this.logger.error({ err, guildId }, "Failed to create guild batch");
       return null;
     } finally {
       // Always clean up the creation promise
-      this.batchCreationPromises.delete(messageKey);
+      this.batchCreationPromises.delete(guildId);
     }
   }
 
   /**
-   * Internal batch creation with memory leak prevention
+   * Internal guild batch creation with memory leak prevention
    */
-  private async createBatchInternal(
-    messageKey: string,
-    event: ReactionEvent,
-  ): Promise<ReactionBatch> {
+  private async createGuildBatchInternal(
+    guildId: string,
+  ): Promise<GuildReactionBatch> {
     // Memory leak prevention: cleanup old batches if needed
-    await this.cleanupStalesBatchesIfNeeded();
+    await this.cleanupStaleGuildBatchesIfNeeded();
 
-    // Create new batch
-    const batch: ReactionBatch = {
-      messageId: event.messageId,
-      channelId: event.channelId,
-      guildId: event.guildId,
-      actions: [],
+    // Create new guild batch
+    const guildBatch: GuildReactionBatch = {
+      guildId,
+      removals: new Map(),
       startTime: new Date(),
     };
 
-    this.batches.set(messageKey, batch);
-    this.logger.trace({ messageKey }, "Created new reaction batch");
+    this.guildBatches.set(guildId, guildBatch);
+    this.logger.trace({ guildId }, "Created new guild reaction batch");
 
     // Set timer for batch processing
     this.timers.set(
-      messageKey,
+      guildId,
       setTimeout(() => {
-        this.processBatch(messageKey);
+        this.processGuildBatch(guildId);
       }, BATCH_WINDOW_MS),
     );
 
-    return batch;
+    return guildBatch;
   }
 
   /**
-   * Clean up stale batches to prevent memory leaks
+   * Clean up stale guild batches to prevent memory leaks
    */
-  private async cleanupStalesBatchesIfNeeded(): Promise<void> {
-    if (this.batches.size < this.MAX_BATCHES) {
+  private async cleanupStaleGuildBatchesIfNeeded(): Promise<void> {
+    if (this.guildBatches.size < this.MAX_BATCHES) {
       return; // No cleanup needed
     }
 
     const now = new Date();
     const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-    const staleBatches: string[] = [];
+    const staleGuildBatches: string[] = [];
 
-    for (const [messageKey, batch] of this.batches) {
-      const age = now.getTime() - batch.startTime.getTime();
+    for (const [guildId, guildBatch] of this.guildBatches) {
+      const age = now.getTime() - guildBatch.startTime.getTime();
       if (age > STALE_THRESHOLD_MS) {
-        staleBatches.push(messageKey);
+        staleGuildBatches.push(guildId);
       }
     }
 
-    // Clean up stale batches
-    for (const messageKey of staleBatches) {
+    // Clean up stale guild batches
+    for (const guildId of staleGuildBatches) {
       this.logger.warn(
         {
-          messageKey,
+          guildId,
           batchAge:
             now.getTime() -
-            (this.batches.get(messageKey)?.startTime.getTime() || 0),
+            (this.guildBatches.get(guildId)?.startTime.getTime() || 0),
         },
-        "Cleaning up stale batch to prevent memory leak",
+        "Cleaning up stale guild batch to prevent memory leak",
       );
-      this.cleanup(messageKey);
+      this.cleanupGuild(guildId);
     }
 
-    // If still over limit, clean up oldest batches
-    if (this.batches.size >= this.MAX_BATCHES) {
-      const sortedBatches = Array.from(this.batches.entries()).sort(
+    // If still over limit, clean up oldest guild batches
+    if (this.guildBatches.size >= this.MAX_BATCHES) {
+      const sortedGuildBatches = Array.from(this.guildBatches.entries()).sort(
         (a, b) => a[1].startTime.getTime() - b[1].startTime.getTime(),
       );
 
-      const toCleanup = sortedBatches.slice(
+      const toCleanup = sortedGuildBatches.slice(
         0,
-        this.batches.size - this.MAX_BATCHES + 100,
+        this.guildBatches.size - this.MAX_BATCHES + 100,
       ); // Clean up extra
-      for (const [messageKey] of toCleanup) {
+      for (const [guildId] of toCleanup) {
         this.logger.warn(
-          { messageKey },
-          "Force cleaning batch due to memory limit",
+          { guildId },
+          "Force cleaning guild batch due to memory limit",
         );
-        this.cleanup(messageKey);
+        this.cleanupGuild(guildId);
       }
     }
   }
@@ -285,12 +292,12 @@ export class ReactionBatchProcessor {
    * Get current statistics for monitoring
    */
   public getStats(): {
-    activeBatches: number;
+    activeGuildBatches: number;
     activeTimers: number;
     pendingCreations: number;
   } {
     return {
-      activeBatches: this.batches.size,
+      activeGuildBatches: this.guildBatches.size,
       activeTimers: this.timers.size,
       pendingCreations: this.batchCreationPromises.size,
     };

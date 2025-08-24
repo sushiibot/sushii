@@ -12,6 +12,7 @@ import { ReactionLogService } from "./application/ReactionLogService";
 import { ReactionStarterService } from "./application/ReactionStarterService";
 import { DrizzleReactionStarterRepository } from "./infrastructure/DrizzleReactionStarterRepository";
 import { ReactionStarterCleanupTask } from "./infrastructure/tasks/ReactionStarterCleanupTask";
+import { CheckReactionStartersCommand } from "./presentation/commands/CheckReactionStartersCommand";
 import { ReactionAddHandler } from "./presentation/events/ReactionAddHandler";
 import { ReactionRemoveHandler } from "./presentation/events/ReactionRemoveHandler";
 
@@ -41,15 +42,20 @@ export function setupReactionLog(
   );
   const reactionLogService = new ReactionLogService(client, logger);
   const batchProcessor = new ReactionBatchProcessor(
-    starterService,
+    reactionStarterRepository,
     reactionLogService,
     guildConfigRepository,
     logger,
   );
 
+  // Create context menu handlers
+  const contextMenuHandlers = [
+    new CheckReactionStartersCommand(reactionStarterRepository, logger),
+  ];
+
   // Create event handlers
   const eventHandlers = [
-    new ReactionAddHandler(batchProcessor, logger),
+    new ReactionAddHandler(starterService, logger),
     new ReactionRemoveHandler(batchProcessor, logger),
   ];
 
@@ -68,7 +74,7 @@ export function setupReactionLog(
   return {
     commands: [],
     autocompletes: [],
-    contextMenuHandlers: [],
+    contextMenuHandlers,
     buttonHandlers: [],
     eventHandlers,
     tasks,

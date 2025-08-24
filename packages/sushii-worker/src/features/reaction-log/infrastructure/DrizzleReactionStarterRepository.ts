@@ -124,6 +124,51 @@ export class DrizzleReactionStarterRepository
     }
   }
 
+  async getAllStartersForMessage(
+    messageId: string,
+  ): Promise<Map<string, string>> {
+    this.logger.trace(
+      { messageId },
+      "Getting all reaction starters for message",
+    );
+
+    try {
+      const result = await this.db
+        .select({
+          emoji: reactionStartersInAppPublic.emoji,
+          userId: reactionStartersInAppPublic.userId,
+        })
+        .from(reactionStartersInAppPublic)
+        .where(eq(reactionStartersInAppPublic.messageId, BigInt(messageId)));
+
+      const startersMap = new Map<string, string>();
+      for (const row of result) {
+        startersMap.set(row.emoji, row.userId.toString());
+      }
+
+      this.logger.trace(
+        {
+          messageId,
+          foundStarters: startersMap.size,
+        },
+        "Retrieved all reaction starters for message",
+      );
+
+      return startersMap;
+    } catch (err) {
+      this.logger.error(
+        { err, messageId },
+        "Failed to get all reaction starters for message",
+      );
+      throw new Error(
+        "Database error while getting all message reaction starters",
+        {
+          cause: err,
+        },
+      );
+    }
+  }
+
   async deleteOldStarters(beforeDate: Date): Promise<number> {
     this.logger.trace({ beforeDate }, "Deleting old reaction starters");
 

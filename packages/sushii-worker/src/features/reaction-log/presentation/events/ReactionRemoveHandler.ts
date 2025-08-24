@@ -51,7 +51,7 @@ export class ReactionRemoveHandler extends EventHandler<Events.MessageReactionRe
         isInitial: false,
       };
 
-      await this.batchProcessor.queueReactionEvent(event);
+      await this.batchProcessor.queueReactionRemoval(event);
     } catch (err) {
       this.logger.error(
         {

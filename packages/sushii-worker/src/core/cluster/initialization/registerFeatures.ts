@@ -186,9 +186,10 @@ export function registerFeatures(
   );
 
   // Context menu handlers
-  moderationFeature.contextMenuHandlers.forEach((handler) => {
-    interactionRouter.addContextMenu(handler);
-  });
+  interactionRouter.addContextMenus(
+    ...moderationFeature.contextMenuHandlers,
+    ...reactionLogFeature.contextMenuHandlers,
+  );
 
   // Button handlers
   interactionRouter.addButtons(

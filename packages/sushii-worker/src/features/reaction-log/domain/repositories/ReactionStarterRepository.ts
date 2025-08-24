@@ -27,6 +27,13 @@ export interface ReactionStarterRepository {
   ): Promise<Map<string, string>>;
 
   /**
+   * Get all reaction starters for a specific message
+   * Returns a Map of emoji -> starter userId for all reactions on the message
+   * Used for showing complete reaction history including removed reactions
+   */
+  getAllStartersForMessage(messageId: string): Promise<Map<string, string>>;
+
+  /**
    * Delete old reaction starter records before the specified date
    * Used for cleanup to prevent unlimited growth
    * Returns the number of deleted records

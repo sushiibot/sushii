@@ -11,12 +11,10 @@ export interface ReactionEvent {
   isInitial: boolean; // True if this user started this emoji reaction
 }
 
-export const BATCH_WINDOW_MS = 30000; // 30 seconds
+export const BATCH_WINDOW_MS = 60000; // 60 seconds
 
-export interface ReactionBatch {
-  messageId: string;
-  channelId: string;
+export interface GuildReactionBatch {
   guildId: string;
-  actions: ReactionEvent[];
+  removals: Map<string, ReactionEvent[]>; // messageId -> removal events
   startTime: Date;
 }

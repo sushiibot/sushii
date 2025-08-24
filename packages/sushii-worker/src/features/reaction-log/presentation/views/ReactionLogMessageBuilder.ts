@@ -9,116 +9,15 @@ import {
 import Color from "@/utils/colors";
 
 import type {
-  ReactionBatch,
+  GuildReactionBatch,
   ReactionEvent,
 } from "../../domain/types/ReactionEvent";
 import { BATCH_WINDOW_MS } from "../../domain/types/ReactionEvent";
 
 /**
- * Creates a reaction log message using Components v2 for better visual hierarchy
- * and improved readability. Handles both additions and removals with clear sections.
+ * Creates a guild reaction log message for removal-only batches
+ * Groups removals from multiple messages into a single log
  */
-export function createReactionLogMessage(
-  batch: ReactionBatch,
-): MessageCreateOptions {
-  const container = new ContainerBuilder().setAccentColor(
-    getReactionLogColor(batch.actions),
-  );
-
-  // Build message sections
-  const summarySection = buildReactionSummarySection(batch);
-  container.addTextDisplayComponents(summarySection);
-
-  const emojiGroups = groupByEmoji(batch.actions);
-  const addGroups = emojiGroups.filter((group) => group.adds.length > 0);
-  const removeGroups = emojiGroups.filter((group) => group.removes.length > 0);
-
-  // Add sections with separators
-  if (addGroups.length > 0) {
-    container.addSeparatorComponents(new SeparatorBuilder());
-    const addedSection = buildAddedReactionsSection(addGroups);
-    container.addTextDisplayComponents(addedSection);
-  }
-
-  if (removeGroups.length > 0) {
-    container.addSeparatorComponents(new SeparatorBuilder());
-    const removedSection = buildRemovedReactionsSection(removeGroups);
-    container.addTextDisplayComponents(removedSection);
-  }
-
-  // Add time info
-  container.addSeparatorComponents(new SeparatorBuilder());
-  const timeSection = buildTimeInfoSection(batch);
-  container.addTextDisplayComponents(timeSection);
-
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
-}
-
-function buildReactionSummarySection(batch: ReactionBatch): TextDisplayBuilder {
-  const messageLink = `https://discord.com/channels/${batch.guildId}/${batch.channelId}/${batch.messageId}`;
-
-  const content = `**Reacted to** ${messageLink}\n`;
-  return new TextDisplayBuilder().setContent(content);
-}
-
-function buildAddedReactionsSection(
-  addGroups: EmojiGroup[],
-): TextDisplayBuilder {
-  let content = "### Added Reactions\n";
-
-  for (const group of addGroups) {
-    const groupContent = formatEmojiGroup(group, "add");
-    content += `${groupContent}\n`;
-  }
-
-  return new TextDisplayBuilder().setContent(content);
-}
-
-function buildRemovedReactionsSection(
-  removeGroups: EmojiGroup[],
-): TextDisplayBuilder {
-  let content = "### Removed Reactions\n";
-
-  for (const group of removeGroups) {
-    const groupContent = formatEmojiGroup(group, "remove");
-    content += `${groupContent}\n`;
-  }
-
-  return new TextDisplayBuilder().setContent(content);
-}
-
-function buildTimeInfoSection(batch: ReactionBatch): TextDisplayBuilder {
-  const endTime = new Date();
-  const startTime = Math.floor(batch.startTime.getTime() / 1000);
-  const endTimeStr = Math.floor(endTime.getTime() / 1000);
-
-  // Batches are always processed after the batch window timeout
-  const durationText = `${BATCH_WINDOW_MS / 1000} seconds`;
-
-  const timeInfo =
-    startTime !== endTimeStr
-      ? `<t:${startTime}:T> – <t:${endTimeStr}:T> (${durationText})`
-      : `<t:${startTime}:T> (${durationText})`;
-
-  return new TextDisplayBuilder().setContent(timeInfo);
-}
-
-function getReactionLogColor(actions: ReactionEvent[]): number {
-  const emojiGroups = groupByEmoji(actions);
-  const hasRemovals = emojiGroups.some((group) => group.removes.length > 0);
-
-  if (hasRemovals) {
-    // Red/pink for removals
-    return Color.Error;
-  }
-
-  // Default blue
-  return Color.Info;
-}
 
 interface EmojiGroup {
   emojiString: string;
@@ -179,27 +78,87 @@ function formatEmojiWithUrl(group: EmojiGroup): string {
   return group.emojiString;
 }
 
-function formatEmojiGroup(group: EmojiGroup, type: "add" | "remove"): string {
-  const reactions = type === "add" ? group.adds : group.removes;
-  if (reactions.length === 0) return "";
+/**
+ * Creates a guild reaction log message for removal-only batches
+ * Groups removals from multiple messages into a single log
+ */
+export function createGuildReactionLogMessage(
+  guildBatch: GuildReactionBatch,
+): MessageCreateOptions {
+  const container = new ContainerBuilder().setAccentColor(Color.Error); // Always red for removals
 
-  const formattedEmoji = formatEmojiWithUrl(group);
-  const formattedUsers = formatReactionUsers(reactions, type === "add");
-  return `- ${formattedEmoji} ${formattedUsers}`;
+  // Build header section
+  const headerSection = buildGuildBatchHeaderSection(guildBatch);
+  container.addTextDisplayComponents(headerSection);
+
+  // Group removals by message
+  const messageRemovals = Array.from(guildBatch.removals.entries());
+
+  if (messageRemovals.length > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    const removalSection = buildGuildRemovalSection(messageRemovals);
+    container.addTextDisplayComponents(removalSection);
+  }
+
+  // Add time info
+  container.addSeparatorComponents(new SeparatorBuilder());
+  const timeSection = buildGuildBatchTimeInfoSection(guildBatch);
+  container.addTextDisplayComponents(timeSection);
+
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+  };
 }
 
-function formatReactionUsers(
-  reactions: ReactionEvent[],
-  isAddType: boolean,
-): string {
-  // Count occurrences per user
+function buildGuildBatchHeaderSection(
+  guildBatch: GuildReactionBatch,
+): TextDisplayBuilder {
+  const messagesText =
+    guildBatch.removals.size === 1
+      ? "1 message"
+      : `${guildBatch.removals.size} messages`;
+
+  const content = `### Reactions Removed (${messagesText})`;
+  return new TextDisplayBuilder().setContent(content);
+}
+
+function buildGuildRemovalSection(
+  messageRemovals: [string, ReactionEvent[]][],
+): TextDisplayBuilder {
+  let content = "";
+
+  for (const [messageId, events] of messageRemovals) {
+    // Group events by emoji for this message
+    const emojiGroups = groupByEmoji(events);
+
+    // Get channel info from first event
+    const firstEvent = events[0];
+    const messageLink = `https://discord.com/channels/${firstEvent.guildId}/${firstEvent.channelId}/${messageId}`;
+
+    // Format each emoji removal for this message
+    for (const group of emojiGroups) {
+      if (group.removes.length > 0) {
+        const formattedEmoji = formatEmojiWithUrl(group);
+        const removalInfo = formatGuildRemovalUsers(group.removes);
+        content += `- ${messageLink} - ${formattedEmoji} removed by ${removalInfo}\n`;
+      }
+    }
+  }
+
+  return new TextDisplayBuilder().setContent(content);
+}
+
+function formatGuildRemovalUsers(removals: ReactionEvent[]): string {
+  // Count occurrences per user and track starter
   const userCounts = new Map<string, number>();
   let starterId: string | undefined;
 
-  for (const action of reactions) {
-    userCounts.set(action.userId, (userCounts.get(action.userId) || 0) + 1);
-    if (action.isInitial) {
-      starterId = action.userId;
+  for (const removal of removals) {
+    userCounts.set(removal.userId, (userCounts.get(removal.userId) || 0) + 1);
+    if (removal.isInitial) {
+      starterId = removal.userId;
     }
   }
 
@@ -210,24 +169,40 @@ function formatReactionUsers(
   ): string => {
     const mention = `<@${userId}>`;
     const countSuffix = count > 1 ? ` x${count}` : "";
-    const starterSuffix = isStarter ? " (starter)" : "";
+    const starterSuffix = isStarter ? " (started)" : "";
     return `${mention}${countSuffix}${starterSuffix}`;
   };
 
   const userStrings: string[] = [];
 
-  // Add starter first if present and this is an add type
-  if (starterId && isAddType) {
-    const count = userCounts.get(starterId) || 1;
-    userStrings.push(formatUser(starterId, count, true));
-    userCounts.delete(starterId);
-  }
-
-  // Add remaining users
+  // Add users, marking the starter
   for (const [userId, count] of userCounts) {
-    const isStarter = userId === starterId && !isAddType;
+    const isStarter = userId === starterId;
     userStrings.push(formatUser(userId, count, isStarter));
   }
 
+  // Add starter info if they didn't remove their reaction
+  if (starterId && !userCounts.has(starterId)) {
+    userStrings.push(`(started by <@${starterId}>)`);
+  }
+
   return userStrings.join(", ");
+}
+
+function buildGuildBatchTimeInfoSection(
+  guildBatch: GuildReactionBatch,
+): TextDisplayBuilder {
+  const endTime = new Date();
+  const startTime = Math.floor(guildBatch.startTime.getTime() / 1000);
+  const endTimeStr = Math.floor(endTime.getTime() / 1000);
+
+  // Guild batches are always processed after the batch window timeout
+  const durationText = `${BATCH_WINDOW_MS / 1000} seconds`;
+
+  const timeInfo =
+    startTime !== endTimeStr
+      ? `<t:${startTime}:T> – <t:${endTimeStr}:T> (${durationText})`
+      : `<t:${startTime}:T> (${durationText})`;
+
+  return new TextDisplayBuilder().setContent(timeInfo);
 }

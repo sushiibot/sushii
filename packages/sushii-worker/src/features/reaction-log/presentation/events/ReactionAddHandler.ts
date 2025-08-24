@@ -9,14 +9,13 @@ import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import type { ReactionBatchProcessor } from "../../application/ReactionBatchProcessor";
-import type { ReactionEvent } from "../../domain/types/ReactionEvent";
+import type { ReactionStarterService } from "../../application/ReactionStarterService";
 
 export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> {
   readonly eventType = Events.MessageReactionAdd;
 
   constructor(
-    private readonly batchProcessor: ReactionBatchProcessor,
+    private readonly reactionStarterService: ReactionStarterService,
     private readonly logger: Logger,
   ) {
     super();
@@ -37,21 +36,29 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
         return;
       }
 
-      const event: ReactionEvent = {
-        messageId: reaction.message.id,
-        channelId: reaction.message.channelId,
-        guildId: reaction.message.guildId,
-        userId: user.id,
-        emojiString: reaction.emoji.toString(),
-        emojiName: reaction.emoji.name || undefined,
-        emojiId: reaction.emoji.id || undefined,
-        type: "add",
-        timestamp: new Date(),
-        // Will be set by processor based on database lookup
-        isInitial: false,
-      };
+      // Always track reaction starters (regardless of logging configuration)
+      // This is needed for the context menu command to work
+      const { isNew } = await this.reactionStarterService.getOrSetStarter(
+        reaction.message.id,
+        reaction.emoji.toString(),
+        user.id,
+        reaction.message.guildId,
+      );
 
-      await this.batchProcessor.queueReactionEvent(event);
+      if (isNew) {
+        this.logger.trace(
+          {
+            messageId: reaction.message.id,
+            emoji: reaction.emoji.toString(),
+            userId: user.id,
+            guildId: reaction.message.guildId,
+          },
+          "Tracked new reaction starter",
+        );
+      }
+
+      // NOTE: We no longer do any batch processing for additions
+      // Only removals are logged to reduce spam and rate limiting
     } catch (err) {
       this.logger.error(
         {

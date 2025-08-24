@@ -219,8 +219,10 @@ export default class InteractionRouter {
    *
    * @param command ContextMenuHandler to add
    */
-  public addContextMenu(ctxMenuHandler: ContextMenuHandler): void {
-    this.contextMenuHandlers.set(ctxMenuHandler.command.name, ctxMenuHandler);
+  public addContextMenus(...ctxMenuHandlers: ContextMenuHandler[]): void {
+    ctxMenuHandlers.forEach((ctxMenuHandler) => {
+      this.contextMenuHandlers.set(ctxMenuHandler.command.name, ctxMenuHandler);
+    });
   }
 
   /**

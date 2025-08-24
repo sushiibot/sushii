@@ -1,9 +1,8 @@
-import type { Client, NewsChannel, TextChannel } from "discord.js";
-import { PermissionFlagsBits } from "discord.js";
+import type { Client } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ReactionBatch } from "../domain/types/ReactionEvent";
-import { createReactionLogMessage } from "../presentation/views/ReactionLogMessageBuilder";
+import type { GuildReactionBatch } from "../domain/types/ReactionEvent";
+import { createGuildReactionLogMessage } from "../presentation/views/ReactionLogMessageBuilder";
 
 export class ReactionLogService {
   constructor(
@@ -12,20 +11,20 @@ export class ReactionLogService {
   ) {}
 
   /**
-   * Log a completed reaction batch to Discord
+   * Log a completed guild reaction batch to Discord
    */
-  async logBatch(
-    batch: ReactionBatch,
+  async logGuildBatch(
+    guildBatch: GuildReactionBatch,
     reactionLogChannelId: string,
   ): Promise<void> {
     try {
       // Get the log channel
-      const channel = this.client.channels.cache.get(reactionLogChannelId);
+      const channel = await this.client.channels.fetch(reactionLogChannelId);
 
       if (!channel?.isSendable()) {
         this.logger.warn(
           {
-            guildId: batch.guildId,
+            guildId: guildBatch.guildId,
             channelId: reactionLogChannelId,
           },
           "Reaction log channel not found or not sendable",
@@ -33,11 +32,11 @@ export class ReactionLogService {
         return;
       }
 
-      // Validate bot permissions in the channel
+      // Validate that channel is not a thread (threads are not supported)
       if (channel.isThread()) {
         this.logger.warn(
           {
-            guildId: batch.guildId,
+            guildId: guildBatch.guildId,
             channelId: reactionLogChannelId,
           },
           "Reaction log channel is a thread - threads are not supported",
@@ -45,70 +44,33 @@ export class ReactionLogService {
         return;
       }
 
-      const textChannel = channel as TextChannel | NewsChannel;
-      const botMember = textChannel.guild.members.me;
+      // Create and send the guild log message
+      const message = createGuildReactionLogMessage(guildBatch);
+      await channel.send(message);
 
-      if (!botMember) {
-        this.logger.warn(
-          {
-            guildId: batch.guildId,
-            channelId: reactionLogChannelId,
-          },
-          "Bot member not found in guild",
-        );
-        return;
-      }
-
-      const permissions = textChannel.permissionsFor(botMember);
-      const requiredPermissions = [
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.EmbedLinks,
-        PermissionFlagsBits.ViewChannel,
-      ];
-
-      const missingPermissions = requiredPermissions.filter(
-        (permission) => !permissions?.has(permission),
+      const totalRemovals = Array.from(guildBatch.removals.values()).reduce(
+        (sum, events) => sum + events.length,
+        0,
       );
 
-      if (missingPermissions.length > 0) {
-        this.logger.warn(
-          {
-            guildId: batch.guildId,
-            channelId: reactionLogChannelId,
-            missingPermissions: missingPermissions.map((p) => p.toString()),
-          },
-          "Bot missing required permissions for reaction log channel",
-        );
-        return;
-      }
-
-      // Create and send the log message
-      const message = createReactionLogMessage(batch);
-
-      try {
-        await textChannel.send(message);
-
-        this.logger.trace(
-          {
-            guildId: batch.guildId,
-            channelId: reactionLogChannelId,
-            actionCount: batch.actions.length,
-          },
-          "Successfully sent reaction log message",
-        );
-      } catch (err) {
-        this.logger.error(
-          {
-            err,
-            guildId: batch.guildId,
-            channelId: reactionLogChannelId,
-          },
-          "Failed to send reaction log message",
-        );
-        throw err;
-      }
+      this.logger.trace(
+        {
+          guildId: guildBatch.guildId,
+          channelId: reactionLogChannelId,
+          messagesCount: guildBatch.removals.size,
+          totalRemovals,
+        },
+        "Successfully sent guild reaction log message",
+      );
     } catch (err) {
-      this.logger.error({ err, batch }, "Failed to send reaction log");
+      this.logger.error(
+        {
+          err,
+          guildId: guildBatch.guildId,
+          channelId: reactionLogChannelId,
+        },
+        "Failed to send guild reaction log message",
+      );
     }
   }
 }
