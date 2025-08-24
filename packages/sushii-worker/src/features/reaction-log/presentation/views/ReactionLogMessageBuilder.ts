@@ -13,6 +13,7 @@ import type {
   ReactionEvent,
 } from "../../domain/types/ReactionEvent";
 import { BATCH_WINDOW_MS } from "../../domain/types/ReactionEvent";
+import { formatEmojiWithUrl } from "../../shared/utils/EmojiFormatter";
 
 /**
  * Creates a guild reaction log message for removal-only batches
@@ -63,19 +64,6 @@ function getOrCreateEmojiGroup(
   }
 
   return group;
-}
-
-function formatEmojiWithUrl(group: EmojiGroup): string {
-  // For custom emojis, include the ID and image URL
-  if (group.emojiId && group.emojiName) {
-    const isAnimated = group.emojiString.startsWith("<a:");
-    const extension = isAnimated ? "gif" : "png";
-    const imageUrl = `https://cdn.discordapp.com/emojis/${group.emojiId}.${extension}`;
-    return `${group.emojiString} – [${group.emojiName}](${imageUrl})`;
-  }
-
-  // For Unicode emojis, just return the emoji
-  return group.emojiString;
 }
 
 /**

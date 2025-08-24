@@ -17,6 +17,29 @@ import {
   createReactionStartersMessage,
 } from "../views/ReactionStartersView";
 
+type ReactionMetadata = {
+  emojiId?: string;
+  emojiName?: string;
+};
+
+type CurrentReactionWithStarter = {
+  emoji: string;
+  starterId: string;
+  emojiId?: string;
+  emojiName?: string;
+};
+
+type CurrentReactionWithoutStarter = {
+  emoji: string;
+  emojiId?: string;
+  emojiName?: string;
+};
+
+type RemovedReaction = {
+  emoji: string;
+  starterId: string;
+};
+
 export class CheckReactionStartersCommand extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("View Reaction Starters")
@@ -51,32 +74,36 @@ export class CheckReactionStartersCommand extends ContextMenuHandler {
         );
 
       // Get current reactions on the message
-      const currentReactions = new Map<string, boolean>(); // emoji -> starterStillReacted
+      const currentReactions = new Map<string, ReactionMetadata>();
+
       for (const [emojiString, reaction] of message.reactions.cache) {
-        const starterId = allStarters.get(emojiString);
-        const starterStillReacted = starterId
-          ? reaction.users.cache.has(starterId)
-          : false;
-        currentReactions.set(emojiString, starterStillReacted);
+        currentReactions.set(emojiString, {
+          emojiId: reaction.emoji.id || undefined,
+          emojiName: reaction.emoji.name || undefined,
+        });
       }
 
       // Categorize reactions
-      const currentWithStarters: {
-        emoji: string;
-        starterId: string;
-        starterRemoved: boolean;
-      }[] = [];
-      const currentWithoutStarters: string[] = [];
-      const completelyRemoved: { emoji: string; starterId: string }[] = [];
+      const currentWithStarters: CurrentReactionWithStarter[] = [];
+      const currentWithoutStarters: CurrentReactionWithoutStarter[] = [];
+      const completelyRemoved: RemovedReaction[] = [];
 
       // Process current reactions
-      for (const [emoji] of currentReactions) {
+      for (const [emoji, reactionData] of currentReactions) {
         const starterId = allStarters.get(emoji);
         if (starterId) {
-          const starterRemoved = !currentReactions.get(emoji);
-          currentWithStarters.push({ emoji, starterId, starterRemoved });
+          currentWithStarters.push({
+            emoji,
+            starterId,
+            emojiId: reactionData.emojiId,
+            emojiName: reactionData.emojiName,
+          });
         } else {
-          currentWithoutStarters.push(emoji);
+          currentWithoutStarters.push({
+            emoji,
+            emojiId: reactionData.emojiId,
+            emojiName: reactionData.emojiName,
+          });
         }
       }
 

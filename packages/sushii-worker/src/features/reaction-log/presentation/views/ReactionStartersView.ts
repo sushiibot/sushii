@@ -8,15 +8,24 @@ import {
 
 import Color from "@/utils/colors";
 
+import { formatEmojiWithUrl } from "../../shared/utils/EmojiFormatter";
+
 export interface ReactionStarterData {
   emoji: string;
   starterId: string;
-  starterRemoved: boolean;
+  emojiId?: string;
+  emojiName?: string;
+}
+
+export interface UnknownStarterData {
+  emoji: string;
+  emojiId?: string;
+  emojiName?: string;
 }
 
 export interface ReactionStartersViewData {
   currentWithStarters: ReactionStarterData[];
-  currentWithoutStarters: string[];
+  currentWithoutStarters: UnknownStarterData[];
   completelyRemoved: { emoji: string; starterId: string }[];
   allStarters: Map<string, string>;
 }
@@ -106,21 +115,31 @@ function buildCurrentReactionsSection(
 ): TextDisplayBuilder {
   let content = "### Current Reactions\n";
 
-  for (const { emoji, starterId, starterRemoved } of currentWithStarters) {
-    const removedText = starterRemoved ? " (starter removed)" : "";
-    content += `- ${emoji} - started by <@${starterId}>${removedText}\n`;
+  for (const { emoji, starterId, emojiId, emojiName } of currentWithStarters) {
+    const formattedEmoji = formatEmojiWithUrl({
+      emojiString: emoji,
+      emojiId,
+      emojiName,
+    });
+
+    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
 }
 
 function buildUnknownStartersSection(
-  currentWithoutStarters: string[],
+  currentWithoutStarters: UnknownStarterData[],
 ): TextDisplayBuilder {
-  let content = "### Current (Unknown Starter)\n";
+  let content = "### Current Reactions (Unknown Starter)\n";
 
-  for (const emoji of currentWithoutStarters) {
-    content += `- ${emoji} - starter unknown\n`;
+  for (const { emoji, emojiId, emojiName } of currentWithoutStarters) {
+    const formattedEmoji = formatEmojiWithUrl({
+      emojiString: emoji,
+      emojiId,
+      emojiName,
+    });
+    content += `- ${formattedEmoji} - starter unknown\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
@@ -132,7 +151,11 @@ function buildRemovedReactionsSection(
   let content = "### Removed\n";
 
   for (const { emoji, starterId } of completelyRemoved) {
-    content += `- ${emoji} - started by <@${starterId}>\n`;
+    // For removed reactions, we only have the emoji string from database
+    const formattedEmoji = formatEmojiWithUrl({
+      emojiString: emoji,
+    });
+    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
@@ -144,7 +167,11 @@ function buildAllStartersSection(
   let content = "### All Known Starters\n";
 
   for (const [emoji, starterId] of allStarters) {
-    content += `- ${emoji} - started by <@${starterId}>\n`;
+    // For fallback section, we only have emoji string from database
+    const formattedEmoji = formatEmojiWithUrl({
+      emojiString: emoji,
+    });
+    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
