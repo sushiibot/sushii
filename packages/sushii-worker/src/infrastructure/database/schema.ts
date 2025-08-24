@@ -840,17 +840,22 @@ export const reactionStartersInAppPublic = appPublic.table(
   "reaction_starters",
   {
     messageId: bigint("message_id", { mode: "bigint" }).notNull(),
-    emoji: text().notNull(),
+    emojiId: text("emoji_id").notNull(),
+    emojiName: text("emoji_name"),
     userId: bigint("user_id", { mode: "bigint" }).notNull(),
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
     primaryKey({
-      columns: [table.messageId, table.emoji],
+      columns: [table.messageId, table.emojiId, table.userId],
       name: "reaction_starters_pkey",
     }),
     index("reaction_starters_guild_idx").on(table.guildId),
     index("reaction_starters_created_at_idx").on(table.createdAt),
+    index("reaction_starters_message_emoji_idx").on(
+      table.messageId,
+      table.emojiId,
+    ),
   ],
 );

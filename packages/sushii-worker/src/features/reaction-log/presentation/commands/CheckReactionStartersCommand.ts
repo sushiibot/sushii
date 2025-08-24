@@ -11,34 +11,30 @@ import type { Logger } from "pino";
 
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
+import type { ReactionStarter } from "../../domain/entities/ReactionStarter";
 import type { ReactionStarterRepository } from "../../domain/repositories/ReactionStarterRepository";
 import {
   type ReactionStartersViewData,
   createReactionStartersMessage,
 } from "../views/ReactionStartersView";
 
-type ReactionMetadata = {
+interface ReactionMetadata {
   emojiId?: string;
   emojiName?: string;
-};
+}
 
-type CurrentReactionWithStarter = {
+interface CurrentReactionWithStarter {
   emoji: string;
-  starterId: string;
+  starterIds: string[];
   emojiId?: string;
   emojiName?: string;
-};
+}
 
-type CurrentReactionWithoutStarter = {
+interface CurrentReactionWithoutStarter {
   emoji: string;
   emojiId?: string;
   emojiName?: string;
-};
-
-type RemovedReaction = {
-  emoji: string;
-  starterId: string;
-};
+}
 
 export class CheckReactionStartersCommand extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
@@ -73,11 +69,20 @@ export class CheckReactionStartersCommand extends ContextMenuHandler {
           message.id,
         );
 
+      this.logger.debug(
+        {
+          messageReactionsCache: message.reactions.cache,
+        },
+        "Message reactions cache",
+      );
+
       // Get current reactions on the message
       const currentReactions = new Map<string, ReactionMetadata>();
 
-      for (const [emojiString, reaction] of message.reactions.cache) {
-        currentReactions.set(emojiString, {
+      for (const reaction of message.reactions.cache.values()) {
+        // Use emoji ID for custom emojis, unicode string for standard emojis
+        const emojiKey = reaction.emoji.id || reaction.emoji.toString();
+        currentReactions.set(emojiKey, {
           emojiId: reaction.emoji.id || undefined,
           emojiName: reaction.emoji.name || undefined,
         });
@@ -86,31 +91,47 @@ export class CheckReactionStartersCommand extends ContextMenuHandler {
       // Categorize reactions
       const currentWithStarters: CurrentReactionWithStarter[] = [];
       const currentWithoutStarters: CurrentReactionWithoutStarter[] = [];
-      const completelyRemoved: RemovedReaction[] = [];
+      const completelyRemoved: ReactionStarter[] = [];
 
       // Process current reactions
-      for (const [emoji, reactionData] of currentReactions) {
-        const starterId = allStarters.get(emoji);
-        if (starterId) {
+      for (const [emojiId, reactionData] of currentReactions) {
+        const starter = allStarters.get(emojiId);
+
+        // Check if there are any starter IDs for this emoji
+        if (starter && starter.getStarterCount() > 0) {
+          // Use display string from current reaction data (more accurate)
+          const displayString =
+            reactionData.emojiId && reactionData.emojiName
+              ? `<:${reactionData.emojiName}:${reactionData.emojiId}>`
+              : emojiId; // For native emojis, emojiId IS the display string
+
           currentWithStarters.push({
-            emoji,
-            starterId,
+            emoji: displayString,
+            starterIds: starter.userIds,
             emojiId: reactionData.emojiId,
             emojiName: reactionData.emojiName,
           });
-        } else {
-          currentWithoutStarters.push({
-            emoji,
-            emojiId: reactionData.emojiId,
-            emojiName: reactionData.emojiName,
-          });
+          continue;
         }
+
+        // No starter IDs found
+        const displayString =
+          reactionData.emojiId && reactionData.emojiName
+            ? `<:${reactionData.emojiName}:${reactionData.emojiId}>`
+            : emojiId; // For native emojis, emojiId IS the display string
+
+        currentWithoutStarters.push({
+          emoji: displayString,
+          emojiId: reactionData.emojiId,
+          emojiName: reactionData.emojiName,
+        });
       }
 
       // Process completely removed reactions
-      for (const [emoji, starterId] of allStarters) {
-        if (!currentReactions.has(emoji)) {
-          completelyRemoved.push({ emoji, starterId });
+      for (const [emojiId, starter] of allStarters) {
+        if (!currentReactions.has(emojiId)) {
+          // Push the starter entity directly
+          completelyRemoved.push(starter);
         }
       }
 
@@ -122,12 +143,8 @@ export class CheckReactionStartersCommand extends ContextMenuHandler {
         allStarters,
       };
 
-      // Create and send response using components v2
       const replyOptions = createReactionStartersMessage(viewData);
-      await interaction.reply({
-        ...replyOptions,
-        ephemeral: true,
-      });
+      await interaction.reply(replyOptions);
 
       this.logger.trace(
         {

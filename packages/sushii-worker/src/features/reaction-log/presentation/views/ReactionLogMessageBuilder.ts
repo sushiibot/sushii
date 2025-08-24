@@ -139,16 +139,19 @@ function buildGuildRemovalSection(
 }
 
 function formatGuildRemovalUsers(removals: ReactionEvent[]): string {
-  // Count occurrences per user and track starter
+  // Count occurrences per user and get starters information
   const userCounts = new Map<string, number>();
-  let starterId: string | undefined;
+  let allStarters: string[] = [];
 
   for (const removal of removals) {
     userCounts.set(removal.userId, (userCounts.get(removal.userId) || 0) + 1);
-    if (removal.isInitial) {
-      starterId = removal.userId;
+    // Get starters from first event (they should all be the same for the same emoji)
+    if (removal.allStarters && allStarters.length === 0) {
+      allStarters = removal.allStarters;
     }
   }
+
+  const startersSet = new Set(allStarters);
 
   const formatUser = (
     userId: string,
@@ -163,15 +166,55 @@ function formatGuildRemovalUsers(removals: ReactionEvent[]): string {
 
   const userStrings: string[] = [];
 
-  // Add users, marking the starter
+  // Add users who removed reactions, marking starters
   for (const [userId, count] of userCounts) {
-    const isStarter = userId === starterId;
+    const isStarter = startersSet.has(userId);
     userStrings.push(formatUser(userId, count, isStarter));
   }
 
-  // Add starter info if they didn't remove their reaction
-  if (starterId && !userCounts.has(starterId)) {
-    userStrings.push(`(started by <@${starterId}>)`);
+  // Add starters who didn't remove their reaction
+  const removersSet = new Set(userCounts.keys());
+  const nonRemovingStarters = allStarters.filter(
+    (starterId) => !removersSet.has(starterId),
+  );
+
+  if (nonRemovingStarters.length > 0) {
+    if (allStarters.length === 1) {
+      // Single starter who didn't remove
+      userStrings.push(`(started by <@${nonRemovingStarters[0]}>)`);
+    } else {
+      // Multiple starters - show with re-started format
+      const firstStarter = allStarters[0];
+      const reStarters = allStarters.slice(1);
+
+      if (nonRemovingStarters.includes(firstStarter)) {
+        const nonRemovingReStarters = reStarters.filter((id) =>
+          nonRemovingStarters.includes(id),
+        );
+        if (nonRemovingReStarters.length > 0) {
+          const restarterMentions = nonRemovingReStarters
+            .map((id) => `<@${id}>`)
+            .join(", ");
+          userStrings.push(
+            `(started by <@${firstStarter}>; re-started by ${restarterMentions})`,
+          );
+        } else {
+          userStrings.push(`(started by <@${firstStarter}>)`);
+        }
+      } else {
+        // First starter removed, show remaining non-removing re-starters
+        const mentions = nonRemovingStarters.map((id) => `<@${id}>`).join(", ");
+        userStrings.push(`(re-started by ${mentions})`);
+      }
+    }
+  } else if (allStarters.length > 1) {
+    // All starters removed their reactions - show full starter chain for context
+    const firstStarter = allStarters[0];
+    const reStarters = allStarters.slice(1);
+    const restarterMentions = reStarters.map((id) => `<@${id}>`).join(", ");
+    userStrings.push(
+      `(started by <@${firstStarter}>; re-started by ${restarterMentions})`,
+    );
   }
 
   return userStrings.join(", ");

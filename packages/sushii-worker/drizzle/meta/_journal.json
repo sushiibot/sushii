@@ -106,6 +106,20 @@
       "when": 1755914469689,
       "tag": "0014_add-reaction-log-to-guild-configs",
       "breakpoints": false
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1756002280014,
+      "tag": "0015_update-reaction-starters-composite-key",
+      "breakpoints": false
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1756004606623,
+      "tag": "0016_reaction-starter-emoji-name",
+      "breakpoints": false
     }
   ]
 }

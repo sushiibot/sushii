@@ -8,11 +8,12 @@ import {
 
 import Color from "@/utils/colors";
 
+import type { ReactionStarter } from "../../domain/entities/ReactionStarter";
 import { formatEmojiWithUrl } from "../../shared/utils/EmojiFormatter";
 
 export interface ReactionStarterData {
   emoji: string;
-  starterId: string;
+  starterIds: string[];
   emojiId?: string;
   emojiName?: string;
 }
@@ -26,13 +27,15 @@ export interface UnknownStarterData {
 export interface ReactionStartersViewData {
   currentWithStarters: ReactionStarterData[];
   currentWithoutStarters: UnknownStarterData[];
-  completelyRemoved: { emoji: string; starterId: string }[];
-  allStarters: Map<string, string>;
+  completelyRemoved: ReactionStarter[];
+  allStarters: Map<string, ReactionStarter>;
 }
 
 export function createReactionStartersMessage(
   data: ReactionStartersViewData,
-): InteractionReplyOptions & { flags: MessageFlags.IsComponentsV2 } {
+): InteractionReplyOptions & {
+  flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
+} {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
   const {
@@ -51,14 +54,16 @@ export function createReactionStartersMessage(
 
     return {
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
     };
   }
 
   // Main header
   const headerSection = new TextDisplayBuilder().setContent(
-    "## Reaction Starters",
+    "### Reaction Starters" +
+      "\nThese are the users that added the *first* reaction to this message, " +
+      "excluding anyone who clicked on an existing reaction.",
   );
   container.addTextDisplayComponents(headerSection);
 
@@ -105,7 +110,7 @@ export function createReactionStartersMessage(
 
   return {
     components: [container],
-    flags: MessageFlags.IsComponentsV2,
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     allowedMentions: { parse: [] },
   };
 }
@@ -115,14 +120,15 @@ function buildCurrentReactionsSection(
 ): TextDisplayBuilder {
   let content = "### Current Reactions\n";
 
-  for (const { emoji, starterId, emojiId, emojiName } of currentWithStarters) {
+  for (const { emoji, starterIds, emojiId, emojiName } of currentWithStarters) {
     const formattedEmoji = formatEmojiWithUrl({
       emojiString: emoji,
       emojiId,
       emojiName,
     });
 
-    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
+    const starterText = formatMultipleStarters(starterIds);
+    content += `- ${formattedEmoji} - ${starterText}\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
@@ -146,33 +152,55 @@ function buildUnknownStartersSection(
 }
 
 function buildRemovedReactionsSection(
-  completelyRemoved: { emoji: string; starterId: string }[],
+  completelyRemoved: ReactionStarter[],
 ): TextDisplayBuilder {
   let content = "### Removed\n";
 
-  for (const { emoji, starterId } of completelyRemoved) {
-    // For removed reactions, we only have the emoji string from database
+  for (const starter of completelyRemoved) {
+    // Use the starter entity to format with full emoji data
     const formattedEmoji = formatEmojiWithUrl({
-      emojiString: emoji,
+      emojiString: starter.getDisplayString(),
+      emojiId: starter.isCustomEmoji() ? starter.emojiId : undefined,
+      emojiName: starter.emojiName || undefined,
     });
-    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
+    const starterText = formatMultipleStarters(starter.userIds);
+    content += `- ${formattedEmoji} - ${starterText}\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
 }
 
 function buildAllStartersSection(
-  allStarters: Map<string, string>,
+  allStarters: Map<string, ReactionStarter>,
 ): TextDisplayBuilder {
   let content = "### All Known Starters\n";
 
-  for (const [emoji, starterId] of allStarters) {
-    // For fallback section, we only have emoji string from database
+  for (const [_emojiId, starter] of allStarters) {
+    // Use the starter's display string and format with URL
     const formattedEmoji = formatEmojiWithUrl({
-      emojiString: emoji,
+      emojiString: starter.getDisplayString(),
+      emojiId: starter.isCustomEmoji() ? starter.emojiId : undefined,
+      emojiName: starter.emojiName || undefined,
     });
-    content += `- ${formattedEmoji} - started by <@${starterId}>\n`;
+    const starterText = formatMultipleStarters(starter.userIds);
+    content += `- ${formattedEmoji} - ${starterText}\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
+}
+
+function formatMultipleStarters(starterIds: string[]): string {
+  if (starterIds.length === 0) {
+    return "starter unknown";
+  }
+
+  if (starterIds.length === 1) {
+    return `started by <@${starterIds[0]}>`;
+  }
+
+  // Multiple starters - show with re-started format
+  const firstStarter = starterIds[0];
+  const reStarters = starterIds.slice(1);
+  const restarterMentions = reStarters.map((id) => `<@${id}>`).join(", ");
+  return `started by <@${firstStarter}>; re-started by ${restarterMentions}`;
 }

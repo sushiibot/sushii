@@ -50,18 +50,20 @@ export class ReactionBatchProcessor {
       }
 
       // Get starter information for context (even if they didn't remove it)
-      const starterId = await this.starterRepository.getStarter(
+      const starters = await this.starterRepository.getStarters(
         event.messageId,
-        event.emojiString,
+        event.emojiId,
       );
-      event.isInitial = starterId === event.userId;
+      event.isInitial = starters.includes(event.userId);
+      event.allStarters = starters;
 
       this.logger.trace(
         {
           messageId: event.messageId,
-          emoji: event.emojiString,
+          emojiId: event.emojiId,
+          emojiName: event.emojiName,
           userId: event.userId,
-          starterId,
+          starters,
           isInitial: event.isInitial,
         },
         "Processing reaction removal",

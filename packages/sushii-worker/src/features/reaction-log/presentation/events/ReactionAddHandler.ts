@@ -38,9 +38,13 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
 
       // Always track reaction starters (regardless of logging configuration)
       // This is needed for the context menu command to work
+      // Use emoji ID for custom emojis, unicode string for standard emojis
+      const emojiId = reaction.emoji.id || reaction.emoji.toString();
+      const emojiName = reaction.emoji.name;
       const { isNew } = await this.reactionStarterService.getOrSetStarter(
         reaction.message.id,
-        reaction.emoji.toString(),
+        emojiId,
+        emojiName,
         user.id,
         reaction.message.guildId,
       );
@@ -49,7 +53,8 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
         this.logger.trace(
           {
             messageId: reaction.message.id,
-            emoji: reaction.emoji.toString(),
+            emojiId,
+            emojiName,
             userId: user.id,
             guildId: reaction.message.guildId,
           },
@@ -65,7 +70,8 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
           err,
           messageId: reaction.message.id,
           userId: user.id,
-          emoji: reaction.emoji.toString(),
+          emojiId: reaction.emoji.id || reaction.emoji.toString(),
+          emojiName: reaction.emoji.name,
         },
         "Failed to handle reaction add event",
       );

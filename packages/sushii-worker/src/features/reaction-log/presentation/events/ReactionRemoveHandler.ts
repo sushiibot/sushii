@@ -44,7 +44,7 @@ export class ReactionRemoveHandler extends EventHandler<Events.MessageReactionRe
         userId: user.id,
         emojiString: reaction.emoji.toString(),
         emojiName: reaction.emoji.name || undefined,
-        emojiId: reaction.emoji.id || undefined,
+        emojiId: reaction.emoji.id || reaction.emoji.toString(),
         type: "remove",
         timestamp: new Date(),
         // Will be set by processor based on database lookup

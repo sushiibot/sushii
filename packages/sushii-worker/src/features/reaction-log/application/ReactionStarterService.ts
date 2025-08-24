@@ -10,40 +10,52 @@ export class ReactionStarterService {
 
   /**
    * Get or set the starter for a reaction emoji on a message
-   * Returns the starter user ID and whether this is a new reaction
+   * Returns all starters and whether this user is a new starter
    */
   async getOrSetStarter(
     messageId: string,
-    emoji: string,
+    emojiId: string,
+    emojiName: string | null,
     userId: string,
     guildId: string,
-  ): Promise<{ starterId: string; isNew: boolean }> {
+  ): Promise<{ starters: string[]; isNew: boolean }> {
     try {
-      const existing = await this.repository.getStarter(messageId, emoji);
-      if (existing) {
+      const hasStarters = await this.repository.hasAnyStarter(
+        messageId,
+        emojiId,
+      );
+      if (hasStarters) {
+        // Existing reaction - get all existing starters
+        const starters = await this.repository.getStarters(messageId, emojiId);
         this.logger.trace(
-          { messageId, emoji, existing },
-          "Found reaction starter in database",
+          { messageId, emojiId, emojiName, starters },
+          "Found existing reaction starters",
         );
-        return { starterId: existing, isNew: false };
+        return { starters, isNew: false };
       }
 
-      // Save as new starter
-      await this.repository.saveStarter(messageId, emoji, userId, guildId);
+      // No existing starters - save this user as a new starter
+      await this.repository.saveStarter(
+        messageId,
+        emojiId,
+        emojiName,
+        userId,
+        guildId,
+      );
 
       this.logger.trace(
-        { messageId, emoji, userId },
+        { messageId, emojiId, emojiName, userId },
         "New reaction starter created",
       );
-      return { starterId: userId, isNew: true };
+      return { starters: [userId], isNew: true };
     } catch (err) {
       this.logger.error(
-        { err, messageId, emoji, userId, guildId },
+        { err, messageId, emojiId, emojiName, userId, guildId },
         "Failed to get or set reaction starter",
       );
       // Fallback: treat as existing reaction with current user as starter
       // This prevents the reaction from being lost entirely
-      return { starterId: userId, isNew: false };
+      return { starters: [userId], isNew: false };
     }
   }
 }
