@@ -18,6 +18,10 @@ logger.info(
   "Logger initialized",
 );
 
+/**
+ *
+ * @deprecated
+ */
 export const newModuleLogger = (module: string): pino.Logger =>
   logger.child({ module });
 

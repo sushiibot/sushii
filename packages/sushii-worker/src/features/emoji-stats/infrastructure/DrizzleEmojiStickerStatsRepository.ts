@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, sum } from "drizzle-orm";
+import { and, asc, desc, eq, sql, sum } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";
@@ -138,21 +138,6 @@ export class DrizzleEmojiStickerStatsRepository
 
     // Build conditions array
     const conditions = this.buildConditions(guildId, assetType, actionType);
-
-    // Build count query - count distinct assets that have stats
-    const countQuery = this.db
-      .select({
-        count: sql<number>`COUNT(DISTINCT ${emojiStickerStatsInAppPublic.assetId})`,
-      })
-      .from(emojiStickerStatsInAppPublic)
-      .innerJoin(
-        guildEmojisAndStickersInAppPublic,
-        eq(
-          emojiStickerStatsInAppPublic.assetId,
-          guildEmojisAndStickersInAppPublic.id,
-        ),
-      )
-      .where(and(...conditions));
 
     // Add having clause to filter out zero counts
     const havingCondition = this.buildHavingCondition(serverUsage);

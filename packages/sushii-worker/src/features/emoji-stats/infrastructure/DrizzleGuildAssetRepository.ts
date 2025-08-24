@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";

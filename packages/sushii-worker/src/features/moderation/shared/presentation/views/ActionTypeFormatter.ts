@@ -1,4 +1,3 @@
-import type { BotEmojiName } from "@/features/bot-emojis/domain";
 import Color from "@/utils/colors";
 import toSentenceCase from "@/utils/toSentenceCase";
 

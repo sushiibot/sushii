@@ -8,14 +8,11 @@ import type {
 import { Events } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import type {
   EmojiStatsTrackingService,
   TrackUsageRequest,
 } from "../../application";
-
-const logger = newModuleLogger("UsageTrackingHandlers");
 
 export class MessageEmojiTrackingHandler extends EventHandler<Events.MessageCreate> {
   eventType = Events.MessageCreate as const;
