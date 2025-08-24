@@ -62,7 +62,7 @@ export function createReactionStartersMessage(
   // Main header
   const headerSection = new TextDisplayBuilder().setContent(
     "### Reaction Starters" +
-      "\nThese are the users that added the *first* reaction to this message, " +
+      "\nUsers that added the *first* reaction to this message for each emoji, " +
       "excluding anyone who clicked on an existing reaction.",
   );
   container.addTextDisplayComponents(headerSection);
