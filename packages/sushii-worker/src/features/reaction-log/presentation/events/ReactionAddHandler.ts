@@ -40,7 +40,8 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
       // This is needed for the context menu command to work
       // Use emoji ID for custom emojis, unicode string for standard emojis
       const emojiId = reaction.emoji.id || reaction.emoji.toString();
-      const emojiName = reaction.emoji.name;
+      // Only store emojiName for custom emojis (when reaction.emoji.id exists)
+      const emojiName = reaction.emoji.id ? reaction.emoji.name : null;
       const { isNew } = await this.reactionStarterService.getOrSetStarter(
         reaction.message.id,
         emojiId,
@@ -71,7 +72,7 @@ export class ReactionAddHandler extends EventHandler<Events.MessageReactionAdd> 
           messageId: reaction.message.id,
           userId: user.id,
           emojiId: reaction.emoji.id || reaction.emoji.toString(),
-          emojiName: reaction.emoji.name,
+          emojiName: reaction.emoji.id ? reaction.emoji.name : null,
         },
         "Failed to handle reaction add event",
       );

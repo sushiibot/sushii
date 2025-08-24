@@ -19,6 +19,7 @@ export class ReactionStarter {
       const prefix = isAnimated ? "<a:" : "<:";
       return `${prefix}${this.emojiName}:${this.emojiId}>`;
     }
+
     // Native emoji - emojiId IS the display string
     return this.emojiId;
   }

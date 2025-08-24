@@ -163,6 +163,7 @@ function buildRemovedReactionsSection(
       emojiId: starter.isCustomEmoji() ? starter.emojiId : undefined,
       emojiName: starter.emojiName || undefined,
     });
+
     const starterText = formatMultipleStarters(starter.userIds);
     content += `- ${formattedEmoji} - ${starterText}\n`;
   }

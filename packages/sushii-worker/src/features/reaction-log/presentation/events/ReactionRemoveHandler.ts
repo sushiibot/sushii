@@ -43,7 +43,10 @@ export class ReactionRemoveHandler extends EventHandler<Events.MessageReactionRe
         guildId: reaction.message.guildId,
         userId: user.id,
         emojiString: reaction.emoji.toString(),
-        emojiName: reaction.emoji.name || undefined,
+        // Only store emojiName for custom emojis (when reaction.emoji.id exists)
+        emojiName: reaction.emoji.id
+          ? reaction.emoji.name || undefined
+          : undefined,
         emojiId: reaction.emoji.id || reaction.emoji.toString(),
         type: "remove",
         timestamp: new Date(),
