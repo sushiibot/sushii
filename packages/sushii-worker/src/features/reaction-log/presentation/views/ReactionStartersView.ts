@@ -108,7 +108,7 @@ function buildCurrentReactionsSection(
 
   for (const { emoji, starterId, starterRemoved } of currentWithStarters) {
     const removedText = starterRemoved ? " (starter removed)" : "";
-    content += `• ${emoji} - started by <@${starterId}>${removedText}\n`;
+    content += `- ${emoji} - started by <@${starterId}>${removedText}\n`;
   }
 
   return new TextDisplayBuilder().setContent(content);
