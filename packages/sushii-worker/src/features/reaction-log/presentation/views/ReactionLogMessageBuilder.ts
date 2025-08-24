@@ -125,12 +125,15 @@ function buildGuildRemovalSection(
     const firstEvent = events[0];
     const messageLink = `https://discord.com/channels/${firstEvent.guildId}/${firstEvent.channelId}/${messageId}`;
 
-    // Format each emoji removal for this message
+    // Add message link as its own line
+    content += `${messageLink}\n`;
+
+    // Format each emoji removal for this message as indented bullets
     for (const group of emojiGroups) {
       if (group.removes.length > 0) {
         const formattedEmoji = formatEmojiWithUrl(group);
         const removalInfo = formatGuildRemovalUsers(group.removes);
-        content += `- ${messageLink} - ${formattedEmoji} removed by ${removalInfo}\n`;
+        content += `- ${formattedEmoji} removed by ${removalInfo}\n`;
       }
     }
   }
@@ -138,86 +141,132 @@ function buildGuildRemovalSection(
   return new TextDisplayBuilder().setContent(content);
 }
 
-function formatGuildRemovalUsers(removals: ReactionEvent[]): string {
-  // Count occurrences per user and get starters information
-  const userCounts = new Map<string, number>();
+interface UserCategories {
+  removers: Map<string, number>;
+  allStarters: string[];
+  startersSet: Set<string>;
+  removersSet: Set<string>;
+  nonRemovingStarters: string[];
+}
+
+function categorizeUsers(removals: ReactionEvent[]): UserCategories {
+  const removers = new Map<string, number>();
   let allStarters: string[] = [];
 
   for (const removal of removals) {
-    userCounts.set(removal.userId, (userCounts.get(removal.userId) || 0) + 1);
-    // Get starters from first event (they should all be the same for the same emoji)
+    removers.set(removal.userId, (removers.get(removal.userId) || 0) + 1);
     if (removal.allStarters && allStarters.length === 0) {
       allStarters = removal.allStarters;
     }
   }
 
   const startersSet = new Set(allStarters);
-
-  const formatUser = (
-    userId: string,
-    count: number,
-    isStarter = false,
-  ): string => {
-    const mention = `<@${userId}>`;
-    const countSuffix = count > 1 ? ` x${count}` : "";
-    const starterSuffix = isStarter ? " (started)" : "";
-    return `${mention}${countSuffix}${starterSuffix}`;
-  };
-
-  const userStrings: string[] = [];
-
-  // Add users who removed reactions, marking starters
-  for (const [userId, count] of userCounts) {
-    const isStarter = startersSet.has(userId);
-    userStrings.push(formatUser(userId, count, isStarter));
-  }
-
-  // Add starters who didn't remove their reaction
-  const removersSet = new Set(userCounts.keys());
+  const removersSet = new Set(removers.keys());
   const nonRemovingStarters = allStarters.filter(
     (starterId) => !removersSet.has(starterId),
   );
 
-  if (nonRemovingStarters.length > 0) {
-    if (allStarters.length === 1) {
-      // Single starter who didn't remove
-      userStrings.push(`(started by <@${nonRemovingStarters[0]}>)`);
-    } else {
-      // Multiple starters - show with re-started format
-      const firstStarter = allStarters[0];
-      const reStarters = allStarters.slice(1);
+  return {
+    removers,
+    allStarters,
+    startersSet,
+    removersSet,
+    nonRemovingStarters,
+  };
+}
 
-      if (nonRemovingStarters.includes(firstStarter)) {
-        const nonRemovingReStarters = reStarters.filter((id) =>
-          nonRemovingStarters.includes(id),
-        );
-        if (nonRemovingReStarters.length > 0) {
-          const restarterMentions = nonRemovingReStarters
-            .map((id) => `<@${id}>`)
-            .join(", ");
-          userStrings.push(
-            `(started by <@${firstStarter}>; re-started by ${restarterMentions})`,
-          );
-        } else {
-          userStrings.push(`(started by <@${firstStarter}>)`);
-        }
-      } else {
-        // First starter removed, show remaining non-removing re-starters
-        const mentions = nonRemovingStarters.map((id) => `<@${id}>`).join(", ");
-        userStrings.push(`(re-started by ${mentions})`);
-      }
-    }
-  } else if (allStarters.length > 1) {
-    // All starters removed their reactions - show full starter chain for context
-    const firstStarter = allStarters[0];
-    const reStarters = allStarters.slice(1);
-    const restarterMentions = reStarters.map((id) => `<@${id}>`).join(", ");
-    userStrings.push(
-      `(started by <@${firstStarter}>; re-started by ${restarterMentions})`,
-    );
+function formatUser(userId: string): string {
+  return `<@${userId}> – \`${userId}\``;
+}
+
+function formatUserMention(
+  userId: string,
+  count: number,
+  isStarter = false,
+): string {
+  const mention = formatUser(userId);
+  const countSuffix = count > 1 ? ` x${count}` : "";
+  const starterSuffix = isStarter ? " (started)" : "";
+  return `${mention}${countSuffix}${starterSuffix}`;
+}
+
+function formatGuildRemovalUsers(removals: ReactionEvent[]): string {
+  const categories = categorizeUsers(removals);
+
+  const userStrings: string[] = [];
+
+  // Add users who removed reactions, marking starters
+  userStrings.push(...formatRemovers(categories));
+
+  // Add starter context for non-removing starters
+  const starterContext = formatStarterContext(categories);
+  if (starterContext) {
+    userStrings.push(starterContext);
   }
 
   return userStrings.join(", ");
+}
+
+function formatRemovers(categories: UserCategories): string[] {
+  const userStrings: string[] = [];
+
+  for (const [userId, count] of categories.removers) {
+    const isStarter = categories.startersSet.has(userId);
+    userStrings.push(formatUserMention(userId, count, isStarter));
+  }
+
+  return userStrings;
+}
+
+function formatStarterContext(categories: UserCategories): string | null {
+  const { allStarters, nonRemovingStarters } = categories;
+
+  if (nonRemovingStarters.length > 0) {
+    return formatNonRemovingStarters(allStarters, nonRemovingStarters);
+  } else if (allStarters.length > 1) {
+    // All starters removed their reactions - show full starter chain for context
+    return formatStarterChain(allStarters[0], allStarters.slice(1));
+  }
+
+  return null;
+}
+
+function formatNonRemovingStarters(
+  allStarters: string[],
+  nonRemovingStarters: string[],
+): string {
+  if (allStarters.length === 1) {
+    // Single starter who didn't remove
+    return `(started by ${formatUser(nonRemovingStarters[0])})`;
+  }
+
+  // Multiple starters - show with re-started format
+  const firstStarter = allStarters[0];
+  const reStarters = allStarters.slice(1);
+
+  if (nonRemovingStarters.includes(firstStarter)) {
+    const nonRemovingReStarters = reStarters.filter((id) =>
+      nonRemovingStarters.includes(id),
+    );
+
+    if (nonRemovingReStarters.length > 0) {
+      return formatStarterChain(firstStarter, nonRemovingReStarters);
+    } else {
+      return `(started by ${formatUser(firstStarter)})`;
+    }
+  } else {
+    // First starter removed, show remaining non-removing re-starters
+    const mentions = nonRemovingStarters.map((id) => formatUser(id)).join(", ");
+    return `(re-started by ${mentions})`;
+  }
+}
+
+function formatStarterChain(
+  firstStarter: string,
+  reStarters: string[],
+): string {
+  const restarterMentions = reStarters.map((id) => formatUser(id)).join(", ");
+  return `(started by ${formatUser(firstStarter)}; re-started by ${restarterMentions})`;
 }
 
 function buildGuildBatchTimeInfoSection(

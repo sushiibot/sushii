@@ -18,7 +18,7 @@ import { config } from "@/shared/infrastructure/config";
 export function initializeOtel(logger: Logger, clusterId: number) {
   const resource = defaultResource().merge(
     resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: "sushii_worker",
+      [ATTR_SERVICE_NAME]: "sushii_bot",
       // No version yet
       // [ATTR_SERVICE_VERSION]: "v1.0.0"
       "cluster.id": clusterId,
