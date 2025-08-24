@@ -24,10 +24,6 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
     const config = result[0];
 
     if (!config) {
-      this.logger.debug(
-        { guildId },
-        "No guild configuration found, returning default",
-      );
       return GuildConfig.createDefault(guildId);
     }
 
