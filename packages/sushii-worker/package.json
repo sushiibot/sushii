@@ -45,7 +45,7 @@
     "pino": "^9.7.0",
     "ts-results": "^3.3.0",
     "zlib-sync": "^0.1.10",
-    "zod": "^3.25.67",
+    "zod": "^4.1.1",
     "zod-validation-error": "^3.5.2"
   },
   "devDependencies": {
