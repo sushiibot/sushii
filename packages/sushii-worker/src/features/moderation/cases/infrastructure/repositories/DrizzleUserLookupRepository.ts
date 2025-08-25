@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
