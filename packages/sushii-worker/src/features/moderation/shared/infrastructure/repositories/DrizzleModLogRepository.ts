@@ -153,54 +153,42 @@ export class DrizzleModLogRepository implements ModLogRepository {
       "Attempting to mark case as not pending",
     );
 
-    try {
-      const updatedCase = await db
-        .update(modLogsInAppPublic)
-        .set({ pending: false })
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        )
-        .returning();
+    const updatedCase = await db
+      .update(modLogsInAppPublic)
+      .set({ pending: false })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
+      )
+      .returning();
 
-      if (updatedCase.length === 0) {
-        this.logger.warn(
-          {
-            guildId,
-            caseId,
-          },
-          "No rows updated when marking case as not pending",
-        );
-
-        return Err("Failed to mark case as not pending - no rows updated");
-      }
-
-      const mappedCase = this.mapRowToModerationCase(updatedCase[0]);
-
-      this.logger.debug(
+    if (updatedCase.length === 0) {
+      this.logger.warn(
         {
           guildId,
           caseId,
-          pendingAfterUpdate: mappedCase.pending,
-          rowsUpdated: updatedCase.length,
         },
-        "Successfully marked case as not pending in database",
+        "No rows updated when marking case as not pending",
       );
 
-      return Ok(mappedCase);
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId,
-          caseId,
-        },
-        "Failed to mark case as not pending",
-      );
-      return Err(`Failed to mark case as not pending: ${error}`);
+      return Err("Failed to mark case as not pending - no rows updated");
     }
+
+    const mappedCase = this.mapRowToModerationCase(updatedCase[0]);
+
+    this.logger.debug(
+      {
+        guildId,
+        caseId,
+        pendingAfterUpdate: mappedCase.pending,
+        rowsUpdated: updatedCase.length,
+      },
+      "Successfully marked case as not pending in database",
+    );
+
+    return Ok(mappedCase);
   }
 
   async updateMessageId(
@@ -221,40 +209,27 @@ export class DrizzleModLogRepository implements ModLogRepository {
       "Attempting to update message ID for case",
     );
 
-    try {
-      const result = await db
-        .update(modLogsInAppPublic)
-        .set({ msgId: BigInt(messageId) })
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        );
-
-      this.logger.debug(
-        {
-          guildId,
-          caseId,
-          messageId,
-          updatedRowCount: result.rowCount,
-        },
-        "Successfully updated message ID in database",
+    const result = await db
+      .update(modLogsInAppPublic)
+      .set({ msgId: BigInt(messageId) })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
       );
 
-      return Ok.EMPTY;
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId,
-          caseId,
-          messageId,
-        },
-        "Failed to update message ID",
-      );
-      return Err(`Failed to update message ID: ${error}`);
-    }
+    this.logger.debug(
+      {
+        guildId,
+        caseId,
+        messageId,
+        updatedRowCount: result.rowCount,
+      },
+      "Successfully updated message ID in database",
+    );
+
+    return Ok.EMPTY;
   }
 
   async updateDMInfo(
@@ -264,35 +239,21 @@ export class DrizzleModLogRepository implements ModLogRepository {
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>> {
     const db = tx || this.db;
-    try {
-      await db
-        .update(modLogsInAppPublic)
-        .set({
-          dmChannelId: dmResult.channelId ? BigInt(dmResult.channelId) : null,
-          dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
-          dmMessageError: dmResult.error || null,
-        })
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        );
-
-      return Ok.EMPTY;
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId,
-          caseId,
-          dmResult,
-        },
-        "Failed to update DM info",
+    await db
+      .update(modLogsInAppPublic)
+      .set({
+        dmChannelId: dmResult.channelId ? BigInt(dmResult.channelId) : null,
+        dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
+        dmMessageError: dmResult.error || null,
+      })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
       );
 
-      return Err(`Failed to update DM info: ${error}`);
-    }
+    return Ok.EMPTY;
   }
 
   async findById(

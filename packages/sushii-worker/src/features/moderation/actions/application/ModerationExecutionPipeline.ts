@@ -334,7 +334,11 @@ export class ModerationExecutionPipeline {
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result
-    await this.updateCaseWithDMResult(updatedCase);
+    await this.modLogRepository.updateDMInfo(
+      updatedCase.guildId,
+      updatedCase.caseId,
+      updatedCase.dmResult || {},
+    );
 
     return updatedCase;
   }
@@ -437,7 +441,11 @@ export class ModerationExecutionPipeline {
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result
-    await this.updateCaseWithDMResult(updatedCase);
+    await this.modLogRepository.updateDMInfo(
+      updatedCase.guildId,
+      updatedCase.caseId,
+      updatedCase.dmResult || {},
+    );
 
     return updatedCase;
   }
@@ -471,29 +479,6 @@ export class ModerationExecutionPipeline {
         );
         // Don't fail the operation, just log the warning
       }
-    }
-  }
-
-  /**
-   * Updates case with DM result only (does not modify other fields)
-   */
-  private async updateCaseWithDMResult(
-    moderationCase: ModerationCase,
-  ): Promise<void> {
-    const updateResult = await this.modLogRepository.updateDMInfo(
-      moderationCase.guildId,
-      moderationCase.caseId,
-      moderationCase.dmResult || {},
-    );
-    
-    if (!updateResult.ok) {
-      this.logger.warn(
-        {
-          caseId: moderationCase.caseId,
-          error: updateResult.val,
-        },
-        "Failed to update case with DM result",
-      );
     }
   }
 
