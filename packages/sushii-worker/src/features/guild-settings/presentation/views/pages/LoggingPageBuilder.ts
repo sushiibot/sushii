@@ -201,7 +201,9 @@ export function addLoggingContent(
       title: "⭐ Reaction Logs",
       enabled: config.loggingSettings.reactionLogEnabled,
       channel: config.loggingSettings.reactionLogChannel,
-      baseDescription: "Logs reaction additions and removals",
+      baseDescription:
+        "Logs reaction removals, including who added the reaction *first*." +
+        " You can also right click a message > `View Reaction Starters` to view who initially added reactions",
       toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG,
       selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_REACTION_LOG,
       selectPlaceholder: "Set reaction log channel",
