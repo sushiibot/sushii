@@ -55,12 +55,13 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
         .where(
           and(
             eq(guildBansInAppPublic.userId, BigInt(userId)),
-            or(
-              // Exclude pending bans
-              eq(modLogsInAppPublic.pending, false),
-              // Allow missing mod cases for the bans
-              isNull(modLogsInAppPublic.pending),
-            ),
+            // TODO: Pending bans are inconsistent, still pending when shouldn't be
+            // Filter by non-pending ONLY if this is resolved
+            // or(
+            //   eq(modLogsInAppPublic.pending, false),
+            //   // Allow missing mod cases for the bans
+            //   isNull(modLogsInAppPublic.pending),
+            // ),
           ),
         )
         // Only get the latest row with the distinct on
