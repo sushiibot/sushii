@@ -15,6 +15,9 @@ export class CacheGuildCreateHandler extends EventHandler<Events.GuildCreate> {
 
   readonly eventType = Events.GuildCreate;
 
+  // Needs to run before deployment is active
+  isExemptFromDeploymentCheck = true;
+
   async handle(guild: Guild): Promise<void> {
     const span = tracer.startSpan("guild create upsert");
 
