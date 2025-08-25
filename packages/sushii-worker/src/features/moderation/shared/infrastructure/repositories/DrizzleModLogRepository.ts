@@ -143,6 +143,16 @@ export class DrizzleModLogRepository implements ModLogRepository {
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<ModerationCase, string>> {
     const db = tx || this.db;
+
+    this.logger.debug(
+      {
+        guildId,
+        caseId,
+        usingTransaction: !!tx,
+      },
+      "Attempting to mark case as not pending",
+    );
+
     try {
       const updatedCase = await db
         .update(modLogsInAppPublic)
@@ -156,10 +166,29 @@ export class DrizzleModLogRepository implements ModLogRepository {
         .returning();
 
       if (updatedCase.length === 0) {
+        this.logger.warn(
+          {
+            guildId,
+            caseId,
+          },
+          "No rows updated when marking case as not pending",
+        );
         return Err("Failed to mark case as not pending - no rows updated");
       }
 
-      return Ok(this.mapRowToModerationCase(updatedCase[0]));
+      const mappedCase = this.mapRowToModerationCase(updatedCase[0]);
+
+      this.logger.debug(
+        {
+          guildId,
+          caseId,
+          pendingAfterUpdate: mappedCase.pending,
+          rowsUpdated: updatedCase.length,
+        },
+        "Successfully marked case as not pending in database",
+      );
+
+      return Ok(mappedCase);
     } catch (error) {
       this.logger.error(
         {
@@ -180,8 +209,19 @@ export class DrizzleModLogRepository implements ModLogRepository {
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>> {
     const db = tx || this.db;
+
+    this.logger.debug(
+      {
+        guildId,
+        caseId,
+        messageId,
+        usingTransaction: !!tx,
+      },
+      "Attempting to update message ID for case",
+    );
+
     try {
-      await db
+      const result = await db
         .update(modLogsInAppPublic)
         .set({ msgId: BigInt(messageId) })
         .where(
@@ -190,6 +230,15 @@ export class DrizzleModLogRepository implements ModLogRepository {
             eq(modLogsInAppPublic.caseId, BigInt(caseId)),
           ),
         );
+
+      this.logger.debug(
+        {
+          guildId,
+          caseId,
+          messageId,
+        },
+        "Successfully updated message ID in database",
+      );
 
       return Ok.EMPTY;
     } catch (error) {

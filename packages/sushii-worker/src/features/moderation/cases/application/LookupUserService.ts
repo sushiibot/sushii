@@ -74,13 +74,6 @@ export class LookupUserService {
     // Populate guild names for cross-server bans
     const crossServerBans = await Promise.all(
       crossServerBansResult.val.map(async (ban): Promise<UserLookupBan> => {
-        if (!ban.guildId) {
-          return {
-            ...ban,
-            guildName: null,
-          };
-        }
-
         try {
           // Fetch, not cache only -- search guilds on other shards
           const guild = await this.client.guilds.fetch(ban.guildId);

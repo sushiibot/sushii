@@ -293,7 +293,13 @@ export class AuditLogService {
 
     if (foundPendingCase) {
       this.logger.debug(
-        { caseId: foundPendingCase.caseId },
+        {
+          caseId: foundPendingCase.caseId,
+          guildId: auditLogEvent.guildId,
+          targetId: auditLogEvent.targetId,
+          actionType: foundPendingCase.actionType,
+          wasPending: foundPendingCase.pending,
+        },
         "Found pending case, marking as not pending",
       );
 
@@ -303,16 +309,42 @@ export class AuditLogService {
         foundPendingCase.caseId,
       );
       if (updatedCaseResult.err) {
+        this.logger.error(
+          {
+            err: updatedCaseResult.val,
+            caseId: foundPendingCase.caseId,
+            guildId: auditLogEvent.guildId,
+          },
+          "Failed to mark case as not pending",
+        );
         throw new Error(
           `Failed to mark case as not pending: ${updatedCaseResult.val}`,
         );
       }
+
+      this.logger.debug(
+        {
+          caseId: updatedCaseResult.val.caseId,
+          guildId: updatedCaseResult.val.guildId,
+          nowPending: updatedCaseResult.val.pending,
+        },
+        "Successfully marked case as not pending",
+      );
 
       return {
         modLogCase: updatedCaseResult.val,
         wasPendingCase: true,
       };
     }
+
+    this.logger.debug(
+      {
+        guildId: auditLogEvent.guildId,
+        targetId: auditLogEvent.targetId,
+        actionType: auditLogEvent.actionType,
+      },
+      "No pending case found, creating new case",
+    );
 
     const newCase = await this.createNewCase(auditLogEvent, targetUser);
 
@@ -434,6 +466,11 @@ export class AuditLogService {
     caseId: string,
     messageId: string,
   ): Promise<Result<void, string>> {
+    this.logger.debug(
+      { guildId, caseId, messageId },
+      "Updating mod log case with message ID",
+    );
+
     const result = await this.modLogRepository.updateMessageId(
       guildId,
       caseId,
@@ -443,7 +480,12 @@ export class AuditLogService {
     if (result.ok) {
       this.logger.debug(
         { guildId, caseId, messageId },
-        "Updated mod log case with message ID",
+        "Successfully updated mod log case with message ID",
+      );
+    } else {
+      this.logger.error(
+        { guildId, caseId, messageId, err: result.val },
+        "Failed to update mod log case with message ID",
       );
     }
 
