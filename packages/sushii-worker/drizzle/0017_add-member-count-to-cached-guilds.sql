@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."cached_guilds" ADD COLUMN "member_count" bigint;

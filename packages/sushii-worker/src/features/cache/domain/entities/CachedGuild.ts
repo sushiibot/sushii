@@ -32,6 +32,10 @@ export class CachedGuildEntity {
     return this.data.features;
   }
 
+  get memberCount(): bigint | null {
+    return this.data.memberCount;
+  }
+
   get createdAt(): string {
     return this.data.createdAt;
   }

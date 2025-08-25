@@ -173,6 +173,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
           },
           "No rows updated when marking case as not pending",
         );
+
         return Err("Failed to mark case as not pending - no rows updated");
       }
 
@@ -236,6 +237,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
           guildId,
           caseId,
           messageId,
+          updatedRowCount: result.rowCount,
         },
         "Successfully updated message ID in database",
       );

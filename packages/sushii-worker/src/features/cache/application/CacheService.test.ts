@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { Ok } from "ts-results";
+import { Err, Ok } from "ts-results";
 
 import type {
   CachedGuildEntity,
@@ -12,6 +12,9 @@ import { CacheService } from "./CacheService";
 // Mock repositories
 const mockGuildRepository: CachedGuildRepository = {
   upsert: mock(() => Promise.resolve(Ok({} as CachedGuildEntity))),
+  // These methods are not used by CacheService - called directly by event handlers
+  incrementMemberCount: () => Promise.resolve(Ok(void 0)),
+  decrementMemberCount: () => Promise.resolve(Ok(void 0)),
 };
 
 const mockUserRepository: CachedUserRepository = {

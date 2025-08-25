@@ -10,6 +10,8 @@ import {
 import {
   CacheGuildCreateHandler,
   CacheGuildUpdateHandler,
+  CacheMemberAddHandler,
+  CacheMemberRemoveHandler,
   CacheUserHandler,
 } from "./presentation";
 
@@ -23,6 +25,8 @@ export interface CacheFeature {
     CacheGuildCreateHandler,
     CacheGuildUpdateHandler,
     CacheUserHandler,
+    CacheMemberAddHandler,
+    CacheMemberRemoveHandler,
   ];
 }
 
@@ -41,10 +45,14 @@ export function createCacheFeature(
     CacheGuildCreateHandler,
     CacheGuildUpdateHandler,
     CacheUserHandler,
+    CacheMemberAddHandler,
+    CacheMemberRemoveHandler,
   ] = [
     new CacheGuildCreateHandler(cacheService),
     new CacheGuildUpdateHandler(cacheService),
     new CacheUserHandler(cacheService),
+    new CacheMemberAddHandler(guildRepository),
+    new CacheMemberRemoveHandler(guildRepository),
   ];
 
   return {

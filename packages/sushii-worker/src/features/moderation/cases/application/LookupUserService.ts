@@ -81,7 +81,8 @@ export class LookupUserService {
             ...ban,
             guildName: guild.name,
             guildFeatures: guild.features,
-            guildMembers: guild.memberCount,
+            // guild.memberCount is only via `Guild Create` gateway event
+            guildMembers: guild.approximateMemberCount || 0,
           };
         } catch {
           // Guild not found or bot not in guild anymore

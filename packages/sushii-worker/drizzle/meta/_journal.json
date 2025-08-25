@@ -120,6 +120,13 @@
       "when": 1756004606623,
       "tag": "0016_reaction-starter-emoji-name",
       "breakpoints": false
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1756151641414,
+      "tag": "0017_add-member-count-to-cached-guilds",
+      "breakpoints": false
     }
   ]
 }

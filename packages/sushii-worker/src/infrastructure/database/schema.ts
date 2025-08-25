@@ -106,6 +106,7 @@ export const cachedGuildsInAppPublic = appPublic.table(
     splash: text(),
     banner: text(),
     features: text().array().default([""]).notNull(),
+    memberCount: bigint("member_count", { mode: "bigint" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),

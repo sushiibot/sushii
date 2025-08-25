@@ -26,6 +26,7 @@ export class CacheGuildCreateHandler extends EventHandler<Events.GuildCreate> {
         banner: guild.bannerURL(),
         splash: guild.splashURL(),
         features: guild.features,
+        memberCount: BigInt(guild.memberCount),
       });
     } finally {
       span.end();
@@ -51,6 +52,7 @@ export class CacheGuildUpdateHandler extends EventHandler<Events.GuildUpdate> {
         banner: newGuild.bannerURL(),
         splash: newGuild.splashURL(),
         features: newGuild.features,
+        memberCount: BigInt(newGuild.memberCount),
       });
     } finally {
       span.end();

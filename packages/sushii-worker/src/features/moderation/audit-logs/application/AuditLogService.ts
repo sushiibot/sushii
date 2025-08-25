@@ -317,6 +317,7 @@ export class AuditLogService {
           },
           "Failed to mark case as not pending",
         );
+
         throw new Error(
           `Failed to mark case as not pending: ${updatedCaseResult.val}`,
         );
