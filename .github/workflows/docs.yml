@@ -31,7 +31,7 @@ jobs:
 
       # actions/upload-artifact@v4 has error:
       # https://github.com/actions/deploy-pages/issues/389
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         # Only on main push
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
