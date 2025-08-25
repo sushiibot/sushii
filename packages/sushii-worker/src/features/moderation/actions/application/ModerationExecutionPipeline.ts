@@ -333,7 +333,7 @@ export class ModerationExecutionPipeline {
     );
     const updatedCase = moderationCase.withDMResult(dmResult);
 
-    // Update case with DM result in separate small transaction
+    // Update case with DM result
     await this.updateCaseWithDMResult(updatedCase);
 
     return updatedCase;
@@ -436,7 +436,7 @@ export class ModerationExecutionPipeline {
     );
     const updatedCase = moderationCase.withDMResult(dmResult);
 
-    // Update case with DM result in separate small transaction
+    // Update case with DM result
     await this.updateCaseWithDMResult(updatedCase);
 
     return updatedCase;
@@ -475,26 +475,26 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Updates case with DM result in a separate focused transaction
+   * Updates case with DM result only (does not modify other fields)
    */
   private async updateCaseWithDMResult(
     moderationCase: ModerationCase,
   ): Promise<void> {
-    await this.db.transaction(async (tx: NodePgDatabase<typeof schema>) => {
-      const updateResult = await this.modLogRepository.update(
-        moderationCase,
-        tx,
+    const updateResult = await this.modLogRepository.updateDMInfo(
+      moderationCase.guildId,
+      moderationCase.caseId,
+      moderationCase.dmResult || {},
+    );
+    
+    if (!updateResult.ok) {
+      this.logger.warn(
+        {
+          caseId: moderationCase.caseId,
+          error: updateResult.val,
+        },
+        "Failed to update case with DM result",
       );
-      if (!updateResult.ok) {
-        this.logger.warn(
-          {
-            caseId: moderationCase.caseId,
-            error: updateResult.val,
-          },
-          "Failed to update case with DM result",
-        );
-      }
-    });
+    }
   }
 
   /**

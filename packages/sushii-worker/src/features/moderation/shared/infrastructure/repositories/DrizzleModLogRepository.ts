@@ -290,6 +290,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         },
         "Failed to update DM info",
       );
+
       return Err(`Failed to update DM info: ${error}`);
     }
   }
