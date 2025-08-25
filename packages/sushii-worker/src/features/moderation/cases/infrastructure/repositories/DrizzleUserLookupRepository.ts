@@ -5,6 +5,7 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import {
+  cachedGuildsInAppPublic,
   guildBansInAppPublic,
   guildConfigsInAppPublic,
   modLogsInAppPublic,
@@ -37,6 +38,10 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
             reason: modLogsInAppPublic.reason,
             actionTime: modLogsInAppPublic.actionTime,
             lookupDetailsOptIn: guildConfigsInAppPublic.lookupDetailsOptIn,
+            // Cached guild data
+            guildName: cachedGuildsInAppPublic.name,
+            memberCount: cachedGuildsInAppPublic.memberCount,
+            guildFeatures: cachedGuildsInAppPublic.features,
           },
         )
         .from(guildBansInAppPublic)
@@ -51,6 +56,10 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
         .leftJoin(
           guildConfigsInAppPublic,
           eq(guildConfigsInAppPublic.id, guildBansInAppPublic.guildId),
+        )
+        .leftJoin(
+          cachedGuildsInAppPublic,
+          eq(cachedGuildsInAppPublic.id, guildBansInAppPublic.guildId),
         )
         .where(
           and(
@@ -74,11 +83,9 @@ export class DrizzleUserLookupRepository implements UserLookupRepository {
         reason: ban.reason,
         actionTime: ban.actionTime,
         lookupDetailsOptIn: ban.lookupDetailsOptIn ?? false,
-
-        // To be filled in by service layer
-        guildName: null,
-        guildMembers: 0,
-        guildFeatures: [],
+        guildName: ban.guildName,
+        guildMembers: ban.memberCount ? Number(ban.memberCount) : 0,
+        guildFeatures: ban.guildFeatures ?? [],
       }));
 
       this.logger.debug(

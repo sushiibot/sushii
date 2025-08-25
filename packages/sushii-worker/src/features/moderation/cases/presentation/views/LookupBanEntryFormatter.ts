@@ -28,9 +28,9 @@ export function formatBanEntry(
   } else {
     // Either guild hasn't opted in - hide server name
     if (guildBadges) {
-      parts.push(`${guildBadges} **[Anonymous]**`);
+      parts.push(`${guildBadges} **Anonymous**`);
     } else {
-      parts.push(`**[Anonymous]**`);
+      parts.push(`**Anonymous**`);
     }
   }
 

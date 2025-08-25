@@ -71,38 +71,11 @@ export class LookupUserService {
       return Err(crossServerBansResult.val);
     }
 
-    // Populate guild names for cross-server bans
-    const crossServerBans = await Promise.all(
-      crossServerBansResult.val.map(async (ban): Promise<UserLookupBan> => {
-        try {
-          // Fetch, not cache only -- search guilds on other shards
-          const guild = await this.client.guilds.fetch(ban.guildId);
-          return {
-            ...ban,
-            guildName: guild.name,
-            guildFeatures: guild.features,
-            // guild.memberCount is only via `Guild Create` gateway event
-            guildMembers: guild.approximateMemberCount || 0,
-          };
-        } catch {
-          // Guild not found or bot not in guild anymore
-          return {
-            ...ban,
-            guildName: null,
-          };
-        }
-      }),
-    );
+    // Guild data is now populated by the repository from cached_guilds table
+    const crossServerBans = crossServerBansResult.val;
 
-    // Filter out bans where guild info couldn't be fetched
-    // Note: Privacy filtering (showing/hiding names) is handled in presentation layer
-    // to ensure ban counts remain accurate regardless of opt-in status
-    const filteredCrossServerBans = crossServerBans.filter(
-      (ban) => ban.guildName !== null,
-    );
-
-    // sort by members, largest servers first
-    filteredCrossServerBans.sort((a, b) => {
+    // sort by members, largest servers first (treating null memberCount as 0)
+    crossServerBans.sort((a, b) => {
       return b.guildMembers - a.guildMembers;
     });
 
@@ -115,13 +88,13 @@ export class LookupUserService {
         joinedAt: member ? member.joinedAt : null,
         isBot: user.bot,
       },
-      crossServerBans: filteredCrossServerBans,
+      crossServerBans: crossServerBans,
       currentGuildLookupOptIn,
     };
 
     log.info(
       {
-        crossServerBans: filteredCrossServerBans.length,
+        crossServerBans: crossServerBans.length,
       },
       "User lookup completed",
     );
