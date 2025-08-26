@@ -1,4 +1,5 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -8,6 +9,7 @@ import {
   DrizzleCachedUserRepository,
 } from "./infrastructure";
 import {
+  CacheGuildAvailableHandler,
   CacheGuildCreateHandler,
   CacheGuildUpdateHandler,
   CacheMemberAddHandler,
@@ -16,6 +18,7 @@ import {
 } from "./presentation";
 
 interface CacheFeatureDependencies {
+  logger: Logger;
   db: NodePgDatabase<typeof schema>;
 }
 
@@ -23,6 +26,7 @@ export interface CacheFeature {
   cacheService: CacheService;
   eventHandlers: [
     CacheGuildCreateHandler,
+    CacheGuildAvailableHandler,
     CacheGuildUpdateHandler,
     CacheUserHandler,
     CacheMemberAddHandler,
@@ -43,12 +47,14 @@ export function createCacheFeature(
 
   const eventHandlers: [
     CacheGuildCreateHandler,
+    CacheGuildAvailableHandler,
     CacheGuildUpdateHandler,
     CacheUserHandler,
     CacheMemberAddHandler,
     CacheMemberRemoveHandler,
   ] = [
     new CacheGuildCreateHandler(cacheService),
+    new CacheGuildAvailableHandler(cacheService),
     new CacheGuildUpdateHandler(cacheService),
     new CacheUserHandler(cacheService),
     new CacheMemberAddHandler(guildRepository),

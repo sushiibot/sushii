@@ -73,7 +73,7 @@ export function registerFeatures(
   });
 
   // Cache feature
-  const cacheFeature = createCacheFeature({ db });
+  const cacheFeature = createCacheFeature({ logger, db });
 
   // Stats feature (setup early so other features can use it)
   const statsFeature = setupStatsFeature({

@@ -235,7 +235,7 @@ export function buildActionResultMessage(
       }
     } else if (dmSuccessCount === dmAttemptedCount) {
       // All attempted DMs sent successfully
-      dmSectionContent += `**Sent successfully**`;
+      dmSectionContent += `**Sent successfully to all users**`;
     } else if (dmSuccessCount === 0) {
       // All DM attempts failed - check failure reasons
       const failureReasons = successfulCases
