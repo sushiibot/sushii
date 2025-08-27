@@ -1,3 +1,4 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -33,6 +34,8 @@ import type InteractionRouter from "../discord/InteractionRouter";
 import type { EventHandler, EventType } from "../presentation/EventHandler";
 import { registerTasks } from "./registerTasks";
 
+const tracer = opentelemetry.trace.getTracer("feature-event-handler");
+
 // Extract channelId from event arguments based on event type
 function extractChannelIdFromEvent(
   eventType: string,
@@ -47,6 +50,129 @@ function extractChannelIdFromEvent(
   }
 
   return undefined;
+}
+
+function extractGuildIdFromEvent(args: unknown[]): string | undefined {
+  // Check for common guild-related events
+  if (args.length > 0) {
+    const firstArg = args[0];
+    if (firstArg && typeof firstArg === "object" && "guildId" in firstArg) {
+      return (firstArg as { guildId?: string }).guildId;
+    }
+
+    if (firstArg && typeof firstArg === "object" && "guild" in firstArg) {
+      return (firstArg as { guild?: { id?: string } }).guild?.id;
+    }
+  }
+  return undefined;
+}
+
+function extractUserIdFromEvent(args: unknown[]): string | undefined {
+  // Check for user-related events
+  if (args.length > 0) {
+    const firstArg = args[0];
+    if (firstArg && typeof firstArg === "object") {
+      // Direct user property
+      if ("user" in firstArg) {
+        return (firstArg as { user?: { id?: string } }).user?.id;
+      }
+
+      // Author property (for messages)
+      if ("author" in firstArg) {
+        return (firstArg as { author?: { id?: string } }).author?.id;
+      }
+
+      // Member property
+      if ("member" in firstArg) {
+        const member = (
+          firstArg as { member?: { user?: { id?: string }; id?: string } }
+        ).member;
+        return member?.user?.id || member?.id;
+      }
+    }
+  }
+  return undefined;
+}
+
+async function handleDiscordEvent(
+  eventType: string,
+  group: EventHandler<EventType>[],
+  deploymentService: DeploymentService,
+  args: unknown[],
+): Promise<void> {
+  // Extract all context once at the beginning (outside of spans)
+  const channelId = extractChannelIdFromEvent(eventType, args);
+  const guildId = extractGuildIdFromEvent(eventType, args);
+  const userId = extractUserIdFromEvent(eventType, args);
+  const isDeploymentActive =
+    deploymentService.isCurrentDeploymentActive(channelId);
+
+  const promises = [];
+
+  for (const handler of group) {
+    // Skip non-exempt handlers when deployment is inactive
+    if (!handler.isExemptFromDeploymentCheck && !isDeploymentActive) {
+      continue;
+    }
+
+    // Handler is either exempt OR deployment is active
+    const p = tracer.startActiveSpan(
+      `${eventType}.${handler.constructor.name}`,
+      async (span) => {
+        try {
+          // Set basic attributes
+          span.setAttributes({
+            "event.type": eventType,
+            "handler.name": handler.constructor.name,
+            "handler.exempt": handler.isExemptFromDeploymentCheck ?? false,
+            "deployment.active": isDeploymentActive,
+          });
+
+          // Add pre-extracted context attributes
+          if (channelId) {
+            span.setAttribute("channel.id", channelId);
+          }
+          if (guildId) {
+            span.setAttribute("guild.id", guildId);
+          }
+          if (userId) {
+            span.setAttribute("user.id", userId);
+          }
+
+          return await handler.handle(
+            ...(args as Parameters<typeof handler.handle>),
+          );
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+
+          // Log the error with context
+          logger.error(
+            {
+              error,
+              eventType,
+              handler: handler.constructor.name,
+              channelId,
+              guildId,
+              userId,
+            },
+            `Error in handler ${handler.constructor.name} for event ${eventType}`,
+          );
+
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
+
+    promises.push(p);
+  }
+
+  // Run all handlers that should execute
+  await Promise.allSettled(promises);
 }
 
 export function registerFeatures(
@@ -270,50 +396,7 @@ export function registerFeatures(
 
     client.on(eventType, async (...args) => {
       try {
-        // Check deployment status once per event
-        const channelId = extractChannelIdFromEvent(eventType, args);
-        const isDeploymentActive =
-          deploymentService.isCurrentDeploymentActive(channelId);
-
-        // Track which handlers execute and their promise indices
-        const executedHandlers: {
-          handler: EventHandler<EventType>;
-          promiseIndex: number;
-        }[] = [];
-        const promises = [];
-        let promiseIndex = 0;
-
-        for (const handler of group) {
-          // Skip non-exempt handlers when deployment is inactive
-          if (!handler.isExemptFromDeploymentCheck && !isDeploymentActive) {
-            continue;
-          }
-
-          // Handler is either exempt OR deployment is active
-          executedHandlers.push({ handler, promiseIndex });
-          // TODO: Add trace span here
-          const p = handler.handle(...args);
-          promises.push(p);
-          promiseIndex++;
-        }
-
-        // Run all handlers that should execute
-        const results = await Promise.allSettled(promises);
-
-        // Log any errors that occurred in the handlers
-        for (const { handler, promiseIndex: index } of executedHandlers) {
-          const result = results[index];
-          if (result && result.status === "rejected") {
-            logger.error(
-              {
-                error: result.reason,
-                eventType,
-                handler: handler.constructor.name,
-              },
-              `Error in handler for event ${eventType}`,
-            );
-          }
-        }
+        await handleDiscordEvent(eventType, group, deploymentService, args);
       } catch (error) {
         logger.error(
           {
@@ -321,7 +404,7 @@ export function registerFeatures(
             eventType,
             handlers: group.map((h) => h.constructor.name),
           },
-          `Error handling event ${eventType}`,
+          `Unexpected error handling event ${eventType}`,
         );
       }
     });

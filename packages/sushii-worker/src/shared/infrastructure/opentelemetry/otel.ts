@@ -9,13 +9,30 @@ import {
 } from "@opentelemetry/resources";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import * as Sentry from "@sentry/bun";
+import {
+  SentryContextManager,
+  validateOpenTelemetrySetup,
+} from "@sentry/node-core";
+import {
+  SentryPropagator,
+  SentrySampler,
+  SentrySpanProcessor,
+} from "@sentry/opentelemetry";
 import type { Logger } from "pino";
 
 import { config } from "@/shared/infrastructure/config";
 
 export function initializeOtel(logger: Logger, clusterId: number) {
+  const sentryClient = Sentry.init({
+    dsn: config.sentry.dsn,
+    environment: config.sentry.environment,
+    skipOpenTelemetrySetup: true,
+
+    tracesSampleRate: 0.05,
+  });
+
   const resource = defaultResource().merge(
     resourceFromAttributes({
       [ATTR_SERVICE_NAME]: "sushii_bot",
@@ -34,10 +51,27 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   );
 
   const sdk = new NodeSDK({
-    traceExporter: new OTLPTraceExporter(),
-    instrumentations: [getNodeAutoInstrumentations()],
+    // Base
     resource: resource,
-    sampler: new TraceIdRatioBasedSampler(config.tracing.samplePercentage),
+
+    // Traces
+    sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
+    spanProcessors: [
+      // Ensure spans are correctly linked & sent to Sentry
+      new SentrySpanProcessor(),
+      // Add additional processors here
+    ],
+    // Ensure trace propagation works
+    // This relies on the SentrySampler for correct propagation
+    textMapPropagator: new SentryPropagator(),
+    // Ensure context & request isolation are correctly managed
+    contextManager: new SentryContextManager(),
+
+    // Exporter
+    traceExporter: new OTLPTraceExporter(),
+
+    // Metrics
+    instrumentations: [getNodeAutoInstrumentations()],
     metricReader: new PeriodicExportingMetricReader({
       // Configured via env vars, e.g. `OTEL_EXPORTER_OTLP_ENDPOINT`
       exporter: new OTLPMetricExporter(),
@@ -49,6 +83,8 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   // initialize the SDK and register with the OpenTelemetry API
   // this enables the API to record telemetry
   sdk.start();
+
+  validateOpenTelemetrySetup();
 
   logger.info(
     {

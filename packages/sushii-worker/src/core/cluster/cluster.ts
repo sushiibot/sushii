@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
 
@@ -15,12 +15,6 @@ import { registerFeatures } from "./initialization/registerFeatures";
 Error.stackTraceLimit = 50;
 
 async function initializeShardCluster(): Promise<void> {
-  Sentry.init({
-    dsn: config.sentry.dsn,
-    environment: config.sentry.environment,
-    tracesSampleRate: 1.0,
-  });
-
   const clusterInfo = getInfo();
 
   // Per-process otel instrumentation
