@@ -102,8 +102,8 @@ async function handleDiscordEvent(
 ): Promise<void> {
   // Extract all context once at the beginning (outside of spans)
   const channelId = extractChannelIdFromEvent(eventType, args);
-  const guildId = extractGuildIdFromEvent(eventType, args);
-  const userId = extractUserIdFromEvent(eventType, args);
+  const guildId = extractGuildIdFromEvent(args);
+  const userId = extractUserIdFromEvent(args);
   const isDeploymentActive =
     deploymentService.isCurrentDeploymentActive(channelId);
 
