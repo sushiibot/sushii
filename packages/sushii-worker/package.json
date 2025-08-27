@@ -21,7 +21,7 @@
     "@opentelemetry/sdk-metrics": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",
     "@opentelemetry/semantic-conventions": "^1.34.0",
-    "@sapphire/shapeshift": "^3.9.7",
+    "@sapphire/shapeshift": "^4.0.0",
     "@sapphire/snowflake": "^3.5.5",
     "@sentry/bun": "^10.7.0",
     "@sentry/node-core": "^10.7.0",
