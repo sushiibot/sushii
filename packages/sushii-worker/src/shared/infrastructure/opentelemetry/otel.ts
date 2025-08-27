@@ -1,5 +1,3 @@
-import type { Span, Tracer } from "@opentelemetry/api";
-import { SpanStatusCode } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
@@ -94,33 +92,4 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   );
 
   return sdk;
-}
-
-/**
- * Starts a new active span and automatically catches errors and ends the span.
- *
- * @param tracer
- * @param name
- * @param fn
- * @returns
- */
-export function startCaughtActiveSpan<F extends (span?: Span) => unknown>(
-  tracer: Tracer,
-  name: string,
-  fn: F,
-): ReturnType<F> {
-  return tracer.startActiveSpan(name, ((span: Span) => {
-    try {
-      return fn(span);
-    } catch (err) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: err instanceof Error ? err.message : "Unknown error",
-      });
-
-      throw err;
-    } finally {
-      span.end();
-    }
-  }) as F);
 }
