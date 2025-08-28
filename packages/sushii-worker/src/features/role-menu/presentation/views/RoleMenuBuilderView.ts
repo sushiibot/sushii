@@ -64,7 +64,7 @@ export function createRoleMenuBuilderMessage(
 
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `-# Roles are in order of their position in the server.`,
+        `-# **Note:** Roles are in order of their position in the server.`,
       ),
     );
   }
@@ -157,10 +157,11 @@ function createRoleSection(
   let content = `${index}. <@&${role.roleId}>`;
 
   if (role.emoji) {
-    content += `\n> 🎭 **Emoji:** ${role.emoji}`;
+    content += `\n> **Emoji:** ${role.emoji}`;
   }
+
   if (role.description) {
-    content += `\n> 📝 **Description:** ${role.description}`;
+    content += `\n> **Description:** ${role.description}`;
   }
 
   const section = new SectionBuilder().addTextDisplayComponents(
