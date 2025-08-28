@@ -10,39 +10,44 @@ Hi! Here's what's happening:
 
 ## Timeline
 
-**Week 1:**
 You will still be able to use text commands, but will be alerted that they will
 be removed soon.
 
-**Week 2:**
-Text commands will only respond with a message that they are deprecated.
+**September 20, 2025**: Text commands will be fully removed and will stop
+responding. Note that this may not be an exact date, but will be around this time.
 
-**Week 3:**
-Text commands will be fully removed.
-
-## Why?
-
+:::note[Why?]
 For better or worse, slash commands are the standard for commands. While there
 are trade offs, they provide a better user experience in terms of
 discoverability of commands and consistency.
 
-### Cant't we keep both?
+**Can't we keep both?**  
+Unfortunately it's much more difficult to maintain both.
 
-While in some cases I actually do prefer text commands, unfortunately it's much
-more difficult to maintain both. Will be focusing on making the user experience
-of slash commands as good as possible.
-
-Text commands are built into a very old version of sushii and will require
+Text commands are part of a very old version of sushii and will require
 double the work to re-implement and maintain both command versions.
+:::
 
-## Commands Changed
+## What are the new commands?
 
 In general, you can find all the slash commands in the built-in command menu.
 
-However, here are some notable changes:
+Most commands are the same as before, just with a `/` in front of them. For
+example:
 
-- Tags are now split across multiple slash commands, `/t` to get a tag,
-  `/tag-add` to add a tag, and `/tag` for additional tag management commands.
+- `-rep` > `/rep`
+- `-fishy` > `/fishy`
+- `-rank` > `/rank`
+- etc...
+
+Here are some notable larger changes:
+
+- Tags are now split across multiple slash commands:  
+  `/t` to get a tag  
+  `/tag-add` to add a tag  
+  `/tag ...` for additional tag management commands  
+  `/tag-admin` for server manager-only tag commands
+
   More details can be found in the [tags guide](/guides/tags).
 
 ## Need help?
