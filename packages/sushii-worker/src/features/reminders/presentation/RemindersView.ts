@@ -45,22 +45,6 @@ export function buildListEmbed(reminders: Reminder[]): EmbedBuilder {
     .setColor(Color.Info);
 }
 
-export function buildDeleteSuccessEmbed(reminder: Reminder): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(t("reminder.delete.success.title", { ns: "commands" }))
-    .setDescription(
-      t("reminder.delete.success.description", {
-        ns: "commands",
-        expireAtTimestamp: dayjs.utc(reminder.getExpireAt()).unix(),
-        description: reminder.getDescription(),
-      }),
-    )
-    .setFooter({
-      text: `Reminder ID: ${reminder.getId()}`,
-    })
-    .setColor(Color.Success);
-}
-
 export function buildErrorEmbed(
   title: string,
   description?: string,
@@ -92,14 +76,4 @@ export function buildInvalidDurationEmbed(): EmbedBuilder {
         "Please ensure your privacy settings allow DMs from me to receive reminders.",
     })
     .setColor(Color.Error);
-}
-
-export function buildNotFoundEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(
-      t("reminder.delete.error.not_found", {
-        ns: "commands",
-      }),
-    )
-    .setColor(Color.Warning);
 }

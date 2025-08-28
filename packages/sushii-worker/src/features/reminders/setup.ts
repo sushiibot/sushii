@@ -12,7 +12,7 @@ import {
   ReminderBackgroundTask,
 } from "./infrastructure";
 import { ReminderMetrics } from "./infrastructure/metrics/ReminderMetrics";
-import { ReminderCommand, ReminderDeleteAutocomplete } from "./presentation";
+import { ReminderCommand } from "./presentation";
 
 interface SetupRemindersFeatureDeps {
   db: NodePgDatabase<typeof schema>;
@@ -50,14 +50,14 @@ export function setupRemindersFeature(
   );
 
   // Create presentation layer
-  const reminderCommand = new ReminderCommand(reminderService);
-  const reminderDeleteAutocomplete = new ReminderDeleteAutocomplete(
+  const reminderCommand = new ReminderCommand(
     reminderService,
+    logger.child({ component: "ReminderCommand" }),
   );
 
   return {
     commands: [reminderCommand],
-    autocompletes: [reminderDeleteAutocomplete],
+    autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
     eventHandlers: [],

@@ -58,6 +58,13 @@ export class ReminderService {
     return this.reminderRepository.findByUserId(userId);
   }
 
+  async findReminder(
+    userId: string,
+    reminderId: string,
+  ): Promise<Reminder | null> {
+    return this.reminderRepository.findByUserIdAndId(userId, reminderId);
+  }
+
   async deleteReminder(
     userId: string,
     reminderId: string,
