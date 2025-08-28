@@ -257,6 +257,8 @@ export function buildActionResultMessage(
       dmSectionContent += `\n> ${emojis.fail} Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
     }
 
+    dmSectionContent += `\n-# **Note**: You can configure default DM behavior for this action in \`/settings\``;
+
     // Don't show User DMs section for Note actions as they are private
     if (actionType !== ActionType.Note) {
       fullContent += `### ${emojis.dm_message} DM Notifications\n`;
