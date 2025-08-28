@@ -197,11 +197,7 @@ export function buildUserHistoryContextEmbed(
     .setTitle(
       `Recent Moderation History (${totalCases} case${totalCases === 1 ? "" : "s"})`,
     )
-    .setColor(Color.Success)
-    .setAuthor({
-      name: getUserString(member || targetUser),
-      iconURL: targetUser.displayAvatarURL(),
-    });
+    .setColor(Color.Success);
 
   if (moderationHistory.length === 0) {
     embed.setDescription("No moderation history found in this server.");
@@ -219,11 +215,7 @@ export function buildUserHistoryContextEmbed(
   // Add footer with instruction to use /history for full list
   if (totalCases > 3) {
     embed.setFooter({
-      text: `Showing 3 of ${totalCases} cases. Use /history for full list. • User ID: ${targetUser.id}`,
-    });
-  } else {
-    embed.setFooter({
-      text: `User ID: ${targetUser.id}`,
+      text: `Showing 3 of ${totalCases} cases. Use /history for full list`,
     });
   }
 

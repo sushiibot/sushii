@@ -3,9 +3,7 @@ import { EmbedBuilder } from "discord.js";
 
 import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
-import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
 import Color from "@/utils/colors";
-import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { formatBanEntry } from "./LookupBanEntryFormatter";
 
@@ -27,17 +25,9 @@ export function buildUserLookupContextEmbed(
   lookupResult: UserLookupResult,
   options: LookupContextOptions,
 ): EmbedBuilder {
-  const { userInfo, crossServerBans, currentGuildLookupOptIn } = lookupResult;
+  const { crossServerBans, currentGuildLookupOptIn } = lookupResult;
 
-  const embed = new EmbedBuilder()
-    .setColor(Color.Info)
-    .setTitle("User Lookup")
-    .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
-    .setTimestamp();
-
-  if (options.showBasicInfo) {
-    addBasicUserInfoContext(embed, targetUser, userInfo, member);
-  }
+  const embed = new EmbedBuilder().setColor(Color.Info).setTitle("User Lookup");
 
   // Add cross-server bans section (truncated for context)
   if (crossServerBans.length > 0) {
@@ -56,68 +46,6 @@ export function buildUserLookupContextEmbed(
   }
 
   return embed;
-}
-
-function addBasicUserInfoContext(
-  embed: EmbedBuilder,
-  targetUser: User,
-  userInfo: UserInfo,
-  member: GuildMember | null,
-): void {
-  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  const accountAgeFormatted = `<t:${createdTimestamp}:R>`;
-
-  embed.addFields({
-    name: "Account Info",
-    value: [
-      `**ID:** ${targetUser.id}`,
-      `**Created:** ${accountAgeFormatted}`,
-    ].join("\n"),
-    inline: true,
-  });
-
-  if (member) {
-    const joinedTimestamp = member.joinedTimestamp
-      ? timestampToUnixTime(member.joinedTimestamp)
-      : null;
-
-    const joinedFormatted = joinedTimestamp
-      ? `<t:${joinedTimestamp}:R>`
-      : "Unknown";
-
-    embed.addFields({
-      name: "Member Info",
-      value: [
-        `**Joined:** ${joinedFormatted}`,
-        `**Nickname:** ${member.nickname || "None"}`,
-        `**Roles:** ${member.roles.cache.size - 1}`, // Subtract @everyone
-      ].join("\n"),
-      inline: true,
-    });
-
-    if (member.roles.cache.size > 1) {
-      const roles = member.roles.cache
-        .filter((role) => role.name !== "@everyone")
-        .sort((a, b) => b.position - a.position)
-        .map((role) => role.toString())
-        .slice(0, 10)
-        .join(", ");
-
-      if (roles) {
-        embed.addFields({
-          name: "Roles",
-          value: roles,
-          inline: false,
-        });
-      }
-    }
-  } else {
-    embed.addFields({
-      name: "Member Info",
-      value: "User is not in this server.",
-      inline: true,
-    });
-  }
 }
 
 function addCrossServerBansContext(
