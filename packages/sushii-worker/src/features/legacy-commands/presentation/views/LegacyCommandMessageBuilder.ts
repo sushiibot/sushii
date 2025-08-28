@@ -18,7 +18,7 @@ export function buildLegacyCommandDmMessage(legacyCommand: LegacyCommand) {
   // Main message content
   const content = `👋 Hello! I noticed you used \`${legacyCommand.name}\`
 
-This command has moved to slash commands:
+This command has moved to a slash command:
 - **Old:** \`${legacyCommand.name}\`
 - **New:** \`${legacyCommand.replacement}\`
 
