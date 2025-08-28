@@ -58,6 +58,20 @@ class MockReminderRepository implements ReminderRepository {
     return this.reminders.filter((r) => r.getUserId() === userId);
   }
 
+  async findByUserIdPaginated(
+    userId: string,
+    offset: number,
+    limit: number,
+  ): Promise<Reminder[]> {
+    return this.reminders
+      .filter((r) => r.getUserId() === userId)
+      .slice(offset, offset + limit);
+  }
+
+  async countByUserId(userId: string): Promise<number> {
+    return this.reminders.filter((r) => r.getUserId() === userId).length;
+  }
+
   async findExpired(): Promise<Reminder[]> {
     return this.reminders.filter((r) => r.isExpired());
   }

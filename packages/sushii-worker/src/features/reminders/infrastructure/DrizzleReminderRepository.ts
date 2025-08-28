@@ -72,6 +72,31 @@ export class DrizzleReminderRepository implements ReminderRepository {
     return result.map((row) => this.mapToReminder(row));
   }
 
+  async findByUserIdPaginated(
+    userId: string,
+    offset: number,
+    limit: number,
+  ): Promise<Reminder[]> {
+    const result = await this.db
+      .select()
+      .from(schema.remindersInAppPublic)
+      .where(eq(schema.remindersInAppPublic.userId, BigInt(userId)))
+      .orderBy(schema.remindersInAppPublic.expireAt)
+      .offset(offset)
+      .limit(limit);
+
+    return result.map((row) => this.mapToReminder(row));
+  }
+
+  async countByUserId(userId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.remindersInAppPublic)
+      .where(eq(schema.remindersInAppPublic.userId, BigInt(userId)));
+
+    return result[0]?.count ?? 0;
+  }
+
   async findExpired(): Promise<Reminder[]> {
     const now = new Date().toISOString();
 

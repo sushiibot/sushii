@@ -1,6 +1,8 @@
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import dayjs from "@/shared/domain/dayjs";
+
 export interface ReminderData {
   id: string;
   userId: string;
@@ -27,7 +29,7 @@ export class Reminder {
       return Err("Reminder description cannot exceed 500 characters");
     }
 
-    if (data.expireAt <= new Date()) {
+    if (data.expireAt <= dayjs.utc().toDate()) {
       return Err("Reminder expiry time must be in the future");
     }
 
@@ -86,7 +88,7 @@ export class Reminder {
   }
 
   isExpired(): boolean {
-    return this.expireAt <= new Date();
+    return this.expireAt <= dayjs.utc().toDate();
   }
 
   toData(): ReminderData {

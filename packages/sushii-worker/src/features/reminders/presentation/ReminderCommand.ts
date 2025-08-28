@@ -16,12 +16,14 @@ import {
 import type { Logger } from "pino";
 
 import dayjs from "@/shared/domain/dayjs";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 import parseDurationOrTimestamp from "@/utils/parseDurationOrTimestamp";
 
 import type { ReminderService } from "../application/ReminderService";
-import { buildRemindersListContainer } from "./RemindersListView";
+import type { Reminder } from "../domain/entities/Reminder";
+import { buildRemindersContainer } from "./RemindersListView";
 import {
   buildAddSuccessEmbed,
   buildErrorEmbed,
@@ -30,7 +32,6 @@ import {
 
 const COLLECTOR_IDLE_TIME = 120000; // 2 minutes
 const CONFIRMATION_TIMEOUT = 60000; // 1 minute
-const TEMP_MESSAGE_DISPLAY_TIME = 2500; // 2.5 seconds
 const ERROR_MESSAGE_DISPLAY_TIME = 3000; // 3 seconds
 
 export class ReminderCommand extends SlashCommandHandler {
@@ -77,7 +78,9 @@ export class ReminderCommand extends SlashCommandHandler {
       case "add":
         return this.handleAdd(interaction);
       case "list":
-        return this.handleList(interaction);
+        return this.handleList(
+          interaction as ChatInputCommandInteraction<"cached">,
+        );
 
       default:
         throw new Error("Invalid subcommand.");
@@ -100,7 +103,7 @@ export class ReminderCommand extends SlashCommandHandler {
       return;
     }
 
-    const expireAt = dayjs().utc().add(duration).toDate();
+    const expireAt = dayjs.utc().add(duration).toDate();
 
     const result = await this.reminderService.createReminder({
       userId: interaction.user.id,
@@ -124,79 +127,62 @@ export class ReminderCommand extends SlashCommandHandler {
   }
 
   private async handleList(
-    interaction: ChatInputCommandInteraction,
+    interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const reminders = await this.reminderService.listUserReminders(
-      interaction.user.id,
-    );
+    const paginator = new ComponentsV2Paginator<Reminder>({
+      interaction,
+      pageSize: 10,
+      callbacks: {
+        fetchPage: async (pageIndex, pageSize) => {
+          return this.reminderService.listUserRemindersPaginated(
+            interaction.user.id,
+            pageIndex,
+            pageSize,
+          );
+        },
 
-    const listMessage = buildRemindersListContainer(reminders);
+        getTotalCount: async () => {
+          return this.reminderService.countUserReminders(interaction.user.id);
+        },
 
-    const msg = await interaction.reply({
-      ...listMessage,
-      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
-      withResponse: true,
+        renderContainer: (reminders, state, navButtons) => {
+          return buildRemindersContainer(
+            reminders,
+            navButtons,
+            state.isDisabled,
+          );
+        },
+      },
     });
 
-    // If there are no reminders, don't set up a collector
-    if (reminders.length === 0) {
-      return;
-    }
+    // Set up separate collector for delete buttons first
+    this.setupDeleteButtonCollector(interaction, paginator);
 
-    if (!msg.resource?.message) {
-      throw new Error("Failed to get message resource for reminder list");
-    }
+    // Start the paginator and wait for it to complete
+    await paginator.startAndWait();
 
-    const collector = msg.resource.message.createMessageComponentCollector({
+    // Once paginator is done, the delete collector will also be cleaned up automatically
+  }
+
+  private async setupDeleteButtonCollector(
+    interaction: ChatInputCommandInteraction<"cached">,
+    paginator: ComponentsV2Paginator<Reminder>,
+  ): Promise<void> {
+    const response = await interaction.fetchReply();
+    const deleteCollector = response.createMessageComponentCollector({
       idle: COLLECTOR_IDLE_TIME,
-      dispose: true,
     });
 
-    collector.on("collect", async (i: MessageComponentInteraction) => {
+    deleteCollector.on("collect", async (i) => {
       try {
-        // Check if the user who clicked is the same user who ran the command
-        if (i.user.id !== interaction.user.id) {
-          const rejectReply = await i.reply({
-            content: "Only the user who ran the command can use these buttons.",
-            flags: MessageFlags.Ephemeral,
-          });
-          await sleep(TEMP_MESSAGE_DISPLAY_TIME);
-          await rejectReply.delete();
-          return;
-        }
-
+        // Ephemeral so we don't need to check user permissions
         if (i.isButton() && i.customId.startsWith("reminder_delete_")) {
-          await this.handleDeleteButtonClick(i, interaction.user.id);
+          await this.handleDeleteButtonClick(i, interaction.user.id, paginator);
         }
       } catch (err) {
         this.logger.error(
           { err, userId: interaction.user.id },
-          "Failed to handle reminder list interaction",
-        );
-      }
-    });
-
-    collector.on("end", async () => {
-      try {
-        // Refresh the reminder list and show with disabled buttons
-        const currentReminders = await this.reminderService.listUserReminders(
-          interaction.user.id,
-        );
-        const disabledMessage = buildRemindersListContainer(
-          currentReminders,
-          true,
-        );
-
-        if (msg.resource?.message) {
-          await msg.resource.message.edit({
-            ...disabledMessage,
-            flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
-          });
-        }
-      } catch (err) {
-        this.logger.error(
-          { err, userId: interaction.user.id },
-          "Failed to disable reminder list components",
+          "Failed to handle reminder delete interaction",
         );
       }
     });
@@ -205,6 +191,7 @@ export class ReminderCommand extends SlashCommandHandler {
   private async handleDeleteButtonClick(
     interaction: ButtonInteraction,
     userId: string,
+    paginator: ComponentsV2Paginator<Reminder>,
   ): Promise<void> {
     const reminderId = interaction.customId.replace("reminder_delete_", "");
 
@@ -232,9 +219,12 @@ export class ReminderCommand extends SlashCommandHandler {
     );
 
     const expireTimestamp = dayjs.utc(reminderToDelete.getExpireAt()).unix();
-    const confirmText = new TextDisplayBuilder().setContent(
-      `Are you sure you want to delete this reminder?\n\n**${reminderToDelete.getDescription()}**\nExpires <t:${expireTimestamp}:R>`,
-    );
+
+    const confirmContent =
+      `### Are you sure you want to delete this reminder?` +
+      `\n**Expires <t:${expireTimestamp}:R>**` +
+      `\n> ${reminderToDelete.getDescription()}`;
+    const confirmText = new TextDisplayBuilder().setContent(confirmContent);
     confirmContainer.addTextDisplayComponents(confirmText);
 
     const deleteButton = new ButtonBuilder()
@@ -279,16 +269,11 @@ export class ReminderCommand extends SlashCommandHandler {
         );
 
         if (!result.err) {
-          // Fetch updated reminders
-          const updatedReminders =
-            await this.reminderService.listUserReminders(userId);
-          const updatedMessage = buildRemindersListContainer(updatedReminders);
-
-          // Update the original reminder list message
+          // Trigger a full refresh with updated total count and page adjustment
+          const updatedMessage = await paginator.refresh();
           await interaction.editReply({
             message: interaction.message,
             ...updatedMessage,
-            flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
           });
 
           // Delete the confirmation dialog

@@ -1,3 +1,4 @@
+import type { ActionRowBuilder } from "discord.js";
 import {
   ButtonBuilder,
   ButtonStyle,
@@ -8,6 +9,7 @@ import {
 } from "discord.js";
 
 import dayjs from "@/shared/domain/dayjs";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import Color from "@/utils/colors";
 
 import type { Reminder } from "../domain/entities/Reminder";
@@ -18,10 +20,14 @@ export interface RemindersListViewResult {
   allowedMentions: { parse: [] };
 }
 
-export function buildRemindersListContainer(
+/**
+ * Stateless function to build reminders container for pagination
+ */
+export function buildRemindersContainer(
   reminders: Reminder[],
-  disabled = false,
-): RemindersListViewResult {
+  navButtons: ActionRowBuilder<ButtonBuilder> | null,
+  isDisabled = false,
+): ContainerBuilder {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
   // Add header
@@ -40,7 +46,7 @@ export function buildRemindersListContainer(
       const expireTimestamp = dayjs.utc(reminder.getExpireAt()).unix();
 
       const reminderTextContent =
-        `Expires <t:${expireTimestamp}:R> – <t:${expireTimestamp}:f>` +
+        `**Expires <t:${expireTimestamp}:R> – <t:${expireTimestamp}:f>**` +
         `\n> ${reminder.getDescription()}`;
 
       const reminderText = new TextDisplayBuilder().setContent(
@@ -51,7 +57,7 @@ export function buildRemindersListContainer(
         .setCustomId(`reminder_delete_${reminder.getId()}`)
         .setLabel("Delete")
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(disabled);
+        .setDisabled(isDisabled);
 
       const section = new SectionBuilder()
         .addTextDisplayComponents(reminderText)
@@ -61,13 +67,20 @@ export function buildRemindersListContainer(
     }
   }
 
-  // Add footer when disabled
-  if (disabled) {
-    const footerText = new TextDisplayBuilder().setContent(
-      "-# Session expired after 2 minutes of inactivity. Re-run `/reminder list` to manage reminders.",
-    );
-    container.addTextDisplayComponents(footerText);
-  }
+  // Add navigation using helper
+  ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);
+
+  return container;
+}
+
+/**
+ * Legacy function for backward compatibility (non-paginated)
+ */
+export function buildRemindersListContainer(
+  reminders: Reminder[],
+  disabled = false,
+): RemindersListViewResult {
+  const container = buildRemindersContainer(reminders, null, disabled);
 
   return {
     components: [container],

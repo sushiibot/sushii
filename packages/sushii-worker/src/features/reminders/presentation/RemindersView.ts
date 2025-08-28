@@ -18,9 +18,6 @@ export function buildAddSuccessEmbed(reminder: Reminder): EmbedBuilder {
         description: reminder.getDescription(),
       }),
     )
-    .setFooter({
-      text: `Reminder ID: ${reminder.getId()}`,
-    })
     .setColor(Color.Success);
 }
 
