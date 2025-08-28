@@ -46,5 +46,5 @@ export const KNOWN_TAG_SUBCOMMANDS = [
 ];
 
 // Memory safety settings
-export const MAX_PENDING_COMMANDS = 1000;
+export const MAX_PENDING_COMMANDS = 100;
 export const PENDING_COMMANDS_CLEANUP_INTERVAL_MS = 60000; // 1 minute

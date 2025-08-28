@@ -16,24 +16,15 @@ export function buildLegacyCommandDmMessage(legacyCommand: LegacyCommand) {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
   // Main message content
-  const content = `👋 Hey! I noticed you used \`${legacyCommand.name}\`.
+  const content = `👋 Hello! I noticed you used \`${legacyCommand.name}\`
 
 This command has moved to slash commands:
-• **Old:** \`${legacyCommand.name}\`
-• **New:** \`${legacyCommand.replacement}\`
+- **Old:** \`${legacyCommand.name}\`
+- **New:** \`${legacyCommand.replacement}\`
 
-⏰ Text commands will stop working on **${LEGACY_COMMAND_SUNSET_DATE.toLocaleDateString(
-    "en-US",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    },
-  )}**.
+⏰ Text commands will stop working on <t:${LEGACY_COMMAND_SUNSET_DATE}:f>**.
 
-📖 **Learn more about the migration:**
-
-*(You'll receive this reminder maximum once per week)*`;
+-# *(You'll receive this reminder maximum once per week)*`;
 
   const textDisplay = new TextDisplayBuilder().setContent(content);
 
