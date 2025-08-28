@@ -28,8 +28,6 @@ export class CacheService {
   }
 
   async cacheGuild(guildData: NewCachedGuild): Promise<Result<void, string>> {
-    logger.info({ guildId: guildData.id }, "Caching guild");
-
     const result = await this.guildRepository.upsert(guildData);
     if (result.err) {
       logger.error(
