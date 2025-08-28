@@ -9,6 +9,7 @@ import { ApplicationCommandType } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
+import { isPublicServer } from "@/features/moderation/shared/domain/services/PublicServerValidationService";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
@@ -76,13 +77,34 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
     // Start with user info embed
     const embeds: EmbedBuilder[] = [new EmbedBuilder(userInfoEmbed)];
 
-    // Fetch both history and lookup data for moderators
-    const [historyResult, lookupResult] = await Promise.all([
-      this.historyUserService.getUserHistory(
+    // Fetch history data for moderators
+    const historyResultPromise = this.historyUserService.getUserHistory(
+      interaction.guildId,
+      targetUser.id,
+    );
+
+    // Only fetch lookup data if server meets public server requirements
+    let lookupResultPromise;
+    const canAccessLookup = isPublicServer(interaction.guild);
+
+    if (canAccessLookup) {
+      lookupResultPromise = this.lookupUserService.lookupUser(
         interaction.guildId,
         targetUser.id,
-      ),
-      this.lookupUserService.lookupUser(interaction.guildId, targetUser.id),
+      );
+    } else {
+      log.info(
+        {
+          guildId: interaction.guildId,
+          guildName: interaction.guild.name,
+        },
+        "Lookup data skipped - server doesn't meet requirements",
+      );
+    }
+
+    const [historyResult, lookupResult] = await Promise.all([
+      historyResultPromise,
+      lookupResultPromise,
     ]);
 
     // Add history embed (case history in current server - recent 3 cases only)
@@ -105,27 +127,30 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
       );
     }
 
-    // Add lookup embed (cross-server bans)
-    if (lookupResult.ok) {
-      const lookupEmbed = buildUserLookupContextEmbed(
-        targetUser,
-        targetMember,
-        lookupResult.val,
-        {
-          showBasicInfo: false, // Don't duplicate basic info since history embeds include it
-        },
-      );
-      embeds.push(lookupEmbed);
-    } else {
-      log.error(
-        { error: lookupResult.val, targetUserId: targetUser.id },
-        "Failed to get cross-server ban data",
-      );
+    // Add lookup embed (cross-server bans) - only if we fetched it
+    if (canAccessLookup && lookupResult) {
+      if (lookupResult.ok) {
+        const lookupEmbed = buildUserLookupContextEmbed(
+          targetUser,
+          targetMember,
+          lookupResult.val,
+          {
+            // Don't duplicate basic info since history embeds include it
+            showBasicInfo: false,
+          },
+        );
+
+        embeds.push(lookupEmbed);
+      } else {
+        log.error(
+          { error: lookupResult.val, targetUserId: targetUser.id },
+          "Failed to get cross-server ban data",
+        );
+      }
     }
 
     // TODO: Add moderation action buttons (Ban, Kick, Mute, Warn) in the future
     // These would require additional UI for collecting reasons, durations, etc.
-
     await interaction.reply({
       embeds,
       flags: MessageFlags.Ephemeral,

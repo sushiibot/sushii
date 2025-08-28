@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import { isPublicServer } from "@/features/moderation/shared/domain/services/PublicServerValidationService";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -46,6 +47,25 @@ export class LookupCommand extends SlashCommandHandler {
       guildId: interaction.guildId,
       userId: interaction.user.id,
     });
+
+    // Check if server meets public server requirements
+    if (!isPublicServer(interaction.guild)) {
+      log.info(
+        {
+          guildId: interaction.guildId,
+          guildName: interaction.guild.name,
+          memberCount: interaction.guild.memberCount,
+        },
+        "Lookup command denied - server doesn't meet requirements",
+      );
+
+      const msg = getErrorMessage(
+        "Access Restricted",
+        "This feature is only available for public (discoverable) servers with 1000+ members. Partnered and verified servers are also eligible.",
+      );
+      await interaction.reply(msg);
+      return;
+    }
 
     const targetUser = interaction.options.getUser("user");
     if (!targetUser) {

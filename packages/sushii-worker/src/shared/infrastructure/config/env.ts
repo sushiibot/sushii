@@ -17,6 +17,8 @@ const envSchema = z.object({
   OWNER_USER_ID: z.string().optional(),
   // Comma-separated list of channel IDs that should bypass deployment checks
   DEPLOYMENT_EXEMPT_CHANNEL_IDS: z.string().optional(),
+  // Comma-separated list of guild IDs that should bypass lookup command restrictions
+  LOOKUP_EXEMPT_GUILD_IDS: z.string().optional(),
 
   // System configuration
   LOG_LEVEL: z.string().optional().default("info"),

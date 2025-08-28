@@ -80,6 +80,7 @@ export class DeploymentConfig {
     readonly name: "blue" | "green",
     readonly ownerUserId?: string,
     readonly exemptChannelIds: Set<string> = new Set(),
+    readonly lookupExemptGuildIds: Set<string> = new Set(),
     readonly e2eWebhookUrl?: string,
   ) {}
 
@@ -89,6 +90,10 @@ export class DeploymentConfig {
 
   get hasExemptChannels() {
     return this.exemptChannelIds.size > 0;
+  }
+
+  get hasLookupExemptGuilds() {
+    return this.lookupExemptGuildIds.size > 0;
   }
 
   get e2eWebhookId(): string | undefined {
@@ -158,6 +163,13 @@ export class Config {
       env.DEPLOYMENT_EXEMPT_CHANNEL_IDS
         ? new Set(
             env.DEPLOYMENT_EXEMPT_CHANNEL_IDS.split(",")
+              .map((id) => id.trim())
+              .filter((id) => id.length > 0),
+          )
+        : new Set(),
+      env.LOOKUP_EXEMPT_GUILD_IDS
+        ? new Set(
+            env.LOOKUP_EXEMPT_GUILD_IDS.split(",")
               .map((id) => id.trim())
               .filter((id) => id.length > 0),
           )
