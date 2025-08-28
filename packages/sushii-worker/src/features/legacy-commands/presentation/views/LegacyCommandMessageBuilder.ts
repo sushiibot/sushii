@@ -22,7 +22,7 @@ This command has moved to a slash command:
 - **Old:** \`${legacyCommand.name}\`
 - **New:** \`${legacyCommand.replacement}\`
 
-⏰ Text commands will stop working on <t:${LEGACY_COMMAND_SUNSET_DATE}:f>**.
+⏰ Text commands will stop working on <t:${LEGACY_COMMAND_SUNSET_DATE.getDate() / 1000}:f>**.
 
 -# *(You'll receive this reminder maximum once per week)*`;
 
