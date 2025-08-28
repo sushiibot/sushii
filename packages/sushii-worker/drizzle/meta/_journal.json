@@ -127,6 +127,13 @@
       "when": 1756151641414,
       "tag": "0017_add-member-count-to-cached-guilds",
       "breakpoints": false
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1756362276578,
+      "tag": "0018_add-timezone-to-reminders",
+      "breakpoints": false
     }
   ]
 }

@@ -476,8 +476,8 @@ export const remindersInAppPublic = appPublic.table(
   {
     userId: bigint("user_id", { mode: "bigint" }).notNull(),
     description: text().notNull(),
-    setAt: timestamp("set_at", { mode: "string" }).notNull(),
-    expireAt: timestamp("expire_at", { mode: "string" }).notNull(),
+    setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
+    expireAt: timestamp("expire_at", { withTimezone: true, mode: "string" }).notNull(),
     id: bigint({ mode: "bigint" }).notNull(),
   },
   (table) => [
@@ -858,5 +858,23 @@ export const reactionStartersInAppPublic = appPublic.table(
       table.messageId,
       table.emojiId,
     ),
+  ],
+);
+
+export const legacyCommandNotificationsInAppPublic = appPublic.table(
+  "legacy_command_notifications",
+  {
+    userId: bigint("user_id", { mode: "bigint" }).primaryKey().notNull(),
+    lastDmSent: timestamp("last_dm_sent", { mode: "date" }).notNull(),
+    dmCount: integer("dm_count").default(0).notNull(),
+  },
+  (table) => [
+    index("legacy_command_notifications_last_dm_idx").on(table.lastDmSent),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
   ],
 );
