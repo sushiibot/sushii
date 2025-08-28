@@ -13,6 +13,7 @@ import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
 import { setupInteractionHandlerFeature } from "@/features/interaction-handler/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
+import { setupLegacyCommandFeature } from "@/features/legacy-commands/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupMemberEventsFeature } from "@/features/member-events/setup";
 import { setupMessageLog } from "@/features/message-log/setup";
@@ -257,6 +258,14 @@ export function registerFeatures(
     logger,
   });
 
+  // Legacy command migration feature
+  const legacyCommandFeature = setupLegacyCommandFeature(
+    client,
+    db,
+    guildSettingsFeature.services.guildConfigurationRepository,
+    logger,
+  );
+
   // Emoji stats feature
   const emojiStatsFeature = setupEmojiStatsFeature({
     db,
@@ -356,6 +365,7 @@ export function registerFeatures(
     ...banCacheFeature.eventHandlers,
     ...webhookLoggingFeature.eventHandlers,
     ...legacyAuditLogsFeature.eventHandlers,
+    ...legacyCommandFeature.eventHandlers,
     ...emojiStatsFeature.eventHandlers,
     ...messageLogFeature.eventHandlers,
     ...reactionLogFeature.eventHandlers,
