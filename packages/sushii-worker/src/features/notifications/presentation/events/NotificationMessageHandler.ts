@@ -4,13 +4,11 @@ import { Events } from "discord.js";
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { NotificationMessageService } from "../../application/NotificationMessageService";
-import type { NotificationService } from "../../application/NotificationService";
 import type { NotificationMetrics } from "../../infrastructure/metrics/NotificationMetrics";
 
 export class NotificationMessageHandler extends EventHandler<Events.MessageCreate> {
   constructor(
     private readonly messageService: NotificationMessageService,
-    private readonly notificationService: NotificationService,
     private readonly notificationMetrics: NotificationMetrics,
   ) {
     super();
@@ -33,12 +31,5 @@ export class NotificationMessageHandler extends EventHandler<Events.MessageCreat
 
       throw error;
     }
-
-    const totalActiveKeywords =
-      await this.notificationService.getTotalNotificationCount();
-
-    this.notificationMetrics.activeNotificationsGauge.record(
-      totalActiveKeywords,
-    );
   }
 }

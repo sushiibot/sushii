@@ -4,7 +4,7 @@ import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import { Notification } from "../domain/entities/Notification";
-import type { NotificationMetrics } from "../infrastructure/metrics/NotificationMetrics";
+import { NotificationMetrics } from "../infrastructure/metrics/NotificationMetrics";
 import { NotificationMessageService } from "./NotificationMessageService";
 import type { NotificationService } from "./NotificationService";
 
@@ -23,15 +23,12 @@ describe("NotificationMessageService", () => {
     error: mock(),
   };
 
-  const mockMetrics = {
-    sentNotificationsCounter: { add: mock() },
-    activeNotificationsGauge: { record: mock() },
-  };
+  const mockMetrics = new NotificationMetrics(() => Promise.resolve(0));
 
   const service = new NotificationMessageService(
     mockNotificationService as unknown as NotificationService,
     mockLogger as unknown as Logger,
-    mockMetrics as NotificationMetrics,
+    mockMetrics,
   );
 
   test("ignores bot messages", async () => {

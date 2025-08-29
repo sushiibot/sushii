@@ -68,12 +68,11 @@ export function createNotificationEventHandlers(
   _logger: Logger,
   notificationMetrics: NotificationMetrics,
 ) {
-  const { notificationMessageService, notificationService } = services;
+  const { notificationMessageService } = services;
 
   const eventHandlers = [
     new NotificationMessageHandler(
       notificationMessageService,
-      notificationService,
       notificationMetrics,
     ),
   ];
@@ -89,11 +88,33 @@ export function setupNotificationFeature({
 }: NotificationDependencies): FeatureSetupWithServices<
   ReturnType<typeof createNotificationServices>
 > {
-  const notificationMetrics = new NotificationMetrics();
-  const services = createNotificationServices(
-    { db, logger },
+  const notificationRepository = new DrizzleNotificationRepository(db);
+  const notificationBlockRepository = new DrizzleNotificationBlockRepository(
+    db,
+  );
+
+  const notificationService = new NotificationService(
+    notificationRepository,
+    notificationBlockRepository,
+    logger.child({ module: "notificationService" }),
+  );
+
+  const notificationMetrics = new NotificationMetrics(() =>
+    notificationService.getTotalNotificationCount(),
+  );
+
+  const notificationMessageService = new NotificationMessageService(
+    notificationService,
+    logger.child({ module: "notificationMessageService" }),
     notificationMetrics,
   );
+
+  const services = {
+    notificationRepository,
+    notificationBlockRepository,
+    notificationService,
+    notificationMessageService,
+  };
   const commands = createNotificationCommands(services, logger);
   const events = createNotificationEventHandlers(
     services,
