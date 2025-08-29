@@ -132,6 +132,9 @@ export class ReminderCommand extends SlashCommandHandler {
     const paginator = new ComponentsV2Paginator<Reminder>({
       interaction,
       pageSize: 10,
+      config: {
+        ephemeral: true,
+      },
       callbacks: {
         fetchPage: async (pageIndex, pageSize) => {
           return this.reminderService.listUserRemindersPaginated(
@@ -159,7 +162,7 @@ export class ReminderCommand extends SlashCommandHandler {
     this.setupDeleteButtonCollector(interaction, paginator);
 
     // Start the paginator and wait for it to complete
-    await paginator.startAndWait();
+    await paginator.start(true);
 
     // Once paginator is done, the delete collector will also be cleaned up automatically
   }

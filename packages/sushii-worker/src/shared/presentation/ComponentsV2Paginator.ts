@@ -50,14 +50,8 @@ export interface PaginationConfig {
   /** Message shown to unauthorized users */
   unauthorizedMessage: string;
 
-  /** Custom IDs for pagination buttons (optional, defaults provided) */
-  buttonIds?: {
-    back5?: string;
-    back?: string;
-    current?: string;
-    forward?: string;
-    forward5?: string;
-  };
+  /** Whether or not to ephemeral response */
+  ephemeral: boolean;
 }
 
 const DEFAULT_CONFIG: PaginationConfig = {
@@ -65,9 +59,10 @@ const DEFAULT_CONFIG: PaginationConfig = {
   pageJumpSize: 5,
   unauthorizedMessage:
     "These buttons aren't for you! Please run your own command.",
+  ephemeral: false,
 };
 
-const DEFAULT_BUTTON_IDS = {
+const BUTTON_IDS = {
   back5: "components_v2_paginator_back5",
   back: "components_v2_paginator_back",
   current: "components_v2_paginator_current",
@@ -105,7 +100,8 @@ export class ComponentsV2Paginator<T> {
   private readonly pageSize: number;
   private readonly callbacks: PaginationCallbacks<T>;
   private readonly config: PaginationConfig;
-  private readonly buttonIds: Record<keyof typeof DEFAULT_BUTTON_IDS, string>;
+  private readonly buttonIds: Record<keyof typeof BUTTON_IDS, string> =
+    BUTTON_IDS;
   private readonly logger: Logger;
 
   private currentPageIndex: number = 0;
@@ -116,7 +112,6 @@ export class ComponentsV2Paginator<T> {
     this.pageSize = options.pageSize;
     this.callbacks = options.callbacks;
     this.config = { ...DEFAULT_CONFIG, ...options.config };
-    this.buttonIds = { ...DEFAULT_BUTTON_IDS, ...options.config?.buttonIds };
     this.logger = options.logger ?? logger;
   }
 
@@ -160,6 +155,7 @@ export class ComponentsV2Paginator<T> {
         Math.ceil(totalCount / this.pageSize),
       );
     }
+
     return this.cachedTotalPages;
   }
 
@@ -176,12 +172,12 @@ export class ComponentsV2Paginator<T> {
   }> {
     // Force refresh total pages
     const totalPages = await this.getTotalPages(true);
-    
+
     // Adjust current page if we're beyond the last page
     if (totalPages > 0 && this.currentPageIndex >= totalPages) {
       this.currentPageIndex = totalPages - 1;
     }
-    
+
     // If no pages left, go to page 0
     if (totalPages === 0) {
       this.currentPageIndex = 0;
@@ -311,7 +307,7 @@ export class ComponentsV2Paginator<T> {
     if (buttonInteraction.user.id !== this.interaction.user.id) {
       await buttonInteraction.reply({
         content: this.config.unauthorizedMessage,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return true;
     }
@@ -358,9 +354,13 @@ export class ComponentsV2Paginator<T> {
   /**
    * Start pagination - sends initial message and sets up collector only when needed
    */
-  async start(): Promise<void> {
+  async start(wait: boolean): Promise<void> {
     // Send initial message
     const initialMessage = await this.renderCurrentPage();
+
+    // Add ephemeral flag if configured
+    initialMessage.flags |= this.config.ephemeral ? MessageFlags.Ephemeral : 0;
+
     const response = await this.interaction.reply(initialMessage);
 
     // Only set up collector if there are multiple pages
@@ -374,73 +374,13 @@ export class ComponentsV2Paginator<T> {
     }
 
     const message = await response.fetch();
-    await this.setupCollector(message);
+    await this.setupCollector(message, wait);
   }
 
   /**
    * Set up component collector for handling interactions
    */
-  private async setupCollector(message: Message): Promise<void> {
-    const collector = message.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      idle: this.config.timeoutMs, // Use idle timeout, not total time
-    });
-
-    collector.on("collect", async (buttonInteraction) => {
-      try {
-        await this.handleButtonInteraction(buttonInteraction);
-      } catch (error) {
-        this.logger.error(
-          { err: error, buttonId: buttonInteraction.customId },
-          "Error handling ComponentsV2Paginator button",
-        );
-      }
-    });
-
-    collector.on("end", async () => {
-      try {
-        this.logger.debug(
-          "ComponentsV2Paginator collector ended, disabling buttons",
-        );
-        const disabledMessage = await this.renderCurrentPage({
-          disabled: true,
-        });
-        await message.edit(disabledMessage);
-      } catch (error) {
-        this.logger.error(
-          { err: error },
-          "Error disabling ComponentsV2Paginator buttons",
-        );
-      }
-    });
-  }
-
-  /**
-   * Start pagination and wait for it to complete (collector ends)
-   */
-  async startAndWait(): Promise<void> {
-    // Send initial message
-    const initialMessage = await this.renderCurrentPage();
-    const response = await this.interaction.reply(initialMessage);
-
-    // Only set up collector if there are multiple pages
-    const totalPages = await this.getTotalPages();
-    if (totalPages <= 1) {
-      this.logger.debug(
-        { totalPages },
-        "No collector needed for ComponentsV2Paginator",
-      );
-      return;
-    }
-
-    const message = await response.fetch();
-    await this.setupCollectorAndWait(message);
-  }
-
-  /**
-   * Set up component collector and wait for it to end
-   */
-  private async setupCollectorAndWait(message: Message): Promise<void> {
+  private async setupCollector(message: Message, wait: boolean): Promise<void> {
     return new Promise((resolve) => {
       const collector = message.createMessageComponentCollector({
         componentType: ComponentType.Button,
@@ -473,9 +413,16 @@ export class ComponentsV2Paginator<T> {
             "Error disabling ComponentsV2Paginator buttons",
           );
         } finally {
-          resolve();
+          if (wait) {
+            resolve();
+          }
         }
       });
+
+      // If not waiting, resolve immediately after setting up collector
+      if (!wait) {
+        resolve();
+      }
     });
   }
 

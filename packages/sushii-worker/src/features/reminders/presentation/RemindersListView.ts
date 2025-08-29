@@ -3,7 +3,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  MessageFlags,
   SectionBuilder,
   TextDisplayBuilder,
 } from "discord.js";
@@ -13,12 +12,6 @@ import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginat
 import Color from "@/utils/colors";
 
 import type { Reminder } from "../domain/entities/Reminder";
-
-export interface RemindersListViewResult {
-  components: ContainerBuilder[];
-  flags: MessageFlags.IsComponentsV2;
-  allowedMentions: { parse: [] };
-}
 
 /**
  * Stateless function to build reminders container for pagination
@@ -71,20 +64,4 @@ export function buildRemindersContainer(
   ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);
 
   return container;
-}
-
-/**
- * Legacy function for backward compatibility (non-paginated)
- */
-export function buildRemindersListContainer(
-  reminders: Reminder[],
-  disabled = false,
-): RemindersListViewResult {
-  const container = buildRemindersContainer(reminders, null, disabled);
-
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
 }
