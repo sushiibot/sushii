@@ -28,7 +28,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     environment: config.sentry.environment,
     skipOpenTelemetrySetup: true,
 
-    tracesSampleRate: 0.05,
+    tracesSampleRate: 0.005,
   });
 
   const resource = defaultResource().merge(
