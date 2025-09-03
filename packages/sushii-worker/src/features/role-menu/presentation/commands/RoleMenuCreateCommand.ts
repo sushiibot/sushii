@@ -34,6 +34,7 @@ import {
   ROLE_MENU_BUILDER_MODALS,
 } from "../views/RoleMenuBuilderConstants";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
+import { buildRoleMenuUpdateResultMessage } from "../views/RoleMenuUpdateResultView";
 
 enum RoleMenuOption {
   Name = "menu_name",
@@ -555,42 +556,9 @@ export class RoleMenuCreateCommand {
       return;
     }
 
-    // Format the detailed response
+    // Build the response message using the view
     const result: UpdateActiveMenusResult = updateResult.val;
-    let responseContent = "";
-
-    if (result.updated.length > 0) {
-      responseContent += "**Updated Menus:**\n";
-      for (const menu of result.updated) {
-        responseContent += `- <#${menu.channelId}>: ${menu.url}\n`;
-      }
-      responseContent += "\n";
-    }
-
-    if (result.failed.length > 0) {
-      responseContent += "**Failed to update menus:**\n";
-      for (const menu of result.failed) {
-        responseContent += `- <#${menu.channelId}>: ${menu.url} – **${menu.error}**\n`;
-      }
-
-      responseContent += "\n";
-    }
-
-    if (result.noUpdateNeeded.length > 0) {
-      responseContent += "**No updates were needed:**\n";
-      for (const menu of result.noUpdateNeeded) {
-        responseContent += `- <#${menu.channelId}>: ${menu.url}\n`;
-      }
-      responseContent += "\n";
-    }
-
-    if (
-      result.updated.length === 0 &&
-      result.failed.length === 0 &&
-      result.noUpdateNeeded.length === 0
-    ) {
-      responseContent = "No active menus found to update.";
-    }
+    const responseMessage = buildRoleMenuUpdateResultMessage(result);
 
     // End the editing session
     const sessionKey = `${interaction.guildId}:${menuName}`;
@@ -628,9 +596,7 @@ export class RoleMenuCreateCommand {
 
     await interaction.message.edit(disabledMessage);
 
-    await interaction.editReply({
-      content: responseContent.trim(),
-    });
+    await interaction.editReply(responseMessage);
   }
 
   private async handleEditRoleOptionsButton(

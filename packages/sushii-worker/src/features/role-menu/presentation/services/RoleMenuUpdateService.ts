@@ -12,11 +12,6 @@ import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService"
 import type { RoleMenuRepository } from "../../domain/repositories/RoleMenuRepository";
 import { createRoleMenuMessage } from "../views/RoleMenuView";
 
-export interface UpdatedMenu {
-  channelId: string;
-  url: string;
-}
-
 export interface FailedMenu {
   channelId: string;
   url: string;
@@ -24,9 +19,9 @@ export interface FailedMenu {
 }
 
 export interface UpdateActiveMenusResult {
-  updated: UpdatedMenu[];
+  updatedMenuURLs: string[];
   failed: FailedMenu[];
-  noUpdateNeeded: UpdatedMenu[];
+  noUpdateNeeded: string[];
 }
 
 export class RoleMenuUpdateService {
@@ -54,7 +49,7 @@ export class RoleMenuUpdateService {
 
       if (activeMessages.length === 0) {
         return Ok({
-          updated: [],
+          updatedMenuURLs: [],
           failed: [],
           noUpdateNeeded: [],
         });
@@ -84,7 +79,7 @@ export class RoleMenuUpdateService {
         return Err("This menu has no roles configured.");
       }
 
-      const updated: UpdatedMenu[] = [];
+      const updatedMenuURLs: string[] = [];
       const failed: FailedMenu[] = [];
 
       // Update each message
@@ -127,10 +122,7 @@ export class RoleMenuUpdateService {
             components: menuContent.components.map((c) => c.toJSON()),
           });
 
-          updated.push({
-            channelId: message.channelId,
-            url: messageUrl,
-          });
+          updatedMenuURLs.push(messageUrl);
         } catch (error) {
           if (
             error instanceof DiscordAPIError &&
@@ -170,7 +162,7 @@ export class RoleMenuUpdateService {
       await this.roleMenuRepository.markMessagesUpdated(guildId, menuName);
 
       return Ok({
-        updated,
+        updatedMenuURLs,
         failed,
         noUpdateNeeded: [],
       });
