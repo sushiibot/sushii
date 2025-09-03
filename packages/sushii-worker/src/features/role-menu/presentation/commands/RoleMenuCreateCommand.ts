@@ -942,7 +942,7 @@ export class RoleMenuCreateCommand {
     for (const { roleId, emoji } of roles) {
       let button = new ButtonBuilder()
         .setCustomId(roleMenuCustomIds.button.compile({ menuName, roleId }))
-        .setLabel(guildRolesMap.get(roleId)?.name || roleId)
+        .setLabel(this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId))
         .setStyle(ButtonStyle.Secondary);
 
       const parsedEmoji = emoji ? parseEmoji(emoji) : null;
@@ -977,7 +977,7 @@ export class RoleMenuCreateCommand {
     for (const { roleId, emoji, description } of roles) {
       let option = new StringSelectMenuOptionBuilder()
         .setValue(roleId)
-        .setLabel(guildRolesMap.get(roleId)?.name || roleId);
+        .setLabel(this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId));
 
       const parsedEmoji = emoji ? parseEmoji(emoji) : null;
       if (parsedEmoji) {
@@ -1020,5 +1020,13 @@ export class RoleMenuCreateCommand {
       embeds: [embed.toJSON()],
       components: [...buttonComponents, ...selectComponents],
     });
+  }
+
+  private truncateButtonLabel(label: string): string {
+    return label.length > 80 ? label.slice(0, 77) + "..." : label;
+  }
+
+  private truncateSelectLabel(label: string): string {
+    return label.length > 100 ? label.slice(0, 97) + "..." : label;
   }
 }

@@ -552,7 +552,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
           .setCustomId(
             roleMenuCustomIds.button.compile({ menuName: name, roleId }),
           )
-          .setLabel(guildRolesMap.get(roleId)?.name || roleId)
+          .setLabel(this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId))
           .setStyle(ButtonStyle.Secondary);
 
         const parsedEmoji = emoji ? parseEmoji(emoji) : null;
@@ -586,7 +586,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
       for (const { roleId, emoji, description } of roles) {
         let option = new StringSelectMenuOptionBuilder()
           .setValue(roleId)
-          .setLabel(guildRolesMap.get(roleId)?.name || roleId);
+          .setLabel(this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId));
 
         const parsedEmoji = emoji ? parseEmoji(emoji) : null;
 
@@ -660,5 +660,13 @@ export class RoleMenuCommand extends SlashCommandHandler {
           .toJSON(),
       ],
     });
+  }
+
+  private truncateButtonLabel(label: string): string {
+    return label.length > 80 ? label.slice(0, 77) + "..." : label;
+  }
+
+  private truncateSelectLabel(label: string): string {
+    return label.length > 100 ? label.slice(0, 97) + "..." : label;
   }
 }
