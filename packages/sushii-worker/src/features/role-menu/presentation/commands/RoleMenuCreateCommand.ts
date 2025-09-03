@@ -175,6 +175,14 @@ export class RoleMenuCreateCommand {
       }
       const { menu, roles } = menuDataResult.val;
 
+      // Check bot permissions for current roles
+      const roleIds = roles.map((role) => role.roleId);
+      const permissionWarnings =
+        this.roleMenuRoleService.validateBotPermissions(
+          interaction.guild,
+          roleIds,
+        );
+
       // Create initial builder message
       const builderMessage = createRoleMenuBuilderMessage({
         menu,
@@ -186,6 +194,7 @@ export class RoleMenuCreateCommand {
           disabled: false,
           expired: false,
           isEdit,
+          permissionWarnings,
         },
       });
 
@@ -740,6 +749,7 @@ export class RoleMenuCreateCommand {
       return;
     }
 
+    // Roles were set successfully, warnings will be shown in the refreshed builder
     await this.refreshBuilderMessage(interaction, menuName, isEdit);
   }
 
@@ -814,6 +824,13 @@ export class RoleMenuCreateCommand {
       }
     }
 
+    // Check bot permissions for current roles
+    const roleIds = roles.map((role) => role.roleId);
+    const permissionWarnings = this.roleMenuRoleService.validateBotPermissions(
+      interaction.guild,
+      roleIds,
+    );
+
     // Create updated message
     const updatedMessage = createRoleMenuBuilderMessage({
       menu,
@@ -826,6 +843,7 @@ export class RoleMenuCreateCommand {
         expired: false,
         isEdit,
         activeMenuCount,
+        permissionWarnings,
       },
     });
 

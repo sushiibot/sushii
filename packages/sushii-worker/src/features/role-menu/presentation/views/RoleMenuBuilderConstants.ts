@@ -20,6 +20,12 @@ export const ROLE_MENU_BUILDER_INPUTS = {
   ROLE_DESCRIPTION: "role_description_input",
 } as const;
 
+export interface RolePermissionWarning {
+  roleId: string;
+  roleName: string;
+  issue: "hierarchy" | "missing_manage_roles";
+}
+
 export interface RoleMenuBuilderState {
   guildId: string;
   menuName: string;
@@ -28,4 +34,5 @@ export interface RoleMenuBuilderState {
   isEdit?: boolean;
   readOnly?: boolean;
   activeMenuCount?: number;
+  permissionWarnings?: RolePermissionWarning[];
 }
