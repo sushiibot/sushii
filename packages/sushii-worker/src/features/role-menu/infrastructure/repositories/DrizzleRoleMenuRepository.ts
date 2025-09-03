@@ -325,6 +325,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
         guildId: request.guildId,
         menuName: request.menuName,
         messageId: request.messageId,
+        componentType: request.componentType,
       },
       "Tracking role menu message",
     );
@@ -334,6 +335,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       menuName: request.menuName,
       channelId: BigInt(request.channelId),
       messageId: BigInt(request.messageId),
+      componentType: request.componentType,
     });
   }
 
@@ -364,6 +366,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       messageId: message.messageId.toString(),
       createdAt: new Date(message.createdAt),
       needsUpdate: message.needsUpdate,
+      componentType: message.componentType as "buttons" | "select_menu",
     }));
   }
 

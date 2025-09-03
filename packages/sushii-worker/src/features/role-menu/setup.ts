@@ -17,6 +17,7 @@ import { RoleMenuCreateCommand } from "./presentation/commands/RoleMenuCreateCom
 import { RoleMenuAutocomplete } from "./presentation/handlers/RoleMenuAutocomplete";
 import { RoleMenuButtonHandler } from "./presentation/handlers/RoleMenuButtonHandler";
 import { RoleMenuSelectMenuHandler } from "./presentation/handlers/RoleMenuSelectMenuHandler";
+import { RoleMenuUpdateService } from "./presentation/services/RoleMenuUpdateService";
 
 interface RoleMenuDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -54,12 +55,20 @@ export function createRoleMenuServices({ db, logger }: RoleMenuDependencies) {
     logger.child({ module: "roleMenuMessageService" }),
   );
 
+  const roleMenuUpdateService = new RoleMenuUpdateService(
+    roleMenuMessageService,
+    roleMenuManagementService,
+    roleMenuRoleService,
+    logger.child({ module: "roleMenuUpdateService" }),
+  );
+
   return {
     roleMenuRepository,
     roleMenuManagementService,
     roleMenuRoleService,
     roleMenuInteractionService,
     roleMenuMessageService,
+    roleMenuUpdateService,
   };
 }
 
@@ -72,12 +81,14 @@ export function createRoleMenuCommands(
     roleMenuRoleService,
     roleMenuInteractionService,
     roleMenuMessageService,
+    roleMenuUpdateService,
   } = services;
 
   const roleMenuCreateCommand = new RoleMenuCreateCommand(
     roleMenuManagementService,
     roleMenuRoleService,
     roleMenuMessageService,
+    roleMenuUpdateService,
     logger.child({ command: "rolemenu.create" }),
   );
 

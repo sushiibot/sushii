@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction, Role } from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -10,21 +10,18 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
 } from "discord.js";
 import type { Logger } from "pino";
 
 import { interactionReplyErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
-import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
 import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
-import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
+import { createRoleMenuMessage } from "../views/RoleMenuView";
 import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
 
 enum RoleMenuOption {
@@ -458,7 +455,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
       return;
     }
 
-    const menu = menuResult.val;
+    const _menu = menuResult.val;
 
     // Get roles for the menu
     const rolesResult = await this.roleMenuRoleService.getRoles(
@@ -502,134 +499,19 @@ export class RoleMenuCommand extends SlashCommandHandler {
       return;
     }
 
-    // Get guild role names
-    const guildRoles = Array.from(interaction.guild.roles.cache.values());
-    const guildRolesMap = guildRoles.reduce((map, role) => {
-      if (role) {
-        map.set(role.id, role);
-      }
-      return map;
-    }, new Map<string, Role>());
+    // Use the view function to build the menu content
+    const menuContent = createRoleMenuMessage({
+      menu: _menu,
+      roles,
+      guild: interaction.guild,
+      type: type as "buttons" | "select_menu",
+    });
 
-    const fields = [];
-    if (menu.requiredRole) {
-      fields.push({
-        name: "Required role",
-        value: `<@&${menu.requiredRole}>`,
-      });
-    }
-
-    if (menu.maxCount) {
-      fields.push({
-        name: "Maximum roles you can pick",
-        value: menu.maxCount.toString(),
-      });
-    }
-
-    let footerText = "";
-    if (type === RoleMenuType.SelectMenu) {
-      footerText = "Remove all selections to clear your roles";
-    } else if (type === RoleMenuType.Buttons) {
-      footerText = "Click buttons again to remove roles";
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(name)
-      .setDescription(menu.description || null)
-      .setFields(fields)
-      .setColor(Color.Info)
-      .setFooter({
-        text: footerText,
-      });
-
-    // Build components
-    const components = [];
-    if (type === RoleMenuType.Buttons) {
-      let row = new ActionRowBuilder<ButtonBuilder>();
-
-      for (const { roleId, emoji } of roles) {
-        let button = new ButtonBuilder()
-          .setCustomId(
-            roleMenuCustomIds.shortButton.compile({
-              id: menu.id.toString(),
-              roleId,
-            }),
-          )
-          .setLabel(
-            this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId),
-          )
-          .setStyle(ButtonStyle.Secondary);
-
-        const parsedEmoji = emoji ? parseEmoji(emoji) : null;
-
-        if (parsedEmoji) {
-          button = button.setEmoji({
-            id: parsedEmoji.emoji.id || undefined,
-            animated: parsedEmoji.emoji.animated,
-            name: parsedEmoji.emoji.name || undefined,
-          });
-        }
-
-        // Row full, push to component rows list
-        if (row.components.length === 5) {
-          components.push(row.toJSON());
-          row = new ActionRowBuilder<ButtonBuilder>();
-        }
-
-        row = row.addComponents([button]);
-      }
-
-      // Add any remaining buttons
-      if (row.components.length > 0) {
-        components.push(row.toJSON());
-      }
-    }
-
-    if (type === RoleMenuType.SelectMenu) {
-      const selectOptions = [];
-
-      for (const { roleId, emoji, description } of roles) {
-        let option = new StringSelectMenuOptionBuilder()
-          .setValue(roleId)
-          .setLabel(
-            this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId),
-          );
-
-        const parsedEmoji = emoji ? parseEmoji(emoji) : null;
-
-        if (parsedEmoji) {
-          option = option.setEmoji({
-            id: parsedEmoji.emoji.id || undefined,
-            animated: parsedEmoji.emoji.animated,
-            name: parsedEmoji.emoji.name || undefined,
-          });
-        }
-
-        if (description) {
-          option = option.setDescription(description);
-        }
-
-        selectOptions.push(option);
-      }
-
-      const selectMenu = new StringSelectMenuBuilder()
-        .setPlaceholder("Select your roles!")
-        .setCustomId(
-          roleMenuCustomIds.shortSelect.compile({ id: menu.id.toString() }),
-        )
-        .addOptions(selectOptions)
-        .setMaxValues(menu.maxCount || roles.length)
-        .setMinValues(0); // Allow clearing all roles
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>()
-        .addComponents([selectMenu])
-        .toJSON();
-      components.push(row);
-    }
+    const components = menuContent.components.map((c) => c.toJSON());
 
     try {
       const sentMessage = await sendChannel.send({
-        embeds: [embed.toJSON()],
+        embeds: [menuContent.embed.toJSON()],
         components,
       });
 
@@ -639,6 +521,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
         name,
         sendChannel.id,
         sentMessage.id,
+        type as "buttons" | "select_menu",
       );
 
       if (trackResult.err) {
@@ -669,13 +552,5 @@ export class RoleMenuCommand extends SlashCommandHandler {
           .toJSON(),
       ],
     });
-  }
-
-  private truncateButtonLabel(label: string): string {
-    return label.length > 80 ? label.slice(0, 77) + "..." : label;
-  }
-
-  private truncateSelectLabel(label: string): string {
-    return label.length > 100 ? label.slice(0, 97) + "..." : label;
   }
 }

@@ -1,33 +1,22 @@
 import { sleep } from "bun";
 import type {
-  APIEmbed,
   ButtonInteraction,
   ChatInputCommandInteraction,
-  Guild,
-  JSONEncodable,
-  MessageActionRowComponentBuilder,
   MessageComponentInteraction,
   ModalMessageModalSubmitInteraction,
-  Role,
   RoleSelectMenuInteraction,
   TextChannel,
 } from "discord.js";
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
-import Color from "@/utils/colors";
 import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
@@ -35,7 +24,7 @@ import type { RoleMenuMessageService } from "../../application/RoleMenuMessageSe
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
 import type { RoleMenu } from "../../domain/entities/RoleMenu";
 import type { RoleMenuRole } from "../../domain/entities/RoleMenuRole";
-import { roleMenuCustomIds } from "../constants/roleMenuCustomIds";
+import type { RoleMenuUpdateService } from "../services/RoleMenuUpdateService";
 import {
   ROLE_MENU_BUILDER_CUSTOM_IDS,
   ROLE_MENU_BUILDER_INPUTS,
@@ -64,6 +53,7 @@ export class RoleMenuCreateCommand {
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
     private readonly roleMenuMessageService: RoleMenuMessageService,
+    private readonly roleMenuUpdateService: RoleMenuUpdateService,
     private readonly logger: Logger,
   ) {}
 
@@ -548,25 +538,11 @@ export class RoleMenuCreateCommand {
       return;
     }
 
-    // Build the updated menu content for both button and select menu formats
-    const menuContent = await this.buildMenuContent(
-      interaction.guildId,
-      menuName,
-      interaction.guild,
-    );
-
-    if (menuContent.err) {
-      await interaction.editReply({
-        content: `Failed to build menu content: ${menuContent.val}`,
-      });
-      return;
-    }
-
-    const updateResult = await this.roleMenuMessageService.updateActiveMenus(
+    const updateResult = await this.roleMenuUpdateService.updateActiveMenus(
       interaction.guildId,
       menuName,
       interaction.channel as TextChannel,
-      menuContent.val,
+      interaction.guild,
     );
 
     if (updateResult.err) {
@@ -877,185 +853,5 @@ export class RoleMenuCreateCommand {
         "Cleaned up stale role menu sessions",
       );
     }
-  }
-
-  private async buildMenuContent(
-    guildId: string,
-    menuName: string,
-    guild: Guild,
-  ): Promise<
-    Result<
-      {
-        embeds: (APIEmbed | JSONEncodable<APIEmbed>)[];
-        components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
-      },
-      string
-    >
-  > {
-    // Get menu from database
-    const menuResult = await this.roleMenuManagementService.getMenu(
-      guildId,
-      menuName,
-    );
-    if (menuResult.err) {
-      return Err(menuResult.val);
-    }
-
-    const menu = menuResult.val;
-
-    // Get roles for the menu
-    const rolesResult = await this.roleMenuRoleService.getRoles(
-      guildId,
-      menuName,
-    );
-    if (rolesResult.err) {
-      return Err(rolesResult.val);
-    }
-
-    const roles = rolesResult.val;
-
-    if (roles.length === 0) {
-      return Err("This menu has no roles configured.");
-    }
-
-    // Get guild role names
-    const guildRoles = Array.from(guild.roles.cache.values());
-    const guildRolesMap = guildRoles.reduce((map, role) => {
-      if (role) {
-        map.set(role.id, role);
-      }
-      return map;
-    }, new Map<string, Role>());
-
-    // Build embed
-    const fields = [];
-    if (menu.requiredRole) {
-      fields.push({
-        name: "Required role",
-        value: `<@&${menu.requiredRole}>`,
-      });
-    }
-
-    if (menu.maxCount) {
-      fields.push({
-        name: "Maximum roles you can pick",
-        value: menu.maxCount.toString(),
-      });
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(menuName)
-      .setDescription(menu.description || null)
-      .setFields(fields)
-      .setColor(Color.Info);
-
-    // Build components for both button and select menu formats
-    const buttonComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
-      [];
-    const selectComponents: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
-      [];
-
-    // Build button components
-    let buttonRow = new ActionRowBuilder<ButtonBuilder>();
-    for (const { roleId, emoji } of roles) {
-      let button = new ButtonBuilder()
-        .setCustomId(
-          roleMenuCustomIds.shortButton.compile({
-            id: menu.id.toString(),
-            roleId,
-          }),
-        )
-        .setLabel(
-          this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId),
-        )
-        .setStyle(ButtonStyle.Secondary);
-
-      const parsedEmoji = emoji ? parseEmoji(emoji) : null;
-      if (parsedEmoji) {
-        button = button.setEmoji({
-          id: parsedEmoji.emoji.id || undefined,
-          animated: parsedEmoji.emoji.animated,
-          name: parsedEmoji.emoji.name || undefined,
-        });
-      }
-
-      // Row full, push to component rows list
-      if (buttonRow.components.length === 5) {
-        buttonComponents.push(
-          buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
-        );
-        buttonRow = new ActionRowBuilder<ButtonBuilder>();
-      }
-
-      buttonRow = buttonRow.addComponents([button]);
-    }
-
-    // Add any remaining buttons
-    if (buttonRow.components.length > 0) {
-      buttonComponents.push(
-        buttonRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
-      );
-    }
-
-    // Build select menu components
-    const selectOptions = [];
-    for (const { roleId, emoji, description } of roles) {
-      let option = new StringSelectMenuOptionBuilder()
-        .setValue(roleId)
-        .setLabel(
-          this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId),
-        );
-
-      const parsedEmoji = emoji ? parseEmoji(emoji) : null;
-      if (parsedEmoji) {
-        option = option.setEmoji({
-          id: parsedEmoji.emoji.id || undefined,
-          animated: parsedEmoji.emoji.animated,
-          name: parsedEmoji.emoji.name || undefined,
-        });
-      }
-
-      if (description) {
-        option = option.setDescription(description);
-      }
-
-      selectOptions.push(option);
-    }
-
-    const selectMenu = new StringSelectMenuBuilder()
-      .setPlaceholder("Select your roles!")
-      .setCustomId(
-        roleMenuCustomIds.shortSelect.compile({ id: menu.id.toString() }),
-      )
-      .addOptions(selectOptions)
-      .setMaxValues(menu.maxCount || roles.length)
-      .setMinValues(0);
-
-    const selectRow =
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents([
-        selectMenu,
-      ]);
-    selectComponents.push(
-      selectRow as ActionRowBuilder<MessageActionRowComponentBuilder>,
-    );
-
-    // Set footer based on available interaction types
-    embed.setFooter({
-      text: "Click buttons or use the select menu to manage your roles",
-    });
-
-    // Return content with both button and select menu components for maximum compatibility
-    return Ok({
-      embeds: [embed.toJSON()],
-      components: [...buttonComponents, ...selectComponents],
-    });
-  }
-
-  private truncateButtonLabel(label: string): string {
-    return label.length > 80 ? label.slice(0, 77) + "..." : label;
-  }
-
-  private truncateSelectLabel(label: string): string {
-    return label.length > 100 ? label.slice(0, 97) + "..." : label;
   }
 }

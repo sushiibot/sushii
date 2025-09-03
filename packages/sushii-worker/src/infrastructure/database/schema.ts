@@ -477,8 +477,14 @@ export const remindersInAppPublic = appPublic.table(
   {
     userId: bigint("user_id", { mode: "bigint" }).notNull(),
     description: text().notNull(),
-    setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
-    expireAt: timestamp("expire_at", { withTimezone: true, mode: "string" }).notNull(),
+    setAt: timestamp("set_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    expireAt: timestamp("expire_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
     id: bigint({ mode: "bigint" }).notNull(),
   },
   (table) => [
@@ -600,6 +606,9 @@ export const roleMenuMessagesInAppPublic = appPublic.table(
       .defaultNow()
       .notNull(),
     needsUpdate: boolean("needs_update").default(false).notNull(),
+    componentType: text("component_type", { enum: ["buttons", "select_menu"] })
+      .default("buttons")
+      .notNull(),
   },
   (table) => [
     foreignKey({

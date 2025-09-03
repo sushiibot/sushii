@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."role_menu_messages" ADD COLUMN "component_type" text DEFAULT 'buttons' NOT NULL;

@@ -1,10 +1,4 @@
-import type {
-  APIEmbed,
-  ActionRowBuilder,
-  JSONEncodable,
-  MessageActionRowComponentBuilder,
-  TextChannel,
-} from "discord.js";
+import type { TextChannel } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
@@ -25,9 +19,10 @@ export class RoleMenuMessageService {
     menuName: string,
     channelId: string,
     messageId: string,
+    componentType: "buttons" | "select_menu",
   ): Promise<Result<void, string>> {
     this.logger.debug(
-      { guildId, menuName, channelId, messageId },
+      { guildId, menuName, channelId, messageId, componentType },
       "Tracking sent role menu",
     );
 
@@ -49,6 +44,7 @@ export class RoleMenuMessageService {
       menuName,
       channelId,
       messageId,
+      componentType,
     };
 
     await this.roleMenuRepository.trackMessage(request);
@@ -139,77 +135,17 @@ export class RoleMenuMessageService {
     }
   }
 
-  async updateActiveMenus(
-    guildId: string,
-    menuName: string,
-    channel: TextChannel,
-    newContent: {
-      embeds: (APIEmbed | JSONEncodable<APIEmbed>)[];
-      components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
-    },
-  ): Promise<Result<number, string>> {
-    this.logger.debug({ guildId, menuName }, "Updating active menus");
+  async markMessagesUpdated(guildId: string, menuName: string): Promise<void> {
+    this.logger.debug({ guildId, menuName }, "Marking messages as updated");
 
     try {
-      const activeMessages = await this.roleMenuRepository.getActiveMessages(
-        guildId,
-        menuName,
-      );
-
-      if (activeMessages.length === 0) {
-        return Ok(0);
-      }
-
-      let updatedCount = 0;
-      const failures: string[] = [];
-
-      // Update each message
-      for (const message of activeMessages) {
-        try {
-          // Get the channel where this message was sent
-          const messageChannel = await channel.guild.channels.fetch(
-            message.channelId,
-          );
-
-          if (!messageChannel?.isTextBased()) {
-            failures.push(
-              `Channel ${message.channelId} not found or not text-based`,
-            );
-            continue;
-          }
-
-          // Fetch and update the message
-          const discordMessage = await messageChannel.messages.fetch(
-            message.messageId,
-          );
-          await discordMessage.edit(newContent);
-
-          updatedCount++;
-        } catch (error) {
-          this.logger.warn(
-            { err: error, messageId: message.messageId },
-            "Failed to update message",
-          );
-          failures.push(`Message ${message.messageId}: ${String(error)}`);
-        }
-      }
-
-      // Clear needs_update flag for all messages
       await this.roleMenuRepository.markMessagesUpdated(guildId, menuName);
-
-      if (failures.length > 0) {
-        return Err(
-          `Updated ${updatedCount}/${activeMessages.length} menus. Failures: ${failures.join(", ")}`,
-        );
-      }
-
-      return Ok(updatedCount);
     } catch (error) {
       this.logger.error(
         { err: error, guildId, menuName },
-        "Failed to update active menus",
+        "Failed to mark messages as updated",
       );
-      return Err("Failed to update active menus");
+      throw new Error("Failed to mark messages as updated", { cause: error });
     }
   }
 
