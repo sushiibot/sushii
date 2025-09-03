@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."role_menus" ADD COLUMN "id" serial NOT NULL;

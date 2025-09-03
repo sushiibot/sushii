@@ -134,6 +134,13 @@
       "when": 1756362276578,
       "tag": "0018_add-timezone-to-reminders",
       "breakpoints": false
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1756874148591,
+      "tag": "0019_add_role_menu_id_column",
+      "breakpoints": false
     }
   ]
 }

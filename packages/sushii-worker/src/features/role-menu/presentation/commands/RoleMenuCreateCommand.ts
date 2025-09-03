@@ -941,8 +941,15 @@ export class RoleMenuCreateCommand {
     let buttonRow = new ActionRowBuilder<ButtonBuilder>();
     for (const { roleId, emoji } of roles) {
       let button = new ButtonBuilder()
-        .setCustomId(roleMenuCustomIds.button.compile({ menuName, roleId }))
-        .setLabel(this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId))
+        .setCustomId(
+          roleMenuCustomIds.shortButton.compile({
+            id: menu.id.toString(),
+            roleId,
+          }),
+        )
+        .setLabel(
+          this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId),
+        )
         .setStyle(ButtonStyle.Secondary);
 
       const parsedEmoji = emoji ? parseEmoji(emoji) : null;
@@ -977,7 +984,9 @@ export class RoleMenuCreateCommand {
     for (const { roleId, emoji, description } of roles) {
       let option = new StringSelectMenuOptionBuilder()
         .setValue(roleId)
-        .setLabel(this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId));
+        .setLabel(
+          this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId),
+        );
 
       const parsedEmoji = emoji ? parseEmoji(emoji) : null;
       if (parsedEmoji) {
@@ -997,7 +1006,9 @@ export class RoleMenuCreateCommand {
 
     const selectMenu = new StringSelectMenuBuilder()
       .setPlaceholder("Select your roles!")
-      .setCustomId(roleMenuCustomIds.select.compile({ menuName }))
+      .setCustomId(
+        roleMenuCustomIds.shortSelect.compile({ id: menu.id.toString() }),
+      )
       .addOptions(selectOptions)
       .setMaxValues(menu.maxCount || roles.length)
       .setMinValues(0);

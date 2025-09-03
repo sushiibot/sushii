@@ -70,6 +70,30 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
 
     const menu = result[0];
     return Some({
+      id: menu.id,
+      guildId: menu.guildId.toString(),
+      menuName: menu.menuName,
+      description: menu.description || undefined,
+      maxCount: menu.maxCount || undefined,
+      requiredRole: menu.requiredRole?.toString(),
+    });
+  }
+
+  async findById(id: number): Promise<Option<RoleMenu>> {
+    this.logger.debug({ id }, "Finding role menu by ID");
+
+    const result = await this.db
+      .select()
+      .from(roleMenusInAppPublic)
+      .where(eq(roleMenusInAppPublic.id, id));
+
+    if (result.length === 0) {
+      return None;
+    }
+
+    const menu = result[0];
+    return Some({
+      id: menu.id,
       guildId: menu.guildId.toString(),
       menuName: menu.menuName,
       description: menu.description || undefined,
@@ -87,6 +111,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       .where(eq(roleMenusInAppPublic.guildId, BigInt(guildId)));
 
     return results.map((menu) => ({
+      id: menu.id,
       guildId: menu.guildId.toString(),
       menuName: menu.menuName,
       description: menu.description || undefined,
@@ -109,6 +134,7 @@ export class DrizzleRoleMenuRepository implements RoleMenuRepository {
       );
 
     return results.map((menu) => ({
+      id: menu.id,
       guildId: menu.guildId.toString(),
       menuName: menu.menuName,
       description: menu.description || undefined,

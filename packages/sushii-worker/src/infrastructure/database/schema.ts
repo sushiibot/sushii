@@ -10,6 +10,7 @@ import {
   pgPolicy,
   pgSchema,
   primaryKey,
+  serial,
   text,
   timestamp,
   unique,
@@ -525,6 +526,7 @@ export const botStatsInAppPublic = appPublic.table(
 export const roleMenusInAppPublic = appPublic.table(
   "role_menus",
   {
+    id: serial("id").notNull(),
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     menuName: text("menu_name").notNull(),
     description: text(),

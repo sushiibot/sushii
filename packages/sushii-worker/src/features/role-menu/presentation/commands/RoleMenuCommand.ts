@@ -550,9 +550,14 @@ export class RoleMenuCommand extends SlashCommandHandler {
       for (const { roleId, emoji } of roles) {
         let button = new ButtonBuilder()
           .setCustomId(
-            roleMenuCustomIds.button.compile({ menuName: name, roleId }),
+            roleMenuCustomIds.shortButton.compile({
+              id: menu.id.toString(),
+              roleId,
+            }),
           )
-          .setLabel(this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId))
+          .setLabel(
+            this.truncateButtonLabel(guildRolesMap.get(roleId)?.name || roleId),
+          )
           .setStyle(ButtonStyle.Secondary);
 
         const parsedEmoji = emoji ? parseEmoji(emoji) : null;
@@ -586,7 +591,9 @@ export class RoleMenuCommand extends SlashCommandHandler {
       for (const { roleId, emoji, description } of roles) {
         let option = new StringSelectMenuOptionBuilder()
           .setValue(roleId)
-          .setLabel(this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId));
+          .setLabel(
+            this.truncateSelectLabel(guildRolesMap.get(roleId)?.name || roleId),
+          );
 
         const parsedEmoji = emoji ? parseEmoji(emoji) : null;
 
@@ -607,7 +614,9 @@ export class RoleMenuCommand extends SlashCommandHandler {
 
       const selectMenu = new StringSelectMenuBuilder()
         .setPlaceholder("Select your roles!")
-        .setCustomId(roleMenuCustomIds.select.compile({ menuName: name }))
+        .setCustomId(
+          roleMenuCustomIds.shortSelect.compile({ id: menu.id.toString() }),
+        )
         .addOptions(selectOptions)
         .setMaxValues(menu.maxCount || roles.length)
         .setMinValues(0); // Allow clearing all roles

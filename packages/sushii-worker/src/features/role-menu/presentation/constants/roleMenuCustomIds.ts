@@ -3,7 +3,11 @@ import { compile, match } from "path-to-regexp";
 
 // Role menu interaction custom IDs (for sent menus)
 enum RoleMenuPaths {
-  // New format with menu name for database lookup
+  // New ultra-short format with numeric ID (preferred)
+  ShortButton = "/rm/:id/b/:roleId",
+  ShortSelect = "/rm/:id/s",
+
+  // Legacy 2.0 format with menu name for database lookup (exceeds limit due to URL encoding)
   Button = "/rolemenu/:menuName/button/:roleId",
   Select = "/rolemenu/:menuName/select",
 
@@ -54,7 +58,11 @@ function createCustomIdHelper(path: string) {
 
 // Export custom ID helpers
 export const roleMenuCustomIds = {
-  // New format with menu name
+  // New ultra-short format with ID (preferred)
+  shortButton: createCustomIdHelper(RoleMenuPaths.ShortButton),
+  shortSelect: createCustomIdHelper(RoleMenuPaths.ShortSelect),
+
+  // Current format with menu name
   button: createCustomIdHelper(RoleMenuPaths.Button),
   select: createCustomIdHelper(RoleMenuPaths.Select),
 
@@ -63,19 +71,33 @@ export const roleMenuCustomIds = {
   legacySelect: createCustomIdHelper(RoleMenuPaths.LegacySelect),
 };
 
-// Helper to parse any role menu button (new or legacy format)
+// Helper to parse any role menu button (all formats)
 export function parseRoleMenuButtonCustomId(customId: string): {
+  id?: number;
   menuName?: string;
   roleId: string;
   isLegacy: boolean;
+  isShort: boolean;
 } | null {
-  // Try new format first
+  // Try short format first (preferred)
+  const shortParams = roleMenuCustomIds.shortButton.matchParams(customId);
+  if (shortParams) {
+    return {
+      id: parseInt(shortParams.id, 10),
+      roleId: shortParams.roleId,
+      isLegacy: false,
+      isShort: true,
+    };
+  }
+
+  // Try current format with menu name
   const newParams = roleMenuCustomIds.button.matchParams(customId);
   if (newParams) {
     return {
       menuName: newParams.menuName,
       roleId: newParams.roleId,
       isLegacy: false,
+      isShort: false,
     };
   }
 
@@ -85,23 +107,37 @@ export function parseRoleMenuButtonCustomId(customId: string): {
     return {
       roleId: legacyParams.roleId,
       isLegacy: true,
+      isShort: false,
     };
   }
 
   return null;
 }
 
-// Helper to parse any role menu select (new or legacy format)
+// Helper to parse any role menu select (all formats)
 export function parseRoleMenuSelectCustomId(customId: string): {
+  id?: number;
   menuName?: string;
   isLegacy: boolean;
+  isShort: boolean;
 } | null {
-  // Try new format first
+  // Try short format first (preferred)
+  const shortParams = roleMenuCustomIds.shortSelect.matchParams(customId);
+  if (shortParams) {
+    return {
+      id: parseInt(shortParams.id, 10),
+      isLegacy: false,
+      isShort: true,
+    };
+  }
+
+  // Try current format with menu name
   const newParams = roleMenuCustomIds.select.matchParams(customId);
   if (newParams) {
     return {
       menuName: newParams.menuName,
       isLegacy: false,
+      isShort: false,
     };
   }
 
@@ -110,6 +146,7 @@ export function parseRoleMenuSelectCustomId(customId: string): {
   if (legacyParams) {
     return {
       isLegacy: true,
+      isShort: false,
     };
   }
 

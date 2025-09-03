@@ -45,22 +45,39 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
     let requiredRole: string | undefined;
     let menuRoles: { roleId: string; label: string }[];
 
-    // Try database-first approach for new format
-    if (!parsedCustomId.isLegacy && parsedCustomId.menuName) {
-      // Get menu configuration from database
-      const menuResult = await this.roleMenuManagementService.getMenu(
-        interaction.guildId,
-        parsedCustomId.menuName,
-      );
+    // Try database-first approach for ID or name format
+    if (
+      !parsedCustomId.isLegacy &&
+      (parsedCustomId.id || parsedCustomId.menuName)
+    ) {
+      let menuResult;
+      let menuName: string | undefined;
 
-      if (menuResult.ok) {
+      if (parsedCustomId.isShort && parsedCustomId.id) {
+        // Use ID-based lookup (preferred)
+        menuResult = await this.roleMenuManagementService.getMenuById(
+          parsedCustomId.id,
+        );
+        if (menuResult.ok) {
+          menuName = menuResult.val.menuName;
+        }
+      } else if (parsedCustomId.menuName) {
+        // Use name-based lookup (fallback)
+        menuResult = await this.roleMenuManagementService.getMenu(
+          interaction.guildId,
+          parsedCustomId.menuName,
+        );
+        menuName = parsedCustomId.menuName;
+      }
+
+      if (menuResult?.ok && menuName) {
         const menu = menuResult.val;
         requiredRole = menu.requiredRole;
 
         // Get roles from database
         const rolesResult = await this.roleMenuRoleService.getRoles(
           interaction.guildId,
-          parsedCustomId.menuName,
+          menuName,
         );
 
         if (rolesResult.ok) {

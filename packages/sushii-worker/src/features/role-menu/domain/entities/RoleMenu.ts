@@ -1,4 +1,5 @@
 export interface RoleMenu {
+  id: number;
   guildId: string;
   menuName: string;
   description?: string;

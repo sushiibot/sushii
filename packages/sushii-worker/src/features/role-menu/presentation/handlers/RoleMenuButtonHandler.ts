@@ -47,15 +47,32 @@ export class RoleMenuButtonHandler extends ButtonHandler {
     let maxRoles: number | undefined;
     let menuRoles: { roleId: string; label: string }[];
 
-    // Try database-first approach for new format
-    if (!parsedCustomId.isLegacy && parsedCustomId.menuName) {
-      // Get menu configuration from database
-      const menuResult = await this.roleMenuManagementService.getMenu(
-        interaction.guildId,
-        parsedCustomId.menuName,
-      );
+    // Try database-first approach for ID or name format
+    if (
+      !parsedCustomId.isLegacy &&
+      (parsedCustomId.id || parsedCustomId.menuName)
+    ) {
+      let menuResult;
+      let menuName: string | undefined;
 
-      if (menuResult.ok) {
+      if (parsedCustomId.isShort && parsedCustomId.id) {
+        // Use ID-based lookup (preferred)
+        menuResult = await this.roleMenuManagementService.getMenuById(
+          parsedCustomId.id,
+        );
+        if (menuResult.ok) {
+          menuName = menuResult.val.menuName;
+        }
+      } else if (parsedCustomId.menuName) {
+        // Use name-based lookup (fallback)
+        menuResult = await this.roleMenuManagementService.getMenu(
+          interaction.guildId,
+          parsedCustomId.menuName,
+        );
+        menuName = parsedCustomId.menuName;
+      }
+
+      if (menuResult?.ok && menuName) {
         const menu = menuResult.val;
         requiredRole = menu.requiredRole;
         maxRoles = menu.maxCount;
@@ -63,7 +80,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         // Get roles from database
         const rolesResult = await this.roleMenuRoleService.getRoles(
           interaction.guildId,
-          parsedCustomId.menuName,
+          menuName,
         );
 
         if (rolesResult.ok) {
@@ -85,9 +102,11 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         }
       } else {
         // Menu not found or database error
+        const errorMsg = menuResult?.val || "Menu not found";
         if (
-          menuResult.val.toLowerCase().includes("not found") ||
-          menuResult.val.toLowerCase().includes("no menu found")
+          typeof errorMsg === "string" &&
+          (errorMsg.toLowerCase().includes("not found") ||
+            errorMsg.toLowerCase().includes("no menu found"))
         ) {
           // Menu was deleted - show proper message
           await interaction.reply({
@@ -104,11 +123,15 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         } else {
           // Infrastructure error - fatal error for new messages
           this.logger.error(
-            { err: menuResult.val, menuName: parsedCustomId.menuName },
+            {
+              err: errorMsg,
+              id: parsedCustomId.id,
+              menuName: parsedCustomId.menuName,
+            },
             "Database error fetching menu",
           );
           throw new Error("Database error fetching menu", {
-            cause: menuResult.val,
+            cause: errorMsg,
           });
         }
       }

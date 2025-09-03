@@ -17,6 +17,7 @@ import type {
 export interface RoleMenuRepository {
   // Role Menu CRUD operations
   create(request: CreateRoleMenuRequest): Promise<void>;
+  findById(id: number): Promise<Option<RoleMenu>>;
   findByName(guildId: string, menuName: string): Promise<Option<RoleMenu>>;
   findByGuild(guildId: string): Promise<RoleMenu[]>;
   search(guildId: string, query: string): Promise<RoleMenu[]>;

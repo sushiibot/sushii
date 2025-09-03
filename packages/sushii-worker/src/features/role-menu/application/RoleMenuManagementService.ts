@@ -49,6 +49,19 @@ export class RoleMenuManagementService {
     return Ok(menu.safeUnwrap());
   }
 
+  async getMenuById(id: number): Promise<Result<RoleMenu, string>> {
+    this.logger.debug({ id }, "Getting role menu by ID");
+
+    // Check if menu exists (business validation)
+    const menu = await this.roleMenuRepository.findById(id);
+    if (menu.none) {
+      return Err(`Menu with ID ${id} not found.`);
+    }
+
+    // Return menu (infrastructure errors will naturally throw)
+    return Ok(menu.safeUnwrap());
+  }
+
   async listMenus(guildId: string): Promise<RoleMenu[]> {
     this.logger.debug({ guildId }, "Listing role menus");
 
