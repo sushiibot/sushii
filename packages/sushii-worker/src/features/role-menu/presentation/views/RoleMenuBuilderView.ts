@@ -16,9 +16,9 @@ import Color from "@/utils/colors";
 import type { RoleMenu } from "../../domain/entities/RoleMenu";
 import type { RoleMenuRole } from "../../domain/entities/RoleMenuRole";
 import {
+  type BotPermissionsResult,
   ROLE_MENU_BUILDER_CUSTOM_IDS,
   type RoleMenuBuilderState,
-  type RolePermissionWarning,
 } from "./RoleMenuBuilderConstants";
 
 interface RoleMenuBuilderOptions {
@@ -71,14 +71,18 @@ export function createRoleMenuBuilderMessage(
   }
 
   // Permission warnings section
-  if (state.permissionWarnings && state.permissionWarnings.length > 0) {
-    container.addSeparatorComponents(new SeparatorBuilder());
+  if (state.permissionWarnings) {
     const warningsContent = createPermissionWarningsContent(
       state.permissionWarnings,
     );
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(warningsContent),
-    );
+
+    // Has warnings
+    if (warningsContent.length > 0) {
+      container.addSeparatorComponents(new SeparatorBuilder());
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(warningsContent),
+      );
+    }
   }
 
   // Action buttons row (only in edit mode)
@@ -161,71 +165,35 @@ function createHeaderContent(
 }
 
 function createPermissionWarningsContent(
-  warnings: RolePermissionWarning[],
+  warnings: BotPermissionsResult,
 ): string {
-  if (warnings.length === 0) {
+  if (warnings.canManageRoles && warnings.roleIdsHigherThanBot.length === 0) {
     return "";
   }
 
   const title = "⚠️ **Bot is missing permissions:**";
   const warningMessages: string[] = [];
-  const manageRolesWarnings: RolePermissionWarning[] = [];
-  const hierarchyWarnings: RolePermissionWarning[] = [];
-
-  // Separate warnings by type
-  for (const warning of warnings) {
-    if (warning.issue === "missing_manage_roles") {
-      manageRolesWarnings.push(warning);
-    } else if (warning.issue === "hierarchy") {
-      hierarchyWarnings.push(warning);
-    }
-  }
 
   // Handle missing Manage Roles permission
-  if (manageRolesWarnings.length > 0) {
+  if (!warnings.canManageRoles) {
     warningMessages.push(
-      "• Cannot manage any roles - bot needs **Manage Roles** permission",
+      "- Cannot manage any roles - Please add the `Manage Roles` permission",
     );
   }
 
   // Handle hierarchy issues
-  if (hierarchyWarnings.length > 0) {
-    const roleCount = hierarchyWarnings.length;
-    const roleNames = hierarchyWarnings
-      .slice(0, 3)
-      .map((w) => `**${w.roleName}**`);
-
-    if (roleCount === 1) {
-      warningMessages.push(
-        `• Cannot manage ${roleNames[0]} - move bot's role higher in Server Settings`,
-      );
-    } else if (roleCount <= 3) {
-      const roleList = roleNames.join(", ");
-      warningMessages.push(
-        `• Cannot manage ${roleList} - move bot's role higher in Server Settings`,
-      );
-    } else {
-      const firstTwo = roleNames.slice(0, 2).join(", ");
-      warningMessages.push(
-        `• Cannot manage ${firstTwo} and ${roleCount - 2} other roles - move bot's role higher in Server Settings`,
-      );
-    }
-  }
-
-  // Add actionable advice
-  const advice: string[] = [];
-  if (manageRolesWarnings.length > 0) {
-    advice.push(
-      "-# **Fix:** Grant the bot **Manage Roles** permission in Server Settings",
+  if (warnings.roleIdsHigherThanBot.length > 0) {
+    const roleMentions = warnings.roleIdsHigherThanBot.map(
+      (roleId) => `<&@${roleId}>`,
     );
-  }
-  if (hierarchyWarnings.length > 0) {
-    advice.push(
-      "-# **Fix:** Move the bot's role above the roles it needs to manage",
+
+    const roleList = roleMentions.join(", ");
+    warningMessages.push(
+      `- Cannot manage ${roleList} - Please move the bot's role higher in Server Settings > Roles`,
     );
   }
 
-  return [title, ...warningMessages, "", ...advice].join("\n");
+  return [title, ...warningMessages].join("\n");
 }
 
 function createRoleSection(

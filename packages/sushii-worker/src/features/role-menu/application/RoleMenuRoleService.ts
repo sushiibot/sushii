@@ -8,7 +8,7 @@ import type {
   UpdateRoleMenuRoleRequest,
 } from "../domain/entities/RoleMenuRole";
 import type { RoleMenuRepository } from "../domain/repositories/RoleMenuRepository";
-import type { RolePermissionWarning } from "../presentation/views/RoleMenuBuilderConstants";
+import type { BotPermissionsResult } from "../presentation/views/RoleMenuBuilderConstants";
 
 export class RoleMenuRoleService {
   constructor(
@@ -19,8 +19,7 @@ export class RoleMenuRoleService {
   validateBotPermissions(
     guild: Guild,
     roleIds: string[],
-  ): RolePermissionWarning[] {
-    const warnings: RolePermissionWarning[] = [];
+  ): BotPermissionsResult {
     const botMember = guild.members.me;
 
     if (!botMember) {
@@ -30,49 +29,49 @@ export class RoleMenuRoleService {
       );
 
       // Bot not in guild - shouldn't happen but handle gracefully
-      return warnings;
+      return {
+        canManageRoles: false,
+        roleIdsHigherThanBot: [],
+      };
     }
 
     // Check if bot has administrator permission (can manage all roles)
     if (botMember.permissions.has(PermissionFlagsBits.Administrator)) {
-      return warnings; // Administrator can manage all roles
+      return {
+        canManageRoles: true,
+        roleIdsHigherThanBot: [],
+      };
     }
 
     // Check if bot has manage roles permission
-    const hasManageRoles = botMember.permissions.has(
+    const canManageRoles = botMember.permissions.has(
       PermissionFlagsBits.ManageRoles,
     );
 
-    if (!hasManageRoles) {
-      // Add warning for all roles since bot can't manage any
-      for (const roleId of roleIds) {
-        const role = guild.roles.cache.get(roleId);
-        if (role) {
-          warnings.push({
-            roleId,
-            roleName: role.name,
-            issue: "missing_manage_roles",
-          });
-        }
-      }
-      return warnings;
+    if (!canManageRoles) {
+      return {
+        canManageRoles: false,
+        roleIdsHigherThanBot: [],
+      };
     }
 
     // Check role hierarchy - bot can only manage roles below its highest role
     const botHighestPosition = botMember.roles.highest.position;
 
+    const higherRoleIds = [];
+
     for (const roleId of roleIds) {
       const role = guild.roles.cache.get(roleId);
+
       if (role && role.position >= botHighestPosition) {
-        warnings.push({
-          roleId,
-          roleName: role.name,
-          issue: "hierarchy",
-        });
+        higherRoleIds.push(roleId);
       }
     }
 
-    return warnings;
+    return {
+      canManageRoles,
+      roleIdsHigherThanBot: higherRoleIds,
+    };
   }
 
   async setRoles(
@@ -81,7 +80,7 @@ export class RoleMenuRoleService {
     roleIds: string[],
     guild: Guild,
     userHighestRolePosition?: number,
-  ): Promise<Result<RolePermissionWarning[], string>> {
+  ): Promise<Result<BotPermissionsResult, string>> {
     this.logger.debug({ guildId, menuName, roleIds }, "Setting roles for menu");
 
     // Check if menu exists (business validation)
