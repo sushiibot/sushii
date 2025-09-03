@@ -177,19 +177,19 @@ function createPermissionWarningsContent(
   // Handle missing Manage Roles permission
   if (!warnings.canManageRoles) {
     warningMessages.push(
-      "- Cannot manage any roles - Please add the `Manage Roles` permission",
+      "- Cannot manage any roles\n> Please add the `Manage Roles` permission",
     );
   }
 
   // Handle hierarchy issues
   if (warnings.roleIdsHigherThanBot.length > 0) {
     const roleMentions = warnings.roleIdsHigherThanBot.map(
-      (roleId) => `<&@${roleId}>`,
+      (roleId) => `<@&${roleId}>`,
     );
 
     const roleList = roleMentions.join(", ");
     warningMessages.push(
-      `- Cannot manage ${roleList} - Please move the bot's role higher in Server Settings > Roles`,
+      `- Cannot manage ${roleList}\n> **Please move the bot's role higher in Server Settings > Roles**`,
     );
   }
 
