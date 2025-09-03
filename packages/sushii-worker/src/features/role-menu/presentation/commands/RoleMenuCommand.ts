@@ -20,6 +20,7 @@ import Color from "@/utils/colors";
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
 import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
+import type { RoleMenuRepository } from "../../domain/repositories/RoleMenuRepository";
 import { createRoleMenuBuilderMessage } from "../views/RoleMenuBuilderView";
 import { createRoleMenuMessage } from "../views/RoleMenuView";
 import type { RoleMenuCreateCommand } from "./RoleMenuCreateCommand";
@@ -135,6 +136,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
     private readonly roleMenuMessageService: RoleMenuMessageService,
+    private readonly roleMenuRepository: RoleMenuRepository,
     private readonly roleMenuCreateCommand: RoleMenuCreateCommand,
     private readonly logger: Logger,
   ) {
@@ -207,7 +209,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     const roles = rolesResult.val;
 
     // Get active menus for this specific menu
-    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+    const activeMessages = await this.roleMenuRepository.getActiveMessages(
       interaction.guildId,
       name,
     );
@@ -354,7 +356,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     }
 
     // Get active messages for confirmation
-    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+    const activeMessages = await this.roleMenuRepository.getActiveMessages(
       interaction.guildId,
       name,
     );
@@ -481,7 +483,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     }
 
     // Check if we've hit the limit of 5 active menus
-    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+    const activeMessages = await this.roleMenuRepository.getActiveMessages(
       interaction.guildId,
       name,
     );

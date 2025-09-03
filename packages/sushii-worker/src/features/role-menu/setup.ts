@@ -56,9 +56,9 @@ export function createRoleMenuServices({ db, logger }: RoleMenuDependencies) {
   );
 
   const roleMenuUpdateService = new RoleMenuUpdateService(
-    roleMenuMessageService,
     roleMenuManagementService,
     roleMenuRoleService,
+    roleMenuRepository,
     logger.child({ module: "roleMenuUpdateService" }),
   );
 
@@ -77,6 +77,7 @@ export function createRoleMenuCommands(
   logger: Logger,
 ) {
   const {
+    roleMenuRepository,
     roleMenuManagementService,
     roleMenuRoleService,
     roleMenuInteractionService,
@@ -87,7 +88,7 @@ export function createRoleMenuCommands(
   const roleMenuCreateCommand = new RoleMenuCreateCommand(
     roleMenuManagementService,
     roleMenuRoleService,
-    roleMenuMessageService,
+    roleMenuRepository,
     roleMenuUpdateService,
     logger.child({ command: "rolemenu.create" }),
   );
@@ -97,6 +98,7 @@ export function createRoleMenuCommands(
       roleMenuManagementService,
       roleMenuRoleService,
       roleMenuMessageService,
+      roleMenuRepository,
       roleMenuCreateCommand,
       logger.child({ commandHandler: "rolemenu" }),
     ),

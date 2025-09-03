@@ -2,10 +2,7 @@ import type { TextChannel } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
-import type {
-  CreateRoleMenuMessageRequest,
-  RoleMenuMessage,
-} from "../domain/entities/RoleMenuMessage";
+import type { CreateRoleMenuMessageRequest } from "../domain/entities/RoleMenuMessage";
 import type { DrizzleRoleMenuRepository } from "../infrastructure/repositories/DrizzleRoleMenuRepository";
 
 export class RoleMenuMessageService {
@@ -49,23 +46,6 @@ export class RoleMenuMessageService {
 
     await this.roleMenuRepository.trackMessage(request);
     return Ok(undefined);
-  }
-
-  async getActiveMenus(
-    guildId: string,
-    menuName: string,
-  ): Promise<RoleMenuMessage[]> {
-    this.logger.debug({ guildId, menuName }, "Getting active menus");
-
-    try {
-      return await this.roleMenuRepository.getActiveMessages(guildId, menuName);
-    } catch (error) {
-      this.logger.error(
-        { err: error, guildId, menuName },
-        "Failed to get active menus",
-      );
-      throw new Error("Failed to get active menus", { cause: error });
-    }
   }
 
   async getActiveMenusWithStatus(guildId: string): Promise<
@@ -116,36 +96,6 @@ export class RoleMenuMessageService {
       throw new Error("Failed to get active menus with status", {
         cause: error,
       });
-    }
-  }
-
-  async markMenuNeedsUpdate(guildId: string, menuName: string): Promise<void> {
-    this.logger.debug({ guildId, menuName }, "Marking menu as needing update");
-
-    try {
-      await this.roleMenuRepository.markMessagesNeedUpdate(guildId, menuName);
-    } catch (error) {
-      this.logger.error(
-        { err: error, guildId, menuName },
-        "Failed to mark menu as needing update",
-      );
-      throw new Error("Failed to mark menu as needing update", {
-        cause: error,
-      });
-    }
-  }
-
-  async markMessagesUpdated(guildId: string, menuName: string): Promise<void> {
-    this.logger.debug({ guildId, menuName }, "Marking messages as updated");
-
-    try {
-      await this.roleMenuRepository.markMessagesUpdated(guildId, menuName);
-    } catch (error) {
-      this.logger.error(
-        { err: error, guildId, menuName },
-        "Failed to mark messages as updated",
-      );
-      throw new Error("Failed to mark messages as updated", { cause: error });
     }
   }
 
@@ -216,27 +166,6 @@ export class RoleMenuMessageService {
         "Failed to remove active menus",
       );
       return Err("Failed to remove active menus");
-    }
-  }
-
-  async removeMessage(
-    guildId: string,
-    menuName: string,
-    messageId: string,
-  ): Promise<void> {
-    this.logger.debug(
-      { guildId, menuName, messageId },
-      "Removing tracked message",
-    );
-
-    try {
-      await this.roleMenuRepository.deleteMessage(guildId, menuName, messageId);
-    } catch (error) {
-      this.logger.error(
-        { err: error, guildId, menuName, messageId },
-        "Failed to remove tracked message",
-      );
-      throw new Error("Failed to remove tracked message", { cause: error });
     }
   }
 }

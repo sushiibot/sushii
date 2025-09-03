@@ -20,11 +20,14 @@ import { Err, Ok, type Result } from "ts-results";
 import parseEmoji from "@/utils/parseEmoji";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
-import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
 import type { RoleMenu } from "../../domain/entities/RoleMenu";
 import type { RoleMenuRole } from "../../domain/entities/RoleMenuRole";
-import type { RoleMenuUpdateService } from "../services/RoleMenuUpdateService";
+import type { RoleMenuRepository } from "../../domain/repositories/RoleMenuRepository";
+import type {
+  RoleMenuUpdateService,
+  UpdateActiveMenusResult,
+} from "../services/RoleMenuUpdateService";
 import {
   ROLE_MENU_BUILDER_CUSTOM_IDS,
   ROLE_MENU_BUILDER_INPUTS,
@@ -52,7 +55,7 @@ export class RoleMenuCreateCommand {
   constructor(
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
-    private readonly roleMenuMessageService: RoleMenuMessageService,
+    private readonly roleMenuRepository: RoleMenuRepository,
     private readonly roleMenuUpdateService: RoleMenuUpdateService,
     private readonly logger: Logger,
   ) {}
@@ -510,7 +513,7 @@ export class RoleMenuCreateCommand {
     isEdit: boolean,
   ): Promise<void> {
     // Get active messages for this menu
-    const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+    const activeMessages = await this.roleMenuRepository.getActiveMessages(
       interaction.guildId,
       menuName,
     );
@@ -552,6 +555,43 @@ export class RoleMenuCreateCommand {
       return;
     }
 
+    // Format the detailed response
+    const result: UpdateActiveMenusResult = updateResult.val;
+    let responseContent = "";
+
+    if (result.updated.length > 0) {
+      responseContent += "**Updated Menus:**\n";
+      for (const menu of result.updated) {
+        responseContent += `- <#${menu.channelId}>: ${menu.url}\n`;
+      }
+      responseContent += "\n";
+    }
+
+    if (result.failed.length > 0) {
+      responseContent += "**Failed to update menus:**\n";
+      for (const menu of result.failed) {
+        responseContent += `- <#${menu.channelId}>: ${menu.url} – **${menu.error}**\n`;
+      }
+
+      responseContent += "\n";
+    }
+
+    if (result.noUpdateNeeded.length > 0) {
+      responseContent += "**No updates were needed:**\n";
+      for (const menu of result.noUpdateNeeded) {
+        responseContent += `- <#${menu.channelId}>: ${menu.url}\n`;
+      }
+      responseContent += "\n";
+    }
+
+    if (
+      result.updated.length === 0 &&
+      result.failed.length === 0 &&
+      result.noUpdateNeeded.length === 0
+    ) {
+      responseContent = "No active menus found to update.";
+    }
+
     // End the editing session
     const sessionKey = `${interaction.guildId}:${menuName}`;
     this.activeSessions.delete(sessionKey);
@@ -589,7 +629,7 @@ export class RoleMenuCreateCommand {
     await interaction.message.edit(disabledMessage);
 
     await interaction.editReply({
-      content: `✅ Updated ${updateResult.val} active menus successfully!`,
+      content: responseContent.trim(),
     });
   }
 
@@ -770,7 +810,7 @@ export class RoleMenuCreateCommand {
     // Mark active menus as needing update when editing
     if (isEdit) {
       try {
-        await this.roleMenuMessageService.markMenuNeedsUpdate(
+        await this.roleMenuRepository.markMessagesNeedUpdate(
           interaction.guildId,
           menuName,
         );
@@ -787,7 +827,7 @@ export class RoleMenuCreateCommand {
     let activeMenuCount = 0;
     if (isEdit) {
       try {
-        const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+        const activeMessages = await this.roleMenuRepository.getActiveMessages(
           interaction.guildId,
           menuName,
         );

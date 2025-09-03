@@ -1,17 +1,39 @@
-import type { Guild, TextChannel } from "discord.js";
+import {
+  DiscordAPIError,
+  type Guild,
+  RESTJSONErrorCodes,
+  type TextChannel,
+} from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
-import type { RoleMenuMessageService } from "../../application/RoleMenuMessageService";
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
+import type { RoleMenuRepository } from "../../domain/repositories/RoleMenuRepository";
 import { createRoleMenuMessage } from "../views/RoleMenuView";
+
+export interface UpdatedMenu {
+  channelId: string;
+  url: string;
+}
+
+export interface FailedMenu {
+  channelId: string;
+  url: string;
+  error: string;
+}
+
+export interface UpdateActiveMenusResult {
+  updated: UpdatedMenu[];
+  failed: FailedMenu[];
+  noUpdateNeeded: UpdatedMenu[];
+}
 
 export class RoleMenuUpdateService {
   constructor(
-    private readonly roleMenuMessageService: RoleMenuMessageService,
     private readonly roleMenuManagementService: RoleMenuManagementService,
     private readonly roleMenuRoleService: RoleMenuRoleService,
+    private readonly roleMenuRepository: RoleMenuRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -20,18 +42,22 @@ export class RoleMenuUpdateService {
     menuName: string,
     channel: TextChannel,
     guild: Guild,
-  ): Promise<Result<number, string>> {
+  ): Promise<Result<UpdateActiveMenusResult, string>> {
     this.logger.debug({ guildId, menuName }, "Updating active menus");
 
     try {
-      // Get active messages from the message service
-      const activeMessages = await this.roleMenuMessageService.getActiveMenus(
+      // Get active messages from the repository
+      const activeMessages = await this.roleMenuRepository.getActiveMessages(
         guildId,
         menuName,
       );
 
       if (activeMessages.length === 0) {
-        return Ok(0);
+        return Ok({
+          updated: [],
+          failed: [],
+          noUpdateNeeded: [],
+        });
       }
 
       // Get menu data once (shared for all messages)
@@ -58,11 +84,13 @@ export class RoleMenuUpdateService {
         return Err("This menu has no roles configured.");
       }
 
-      let updatedCount = 0;
-      const failures: string[] = [];
+      const updated: UpdatedMenu[] = [];
+      const failed: FailedMenu[] = [];
 
       // Update each message
       for (const message of activeMessages) {
+        const messageUrl = `https://discord.com/channels/${guildId}/${message.channelId}/${message.messageId}`;
+
         try {
           // Get the channel where this message was sent
           const messageChannel = await channel.guild.channels.fetch(
@@ -70,9 +98,11 @@ export class RoleMenuUpdateService {
           );
 
           if (!messageChannel?.isTextBased()) {
-            failures.push(
-              `Channel ${message.channelId} not found or not text-based`,
-            );
+            failed.push({
+              channelId: message.channelId,
+              url: messageUrl,
+              error: "Channel not found or not text-based",
+            });
             continue;
           }
 
@@ -96,26 +126,54 @@ export class RoleMenuUpdateService {
             embeds: [menuContent.embed.toJSON()],
             components: menuContent.components.map((c) => c.toJSON()),
           });
-          updatedCount++;
+
+          updated.push({
+            channelId: message.channelId,
+            url: messageUrl,
+          });
         } catch (error) {
+          if (
+            error instanceof DiscordAPIError &&
+            error.code === RESTJSONErrorCodes.UnknownMessage
+          ) {
+            // Message was deleted by user, clean up the database entry silently
+            try {
+              await this.roleMenuRepository.deleteMessage(
+                guildId,
+                menuName,
+                message.messageId,
+              );
+            } catch (deleteError) {
+              this.logger.warn(
+                { err: deleteError, messageId: message.messageId },
+                "Failed to delete orphaned message record",
+              );
+            }
+
+            continue;
+          }
+
           this.logger.warn(
             { err: error, messageId: message.messageId },
             "Failed to update message",
           );
-          failures.push(`Message ${message.messageId}: ${String(error)}`);
+
+          failed.push({
+            channelId: message.channelId,
+            url: messageUrl,
+            error: String(error),
+          });
         }
       }
 
       // Clear needs_update flag for all messages
-      await this.roleMenuMessageService.markMessagesUpdated(guildId, menuName);
+      await this.roleMenuRepository.markMessagesUpdated(guildId, menuName);
 
-      if (failures.length > 0) {
-        return Err(
-          `Updated ${updatedCount}/${activeMessages.length} menus. Failures: ${failures.join(", ")}`,
-        );
-      }
-
-      return Ok(updatedCount);
+      return Ok({
+        updated,
+        failed,
+        noUpdateNeeded: [],
+      });
     } catch (error) {
       this.logger.error(
         { err: error, guildId, menuName },
