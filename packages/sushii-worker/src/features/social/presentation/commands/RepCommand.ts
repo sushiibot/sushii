@@ -5,7 +5,7 @@ import { SlashCommandBuilder } from "discord.js";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { ReputationService } from "../../application";
-import { createRepCooldownEmbed, createRepSuccessEmbed } from "../views";
+import { createRepCooldownMessage, createRepSuccessMessage } from "../views";
 
 export class RepCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -32,16 +32,13 @@ export class RepCommand extends SlashCommandHandler {
         target,
       );
 
-      let embed;
       if (isDayjs(result)) {
-        embed = createRepCooldownEmbed(result);
+        const message = createRepCooldownMessage(result);
+        await interaction.reply(message);
       } else {
-        embed = createRepSuccessEmbed(result, target.username);
+        const message = createRepSuccessMessage(result, target.id);
+        await interaction.reply(message);
       }
-
-      await interaction.reply({
-        embeds: [embed.toJSON()],
-      });
     } catch (error) {
       // Handle self-rep error
       if (error instanceof Error && error.message.includes("yourself")) {

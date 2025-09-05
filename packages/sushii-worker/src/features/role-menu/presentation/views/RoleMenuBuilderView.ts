@@ -59,7 +59,7 @@ export function createRoleMenuBuilderMessage(
 
     // Add section for each role with edit button
     for (const [index, role] of sortedRoles.entries()) {
-      const roleSection = createRoleSection(role, index + 1, guild, state);
+      const roleSection = createRoleSection(role, index + 1, state);
       container.addSectionComponents(roleSection);
     }
 
@@ -177,7 +177,7 @@ function createPermissionWarningsContent(
   // Handle missing Manage Roles permission
   if (!warnings.canManageRoles) {
     warningMessages.push(
-      "- Cannot manage any roles\n> Please add the `Manage Roles` permission",
+      "- Cannot manage any roles\n> **Please add the `Manage Roles` permission**",
     );
   }
 
@@ -199,7 +199,6 @@ function createPermissionWarningsContent(
 function createRoleSection(
   role: RoleMenuRole,
   index: number,
-  _guild: Guild,
   state: RoleMenuBuilderState,
 ): SectionBuilder {
   let content = `${index}. <@&${role.roleId}>`;

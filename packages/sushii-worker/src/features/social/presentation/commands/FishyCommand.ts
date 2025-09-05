@@ -5,7 +5,10 @@ import { SlashCommandBuilder } from "discord.js";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { FishyService } from "../../application";
-import { createFishyCooldownEmbed, createFishySuccessEmbed } from "../views";
+import {
+  createFishyCooldownMessage,
+  createFishySuccessMessage,
+} from "../views";
 
 export class FishyCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -32,16 +35,13 @@ export class FishyCommand extends SlashCommandHandler {
         target,
       );
 
-      let embed;
       if (isDayjs(result)) {
-        embed = createFishyCooldownEmbed(result);
+        const message = createFishyCooldownMessage(result);
+        await interaction.reply(message);
       } else {
-        embed = createFishySuccessEmbed(result, target.username);
+        const message = createFishySuccessMessage(result, target.id);
+        await interaction.reply(message);
       }
-
-      await interaction.reply({
-        embeds: [embed.toJSON()],
-      });
     } catch (error) {
       // Log error for debugging
       console.error("Fishy command error:", error);

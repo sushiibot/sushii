@@ -14,7 +14,6 @@ export function createNotificationEmbed(
 ): EmbedBuilder {
   const description = [
     `${SushiiEmoji.SpeechBubble} mentioned \`${notification.keyword}\` in ${message.url}`,
-    "",
     quoteMarkdownString(message.content),
   ].join("\n");
 
