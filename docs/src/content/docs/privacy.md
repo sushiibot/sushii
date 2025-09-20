@@ -16,7 +16,7 @@ regardless of whether they appear in singular or in plural.
 
 This privacy policy describes how we might use your information if you:
 
-* Visit our website at sushii.xyz;
+* Visit our website at sushii.bot;
 * Use our Discord application(s) (a.k.a. "Discord Bot(s)" — sushiiDev#9734);
 * Engage with us in other related ways ― including any sales, marketing, or events.
 
