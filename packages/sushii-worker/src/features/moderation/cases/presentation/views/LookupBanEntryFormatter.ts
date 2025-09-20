@@ -44,7 +44,7 @@ export function formatBanEntry(
 
   // Only show reason if both guilds opted in
   if (shouldShowDetails && ban.reason) {
-    entry += `\n> ${ban.reason}`;
+    entry += `\n` + escapeMarkdown(ban.reason);
   }
 
   return entry;
