@@ -18,25 +18,27 @@ describe("UserProfile entity", () => {
     expect(profile.getProfileData()).toEqual({});
   });
 
-  test("updates rep and sets last rep timestamp", () => {
+  test("updates rep", () => {
     const profile = UserProfile.createDefault("123456789");
     const newRep = BigInt(100);
 
     const updatedProfile = profile.updateRep(newRep);
 
     expect(updatedProfile.getRep()).toBe(newRep);
-    expect(updatedProfile.getLastRep()).toBeInstanceOf(Date);
+    expect(updatedProfile.getLastRep()).toBeNull(); // Does not set last rep for recipient
+
     expect(profile.getRep()).toBe(BigInt(0)); // Original unchanged
   });
 
-  test("updates fishies and sets last fishies timestamp", () => {
+  test("updates fishies", () => {
     const profile = UserProfile.createDefault("123456789");
     const newFishies = BigInt(50);
 
     const updatedProfile = profile.updateFishies(newFishies);
 
     expect(updatedProfile.getFishies()).toBe(newFishies);
-    expect(updatedProfile.getLastFishies()).toBeInstanceOf(Date);
+    expect(updatedProfile.getLastFishies()).toBeNull(); // Does not set last fishy for recipient
+
     expect(profile.getFishies()).toBe(BigInt(0)); // Original unchanged
   });
 
