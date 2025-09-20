@@ -71,6 +71,7 @@ export class TagAddCommand extends SlashCommandHandler {
           ).toJSON(),
         ],
       });
+
       return;
     }
 
@@ -109,6 +110,7 @@ export class TagAddCommand extends SlashCommandHandler {
             ),
           ],
         });
+
         return;
       }
     }

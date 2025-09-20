@@ -71,7 +71,6 @@ export class UserProfile {
     return new UserProfile({
       ...this.data,
       rep: newRep,
-      lastRep: new Date(),
     });
   }
 
@@ -79,7 +78,6 @@ export class UserProfile {
     return new UserProfile({
       ...this.data,
       fishies: newFishies,
-      lastFishies: new Date(),
     });
   }
 

@@ -119,6 +119,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
             ],
             flags: MessageFlags.Ephemeral,
           });
+
           return;
         } else {
           // Infrastructure error - fatal error for new messages
@@ -162,6 +163,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         ],
         flags: MessageFlags.Ephemeral,
       });
+
       return;
     }
 
