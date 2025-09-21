@@ -24,11 +24,11 @@ export class RankPosition {
   }
 
   getDisplayRank(): string {
-    return this.rank?.toString() ?? "-";
+    return this.rank?.toLocaleString() ?? "-";
   }
 
   getDisplayTotal(): string {
-    return this.totalCount.toString();
+    return this.totalCount.toLocaleString();
   }
 
   getFormattedPosition(): string {
