@@ -1,5 +1,6 @@
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import SushiiEmoji from "@/shared/presentation/SushiiEmoji";
+import { quoteMarkdownString } from "@/utils/markdown";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 /**
@@ -44,7 +45,7 @@ export function formatBanEntry(
 
   // Only show reason if both guilds opted in
   if (shouldShowDetails && ban.reason) {
-    entry += `\n` + escapeMarkdown(ban.reason);
+    entry += `\n` + quoteMarkdownString(ban.reason);
   }
 
   return entry;
