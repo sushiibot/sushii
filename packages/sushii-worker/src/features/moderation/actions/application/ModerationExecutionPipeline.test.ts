@@ -214,7 +214,7 @@ describe("ModerationExecutionPipeline", () => {
       shouldPostToModLog: mock(
         (actionType: ActionType) => actionType === ActionType.Warn,
       ),
-      sendModLog: mock(() => Promise.resolve(Ok.EMPTY)),
+      sendModLog: mock(() => Promise.resolve(Ok("test-message-id"))),
     };
 
     mockDMPolicyService = {

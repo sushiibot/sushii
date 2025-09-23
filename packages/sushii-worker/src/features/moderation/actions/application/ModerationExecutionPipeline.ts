@@ -478,6 +478,39 @@ export class ModerationExecutionPipeline {
           "Failed to send mod log",
         );
         // Don't fail the operation, just log the warning
+      } else {
+        // Save the message ID to the database
+        const messageId = modLogResult.val;
+        const updateResult = await this.modLogRepository.updateMessageId(
+          action.guildId,
+          moderationCase.caseId,
+          messageId,
+        );
+
+        if (updateResult.err) {
+          this.logger.warn(
+            {
+              actionType: finalActionType,
+              targetId: target.id,
+              guildId: action.guildId,
+              caseId: moderationCase.caseId,
+              messageId,
+              error: updateResult.val,
+            },
+            "Failed to save mod log message ID to database",
+          );
+        } else {
+          this.logger.debug(
+            {
+              actionType: finalActionType,
+              targetId: target.id,
+              guildId: action.guildId,
+              caseId: moderationCase.caseId,
+              messageId,
+            },
+            "Successfully saved mod log message ID to database",
+          );
+        }
       }
     }
   }

@@ -16,14 +16,14 @@ export interface ModLogService {
    * @param actionType - The type of moderation action
    * @param target - The target user of the moderation action
    * @param moderationCase - The moderation case to post
-   * @returns Result indicating success or failure
+   * @returns Result with the posted message ID or failure message
    */
   sendModLog(
     guildId: string,
     actionType: ActionType,
     target: ModerationTarget,
     moderationCase: ModerationCase,
-  ): Promise<Result<void, string>>;
+  ): Promise<Result<string, string>>;
 
   /**
    * Checks if the given action type should be posted to mod log channels.

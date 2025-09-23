@@ -28,11 +28,11 @@ export class DiscordModLogService implements ModLogService {
     actionType: ActionType,
     target: ModerationTarget,
     moderationCase: ModerationCase,
-  ): Promise<Result<void, string>> {
+  ): Promise<Result<string, string>> {
     try {
       // Check if this action type should be posted
       if (!this.shouldPostToModLog(actionType)) {
-        return Ok.EMPTY;
+        return Err("Action type not configured for mod log posting");
       }
 
       // Get guild configuration for mod log channel
@@ -47,7 +47,7 @@ export class DiscordModLogService implements ModLogService {
           { guildId, actionType },
           "Mod log not enabled or channel not configured",
         );
-        return Ok.EMPTY;
+        return Err("Mod log not enabled or channel not configured");
       }
 
       // Build the mod log embed and components
@@ -83,7 +83,7 @@ export class DiscordModLogService implements ModLogService {
         return Err("Mod log channel not found or not text-based");
       }
 
-      await modLogChannel.send({
+      const sentMessage = await modLogChannel.send({
         embeds: [embed],
         components,
       });
@@ -95,11 +95,12 @@ export class DiscordModLogService implements ModLogService {
           targetId: target.id,
           caseId: moderationCase.caseId,
           channelId: modLogChannel.id,
+          messageId: sentMessage.id,
         },
         "Posted moderation action to mod log channel",
       );
 
-      return Ok.EMPTY;
+      return Ok(sentMessage.id);
     } catch (error) {
       this.logger.error(
         {
