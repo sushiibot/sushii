@@ -36,10 +36,14 @@ export class TagGetAutocomplete extends AutocompleteHandler {
     });
 
     // searchTag already limits to 25, but just to be safe
-    const choices = tags.slice(0, 25).map((tag) => ({
-      name: tag.getName().getValue(),
-      value: tag.getName().getValue(),
-    }));
+    const choices = tags
+      // Might have some legacy tags that are over 100 chars, so just filter them out
+      .filter((t) => t.getName().getValue().length <= 100)
+      .slice(0, 25)
+      .map((tag) => ({
+        name: tag.getName().getValue(),
+        value: tag.getName().getValue(),
+      }));
 
     await interaction.respond(choices);
   }
