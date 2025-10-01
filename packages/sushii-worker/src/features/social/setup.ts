@@ -8,15 +8,25 @@ import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import {
   CooldownService,
+  FishyLeaderboardService,
   FishyService,
+  RepLeaderboardService,
   ReputationService,
 } from "./application";
-import { FishyCommand, RepCommand } from "./presentation/commands";
+import { DrizzleSocialLeaderboardRepository } from "./infrastructure";
+import {
+  FishyCommand,
+  FishyLeaderboardCommand,
+  RepCommand,
+  RepLeaderboardCommand,
+} from "./presentation/commands";
 
 interface SocialFeatureServices {
   cooldownService: CooldownService;
   fishyService: FishyService;
   reputationService: ReputationService;
+  getRepLeaderboardService: RepLeaderboardService;
+  getFishyLeaderboardService: FishyLeaderboardService;
 }
 
 interface SetupParams {
@@ -30,8 +40,11 @@ export function setupSocialFeature({
   client: _client,
   logger: _logger,
 }: SetupParams): FullFeatureSetupReturn<SocialFeatureServices> {
-  // Import user profile repository
+  // Import repositories
   const userProfileRepository = new DrizzleUserProfileRepository(db);
+  const socialLeaderboardRepository = new DrizzleSocialLeaderboardRepository(
+    db,
+  );
 
   // Create services
   const cooldownService = new CooldownService();
@@ -40,18 +53,39 @@ export function setupSocialFeature({
     userProfileRepository,
     cooldownService,
   );
+  const getRepLeaderboardService = new RepLeaderboardService(
+    socialLeaderboardRepository,
+    userProfileRepository,
+  );
+  const getFishyLeaderboardService = new FishyLeaderboardService(
+    socialLeaderboardRepository,
+    userProfileRepository,
+  );
 
   // Create commands
   const fishyCommand = new FishyCommand(fishyService);
   const repCommand = new RepCommand(reputationService);
+  const repLeaderboardCommand = new RepLeaderboardCommand(
+    getRepLeaderboardService,
+  );
+  const fishyLeaderboardCommand = new FishyLeaderboardCommand(
+    getFishyLeaderboardService,
+  );
 
   return {
     services: {
       cooldownService,
       fishyService,
       reputationService,
+      getRepLeaderboardService,
+      getFishyLeaderboardService,
     },
-    commands: [fishyCommand, repCommand],
+    commands: [
+      fishyCommand,
+      repCommand,
+      repLeaderboardCommand,
+      fishyLeaderboardCommand,
+    ],
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
