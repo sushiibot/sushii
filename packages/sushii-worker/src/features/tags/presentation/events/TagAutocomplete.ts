@@ -39,10 +39,13 @@ export class TagAutocomplete extends AutocompleteHandler {
         option.value,
       );
 
-      const choices = tags.slice(0, 25).map((tag) => ({
-        name: tag.getName().getValue(),
-        value: tag.getName().getValue(),
-      }));
+      const choices = tags
+        .slice(0, 25)
+        .filter((t) => t.getName().getValue().length <= 100)
+        .map((tag) => ({
+          name: tag.getName().getValue(),
+          value: tag.getName().getValue(),
+        }));
 
       await interaction.respond(choices || []);
     } catch (error) {
