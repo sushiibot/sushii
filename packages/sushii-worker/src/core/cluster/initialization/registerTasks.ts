@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { CronJob } from "cron";
 import type { Client } from "discord.js";
 

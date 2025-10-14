@@ -40,7 +40,7 @@ const pinoLoggerMiddleware: MiddlewareHandler = async (c, next) => {
   logger.debug(log, message);
 };
 
-function createHealthServer(manager: ClusterManager): Server {
+function createHealthServer(manager: ClusterManager): Server<unknown> {
   const app = new Hono();
 
   // Middleware
@@ -94,7 +94,7 @@ interface MetricsBindings {
 function createMonitoringServer(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
-): Server {
+): Server<unknown> {
   const app = new Hono<{ Bindings: MetricsBindings }>();
 
   // Middleware
@@ -142,7 +142,7 @@ function createMonitoringServer(
 export default function server(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
-): Server[] {
+): Server<unknown>[] {
   const healthServer = createHealthServer(manager);
   const monitoringServer = createMonitoringServer(manager, commands);
 

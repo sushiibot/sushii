@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
-    "types": ["bun-types"],
-    "target": "esnext",
-    "module": "esnext",
-    "moduleResolution": "node",
     "lib": ["esnext"],
+    "target": "esnext",
+    "module": "Preserve",
+    "moduleResolution": "node",
     "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

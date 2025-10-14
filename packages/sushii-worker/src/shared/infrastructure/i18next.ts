@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import i18next from "i18next";
 import Backend from "i18next-fs-backend";
 

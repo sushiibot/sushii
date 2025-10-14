@@ -1,6 +1,6 @@
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import {
   defaultResource,
   resourceFromAttributes,
