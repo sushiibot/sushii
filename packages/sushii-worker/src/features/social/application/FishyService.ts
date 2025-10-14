@@ -55,7 +55,7 @@ export class FishyService {
     const newFishies = targetProfile.getFishies() + BigInt(caughtAmount);
 
     // Update target's fishies (always gets the fish)
-    const updatedTarget = targetProfile.updateFishies(newFishies);
+    let updatedTarget = targetProfile.updateFishies(newFishies);
 
     // Handle timestamp updates based on whether invoker is same as target
     if (invoker.id !== target.id) {
@@ -66,7 +66,8 @@ export class FishyService {
         this.userProfileRepository.save(updatedInvoker),
       ]);
     } else {
-      // Same user: the updateFishies already updated the timestamp
+      // Same user: update invoker/target's timestamp
+      updatedTarget = updatedTarget.updateLastFishiesTimestamp();
       await this.userProfileRepository.save(updatedTarget);
     }
 
