@@ -48,6 +48,8 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
 
+  POSTHOG_API_KEY: z.string().optional(),
+
   // Tracing
   TRACING_EXPORTER_URL: z.string().optional(),
   TRACING_SAMPLE_PERCENTAGE: z

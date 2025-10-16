@@ -40,7 +40,7 @@ export function uncaseSuccessView(
         result.deletedMessageIds.length > 0
           ? `${result.deletedMessageIds.length} messages`
           : "No messages to delete",
-      inline: true,
+      inline: false,
     });
   }
 
@@ -48,7 +48,7 @@ export function uncaseSuccessView(
     fields.push({
       name: "Reason DMs Deleted",
       value: `${result.deletedDMCount} DM${result.deletedDMCount === 1 ? "" : "s"}`,
-      inline: true,
+      inline: false,
     });
   }
 

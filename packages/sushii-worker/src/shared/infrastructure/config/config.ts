@@ -131,6 +131,7 @@ export class Config {
     dsn?: string;
     environment: string;
   };
+  readonly posthogAPIKey?: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
@@ -189,6 +190,8 @@ export class Config {
           ? "production"
           : "development",
     };
+
+    this.posthogAPIKey = env.POSTHOG_API_KEY;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;
