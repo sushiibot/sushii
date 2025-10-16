@@ -44,6 +44,14 @@ export function uncaseSuccessView(
     });
   }
 
+  if (result.deletedDMCount > 0) {
+    fields.push({
+      name: "Reason DMs Deleted",
+      value: `${result.deletedDMCount} DM${result.deletedDMCount === 1 ? "" : "s"}`,
+      inline: true,
+    });
+  }
+
   return {
     title: `Deleted ${result.affectedCount} case${result.affectedCount === 1 ? "" : "s"}`,
     fields,

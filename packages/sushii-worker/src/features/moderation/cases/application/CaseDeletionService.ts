@@ -14,6 +14,7 @@ import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 export interface CaseDeletionResult {
   deletedCases: ModerationCase[];
   deletedMessageIds: string[];
+  deletedDMCount: number;
   affectedCount: number;
 }
 
@@ -150,9 +151,28 @@ export class CaseDeletionService {
         );
       }
 
+      // Collect DM results for deletion
+      const dmResults = deletedCases
+        .map((case_) => case_.dmResult)
+        // Filter for only actually sent DMs
+        .filter(
+          (
+            dmResult,
+          ): dmResult is { channelId: string; messageId: string } =>
+            dmResult?.channelId !== undefined &&
+            dmResult?.messageId !== undefined,
+        );
+
+      let deletedDMCount = 0;
+
+      if (dmResults.length > 0) {
+        deletedDMCount = await this.deleteReasonDMs(dmResults);
+      }
+
       return Ok({
         deletedCases,
         deletedMessageIds,
+        deletedDMCount,
         affectedCount: deletedCases.length,
       });
     });
@@ -224,6 +244,39 @@ export class CaseDeletionService {
       );
       return [];
     }
+  }
+
+  private async deleteReasonDMs(
+    dmResults: { channelId: string; messageId: string }[],
+  ): Promise<number> {
+    let deletedCount = 0;
+
+    for (const { channelId, messageId } of dmResults) {
+      try {
+        const dmChannel = await this.client.channels.fetch(channelId);
+
+        if (!dmChannel || !dmChannel.isDMBased() || !dmChannel.isTextBased()) {
+          this.logger.debug(
+            { channelId, messageId },
+            "DM channel not found or is not text-based",
+          );
+          continue;
+        }
+
+        await dmChannel.messages.delete(messageId);
+        deletedCount++;
+
+        this.logger.debug({ channelId, messageId }, "Deleted reason DM");
+      } catch (error) {
+        // Ignore errors - DM may already be deleted or user may have blocked bot
+        this.logger.debug(
+          { error, channelId, messageId },
+          "Failed to delete reason DM (may already be deleted)",
+        );
+      }
+    }
+
+    return deletedCount;
   }
 
   private chunkArray<T>(array: T[], size: number): T[][] {
