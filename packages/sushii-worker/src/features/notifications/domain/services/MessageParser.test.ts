@@ -30,4 +30,18 @@ describe("MessageParser", () => {
 
     expect(contains).toBe(false);
   });
+
+  test("extracts 2-character keywords", () => {
+    const keywords = extractKeywords("Hey r2 how are you?");
+
+    expect(keywords).toContain("r2");
+    expect(keywords).toContain("hey");
+    expect(keywords).toContain("how");
+  });
+
+  test("detects 2-character keyword in message", () => {
+    const contains = containsKeyword("Hey r2 how are you?", "r2");
+
+    expect(contains).toBe(true);
+  });
 });

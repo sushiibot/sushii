@@ -10,8 +10,8 @@ export class Notification {
   private validateKeyword(keyword: string): void {
     const cleaned = keyword.toLowerCase().trim();
 
-    if (cleaned.length < 3) {
-      throw new Error("Keyword must be at least 3 characters long");
+    if (cleaned.length < 2) {
+      throw new Error("Keyword must be at least 2 characters long");
     }
 
     if (cleaned.length > 100) {

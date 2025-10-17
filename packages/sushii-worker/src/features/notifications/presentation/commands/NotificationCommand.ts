@@ -44,7 +44,7 @@ export class NotificationCommand extends SlashCommandHandler {
             .setName("keyword")
             .setDescription("The keyword to notify you when mentioned.")
             .setRequired(true)
-            .setMinLength(3)
+            .setMinLength(2)
             .setMaxLength(100),
         ),
     )
