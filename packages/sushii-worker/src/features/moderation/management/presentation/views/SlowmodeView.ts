@@ -11,13 +11,16 @@ export function slowmodeErrorView(error: string): APIEmbed {
   };
 }
 
-export function slowmodeSuccessView(result: SlowmodeUpdateResult): APIEmbed {
+export function slowmodeSuccessView(
+  channelId: string,
+  result: SlowmodeUpdateResult,
+): APIEmbed {
   return {
     title: "Updated slowmode",
     fields: [
       {
         name: "Channel",
-        value: `<#${result.channelId}>`,
+        value: `<#${channelId}>`,
         inline: true,
       },
       {

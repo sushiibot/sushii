@@ -63,7 +63,6 @@ import { DMNotificationService } from "./shared/application";
 // Shared components
 import { TimeoutDetectionService } from "./shared/domain/services/TimeoutDetectionService";
 import {
-  DiscordChannelService,
   DiscordModLogService,
   DiscordPermissionValidationService,
   DrizzleModLogRepository,
@@ -164,13 +163,7 @@ export function createModerationServices({
     logger.child({ module: "tempBanListService" }),
   );
 
-  const channelService = new DiscordChannelService(
-    client,
-    logger.child({ module: "channelService" }),
-  );
-
   const slowmodeService = new SlowmodeService(
-    channelService,
     logger.child({ module: "slowmodeService" }),
   );
 
@@ -228,7 +221,6 @@ export function createModerationServices({
     historyUserService,
     targetResolutionService,
     tempBanListService,
-    channelService,
     slowmodeService,
     pruneMessageService,
     caseDeletionService,

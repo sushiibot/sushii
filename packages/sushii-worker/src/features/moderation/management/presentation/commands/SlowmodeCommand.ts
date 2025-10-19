@@ -1,6 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
-  ChannelType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
@@ -62,13 +61,22 @@ export class SlowmodeCommand extends SlashCommandHandler {
     const channelOption = interaction.options.getChannel(
       SlowmodeOption.ChannelOption,
       false,
-      [ChannelType.GuildText],
     );
 
     const targetChannel = channelOption || interaction.channel;
 
     if (!targetChannel) {
       throw new Error("Missing channel");
+    }
+
+    // Validate that this is a text-based channel that supports slowmode
+    if (!targetChannel.isTextBased()) {
+      await interaction.reply({
+        embeds: [slowmodeErrorView("Channel must be a text based channel")],
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
     }
 
     this.logger.debug(
@@ -81,7 +89,7 @@ export class SlowmodeCommand extends SlashCommandHandler {
     );
 
     const updateResult = await this.slowmodeService.updateSlowmode(
-      targetChannel.id,
+      targetChannel,
       durationStr,
     );
 
@@ -107,15 +115,15 @@ export class SlowmodeCommand extends SlashCommandHandler {
     const result = updateResult.val;
 
     await interaction.reply({
-      embeds: [slowmodeSuccessView(result)],
+      embeds: [slowmodeSuccessView(targetChannel.id, result)],
       flags: MessageFlags.Ephemeral,
     });
 
     this.logger.info(
       {
         guildId: interaction.guildId,
-        channelId: result.channelId,
-        channelName: result.channelName,
+        channelId: targetChannel.id,
+        channelName: targetChannel.name,
         previousSeconds: result.previousSlowmode.asSeconds,
         newSeconds: result.newSlowmode.asSeconds,
         executorId: interaction.user.id,

@@ -1,34 +1,33 @@
+import type { GuildTextBasedChannel } from "discord.js";
+import { DiscordAPIError } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type { ChannelService } from "../../shared/domain/services/ChannelService";
 import { ChannelSlowmode } from "../../shared/domain/value-objects/ChannelSlowmode";
 
 export interface SlowmodeUpdateResult {
-  channelId: string;
-  channelName: string;
   previousSlowmode: ChannelSlowmode;
   newSlowmode: ChannelSlowmode;
 }
 
 export class SlowmodeService {
-  constructor(
-    private readonly channelService: ChannelService,
-    private readonly logger: Logger,
-  ) {}
+  constructor(private readonly logger: Logger) {}
 
   async updateSlowmode(
-    channelId: string,
+    channel: GuildTextBasedChannel,
     durationStr: string,
   ): Promise<Result<SlowmodeUpdateResult, string>> {
-    this.logger.debug({ channelId, durationStr }, "Updating channel slowmode");
+    this.logger.debug(
+      { channelId: channel.id, durationStr },
+      "Updating channel slowmode",
+    );
 
     // Parse and validate the duration
     const slowmodeResult = ChannelSlowmode.fromString(durationStr);
     if (slowmodeResult.err) {
       this.logger.warn(
-        { channelId, durationStr, error: slowmodeResult.val },
+        { channelId: channel.id, durationStr, error: slowmodeResult.val },
         "Invalid slowmode duration",
       );
       return slowmodeResult;
@@ -36,102 +35,50 @@ export class SlowmodeService {
 
     const newSlowmode = slowmodeResult.val;
 
-    // Check if channel exists
-    const channelExistsResult = await this.channelService.exists(channelId);
-    if (channelExistsResult.err) {
-      return channelExistsResult;
-    }
-
-    if (!channelExistsResult.val) {
-      return Err("Channel not found");
-    }
-
     // Get current slowmode for comparison
-    const currentSlowmodeResult =
-      await this.channelService.getSlowmode(channelId);
-    if (currentSlowmodeResult.err) {
-      return currentSlowmodeResult;
-    }
-
-    const previousSlowmode = currentSlowmodeResult.val;
-
-    // Get channel name for result
-    const channelNameResult =
-      await this.channelService.getChannelName(channelId);
-    if (channelNameResult.err) {
-      return channelNameResult;
-    }
-
-    const channelName = channelNameResult.val;
-
-    // Update the slowmode
-    const updateResult = await this.channelService.setSlowmode(
-      channelId,
-      newSlowmode,
+    const previousSlowmodeResult = ChannelSlowmode.fromSeconds(
+      channel.rateLimitPerUser || 0,
     );
-    if (updateResult.err) {
-      this.logger.error(
-        { channelId, error: updateResult.val },
-        "Failed to update channel slowmode",
+    if (previousSlowmodeResult.err) {
+      return Err(previousSlowmodeResult.val);
+    }
+
+    const previousSlowmode = previousSlowmodeResult.val;
+
+    // Actually update the slowmode now
+    try {
+      await channel.edit({
+        rateLimitPerUser: newSlowmode.asSeconds,
+      });
+
+      this.logger.info(
+        {
+          channelId: channel.id,
+          channelName: channel.name,
+          previousSeconds: previousSlowmode.asSeconds,
+          newSeconds: newSlowmode.asSeconds,
+        },
+        "Successfully updated channel slowmode",
       );
-      return updateResult;
+
+      return Ok({
+        previousSlowmode,
+        newSlowmode,
+      });
+    } catch (error) {
+      if (error instanceof DiscordAPIError) {
+        this.logger.warn(
+          { err: error, channelId: channel.id },
+          "Discord API error updating slowmode",
+        );
+        return Err(`Failed to update slowmode: ${error.message}`);
+      }
+
+      this.logger.error(
+        { err: error, channelId: channel.id },
+        "Unexpected error updating slowmode",
+      );
+      return Err("Unexpected error updating slowmode");
     }
-
-    this.logger.info(
-      {
-        channelId,
-        channelName,
-        previousSeconds: previousSlowmode.asSeconds,
-        newSeconds: newSlowmode.asSeconds,
-      },
-      "Successfully updated channel slowmode",
-    );
-
-    return Ok({
-      channelId,
-      channelName,
-      previousSlowmode,
-      newSlowmode,
-    });
-  }
-
-  async getCurrentSlowmode(
-    channelId: string,
-  ): Promise<
-    Result<
-      { channelId: string; channelName: string; slowmode: ChannelSlowmode },
-      string
-    >
-  > {
-    this.logger.debug({ channelId }, "Getting current channel slowmode");
-
-    // Check if channel exists
-    const channelExistsResult = await this.channelService.exists(channelId);
-    if (channelExistsResult.err) {
-      return channelExistsResult;
-    }
-
-    if (!channelExistsResult.val) {
-      return Err("Channel not found");
-    }
-
-    // Get current slowmode
-    const slowmodeResult = await this.channelService.getSlowmode(channelId);
-    if (slowmodeResult.err) {
-      return slowmodeResult;
-    }
-
-    // Get channel name
-    const channelNameResult =
-      await this.channelService.getChannelName(channelId);
-    if (channelNameResult.err) {
-      return channelNameResult;
-    }
-
-    return Ok({
-      channelId,
-      channelName: channelNameResult.val,
-      slowmode: slowmodeResult.val,
-    });
   }
 }
