@@ -1,5 +1,6 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type {  ChatInputCommandInteraction } from "discord.js";
 import {
+  ChannelType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
@@ -36,6 +37,15 @@ export class SlowmodeCommand extends SlashCommandHandler {
         .setName(SlowmodeOption.ChannelOption)
         .setDescription(
           "Channel to set slowmode for. Defaults to the current channel.",
+        )
+        .addChannelTypes(
+          ChannelType.GuildText,
+          ChannelType.GuildAnnouncement,
+          ChannelType.AnnouncementThread,
+          ChannelType.PublicThread,
+          ChannelType.PrivateThread,
+          ChannelType.GuildVoice,
+          ChannelType.GuildStageVoice,
         )
         .setRequired(false),
     )
