@@ -6,13 +6,6 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 WORKDIR /usr/proxy-container
 
-# Install build dependencies for native modules (zlib-sync)
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install dependencies
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
