@@ -57,13 +57,12 @@ export class DrizzleNotificationRepository implements NotificationRepository {
         ),
       );
 
-    return rows.map(
-      (row) =>
-        new Notification(
-          row.guildId.toString(),
-          row.userId.toString(),
-          row.keyword,
-        ),
+    return rows.map((row) =>
+      Notification.fromDatabase(
+        row.guildId.toString(),
+        row.userId.toString(),
+        row.keyword,
+      ),
     );
   }
 
@@ -85,7 +84,7 @@ export class DrizzleNotificationRepository implements NotificationRepository {
       .limit(1);
 
     return row.length > 0
-      ? new Notification(
+      ? Notification.fromDatabase(
           row[0].guildId.toString(),
           row[0].userId.toString(),
           row[0].keyword,
@@ -112,13 +111,12 @@ export class DrizzleNotificationRepository implements NotificationRepository {
       )
       .limit(25);
 
-    return rows.map(
-      (row) =>
-        new Notification(
-          row.guildId.toString(),
-          row.userId.toString(),
-          row.keyword,
-        ),
+    return rows.map((row) =>
+      Notification.fromDatabase(
+        row.guildId.toString(),
+        row.userId.toString(),
+        row.keyword,
+      ),
     );
   }
 
@@ -198,13 +196,12 @@ export class DrizzleNotificationRepository implements NotificationRepository {
         ),
       );
 
-    return rows.map(
-      (row) =>
-        new Notification(
-          row.guildId.toString(),
-          row.userId.toString(),
-          row.keyword,
-        ),
+    return rows.map((row) =>
+      Notification.fromDatabase(
+        row.guildId.toString(),
+        row.userId.toString(),
+        row.keyword,
+      ),
     );
   }
 

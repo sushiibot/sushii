@@ -1,10 +1,13 @@
 export class Notification {
-  constructor(
+  private constructor(
     public readonly guildId: string,
     public readonly userId: string,
     public readonly keyword: string,
+    skipValidation: boolean = false,
   ) {
-    this.validateKeyword(keyword);
+    if (!skipValidation) {
+      this.validateKeyword(keyword);
+    }
   }
 
   private validateKeyword(keyword: string): void {
@@ -28,6 +31,14 @@ export class Notification {
     userId: string,
     keyword: string,
   ): Notification {
-    return new Notification(guildId, userId, keyword);
+    return new Notification(guildId, userId, keyword, false);
+  }
+
+  static fromDatabase(
+    guildId: string,
+    userId: string,
+    keyword: string,
+  ): Notification {
+    return new Notification(guildId, userId, keyword, true);
   }
 }
