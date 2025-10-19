@@ -4,9 +4,12 @@ LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii
 LABEL org.opencontainers.image.description="sushii bot"
 LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
-# Install curl
+# Install curl and build dependencies for native modules
 RUN apt-get update && apt-get install -y \
   curl \
+  python3 \
+  python3-dev \
+  build-essential \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /config
