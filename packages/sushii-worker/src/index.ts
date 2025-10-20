@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   );
 
   // Start metrics and healthcheck server (runs only in main process)
-  const servers = server(manager, []);
+  const servers = server(manager, [], deploymentService);
 
   registerShutdownSignals(async () => {
     log.info("shutting down ShardingManager");
