@@ -360,7 +360,26 @@ export default class InteractionRouter {
       await command.handler(interaction);
     } catch (e) {
       const invoker = interaction.user;
-      log.error(e, "error running command %s", interaction.commandName);
+
+      // Extract validation error details if available
+      const validationError = validationErrorToString(e);
+
+      if (validationError) {
+        // Log detailed validation error information using shapeshift's built-in toJSON()
+        log.error(
+          {
+            err: e,
+            command: getFullCommandName(interaction),
+            guildId: interaction.guildId,
+            userId: interaction.user.id,
+            validationError,
+          },
+          "Validation error in command %s",
+          interaction.commandName,
+        );
+      } else {
+        log.error(e, "error running command %s", interaction.commandName);
+      }
 
       Sentry.withScope((scope) => {
         scope.addAttachment({
@@ -375,6 +394,15 @@ export default class InteractionRouter {
           contentType: "application/json",
         });
 
+        // Add detailed validation error attachment if available
+        if (validationError) {
+          scope.addAttachment({
+            filename: "validationError.json",
+            data: JSON.stringify(validationError, null, 2),
+            contentType: "application/json",
+          });
+        }
+
         Sentry.captureException(e, {
           user: {
             id: invoker.id,
@@ -386,7 +414,7 @@ export default class InteractionRouter {
           },
           contexts: {
             validationError: {
-              value: validationErrorToString(e),
+              value: validationError,
             },
           },
         });
