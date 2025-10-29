@@ -1,48 +1,78 @@
 import { BaseError, CombinedPropertyError } from "@sapphire/shapeshift";
 
+interface ErrorDetail {
+  name: string;
+  message: string;
+  validator?: string;
+  given?: unknown;
+  expected?: unknown;
+}
+
 interface ValidationError {
   name: string;
   message: string;
   stack?: string;
-  // Use built-in toJSON() result from shapeshift errors
-  jsonified?: unknown;
+  // Direct property access for better error details
+  validator?: string;
+  given?: unknown;
+  expected?: unknown;
   // For CombinedPropertyError
-  propertyErrors?: { property: PropertyKey; error: unknown }[];
+  propertyErrors?: { property: PropertyKey; error: ErrorDetail }[];
   // For generic CombinedError from Discord.js
-  aggregateErrors?: unknown[];
+  aggregateErrors?: ErrorDetail[];
 }
 
 /**
- * Extract detailed validation error information using shapeshift's built-in toJSON() methods.
- * All shapeshift errors (BaseError, ValidationError, etc.) have a toJSON() method that
- * provides structured error details including validator, expected, given, and constraint info.
+ * Extract detailed validation error information by directly accessing error properties.
+ * Based on shapeshift source: https://github.com/sapphiredev/shapeshift/tree/main/src/lib/errors
+ *
+ * ValidationError has: validator, given, message
+ * ExpectedValidationError has: validator, given, expected, message
  */
 export default function validationErrorToString(
   err: unknown,
 ): ValidationError | undefined {
-  // Validation errors from @sapphire/shapeshift - these all have toJSON() methods
+  // Validation errors from @sapphire/shapeshift
   if (err instanceof BaseError) {
-    // BaseError has toJSON() but it's not in the type definitions for v3.9.7
-    const errorWithToJSON = err as BaseError & {
-      toJSON: () => unknown;
+    // Access properties directly from the error object
+    const errorWithProps = err as BaseError & {
+      validator?: string;
+      given?: unknown;
+      expected?: unknown;
     };
 
     const result: ValidationError = {
       name: err.name,
       message: err.message,
       stack: err.stack,
-      jsonified: errorWithToJSON.toJSON(), // Use built-in toJSON() method
+      // Access properties directly instead of relying on toJSON
+      validator: errorWithProps.validator,
+      given: errorWithProps.given,
+      expected: errorWithProps.expected,
     };
 
     // Handle CombinedPropertyError specially to extract property paths
     if (err instanceof CombinedPropertyError) {
-      result.propertyErrors = err.errors.map(([property, error]) => ({
-        property,
-        error:
-          error instanceof BaseError
-            ? (error as BaseError & { toJSON: () => unknown }).toJSON() // Use toJSON() for nested errors too
+      result.propertyErrors = err.errors.map(([property, error]) => {
+        const nestedError = error as BaseError & {
+          validator?: string;
+          given?: unknown;
+          expected?: unknown;
+        };
+
+        return {
+          property,
+          error: error instanceof BaseError
+            ? {
+                name: error.name,
+                message: error.message,
+                validator: nestedError.validator,
+                given: nestedError.given,
+                expected: nestedError.expected,
+              }
             : { name: String(error), message: String(error) },
-      }));
+        };
+      });
     }
 
     return result;
@@ -62,13 +92,29 @@ export default function validationErrorToString(
       aggregateErrors?: unknown[];
     };
 
-    // Try to jsonify aggregate errors if they're BaseErrors
-    const jsonifiedAggregateErrors = combinedErr.aggregateErrors?.map(
-      (aggErr) => {
+    // Extract details from aggregate errors
+    const detailedAggregateErrors = combinedErr.aggregateErrors?.map(
+      (aggErr): ErrorDetail => {
         if (aggErr instanceof BaseError) {
-          return (aggErr as BaseError & { toJSON: () => unknown }).toJSON();
+          const baseErr = aggErr as BaseError & {
+            validator?: string;
+            given?: unknown;
+            expected?: unknown;
+          };
+
+          return {
+            name: baseErr.name,
+            message: baseErr.message,
+            validator: baseErr.validator,
+            given: baseErr.given,
+            expected: baseErr.expected,
+          };
         }
-        return aggErr;
+        // Fallback for non-BaseError aggregates
+        return {
+          name: String(aggErr),
+          message: String(aggErr),
+        };
       },
     );
 
@@ -76,7 +122,7 @@ export default function validationErrorToString(
       name: combinedErr.name,
       message: combinedErr.message,
       stack: combinedErr.stack,
-      aggregateErrors: jsonifiedAggregateErrors,
+      aggregateErrors: detailedAggregateErrors,
     };
   }
 }
