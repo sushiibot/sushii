@@ -47,6 +47,7 @@ interface RoleMenuEditSession {
   channelId: string;
   messageId: string;
   startTime: Date;
+  currentPage?: number;
 }
 
 export class RoleMenuCreateCommand {
@@ -326,6 +327,10 @@ export class RoleMenuCreateCommand {
         return this.handleSetMaxRolesButton(interaction, menuName, isEdit);
       case ROLE_MENU_BUILDER_CUSTOM_IDS.FINISH_AND_UPDATE:
         return this.handleFinishAndUpdateButton(interaction, menuName, isEdit);
+      case ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_PREV:
+        return this.handlePageNavigationButton(interaction, menuName, isEdit, "prev");
+      case ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_NEXT:
+        return this.handlePageNavigationButton(interaction, menuName, isEdit, "next");
       default:
         // Handle role edit buttons (format: edit_role_options:roleId)
         if (
@@ -752,6 +757,90 @@ export class RoleMenuCreateCommand {
     await this.refreshBuilderMessage(interaction, menuName, isEdit);
   }
 
+  private async handlePageNavigationButton(
+    interaction: ButtonInteraction<"cached">,
+    menuName: string,
+    isEdit: boolean,
+    direction: "prev" | "next",
+  ): Promise<void> {
+    // Get current menu data
+    const menuDataResult = await this.getMenuData(
+      interaction.guildId,
+      menuName,
+    );
+    if (menuDataResult.err) {
+      await interaction.reply({
+        content: menuDataResult.val,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const { menu, roles } = menuDataResult.val;
+
+    // Calculate pagination
+    const ROLES_PER_PAGE = 15;
+    const totalPages = Math.ceil(roles.length / ROLES_PER_PAGE);
+
+    // Get current page from session or default to 0
+    const sessionKey = `${interaction.guildId}:${menuName}`;
+    const session = this.activeSessions.get(sessionKey);
+    const currentPage = session?.currentPage ?? 0;
+
+    // Update page number
+    const newPage = direction === "prev"
+      ? Math.max(0, currentPage - 1)
+      : Math.min(totalPages - 1, currentPage + 1);
+
+    // Update session with new page
+    if (session) {
+      session.currentPage = newPage;
+    }
+
+    // Get active menu count for display
+    let activeMenuCount = 0;
+    if (isEdit) {
+      try {
+        const activeMessages = await this.roleMenuRepository.getActiveMessages(
+          interaction.guildId,
+          menuName,
+        );
+
+        activeMenuCount = activeMessages.length;
+      } catch (error) {
+        this.logger.warn(
+          { err: error, guildId: interaction.guildId, menuName },
+          "Failed to get active menu count for pagination",
+        );
+      }
+    }
+
+    // Check bot permissions
+    const roleIds = roles.map((role) => role.roleId);
+    const permissionWarnings = this.roleMenuRoleService.validateBotPermissions(
+      interaction.guild,
+      roleIds,
+    );
+
+    // Create updated message with new page
+    const updatedMessage = createRoleMenuBuilderMessage({
+      menu,
+      roles,
+      guild: interaction.guild,
+      state: {
+        guildId: interaction.guildId,
+        menuName,
+        disabled: false,
+        expired: false,
+        isEdit,
+        activeMenuCount,
+        permissionWarnings,
+        currentPage: newPage,
+      },
+    });
+
+    await interaction.update(updatedMessage);
+  }
+
   private async refreshBuilderMessage(
     interaction:
       | MessageComponentInteraction<"cached">
@@ -813,6 +902,11 @@ export class RoleMenuCreateCommand {
       roleIds,
     );
 
+    // Get current page from session to preserve pagination state
+    const sessionKey = `${interaction.guildId}:${menuName}`;
+    const session = this.activeSessions.get(sessionKey);
+    const currentPage = session?.currentPage ?? 0;
+
     // Create updated message
     const updatedMessage = createRoleMenuBuilderMessage({
       menu,
@@ -826,6 +920,7 @@ export class RoleMenuCreateCommand {
         isEdit,
         activeMenuCount,
         permissionWarnings,
+        currentPage,
       },
     });
 

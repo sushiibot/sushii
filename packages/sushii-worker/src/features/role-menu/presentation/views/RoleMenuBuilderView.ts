@@ -53,13 +53,30 @@ export function createRoleMenuBuilderMessage(
     // Sort roles by Discord hierarchy
     const sortedRoles = sortRolesByHierarchy(roles, guild);
 
+    // Pagination setup
+    const ROLES_PER_PAGE = 15;
+    const currentPage = state.currentPage ?? 0;
+    const totalPages = Math.ceil(sortedRoles.length / ROLES_PER_PAGE);
+    const startIdx = currentPage * ROLES_PER_PAGE;
+    const endIdx = Math.min(startIdx + ROLES_PER_PAGE, sortedRoles.length);
+    const pagedRoles = sortedRoles.slice(startIdx, endIdx);
+
+    // Show page info if paginated
+    const pageInfo =
+      totalPages > 1
+        ? ` (Page ${currentPage + 1}/${totalPages})`
+        : "";
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`**Roles (${roles.length}):**`),
+      new TextDisplayBuilder().setContent(`**Roles (${roles.length}):**${pageInfo}`),
     );
 
-    // Add section for each role with edit button
-    for (const [index, role] of sortedRoles.entries()) {
-      const roleSection = createRoleSection(role, index + 1, state);
+    // Add section for each role with edit button (only current page)
+    for (const [index, role] of pagedRoles.entries()) {
+      const roleSection = createRoleSection(
+        role,
+        startIdx + index + 1, // Use absolute index for numbering
+        state,
+      );
       container.addSectionComponents(roleSection);
     }
 
@@ -68,6 +85,16 @@ export function createRoleMenuBuilderMessage(
         `-# **Note:** Roles are in order of their position in the server.`,
       ),
     );
+
+    // Add pagination buttons if needed
+    if (totalPages > 1 && !state.readOnly) {
+      const paginationButtons = createPaginationButtons(
+        currentPage,
+        totalPages,
+        state,
+      );
+      container.addActionRowComponents(paginationButtons);
+    }
   }
 
   // Permission warnings section
@@ -309,6 +336,30 @@ function createRequiredRoleSelectMenu(
   const row = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
     selectMenu,
   );
+
+  return row;
+}
+
+function createPaginationButtons(
+  currentPage: number,
+  totalPages: number,
+  state: RoleMenuBuilderState,
+) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  const prevButton = new ButtonBuilder()
+    .setCustomId(ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_PREV)
+    .setLabel("◀ Previous")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(state.disabled || currentPage === 0);
+
+  const nextButton = new ButtonBuilder()
+    .setCustomId(ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_NEXT)
+    .setLabel("Next ▶")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(state.disabled || currentPage >= totalPages - 1);
+
+  row.addComponents(prevButton, nextButton);
 
   return row;
 }

@@ -5,6 +5,8 @@ export const ROLE_MENU_BUILDER_CUSTOM_IDS = {
   REQUIRED_ROLE_SELECT: "role_menu_builder_required_role_select",
   EDIT_ROLE_OPTIONS: "role_menu_builder_edit_role_options",
   FINISH_AND_UPDATE: "role_menu_builder_finish_and_update",
+  PAGE_PREV: "role_menu_builder_page_prev",
+  PAGE_NEXT: "role_menu_builder_page_next",
 } as const;
 
 export const ROLE_MENU_BUILDER_MODALS = {
@@ -34,4 +36,5 @@ export interface RoleMenuBuilderState {
   readOnly?: boolean;
   activeMenuCount?: number;
   permissionWarnings?: BotPermissionsResult;
+  currentPage?: number;
 }
