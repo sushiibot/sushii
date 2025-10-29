@@ -214,7 +214,25 @@ export class RoleMenuCommand extends SlashCommandHandler {
       name,
     );
 
-    // Create read-only builder message
+    // Prepare active menu info if any exist
+    let activeMenuInfo;
+    if (activeMessages.length > 0) {
+      const needsUpdateCount = activeMessages.filter(
+        (m) => m.needsUpdate,
+      ).length;
+      const links = activeMessages.map(
+        (msg) =>
+          `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId} ${msg.needsUpdate ? "⚠️" : "✅"}`,
+      );
+
+      activeMenuInfo = {
+        totalCount: activeMessages.length,
+        needsUpdateCount,
+        links,
+      };
+    }
+
+    // Create read-only builder message with active menu info
     const builderMessage = createRoleMenuBuilderMessage({
       menu,
       roles,
@@ -226,55 +244,8 @@ export class RoleMenuCommand extends SlashCommandHandler {
         expired: false,
         readOnly: true,
       },
+      activeMenuInfo,
     });
-
-    // Add active menu information if any exist
-    if (activeMessages.length > 0) {
-      const needsUpdateCount = activeMessages.filter(
-        (m) => m.needsUpdate,
-      ).length;
-      const links = activeMessages.map(
-        (msg) =>
-          `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId} ${msg.needsUpdate ? "⚠️" : "✅"}`,
-      );
-
-      const statusText =
-        needsUpdateCount === 0
-          ? `📍 **Active Menus:** ${activeMessages.length} total`
-          : `📍 **Active Menus:** ${activeMessages.length} total (${needsUpdateCount} need updates)`;
-
-      const activeMenuEmbed = new EmbedBuilder()
-        .setTitle(statusText)
-        .setDescription(links.join("\n"))
-        .setColor(needsUpdateCount > 0 ? Color.Warning : Color.Success);
-
-      // Add update button if needed
-      const components = [];
-      if (needsUpdateCount > 0) {
-        const updateButton = new ButtonBuilder()
-          .setCustomId(`update_outdated_menus:${name}`)
-          .setLabel("Update Outdated Menus")
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji("🔄");
-
-        components.push(
-          new ActionRowBuilder<ButtonBuilder>().addComponents(updateButton),
-        );
-      }
-
-      if (builderMessage.embeds) {
-        builderMessage.embeds = [
-          ...builderMessage.embeds,
-          activeMenuEmbed.toJSON(),
-        ];
-      }
-      if (components.length > 0 && builderMessage.components) {
-        builderMessage.components = [
-          ...builderMessage.components,
-          ...components.map((c) => c.toJSON()),
-        ];
-      }
-    }
 
     await interaction.reply(builderMessage);
   }

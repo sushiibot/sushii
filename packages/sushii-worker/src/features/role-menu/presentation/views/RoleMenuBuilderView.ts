@@ -21,17 +21,24 @@ import {
   type RoleMenuBuilderState,
 } from "./RoleMenuBuilderConstants";
 
+interface ActiveMenuInfo {
+  totalCount: number;
+  needsUpdateCount: number;
+  links: string[];
+}
+
 interface RoleMenuBuilderOptions {
   menu: RoleMenu | null;
   roles: RoleMenuRole[];
   guild: Guild;
   state: RoleMenuBuilderState;
+  activeMenuInfo?: ActiveMenuInfo;
 }
 
 export function createRoleMenuBuilderMessage(
   options: RoleMenuBuilderOptions,
 ): InteractionReplyOptions & { flags: MessageFlags.IsComponentsV2 } {
-  const { menu, roles, guild, state } = options;
+  const { menu, roles, guild, state, activeMenuInfo } = options;
 
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
@@ -157,6 +164,38 @@ export function createRoleMenuBuilderMessage(
     );
 
     container.addActionRowComponents(finishButtonRow);
+  }
+
+  // Active menu information (only in read-only mode)
+  if (activeMenuInfo && state.readOnly) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+
+    const statusText =
+      activeMenuInfo.needsUpdateCount === 0
+        ? `📍 **Active Menus:** ${activeMenuInfo.totalCount} total`
+        : `📍 **Active Menus:** ${activeMenuInfo.totalCount} total (${activeMenuInfo.needsUpdateCount} need updates)`;
+
+    const linksText = activeMenuInfo.links.join("\n");
+    const fullContent = `${statusText}\n\n${linksText}`;
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(fullContent),
+    );
+
+    // Add update button if there are menus that need updates
+    if (activeMenuInfo.needsUpdateCount > 0) {
+      const updateButton = new ButtonBuilder()
+        .setCustomId(`update_outdated_menus:${state.menuName}`)
+        .setLabel("Update Outdated Menus")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("🔄");
+
+      const updateButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        updateButton,
+      );
+
+      container.addActionRowComponents(updateButtonRow);
+    }
   }
 
   // Expiration notice if expired
