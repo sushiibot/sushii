@@ -365,17 +365,30 @@ export default class InteractionRouter {
       const validationError = validationErrorToString(e);
 
       if (validationError) {
-        // Log detailed validation error information using shapeshift's built-in toJSON()
+        // Log detailed validation error with all individual errors in one structured log
         log.error(
           {
             err: e,
             command: getFullCommandName(interaction),
             guildId: interaction.guildId,
             userId: interaction.user.id,
-            validationError,
+            validationError: {
+              name: validationError.name,
+              message: validationError.message,
+              // Flatten aggregate errors for easy viewing
+              errors: validationError.aggregateErrors,
+              // Include property errors if present
+              propertyErrors: validationError.propertyErrors,
+              // Total count for quick reference
+              errorCount:
+                (validationError.aggregateErrors?.length ?? 0) +
+                (validationError.propertyErrors?.length ?? 0),
+            },
           },
-          "Validation error in command %s",
+          "Validation error in command %s (%d error(s))",
           interaction.commandName,
+          (validationError.aggregateErrors?.length ?? 0) +
+            (validationError.propertyErrors?.length ?? 0),
         );
       } else {
         log.error(e, "error running command %s", interaction.commandName);
