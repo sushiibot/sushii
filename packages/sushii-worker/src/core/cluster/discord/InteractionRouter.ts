@@ -375,10 +375,29 @@ export default class InteractionRouter {
             validationError: {
               name: validationError.name,
               message: validationError.message,
-              // Flatten aggregate errors for easy viewing
-              errors: validationError.aggregateErrors,
-              // Include property errors if present
-              propertyErrors: validationError.propertyErrors,
+              // Include rich description if available
+              description: validationError.description,
+              // Flatten aggregate errors with rich descriptions for easy viewing
+              errors: validationError.aggregateErrors?.map(err => ({
+                name: err.name,
+                validator: err.validator,
+                message: err.message,
+                description: err.description, // Rich formatted error details
+                given: err.given,
+                expected: err.expected,
+              })),
+              // Include property errors with descriptions if present
+              propertyErrors: validationError.propertyErrors?.map(propErr => ({
+                property: propErr.property,
+                error: {
+                  name: propErr.error.name,
+                  message: propErr.error.message,
+                  description: propErr.error.description, // Rich formatted error details
+                  validator: propErr.error.validator,
+                  given: propErr.error.given,
+                  expected: propErr.error.expected,
+                },
+              })),
               // Total count for quick reference
               errorCount:
                 (validationError.aggregateErrors?.length ?? 0) +

@@ -1,9 +1,12 @@
 import { BaseError, CombinedPropertyError } from "@sapphire/shapeshift";
+import { inspect } from "util";
 
 interface ValidationError {
   name: string;
   message: string;
   stack?: string;
+  // Rich formatted description from util.inspect
+  description?: string;
   // ValidationError / ExpectedValidationError properties
   validator?: string;
   given?: unknown;
@@ -14,9 +17,12 @@ interface ValidationError {
   property?: PropertyKey;
   value?: unknown;
   // For CombinedPropertyError
-  propertyErrors?: { property: PropertyKey; error: Record<string, unknown> }[];
+  propertyErrors?: {
+    property: PropertyKey;
+    error: Record<string, unknown> & { description?: string };
+  }[];
   // For CombinedError
-  aggregateErrors?: Record<string, unknown>[];
+  aggregateErrors?: (Record<string, unknown> & { description?: string })[];
 }
 
 /**
@@ -30,7 +36,8 @@ export default function parseValidationError(
   if (
     err &&
     typeof err === "object" &&
-    ("constructor" in err && (err.constructor as { name: string }).name === "CombinedError")
+    "constructor" in err &&
+    (err.constructor as { name: string }).name === "CombinedError"
   ) {
     const combinedErr = err as {
       name: string;
@@ -46,9 +53,25 @@ export default function parseValidationError(
     // Extract details using built-in methods where possible
     const detailedErrors = errorsArray?.map((aggErr) => {
       if (aggErr instanceof BaseError) {
-        return typeof (aggErr as BaseError & { toJSON?: () => Record<string, unknown> }).toJSON === 'function' 
-          ? { ...(aggErr as BaseError & { toJSON: () => Record<string, unknown> }).toJSON(), name: aggErr.constructor.name }
-          : { name: aggErr.constructor.name, message: aggErr.message };
+        const baseData =
+          typeof (
+            aggErr as BaseError & { toJSON?: () => Record<string, unknown> }
+          ).toJSON === "function"
+            ? {
+                ...(
+                  aggErr as BaseError & {
+                    toJSON: () => Record<string, unknown>;
+                  }
+                ).toJSON(),
+                name: aggErr.constructor.name,
+              }
+            : { name: aggErr.constructor.name, message: aggErr.message };
+
+        // Add rich description using util.inspect
+        return {
+          ...baseData,
+          description: inspect(aggErr, { depth: 2, colors: false }),
+        };
       }
 
       // Fallback for non-BaseError objects
@@ -74,11 +97,17 @@ export default function parseValidationError(
       name: err.constructor.name, // Use constructor name instead of err.name
       message: err.message,
       stack: err.stack,
+      description: inspect(err, { depth: 2, colors: false }), // Add rich description
     };
 
     // Try to use built-in toJSON() method if available
-    if (typeof (err as BaseError & { toJSON?: () => Record<string, unknown> }).toJSON === 'function') {
-      const errorJson = (err as BaseError & { toJSON: () => Record<string, unknown> }).toJSON();
+    if (
+      typeof (err as BaseError & { toJSON?: () => Record<string, unknown> })
+        .toJSON === "function"
+    ) {
+      const errorJson = (
+        err as BaseError & { toJSON: () => Record<string, unknown> }
+      ).toJSON();
       // Merge toJSON properties, but always preserve the constructor name
       Object.assign(result, errorJson);
       result.name = err.constructor.name; // Always use the constructor name
@@ -94,23 +123,44 @@ export default function parseValidationError(
       };
 
       // Copy available properties
-      if (errorWithProps.validator !== undefined) result.validator = errorWithProps.validator;
-      if (errorWithProps.given !== undefined) result.given = errorWithProps.given;
-      if (errorWithProps.expected !== undefined) result.expected = errorWithProps.expected;
-      if (errorWithProps.constraint !== undefined) result.constraint = errorWithProps.constraint;
-      if (errorWithProps.property !== undefined) result.property = errorWithProps.property;
-      if (errorWithProps.value !== undefined) result.value = errorWithProps.value;
+      if (errorWithProps.validator !== undefined)
+        result.validator = errorWithProps.validator;
+      if (errorWithProps.given !== undefined)
+        result.given = errorWithProps.given;
+      if (errorWithProps.expected !== undefined)
+        result.expected = errorWithProps.expected;
+      if (errorWithProps.constraint !== undefined)
+        result.constraint = errorWithProps.constraint;
+      if (errorWithProps.property !== undefined)
+        result.property = errorWithProps.property;
+      if (errorWithProps.value !== undefined)
+        result.value = errorWithProps.value;
     }
 
     // Handle CombinedPropertyError specially to extract property paths
     if (err instanceof CombinedPropertyError) {
       result.propertyErrors = err.errors.map(([property, error]) => ({
         property,
-        error: error instanceof BaseError 
-          ? (typeof (error as BaseError & { toJSON?: () => Record<string, unknown> }).toJSON === 'function' 
-              ? { ...(error as BaseError & { toJSON: () => Record<string, unknown> }).toJSON(), name: error.constructor.name }
-              : { name: error.constructor.name, message: error.message })
-          : { name: String(error), message: String(error) },
+        error:
+          error instanceof BaseError
+            ? typeof (
+                error as BaseError & { toJSON?: () => Record<string, unknown> }
+              ).toJSON === "function"
+              ? {
+                  ...(
+                    error as BaseError & {
+                      toJSON: () => Record<string, unknown>;
+                    }
+                  ).toJSON(),
+                  name: error.constructor.name,
+                  description: inspect(error, { depth: 2, colors: false }),
+                }
+              : {
+                  name: error.constructor.name,
+                  message: error.message,
+                  description: inspect(error, { depth: 2, colors: false }),
+                }
+            : { name: String(error), message: String(error) },
       }));
     }
 
@@ -136,9 +186,25 @@ export default function parseValidationError(
     const errorsArray = combinedErr.aggregateErrors ?? combinedErr.errors;
     const detailedErrors = errorsArray?.map((aggErr) => {
       if (aggErr instanceof BaseError) {
-        return typeof (aggErr as BaseError & { toJSON?: () => Record<string, unknown> }).toJSON === 'function' 
-          ? { ...(aggErr as BaseError & { toJSON: () => Record<string, unknown> }).toJSON(), name: aggErr.constructor.name }
-          : { name: aggErr.constructor.name, message: aggErr.message };
+        const baseData =
+          typeof (
+            aggErr as BaseError & { toJSON?: () => Record<string, unknown> }
+          ).toJSON === "function"
+            ? {
+                ...(
+                  aggErr as BaseError & {
+                    toJSON: () => Record<string, unknown>;
+                  }
+                ).toJSON(),
+                name: aggErr.constructor.name,
+              }
+            : { name: aggErr.constructor.name, message: aggErr.message };
+
+        // Add rich description using util.inspect
+        return {
+          ...baseData,
+          description: inspect(aggErr, { depth: 2, colors: false }),
+        };
       }
 
       // Fallback for non-BaseError objects
