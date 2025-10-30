@@ -79,12 +79,18 @@ export function createRoleMenuBuilderMessage(
 
     // Add section for each role with edit button (only current page)
     for (const [index, role] of pagedRoles.entries()) {
-      const roleSection = createRoleSection(
+      const roleComponent = createRoleSection(
         role,
         startIdx + index + 1, // Use absolute index for numbering
         state,
       );
-      container.addSectionComponents(roleSection);
+      
+      // Add appropriate component type based on read-only mode
+      if (roleComponent instanceof SectionBuilder) {
+        container.addSectionComponents(roleComponent);
+      } else {
+        container.addTextDisplayComponents(roleComponent);
+      }
     }
 
     container.addTextDisplayComponents(
@@ -266,7 +272,7 @@ function createRoleSection(
   role: RoleMenuRole,
   index: number,
   state: RoleMenuBuilderState,
-): SectionBuilder {
+): SectionBuilder | TextDisplayBuilder {
   let content = `${index}. <@&${role.roleId}>`;
 
   if (role.emoji) {
@@ -277,22 +283,25 @@ function createRoleSection(
     content += `\n> **Description:** ${role.description}`;
   }
 
+  // In read-only mode, return TextDisplayBuilder directly to avoid Section validation issues
+  if (state.readOnly) {
+    return new TextDisplayBuilder().setContent(content);
+  }
+
+  // In edit mode, create Section with required button accessory
   const section = new SectionBuilder().addTextDisplayComponents(
     new TextDisplayBuilder().setContent(content),
   );
 
-  // Only add edit button if not in read-only mode
-  if (!state.readOnly) {
-    const editButton = new ButtonBuilder()
-      .setCustomId(
-        `${ROLE_MENU_BUILDER_CUSTOM_IDS.EDIT_ROLE_OPTIONS}:${role.roleId}`,
-      )
-      .setLabel("Edit")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(state.disabled);
+  const editButton = new ButtonBuilder()
+    .setCustomId(
+      `${ROLE_MENU_BUILDER_CUSTOM_IDS.EDIT_ROLE_OPTIONS}:${role.roleId}`,
+    )
+    .setLabel("Edit")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(state.disabled);
 
-    section.setButtonAccessory(editButton);
-  }
+  section.setButtonAccessory(editButton);
 
   return section;
 }
