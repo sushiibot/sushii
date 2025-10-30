@@ -35,7 +35,7 @@ import type {
 } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import getFullCommandName from "@/utils/getFullCommandName";
-import validationErrorToString from "@/utils/validationErrorToString";
+import parseValidationError from "@/utils/parseValidationError";
 
 const tracer = opentelemetry.trace.getTracer("interaction-client");
 
@@ -362,7 +362,7 @@ export default class InteractionRouter {
       const invoker = interaction.user;
 
       // Extract validation error details if available
-      const validationError = validationErrorToString(e);
+      const validationError = parseValidationError(e);
 
       if (validationError) {
         // Log detailed validation error with all individual errors in one structured log
