@@ -30,6 +30,8 @@ export interface ModerationSettings {
 
   lookupDetailsOptIn: boolean;
   lookupPrompted: boolean;
+
+  automodSpamEnabled: boolean;
 }
 
 export type ToggleableSetting =
@@ -42,7 +44,8 @@ export type ToggleableSetting =
   | "lookupOptIn"
   | "timeoutCommandDm"
   | "timeoutNativeDm"
-  | "banDm";
+  | "banDm"
+  | "automodSpam";
 
 export class GuildConfig {
   constructor(
@@ -101,6 +104,9 @@ export class GuildConfig {
         // Lookup flags
         lookupDetailsOptIn: false,
         lookupPrompted: false,
+
+        // Automod settings
+        automodSpamEnabled: false,
       },
       [],
     );
@@ -274,6 +280,12 @@ export class GuildConfig {
   setBanDmEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.moderationSettings.banDmEnabled = enabled;
+    return config;
+  }
+
+  setAutomodSpamEnabled(enabled: boolean): GuildConfig {
+    const config = this.clone();
+    config.moderationSettings.automodSpamEnabled = enabled;
     return config;
   }
 }

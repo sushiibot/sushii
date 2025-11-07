@@ -70,11 +70,11 @@ export function createRoleMenuBuilderMessage(
 
     // Show page info if paginated
     const pageInfo =
-      totalPages > 1
-        ? ` (Page ${currentPage + 1}/${totalPages})`
-        : "";
+      totalPages > 1 ? ` (Page ${currentPage + 1}/${totalPages})` : "";
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`**Roles (${roles.length}):**${pageInfo}`),
+      new TextDisplayBuilder().setContent(
+        `**Roles (${roles.length}):**${pageInfo}`,
+      ),
     );
 
     // Add section for each role with edit button (only current page)
@@ -84,7 +84,7 @@ export function createRoleMenuBuilderMessage(
         startIdx + index + 1, // Use absolute index for numbering
         state,
       );
-      
+
       // Add appropriate component type based on read-only mode
       if (roleComponent instanceof SectionBuilder) {
         container.addSectionComponents(roleComponent);
@@ -196,9 +196,8 @@ export function createRoleMenuBuilderMessage(
         .setStyle(ButtonStyle.Primary)
         .setEmoji("🔄");
 
-      const updateButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        updateButton,
-      );
+      const updateButtonRow =
+        new ActionRowBuilder<ButtonBuilder>().addComponents(updateButton);
 
       container.addActionRowComponents(updateButtonRow);
     }

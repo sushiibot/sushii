@@ -3,7 +3,12 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
-export type SettingsPage = "logging" | "moderation" | "automod" | "messages" | "advanced";
+export type SettingsPage =
+  | "logging"
+  | "moderation"
+  | "automod"
+  | "messages"
+  | "advanced";
 
 export interface SettingsMessageOptions {
   page: SettingsPage;

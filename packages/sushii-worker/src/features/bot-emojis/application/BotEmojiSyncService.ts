@@ -229,7 +229,9 @@ export class BotEmojiSyncService {
 
         // Calculate hash
         const buffer = await readFile(filePath);
-        const hash = createHash("sha256").update(new Uint8Array(buffer)).digest("hex");
+        const hash = createHash("sha256")
+          .update(new Uint8Array(buffer))
+          .digest("hex");
 
         validEmojis.push({ name, path: filePath, hash });
       }

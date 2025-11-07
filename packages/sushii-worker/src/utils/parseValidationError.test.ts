@@ -51,7 +51,9 @@ describe("parseValidationError", () => {
       expect(result?.name).toBe("ExpectedValidationError");
       expect(result?.validator).toContain("s.instance");
       expect(result?.given).toEqual({ not: "instance" });
-      expect(result?.description).toContain("ExpectedValidationError > s.instance");
+      expect(result?.description).toContain(
+        "ExpectedValidationError > s.instance",
+      );
       expect(result?.description).toContain("Expected:");
       expect(result?.description).toContain("Received:");
     });
@@ -70,7 +72,9 @@ describe("parseValidationError", () => {
       expect(result?.name).toBe("ExpectedConstraintError");
       expect(result?.constraint).toBeDefined();
       expect(result?.given).toBe(5);
-      expect(result?.description).toContain("ExpectedConstraintError > s.number");
+      expect(result?.description).toContain(
+        "ExpectedConstraintError > s.number",
+      );
       expect(result?.description).toContain("Invalid");
     });
   });
@@ -109,7 +113,7 @@ describe("parseValidationError", () => {
       const hasAgeError = propertyErrors.some((pe) => pe.property === "age");
 
       expect(hasUsernameError || hasAgeError).toBe(true);
-      
+
       // Check that property errors have descriptions
       if (propertyErrors.length > 0) {
         const firstPropertyError = propertyErrors[0];
@@ -177,12 +181,12 @@ describe("parseValidationError", () => {
       expect(
         errors.some((e) => typeof e === "object" && "validator" in e),
       ).toBe(true);
-      
+
       // Check that descriptions are included
       expect(
         errors.some((e) => typeof e === "object" && "description" in e),
       ).toBe(true);
-      
+
       // Check for rich error descriptions
       const firstError = errors[0] as Record<string, unknown>;
       expect(firstError.description).toBeDefined();

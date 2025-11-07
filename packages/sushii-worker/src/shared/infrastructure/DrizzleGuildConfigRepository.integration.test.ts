@@ -84,6 +84,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         banDmEnabled: true,
         lookupDetailsOptIn: true,
         lookupPrompted: false,
+        automodSpamEnabled: false,
       },
       ["123", "456", "789"],
     );
@@ -138,6 +139,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         banDmEnabled: false,
         lookupDetailsOptIn: false,
         lookupPrompted: false,
+        automodSpamEnabled: false,
       },
       [],
     );
@@ -174,6 +176,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         banDmEnabled: true,
         lookupDetailsOptIn: true,
         lookupPrompted: true,
+        automodSpamEnabled: false,
       },
       ["999"],
     );
@@ -222,6 +225,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         banDmEnabled: false,
         lookupDetailsOptIn: false,
         lookupPrompted: false,
+        automodSpamEnabled: false,
       },
       [],
     );
@@ -287,6 +291,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         banDmEnabled: false,
         lookupDetailsOptIn: false,
         lookupPrompted: false,
+        automodSpamEnabled: false,
       },
       disabledChannels,
     );

@@ -57,10 +57,13 @@ export function buildSocialLeaderboardContainer(
     const textDisplay = new TextDisplayBuilder().setContent(content);
     container.addTextDisplayComponents(textDisplay);
   } else {
-    const noDataMessage = type === "rep"
-      ? "No one in this server has any rep yet! Use `/rep @user` to give someone rep."
-      : "No one in this server has any fishies yet! Use `/fishy @user` to catch some fish.";
-    const textDisplay = new TextDisplayBuilder().setContent(`### ${title}\n${noDataMessage}`);
+    const noDataMessage =
+      type === "rep"
+        ? "No one in this server has any rep yet! Use `/rep @user` to give someone rep."
+        : "No one in this server has any fishies yet! Use `/fishy @user` to catch some fish.";
+    const textDisplay = new TextDisplayBuilder().setContent(
+      `### ${title}\n${noDataMessage}`,
+    );
     container.addTextDisplayComponents(textDisplay);
   }
 

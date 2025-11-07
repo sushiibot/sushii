@@ -21,9 +21,7 @@ export function addAutomodContent(
   const { config, disabled = false } = options;
 
   // Header
-  const headerText = new TextDisplayBuilder().setContent(
-    "## Automod Settings",
-  );
+  const headerText = new TextDisplayBuilder().setContent("## Automod Settings");
   container.addTextDisplayComponents(headerText);
 
   // Intro text
@@ -44,7 +42,9 @@ export function addAutomodContent(
       : "Spam detection disabled - messages are not automatically moderated",
   );
 
-  const spamDetectionText = new TextDisplayBuilder().setContent(spamDetectionContent);
+  const spamDetectionText = new TextDisplayBuilder().setContent(
+    spamDetectionContent,
+  );
   const spamDetectionSection = new SectionBuilder()
     .addTextDisplayComponents(spamDetectionText)
     .setButtonAccessory(

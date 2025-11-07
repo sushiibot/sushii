@@ -17,7 +17,11 @@ export class SocialLeaderboardEntry {
     return this.amount;
   }
 
-  static create(userId: string, rank: number, amount: bigint): SocialLeaderboardEntry {
+  static create(
+    userId: string,
+    rank: number,
+    amount: bigint,
+  ): SocialLeaderboardEntry {
     return new SocialLeaderboardEntry(userId, rank, amount);
   }
 }

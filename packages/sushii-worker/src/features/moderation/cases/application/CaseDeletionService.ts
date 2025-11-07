@@ -156,9 +156,7 @@ export class CaseDeletionService {
         .map((case_) => case_.dmResult)
         // Filter for only actually sent DMs
         .filter(
-          (
-            dmResult,
-          ): dmResult is { channelId: string; messageId: string } =>
+          (dmResult): dmResult is { channelId: string; messageId: string } =>
             dmResult?.channelId !== undefined &&
             dmResult?.messageId !== undefined,
         );

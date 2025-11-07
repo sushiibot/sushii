@@ -5,7 +5,7 @@ import type { Logger } from "pino";
 
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
-import { safeReply, safeDeleteReply } from "@/utils/interactionUtils";
+import { safeDeleteReply, safeReply } from "@/utils/interactionUtils";
 
 import type { RoleMenuInteractionService } from "../../application/RoleMenuInteractionService";
 import type { RoleMenuManagementService } from "../../application/RoleMenuManagementService";
@@ -45,7 +45,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
 
     // Single reply variable to ensure we only reply once
     let reply: InteractionResponse | null = null;
-    
+
     const roleToAddOrRemove = parsedCustomId.roleId;
     let requiredRole: string | undefined;
     let maxRoles: number | undefined;
@@ -147,7 +147,8 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         }
       } else {
         // Legacy format or fallback - parse from embed
-        requiredRole = getRoleMenuRequiredRole(interaction.message) || undefined;
+        requiredRole =
+          getRoleMenuRequiredRole(interaction.message) || undefined;
         maxRoles = getRoleMenuMaxRoles(interaction.message) || undefined;
         menuRoles = getRoleMenuMessageButtonRoles(interaction.message);
       }
@@ -215,7 +216,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
         },
         "Error handling role menu button interaction",
       );
-      
+
       // Try to reply with a generic error if we haven't replied yet
       if (!reply) {
         await safeReply(
@@ -225,7 +226,9 @@ export class RoleMenuButtonHandler extends ButtonHandler {
               new EmbedBuilder()
                 .setColor(Color.Error)
                 .setTitle("Error")
-                .setDescription("An unexpected error occurred while processing your request.")
+                .setDescription(
+                  "An unexpected error occurred while processing your request.",
+                )
                 .toJSON(),
             ],
             flags: MessageFlags.Ephemeral,
@@ -233,7 +236,7 @@ export class RoleMenuButtonHandler extends ButtonHandler {
           this.logger,
         );
       }
-      
+
       // Re-throw for upstream error handling
       throw error;
     }

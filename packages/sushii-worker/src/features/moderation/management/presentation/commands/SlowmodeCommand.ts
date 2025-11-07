@@ -1,4 +1,4 @@
-import type {  ChatInputCommandInteraction } from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ChannelType,
   InteractionContextType,

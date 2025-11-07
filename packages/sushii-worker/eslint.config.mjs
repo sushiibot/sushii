@@ -1,8 +1,7 @@
 // @ts-check
-
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import eslint from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -27,22 +26,23 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "caughtErrorsIgnorePattern": "^_"
-        }
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
       ],
       "no-restricted-imports": [
         "warn",
         {
-          "patterns": [
+          patterns: [
             {
-              "group": ["../../../*", "../../../../*", "../../../../../*"],
-              "message": "Use absolute imports (@/) for deeply nested imports instead of excessive relative paths"
-            }
-          ]
-        }
-      ]
-    }
-  }
+              group: ["../../../*", "../../../../*", "../../../../../*"],
+              message:
+                "Use absolute imports (@/) for deeply nested imports instead of excessive relative paths",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

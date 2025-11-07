@@ -59,7 +59,8 @@ Structure your review as:
 
 **Strengths**: Highlight what the code does well
 
-**Areas for Improvement**: 
+**Areas for Improvement**:
+
 - **Critical Issues**: Must-fix problems (security, bugs, architectural violations)
 - **Best Practice Improvements**: Suggestions for better maintainability and quality
 - **Style & Convention**: Minor formatting and naming improvements

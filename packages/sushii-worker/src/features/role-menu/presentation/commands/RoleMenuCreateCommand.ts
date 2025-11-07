@@ -328,9 +328,19 @@ export class RoleMenuCreateCommand {
       case ROLE_MENU_BUILDER_CUSTOM_IDS.FINISH_AND_UPDATE:
         return this.handleFinishAndUpdateButton(interaction, menuName, isEdit);
       case ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_PREV:
-        return this.handlePageNavigationButton(interaction, menuName, isEdit, "prev");
+        return this.handlePageNavigationButton(
+          interaction,
+          menuName,
+          isEdit,
+          "prev",
+        );
       case ROLE_MENU_BUILDER_CUSTOM_IDS.PAGE_NEXT:
-        return this.handlePageNavigationButton(interaction, menuName, isEdit, "next");
+        return this.handlePageNavigationButton(
+          interaction,
+          menuName,
+          isEdit,
+          "next",
+        );
       default:
         // Handle role edit buttons (format: edit_role_options:roleId)
         if (
@@ -787,9 +797,10 @@ export class RoleMenuCreateCommand {
     const currentPage = session?.currentPage ?? 0;
 
     // Update page number
-    const newPage = direction === "prev"
-      ? Math.max(0, currentPage - 1)
-      : Math.min(totalPages - 1, currentPage + 1);
+    const newPage =
+      direction === "prev"
+        ? Math.max(0, currentPage - 1)
+        : Math.min(totalPages - 1, currentPage + 1);
 
     // Update session with new page
     if (session) {
