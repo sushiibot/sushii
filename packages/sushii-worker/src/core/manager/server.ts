@@ -266,7 +266,10 @@ function createMonitoringServer(
         new_deployment: result.deployment,
       });
     } catch (err) {
-      logger.error({ err, target, thisDeployment }, "Failed to switch deployment");
+      logger.error(
+        { err, target, thisDeployment },
+        "Failed to switch deployment",
+      );
       return c.json(
         {
           error: "Failed to switch deployment",

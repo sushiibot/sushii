@@ -155,6 +155,11 @@ export class GuildSettingsService {
           !config.moderationSettings.banDmEnabled,
         );
         break;
+      case "automodSpam":
+        updatedConfig = config.setAutomodSpamEnabled(
+          !config.moderationSettings.automodSpamEnabled,
+        );
+        break;
     }
 
     return this.guildConfigRepository.save(updatedConfig);

@@ -3,7 +3,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
-export type SettingsPage = "logging" | "moderation" | "messages" | "advanced";
+export type SettingsPage = "logging" | "moderation" | "automod" | "messages" | "advanced";
 
 export interface SettingsMessageOptions {
   page: SettingsPage;
@@ -18,6 +18,7 @@ export const SETTINGS_CUSTOM_IDS = {
     BASE: "settings_nav",
     LOGGING: "settings_nav_logging",
     MODERATION: "settings_nav_moderation",
+    AUTOMOD: "settings_nav_automod",
     MESSAGES: "settings_nav_messages",
     ADVANCED: "settings_nav_advanced",
   },
@@ -38,6 +39,9 @@ export const SETTINGS_CUSTOM_IDS = {
     TIMEOUT_COMMAND_DM: "settings_toggle_timeout_command_dm",
     TIMEOUT_NATIVE_DM: "settings_toggle_timeout_native_dm",
     BAN_DM: "settings_toggle_ban_dm",
+
+    // Automod Toggles
+    AUTOMOD_SPAM: "settings_toggle_automod_spam",
   },
 
   CHANNELS: {

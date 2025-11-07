@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."guild_configs" ADD COLUMN "automod_spam_enabled" boolean DEFAULT false NOT NULL;

@@ -2,6 +2,7 @@ import type { ContextMenuCommandInteraction } from "discord.js";
 import {
   ContextMenuCommandBuilder,
   EmbedBuilder,
+  InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
@@ -25,6 +26,7 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("User Info")
     .setType(ApplicationCommandType.User)
+    .setContexts(InteractionContextType.Guild)
     .toJSON();
 
   constructor(

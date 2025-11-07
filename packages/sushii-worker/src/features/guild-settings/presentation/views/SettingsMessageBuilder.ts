@@ -18,6 +18,7 @@ import {
 } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
 import { addAdvancedContent } from "./pages/AdvancedPageBuilder";
+import { addAutomodContent } from "./pages/AutomodPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
 import { addMessagesContent } from "./pages/MessagesPageBuilder";
 import { addModerationContent } from "./pages/ModerationPageBuilder";
@@ -37,6 +38,9 @@ export function createSettingsMessage(
       break;
     case "moderation":
       addModerationContent(container, options, interaction);
+      break;
+    case "automod":
+      addAutomodContent(container, options, interaction);
       break;
     case "messages":
       addMessagesContent(container, options, interaction);

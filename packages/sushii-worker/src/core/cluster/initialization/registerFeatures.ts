@@ -3,6 +3,7 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
+import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
@@ -217,6 +218,7 @@ export function registerFeatures(
     logger,
   });
 
+  const automodFeature = setupAutomodFeature({ db, client, logger });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({ db, logger });
   const tagFeature = setupTagFeature({ db, logger });
@@ -358,6 +360,7 @@ export function registerFeatures(
     ...interactionHandlerFeature.eventHandlers,
     ...levelingFeature.eventHandlers,
     deploymentHandler,
+    ...automodFeature.eventHandlers,
     ...notificationFeature.eventHandlers,
     ...memberEventsFeature.eventHandlers,
     ...moderationFeature.eventHandlers,

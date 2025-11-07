@@ -50,6 +50,15 @@ export function createNavigationRow(
       )
       .setDisabled(currentPage === "moderation" || disabled),
     new ButtonBuilder()
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.AUTOMOD)
+      .setLabel("Automod")
+      .setStyle(
+        currentPage === "automod"
+          ? ButtonStyle.Primary
+          : ButtonStyle.Secondary,
+      )
+      .setDisabled(currentPage === "automod" || disabled),
+    new ButtonBuilder()
       .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES)
       .setLabel("Messages")
       .setStyle(

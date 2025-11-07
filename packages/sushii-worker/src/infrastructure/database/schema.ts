@@ -187,6 +187,10 @@ export const guildConfigsInAppPublic = appPublic.table(
       .default(false)
       .notNull(),
     lookupPrompted: boolean("lookup_prompted").default(false).notNull(),
+    // Automod settings
+    automodSpamEnabled: boolean("automod_spam_enabled")
+      .default(false)
+      .notNull(),
   },
   () => [
     pgPolicy("admin_access", {

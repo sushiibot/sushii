@@ -560,6 +560,8 @@ export default class SettingsCommand extends SlashCommandHandler {
         return "logging";
       case SETTINGS_CUSTOM_IDS.NAVIGATION.MODERATION:
         return "moderation";
+      case SETTINGS_CUSTOM_IDS.NAVIGATION.AUTOMOD:
+        return "automod";
       case SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES:
         return "messages";
       case SETTINGS_CUSTOM_IDS.NAVIGATION.ADVANCED:
@@ -594,6 +596,8 @@ export default class SettingsCommand extends SlashCommandHandler {
         return { setting: "timeoutNativeDm", page: "moderation" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM:
         return { setting: "banDm", page: "moderation" };
+      case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM:
+        return { setting: "automodSpam", page: "automod" };
       default:
         this.logger.warn(
           { customId },
