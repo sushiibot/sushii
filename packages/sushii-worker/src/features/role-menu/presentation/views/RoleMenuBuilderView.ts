@@ -61,7 +61,10 @@ export function createRoleMenuBuilderMessage(
     const sortedRoles = sortRolesByHierarchy(roles, guild);
 
     // Pagination setup
-    const ROLES_PER_PAGE = 15;
+    // Limit to 5 roles per page to stay under Discord's 40 component limit
+    // Each role uses 3 components (Section + TextDisplay + Button)
+    // Base UI uses ~21 components, leaving room for 5 roles (15 components) with safe buffer
+    const ROLES_PER_PAGE = 5;
     const currentPage = state.currentPage ?? 0;
     const totalPages = Math.ceil(sortedRoles.length / ROLES_PER_PAGE);
     const startIdx = currentPage * ROLES_PER_PAGE;
