@@ -788,7 +788,7 @@ export class RoleMenuCreateCommand {
     const { menu, roles } = menuDataResult.val;
 
     // Calculate pagination
-    const ROLES_PER_PAGE = 15;
+    const ROLES_PER_PAGE = 5;
     const totalPages = Math.ceil(roles.length / ROLES_PER_PAGE);
 
     // Get current page from session or default to 0
