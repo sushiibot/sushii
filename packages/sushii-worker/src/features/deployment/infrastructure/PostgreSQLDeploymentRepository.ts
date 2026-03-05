@@ -12,11 +12,15 @@ import { Deployment } from "../domain/entities/Deployment";
 import { DeploymentChanged } from "../domain/events/DeploymentChanged";
 import type { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
 
+const MAX_RECONNECT_DELAY_MS = 30_000;
+
 export class PostgreSQLDeploymentRepository implements DeploymentRepository {
   private client: Client;
   private db: NodePgDatabase;
   private readonly channelName = "deployment_changed";
   private isConnected = false;
+  private isStopping = false;
+  private reconnectAttempts = 0;
   private currentDeploymentName: DeploymentName = "blue";
 
   constructor(
@@ -25,13 +29,84 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
     private readonly eventBus: EventBus,
     private readonly applicationName: string,
   ) {
-    this.client = new Client({
+    const { client, db } = this.createClient();
+    this.client = client;
+    this.db = db;
+  }
+
+  private createClient(): { client: Client; db: NodePgDatabase } {
+    const client = new Client({
       connectionString: this.connectionString,
       application_name: this.applicationName,
     });
 
-    // Create Drizzle instance using the same client
-    this.db = drizzle(this.client);
+    client.on("error", (err) => {
+      this.logger.error({ err }, "PostgreSQL client error");
+      this.isConnected = false;
+      this.scheduleReconnect();
+    });
+
+    client.on("end", () => {
+      this.logger.info("PostgreSQL connection ended");
+      this.isConnected = false;
+      this.scheduleReconnect();
+    });
+
+    client.on("notification", (msg) => {
+      this.handleNotification(msg);
+    });
+
+    return { client, db: drizzle(client) };
+  }
+
+  private scheduleReconnect(): void {
+    if (this.isStopping) {
+      return;
+    }
+
+    const delay = Math.min(
+      1000 * 2 ** this.reconnectAttempts,
+      MAX_RECONNECT_DELAY_MS,
+    );
+    this.reconnectAttempts++;
+
+    this.logger.info(
+      { delayMs: delay, attempt: this.reconnectAttempts },
+      "Scheduling PostgreSQL reconnect",
+    );
+
+    setTimeout(() => this.reconnect(), delay);
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.isStopping) {
+      return;
+    }
+
+    this.logger.info(
+      { attempt: this.reconnectAttempts },
+      "Attempting PostgreSQL reconnect",
+    );
+
+    try {
+      const { client, db } = this.createClient();
+      this.client = client;
+      this.db = db;
+
+      await this.client.connect();
+      await this.client.query(`LISTEN ${this.channelName}`);
+
+      // Re-sync deployment state in case a NOTIFY was missed while disconnected
+      await this.getActive();
+
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+
+      this.logger.info("PostgreSQL reconnect successful");
+    } catch (err) {
+      this.logger.error({ err }, "PostgreSQL reconnect failed");
+      this.scheduleReconnect();
+    }
   }
 
   async start(): Promise<void> {
@@ -41,20 +116,6 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
     }
 
     try {
-      this.client.on("error", (err) => {
-        this.logger.error({ err }, "PostgreSQL client error");
-        this.isConnected = false;
-      });
-
-      this.client.on("end", () => {
-        this.logger.info("PostgreSQL connection ended");
-        this.isConnected = false;
-      });
-
-      this.client.on("notification", (msg) => {
-        this.handleNotification(msg);
-      });
-
       await this.client.connect();
       await this.client.query(`LISTEN ${this.channelName}`);
 
@@ -76,6 +137,8 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
     if (!this.isConnected) {
       return;
     }
+
+    this.isStopping = true;
 
     try {
       await this.client.query(`UNLISTEN ${this.channelName}`);
