@@ -1,5 +1,10 @@
 import type { GuildMember, Message } from "discord.js";
-import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
+import {
+  ChannelType,
+  DiscordAPIError,
+  PermissionFlagsBits,
+  RESTJSONErrorCodes,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import type { Notification } from "../domain/entities/Notification";
@@ -33,6 +38,12 @@ export class NotificationMessageService {
 
     if (matchedNotifications.length === 0) {
       return;
+    }
+
+    // Pre-fetch all thread members once to populate cache, avoiding N API calls
+    // (one per notification) later when checking private thread membership.
+    if (message.channel.type === ChannelType.PrivateThread) {
+      await message.channel.members.fetch();
     }
 
     const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
@@ -83,7 +94,7 @@ export class NotificationMessageService {
       return;
     }
 
-    if (!this.canMemberViewChannel(message, member)) {
+    if (!(await this.canMemberViewChannel(message, member))) {
       this.logger.debug(
         {
           guildId: message.guildId,
@@ -189,12 +200,26 @@ export class NotificationMessageService {
     );
   }
 
-  private canMemberViewChannel(message: Message, member: GuildMember): boolean {
+  private async canMemberViewChannel(
+    message: Message,
+    member: GuildMember,
+  ): Promise<boolean> {
     if (!message.inGuild()) {
       return false;
     }
 
     const memberPermissions = message.channel.permissionsFor(member);
-    return memberPermissions?.has("ViewChannel") ?? false;
+    if (!memberPermissions?.has(PermissionFlagsBits.ViewChannel)) {
+      return false;
+    }
+
+    // permissionsFor() on threads only checks the parent channel permissions,
+    // not thread membership. Private thread members must be explicitly added.
+    // Cache was pre-populated in processMessage, so this is a cache-only lookup.
+    if (message.channel.type === ChannelType.PrivateThread) {
+      return message.channel.members.cache.has(member.id);
+    }
+
+    return true;
   }
 }
