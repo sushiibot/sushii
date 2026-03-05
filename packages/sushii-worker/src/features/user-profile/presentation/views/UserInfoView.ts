@@ -6,6 +6,16 @@ import Color from "@/utils/colors";
 import { getCreatedTimestampSeconds } from "@/utils/snowflake";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
+function formatTimestampField(unixSeconds: number): string {
+  return `<t:${unixSeconds}:R>\n<t:${unixSeconds}:D>\n<t:${unixSeconds}:t>`;
+}
+
+function getUserType(user: User): "User" | "Bot" | "System" {
+  if (user.system) return "System";
+  if (user.bot) return "Bot";
+  return "User";
+}
+
 export function createUserInfoEmbed(
   user: User,
   member: GuildMember | undefined,
@@ -39,12 +49,43 @@ export function createUserInfoEmbed(
   embed = embed.addFields([
     {
       name: "Account Created",
-      value: `<t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
+      value: formatTimestampField(createdTimestamp),
     },
   ]);
 
   if (member) {
     embed = embed.setColor(member.displayColor);
+
+    if (member.joinedTimestamp) {
+      const joinTs = timestampToUnixTime(member.joinedTimestamp);
+
+      embed = embed.addFields([
+        {
+          name: "Joined Server",
+          value: formatTimestampField(joinTs),
+        },
+      ]);
+    }
+  }
+
+  embed = embed.addFields([
+    {
+      name: "Account Type",
+      value: getUserType(user),
+    },
+  ]);
+
+  if (member) {
+    if (member.premiumSinceTimestamp) {
+      const premiumTs = timestampToUnixTime(member.premiumSinceTimestamp);
+
+      embed = embed.addFields([
+        {
+          name: "Boosting Since",
+          value: formatTimestampField(premiumTs),
+        },
+      ]);
+    }
 
     // 1024 char limit, 40 roles * 25 length each mention = 1000
     const trimmedRoles = [...member.roles.cache.values()].slice(0, 40);
@@ -60,28 +101,6 @@ export function createUserInfoEmbed(
         value: rolesStr || "Member has no roles",
       },
     ]);
-
-    if (member.joinedTimestamp) {
-      const joinTs = timestampToUnixTime(member.joinedTimestamp);
-
-      embed = embed.addFields([
-        {
-          name: "Joined Server",
-          value: `<t:${joinTs}:F> (<t:${joinTs}:R>)`,
-        },
-      ]);
-    }
-
-    if (member.premiumSinceTimestamp) {
-      const premiumTs = timestampToUnixTime(member.premiumSinceTimestamp);
-
-      embed = embed.addFields([
-        {
-          name: "Boosting Since",
-          value: `<t:${premiumTs}:F> (<t:${premiumTs}:R>)`,
-        },
-      ]);
-    }
   }
 
   return embed.toJSON();
