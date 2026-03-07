@@ -60,7 +60,11 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     try {
       modalSubmission = await interaction.awaitModalSubmit({
         time: 300_000, // 5 minutes
-        filter: (i) => i.user.id === interaction.user.id,
+        // Match customId to prevent a stale collector (from a previously dismissed
+        // modal) from intercepting a submission intended for a different case.
+        filter: (i) =>
+          i.user.id === interaction.user.id &&
+          i.customId === interaction.customId,
       });
     } catch {
       // Modal timed out or was dismissed - no need to respond
