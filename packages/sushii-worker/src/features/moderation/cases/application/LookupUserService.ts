@@ -84,7 +84,6 @@ export class LookupUserService {
         id: user.id,
         username: user.username,
         avatarURL: user.displayAvatarURL(),
-        createdAt: user.createdAt,
         joinedAt: member ? member.joinedAt : null,
         isBot: user.bot,
       },
