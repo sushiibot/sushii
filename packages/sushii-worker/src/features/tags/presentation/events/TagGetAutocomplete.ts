@@ -37,8 +37,11 @@ export class TagGetAutocomplete extends AutocompleteHandler {
 
     // searchTag already limits to 25, but just to be safe
     const choices = tags
-      // Might have some legacy tags that are over 100 chars, so just filter them out
-      .filter((t) => t.getName().getValue().length <= 100)
+      // Discord requires choice names to be 1-100 chars
+      .filter((t) => {
+        const len = t.getName().getValue().length;
+        return len >= 1 && len <= 100;
+      })
       .slice(0, 25)
       .map((tag) => ({
         name: tag.getName().getValue(),
