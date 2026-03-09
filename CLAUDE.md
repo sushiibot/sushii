@@ -67,6 +67,11 @@ When working on Discord interactions and components, refer to:
 - **Discord Interactions**: `.claude/discord-interaction-guide.md` - Reply/update/followUp patterns
 - **Components v2**: `.claude/components_v2.md` - Container-based component system with builders
 
+When working on error fixes or deployments, refer to the `sushii-ansible` repo:
+- **Docs index**: `docs/README.md` - start here, links to all runbooks
+- **Sentry Workflow**: `docs/sentry-workflow.md` - fixing errors with commit messages, release tracking
+- **Deployment**: `docs/update-sushii-bot.md` - blue/green deploy and switchover
+
 ## Communication Guidelines
 
 - Ask clarifying questions to flesh out more details for all user requests before creating a plan for approval.
