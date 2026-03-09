@@ -92,11 +92,11 @@ interface MetricsBindings {
   outgoing: ServerResponse;
 }
 
-function createMonitoringServer(
+export function createMonitoringApp(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
-): Server<unknown> {
+): Hono<{ Bindings: MetricsBindings }> {
   const app = new Hono<{ Bindings: MetricsBindings }>();
 
   // Middleware
@@ -278,6 +278,16 @@ function createMonitoringServer(
       );
     }
   });
+
+  return app;
+}
+
+function createMonitoringServer(
+  manager: ClusterManager,
+  commands: RESTPostAPIApplicationCommandsJSONBody[],
+  deploymentService: DeploymentService,
+): Server<unknown> {
+  const app = createMonitoringApp(manager, commands, deploymentService);
 
   return Bun.serve({
     port: config.metrics.port,
