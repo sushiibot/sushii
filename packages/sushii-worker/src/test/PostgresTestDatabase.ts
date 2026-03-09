@@ -54,6 +54,14 @@ export class PostgresTestDatabase {
     await this.client.query(initSql);
   }
 
+  getConnectionString(): string {
+    if (!this.container) {
+      throw new Error("Container not initialized, call initialize() first");
+    }
+
+    return this.container.getConnectionUri();
+  }
+
   async close(): Promise<void> {
     await this.client?.end();
     await this.container?.stop();
