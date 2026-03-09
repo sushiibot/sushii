@@ -72,7 +72,7 @@ describe("GET /deployment/status", () => {
     const res = await app.request("/deployment/status");
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.this_deployment).toBe("blue");
     expect(body.active_deployment).toBe("blue");
     expect(body.is_active).toBe(true);
@@ -92,7 +92,7 @@ describe("GET /deployment/status", () => {
 
     const app = createMonitoringApp(manager, [], service);
     const res = await app.request("/deployment/status");
-    const body = await res.json();
+    const body = (await res.json()) as any;
 
     expect(body.ready_to_switch).toBe(false);
     expect(body.health).toBe("unhealthy");
@@ -106,7 +106,7 @@ describe("GET /deployment/status", () => {
 
     const app = createMonitoringApp(manager, [], service);
     const res = await app.request("/deployment/status");
-    const body = await res.json();
+    const body = (await res.json()) as any;
 
     expect(body.this_deployment).toBe("green");
     expect(body.active_deployment).toBe("blue");
@@ -137,7 +137,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error).toInclude("Invalid JSON");
   });
 
@@ -153,7 +153,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error).toInclude("Invalid target");
   });
 
@@ -184,7 +184,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error).toInclude("does not match this instance");
   });
 
@@ -204,7 +204,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(503);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error).toInclude("not ready");
   });
 
@@ -221,7 +221,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error).toInclude("already the active deployment");
   });
 
@@ -238,7 +238,7 @@ describe("POST /deployment/switch", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.previous_deployment).toBe("green");
     expect(body.new_deployment).toBe("blue");
@@ -252,7 +252,7 @@ describe("POST /deployment/switch", () => {
 
     // Before switch: blue is inactive
     const before = await app.request("/deployment/status");
-    expect((await before.json()).is_active).toBe(false);
+    expect(((await before.json()) as any).is_active).toBe(false);
 
     // Perform switch
     await app.request("/deployment/switch", {
@@ -263,6 +263,6 @@ describe("POST /deployment/switch", () => {
 
     // After switch: blue is now active
     const after = await app.request("/deployment/status");
-    expect((await after.json()).is_active).toBe(true);
+    expect(((await after.json()) as any).is_active).toBe(true);
   });
 });
