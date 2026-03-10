@@ -26,6 +26,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   const sentryClient = Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.sentry.environment,
+    release: config.build.gitHash,
     skipOpenTelemetrySetup: true,
 
     tracesSampleRate: 0.005,

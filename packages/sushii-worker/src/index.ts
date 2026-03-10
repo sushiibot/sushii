@@ -25,6 +25,7 @@ async function main(): Promise<void> {
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.sentry.environment,
+    release: config.build.gitHash,
     tracesSampleRate: 1.0,
   });
 
