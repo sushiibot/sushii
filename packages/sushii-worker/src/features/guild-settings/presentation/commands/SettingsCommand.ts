@@ -30,6 +30,7 @@ import {
 import {
   createBanDmTextModal,
   createJoinMessageModal,
+  createKickDmTextModal,
   createLeaveMessageModal,
   createTimeoutDmTextModal,
   createWarnDmTextModal,
@@ -519,6 +520,35 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined; // No page change for modal buttons
     }
 
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT) {
+      const modal = createKickDmTextModal(
+        currentConfig.moderationSettings.kickDmText,
+      );
+      await interaction.showModal(modal);
+
+      try {
+        const modalSubmission = await interaction.awaitModalSubmit({
+          time: 120000, // 2 minutes
+        });
+
+        if (!modalSubmission.isFromMessage()) {
+          throw new Error("Modal submission is not from a message interaction");
+        }
+
+        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+      } catch (err) {
+        this.logger.debug(
+          {
+            interactionId: interaction.id,
+            err,
+          },
+          "Kick DM text modal submission timed out or failed",
+        );
+      }
+
+      return undefined; // No page change for modal buttons
+    }
+
     // Handle toggle buttons
     const { setting, page } = this.getSettingAndPageFromButton(
       interaction.customId,
@@ -596,6 +626,8 @@ export default class SettingsCommand extends SlashCommandHandler {
         return { setting: "timeoutNativeDm", page: "moderation" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM:
         return { setting: "banDm", page: "moderation" };
+      case SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM:
+        return { setting: "kickDm", page: "moderation" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM:
         return { setting: "automodSpam", page: "automod" };
       default:
@@ -646,6 +678,14 @@ export default class SettingsCommand extends SlashCommandHandler {
     ) {
       const newText = interaction.fields.getTextInputValue("ban_dm_text_input");
       await this.guildSettingsService.updateBanDmText(guildId, newText);
+      targetPage = "moderation";
+    } else if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT
+    ) {
+      const newText = interaction.fields.getTextInputValue(
+        "kick_dm_text_input",
+      );
+      await this.guildSettingsService.updateKickDmText(guildId, newText);
       targetPage = "moderation";
     }
 

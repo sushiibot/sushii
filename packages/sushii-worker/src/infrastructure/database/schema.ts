@@ -181,6 +181,9 @@ export const guildConfigsInAppPublic = appPublic.table(
     banDmText: text("ban_dm_text"),
     banDmEnabled: boolean("ban_dm_enabled").default(true).notNull(),
 
+    kickDmText: text("kick_dm_text"),
+    kickDmEnabled: boolean("kick_dm_enabled").default(false).notNull(),
+
     // Other
     disabledChannels: bigint("disabled_channels", { mode: "bigint" }).array(),
     lookupDetailsOptIn: boolean("lookup_details_opt_in")

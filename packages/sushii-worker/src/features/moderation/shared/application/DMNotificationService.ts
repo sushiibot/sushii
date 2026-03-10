@@ -253,6 +253,8 @@ export class DMNotificationService {
       case ActionType.Ban:
       case ActionType.TempBan:
         return guildConfig.moderationSettings.banDmText;
+      case ActionType.Kick:
+        return guildConfig.moderationSettings.kickDmText;
       default:
         return null;
     }

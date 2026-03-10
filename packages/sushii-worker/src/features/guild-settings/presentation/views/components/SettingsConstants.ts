@@ -44,6 +44,7 @@ export const SETTINGS_CUSTOM_IDS = {
     TIMEOUT_COMMAND_DM: "settings_toggle_timeout_command_dm",
     TIMEOUT_NATIVE_DM: "settings_toggle_timeout_native_dm",
     BAN_DM: "settings_toggle_ban_dm",
+    KICK_DM: "settings_toggle_kick_dm",
 
     // Automod Toggles
     AUTOMOD_SPAM: "settings_toggle_automod_spam",
@@ -69,5 +70,6 @@ export const SETTINGS_CUSTOM_IDS = {
     EDIT_TIMEOUT_DM_TEXT: "settings_edit_timeout_dm_text",
     EDIT_WARN_DM_TEXT: "settings_edit_warn_dm_text",
     EDIT_BAN_DM_TEXT: "settings_edit_ban_dm_text",
+    EDIT_KICK_DM_TEXT: "settings_edit_kick_dm_text",
   },
 } as const;

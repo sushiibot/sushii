@@ -70,6 +70,15 @@ export class GuildSettingsService {
     return this.guildConfigRepository.save(updatedConfig);
   }
 
+  async updateKickDmText(guildId: string, text: string): Promise<GuildConfig> {
+    this.logger.info({ guildId, text }, "Updating kick DM text");
+
+    const config = await this.guildConfigRepository.findByGuildId(guildId);
+    const updatedConfig = config.updateKickDmText(text);
+
+    return this.guildConfigRepository.save(updatedConfig);
+  }
+
   async updateMessageChannel(
     guildId: string,
     channelId: string | null,
@@ -153,6 +162,11 @@ export class GuildSettingsService {
       case "banDm":
         updatedConfig = config.setBanDmEnabled(
           !config.moderationSettings.banDmEnabled,
+        );
+        break;
+      case "kickDm":
+        updatedConfig = config.setKickDmEnabled(
+          !config.moderationSettings.kickDmEnabled,
         );
         break;
       case "automodSpam":

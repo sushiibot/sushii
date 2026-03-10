@@ -118,6 +118,24 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/sushiibot/sushii-worker:buildcache
           cache-to: type=registry,ref=ghcr.io/sushiibot/sushii-worker:buildcache,mode=max
 
+  sentry-release:
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create Sentry release
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: sushii
+          SENTRY_PROJECT: sushii-ts
+        with:
+          version: ${{ needs.docker-build.outputs.sha_short }}
+
   deploy-staging:
     needs: docker-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

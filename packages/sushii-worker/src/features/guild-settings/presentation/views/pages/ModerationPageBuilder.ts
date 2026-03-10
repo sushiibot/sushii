@@ -217,4 +217,49 @@ export function addModerationContent(
       .setDisabled(disabled),
   );
   container.addActionRowComponents(banTextRow);
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
+  // Kick DM Settings
+  const kickToggleContent = formatToggleSetting(
+    "👢 Kick DM",
+    config.moderationSettings.kickDmEnabled,
+    "Always DM the user when kicked.",
+  );
+  const kickToggleText = new TextDisplayBuilder().setContent(kickToggleContent);
+  const kickToggleSection = new SectionBuilder()
+    .addTextDisplayComponents(kickToggleText)
+    .setButtonAccessory(
+      createToggleButton(
+        config.moderationSettings.kickDmEnabled,
+        SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,
+        disabled,
+      ),
+    );
+  container.addSectionComponents(kickToggleSection);
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
+  let kickMessageContent = "";
+  kickMessageContent += formatMessageSetting(
+    "👢 Kick DM Message",
+    config.moderationSettings.kickDmText,
+    "Optional extra message added to kick DMs. Users always see the kick reason, but you can add appeal links or additional instructions here.",
+  );
+
+  const kickMessageText = new TextDisplayBuilder().setContent(kickMessageContent);
+  container.addTextDisplayComponents(kickMessageText);
+
+  const kickTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT)
+      .setLabel("Edit Kick DM Text")
+      .setEmoji("📝")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+  );
+  container.addActionRowComponents(kickTextRow);
 }

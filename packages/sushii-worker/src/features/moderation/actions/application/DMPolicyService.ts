@@ -86,9 +86,7 @@ export class DMPolicyService {
       case ActionType.TempBan:
         return guildConfig.moderationSettings.banDmEnabled;
       case ActionType.Kick:
-        // TODO: Add kickDmEnabled config option
-        // For now, default to false since there's no config option yet
-        return false;
+        return guildConfig.moderationSettings.kickDmEnabled;
       case ActionType.Timeout:
         return guildConfig.moderationSettings.timeoutCommandDmEnabled;
       default:
@@ -108,6 +106,8 @@ export class DMPolicyService {
         return !!guildConfig.moderationSettings.timeoutDmText;
       case ActionType.Warn:
         return !!guildConfig.moderationSettings.warnDmText;
+      case ActionType.Kick:
+        return !!guildConfig.moderationSettings.kickDmText;
       default:
         return false;
     }

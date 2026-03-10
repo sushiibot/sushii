@@ -28,6 +28,9 @@ export interface ModerationSettings {
   banDmText: string | null;
   banDmEnabled: boolean;
 
+  kickDmText: string | null;
+  kickDmEnabled: boolean;
+
   lookupDetailsOptIn: boolean;
   lookupPrompted: boolean;
 
@@ -45,6 +48,7 @@ export type ToggleableSetting =
   | "timeoutCommandDm"
   | "timeoutNativeDm"
   | "banDm"
+  | "kickDm"
   | "automodSpam";
 
 export class GuildConfig {
@@ -100,6 +104,9 @@ export class GuildConfig {
 
         banDmText: null,
         banDmEnabled: true,
+
+        kickDmText: null,
+        kickDmEnabled: false,
 
         // Lookup flags
         lookupDetailsOptIn: false,
@@ -166,6 +173,17 @@ export class GuildConfig {
     }
 
     config.moderationSettings.banDmText = text;
+    return config;
+  }
+
+  updateKickDmText(text: string): GuildConfig {
+    const config = this.clone();
+    if (text === "") {
+      config.moderationSettings.kickDmText = null;
+      return config;
+    }
+
+    config.moderationSettings.kickDmText = text;
     return config;
   }
 
@@ -280,6 +298,12 @@ export class GuildConfig {
   setBanDmEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.moderationSettings.banDmEnabled = enabled;
+    return config;
+  }
+
+  setKickDmEnabled(enabled: boolean): GuildConfig {
+    const config = this.clone();
+    config.moderationSettings.kickDmEnabled = enabled;
     return config;
   }
 

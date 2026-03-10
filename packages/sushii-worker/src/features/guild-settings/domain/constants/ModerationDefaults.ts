@@ -15,4 +15,5 @@ export const MODERATION_DM_CUSTOM_EXAMPLES = {
   WARN_DM_TEXT:
     "Please review our server rules to avoid further action. Visit #rules for more information.",
   BAN_DM_TEXT: "You can appeal this ban at https://example.com/appeal",
+  KICK_DM_TEXT: "You can appeal this kick at https://example.com/appeal",
 } as const;

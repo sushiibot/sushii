@@ -303,3 +303,27 @@ export function createBanDmTextModal(currentText: string | null): ModalBuilder {
 
   return modal;
 }
+
+export function createKickDmTextModal(
+  currentText: string | null,
+): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT)
+    .setTitle("Edit Kick DM Text");
+
+  const textInput = new TextInputBuilder()
+    .setCustomId("kick_dm_text_input")
+    .setLabel("Kick DM Text")
+    .setStyle(TextInputStyle.Paragraph)
+    .setValue(currentText || "")
+    .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.KICK_DM_TEXT)
+    .setRequired(false)
+    .setMaxLength(1000);
+
+  const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
+    textInput,
+  );
+  modal.addComponents(actionRow);
+
+  return modal;
+}
