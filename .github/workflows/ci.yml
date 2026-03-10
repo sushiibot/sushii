@@ -139,42 +139,9 @@ jobs:
   deploy-staging:
     needs: docker-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Checkout deployment playbook
-        uses: actions/checkout@v6
-        with:
-          repository: sushiibot/sushii-ansible
-          ref: main
-          token: ${{ secrets.ANSIBLE_REPO_TOKEN }}
-
-      - name: Setup SSH key
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Setup known host
-        run: |
-          mkdir -p ~/.ssh
-          echo "$KNOWN_HOST" > ~/.ssh/known_hosts
-        env:
-          KNOWN_HOST: ${{ secrets.KNOWN_HOST }}
-
-      - name: Deploy to staging
-        env:
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: |
-
-          # Remove unused vault file
-          rm ./inventory/group_vars/all/vault.yml
-
-          ansible-playbook \
-            --vault-password-file ./vault-env \
-            -l apps \
-            playbooks/deploy.yml \
-            -e "service=sushii-bot/sushii-bot-staging" \
-            -e "image_version=${{ needs.docker-build.outputs.sha_short }}" \
-            -e "docker_registry_password=${{ secrets.GITHUB_TOKEN }}" \
-            -e "docker_registry_user=${{ github.repository_owner }}" \
-            -t deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/deploy.yml@main
+    with:
+      service: sushii-bot/sushii-bot-staging
+      image_version: ${{ needs.docker-build.outputs.sha_short }}
+      environment: staging
+    secrets: inherit
