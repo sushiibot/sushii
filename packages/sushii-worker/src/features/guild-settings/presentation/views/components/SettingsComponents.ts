@@ -77,21 +77,6 @@ export function createNavigationRow(
   );
 }
 
-export function formatLogSetting(
-  name: string,
-  channelId: string | null,
-  enabled: boolean,
-  description: string,
-): string {
-  const status = enabled ? "`✅ Enabled`" : "`❌ Disabled`";
-  const channel = channelId ? `<#${channelId}>` : "No channel set";
-
-  let text = `**${name}** — ${status} (${channel})\n`;
-  text += `> ${description}\n`;
-
-  return text;
-}
-
 export function formatToggleMessageSetting(
   name: string,
   message: string | null,
@@ -159,7 +144,7 @@ export function createToggleButton(
 
   return new ButtonBuilder()
     .setCustomId(customId)
-    .setLabel(`${action}`)
+    .setLabel(action)
     .setStyle(currentlyEnabled ? ButtonStyle.Secondary : ButtonStyle.Success)
     .setDisabled(disabled);
 }
@@ -181,10 +166,6 @@ export function createJoinMessageModal(
     )
     .setRequired(false)
     .setMaxLength(1000);
-
-  if (currentMessage) {
-    messageInput.setValue(currentMessage);
-  }
 
   const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     messageInput,
@@ -210,10 +191,6 @@ export function createLeaveMessageModal(
     .setRequired(false)
     .setMaxLength(1000);
 
-  if (currentMessage) {
-    messageInput.setValue(currentMessage);
-  }
-
   const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     messageInput,
   );
@@ -237,10 +214,6 @@ export function createTimeoutDmTextModal(
     .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.TIMEOUT_DM_TEXT)
     .setRequired(false)
     .setMaxLength(1000);
-
-  if (currentText) {
-    textInput.setValue(currentText);
-  }
 
   const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     textInput,
@@ -266,10 +239,6 @@ export function createWarnDmTextModal(
     .setRequired(false)
     .setMaxLength(1000);
 
-  if (currentText) {
-    textInput.setValue(currentText);
-  }
-
   const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     textInput,
   );
@@ -291,10 +260,6 @@ export function createBanDmTextModal(currentText: string | null): ModalBuilder {
     .setPlaceholder(MODERATION_DM_CUSTOM_EXAMPLES.BAN_DM_TEXT)
     .setRequired(false)
     .setMaxLength(1000);
-
-  if (currentText) {
-    textInput.setValue(currentText);
-  }
 
   const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     textInput,

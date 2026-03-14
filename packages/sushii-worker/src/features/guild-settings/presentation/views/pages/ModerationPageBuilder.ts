@@ -121,11 +121,10 @@ export function addModerationContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  let timeoutMessageContent = "";
-  timeoutMessageContent += formatMessageSetting(
+  const timeoutMessageContent = formatMessageSetting(
     "⏳ Timeout DM Message",
     config.moderationSettings.timeoutDmText,
-    "Optional extra message added to timeout DMs. Users always see the timeout reason, but you can add server rules or appeal info here.",
+    "Extra message added to timeout DMs. Add server rules or appeal info here.",
   );
 
   const timeoutMessageText = new TextDisplayBuilder().setContent(
@@ -151,11 +150,10 @@ export function addModerationContent(
   );
 
   // Warn DM Settings
-  let warnContent = "";
-  warnContent += formatMessageSetting(
+  const warnContent = formatMessageSetting(
     "⚠️ Warn DM Message",
     config.moderationSettings.warnDmText,
-    "Optional extra message added to warning DMs. Users always see the warning reason, so this could be additional rule reminders or information here.",
+    "Extra message added to warning DMs. Add rule reminders or additional info here.",
   );
 
   const dmText2 = new TextDisplayBuilder().setContent(warnContent);
@@ -198,11 +196,10 @@ export function addModerationContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  let banMessageContent = "";
-  banMessageContent += formatMessageSetting(
+  const banMessageContent = formatMessageSetting(
     "🔨 Ban DM Message",
     config.moderationSettings.banDmText,
-    "Optional extra message added to ban DMs. Users always see the ban reason, but you can add appeal links or final instructions here.",
+    "Extra message added to ban DMs. Add appeal links or final instructions here.",
   );
 
   const banMessageText = new TextDisplayBuilder().setContent(banMessageContent);
@@ -243,11 +240,10 @@ export function addModerationContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  let kickMessageContent = "";
-  kickMessageContent += formatMessageSetting(
+  const kickMessageContent = formatMessageSetting(
     "👢 Kick DM Message",
     config.moderationSettings.kickDmText,
-    "Optional extra message added to kick DMs. Users always see the kick reason, but you can add appeal links or additional instructions here.",
+    "Extra message added to kick DMs. Add appeal links or additional instructions here.",
   );
 
   const kickMessageText = new TextDisplayBuilder().setContent(kickMessageContent);

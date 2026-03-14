@@ -7,9 +7,9 @@ import {
   ChannelType,
   SectionBuilder,
   SeparatorBuilder,
+  SeparatorSpacingSize,
   TextDisplayBuilder,
 } from "discord.js";
-import { SeparatorSpacingSize } from "discord.js";
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
