@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/bun";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
-import { Client, GatewayIntentBits, Options, Partials } from "discord.js";
+import { Client, Events, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
 import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
