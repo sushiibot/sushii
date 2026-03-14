@@ -59,7 +59,7 @@ function createHealthServer(manager: ClusterManager): Server<unknown> {
     return c.json(
       {
         status: allReady ? "healthy" : "unhealthy",
-        clusters: manager.clusters.values().map((cluster) => ({
+        clusters: Array.from(manager.clusters.values()).map((cluster) => ({
           id: cluster.id,
           shards: cluster.shardList,
           ready: cluster.ready,
@@ -118,7 +118,7 @@ export function createMonitoringApp(
         },
         tracingSamplePercentage: config.tracing.samplePercentage,
       },
-      clusters: manager.clusters.values().map((cluster) => ({
+      clusters: Array.from(manager.clusters.values()).map((cluster) => ({
         id: cluster.id,
         ready: cluster.ready,
         restarts: {
@@ -150,7 +150,7 @@ export function createMonitoringApp(
       is_active: isActive,
       ready_to_switch: allReady,
       health: allReady ? "healthy" : "unhealthy",
-      clusters: manager.clusters.values().map((cluster) => ({
+      clusters: Array.from(manager.clusters.values()).map((cluster) => ({
         id: cluster.id,
         ready: cluster.ready,
         shards: cluster.shardList,
@@ -220,7 +220,7 @@ export function createMonitoringApp(
       return c.json(
         {
           error: "This deployment is not ready. Not all clusters are ready.",
-          clusters: manager.clusters.values().map((cluster) => ({
+          clusters: Array.from(manager.clusters.values()).map((cluster) => ({
             id: cluster.id,
             ready: cluster.ready,
             shards: cluster.shardList,

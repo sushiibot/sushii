@@ -114,8 +114,8 @@ async function initializeShardCluster(): Promise<void> {
   });
 
   // discord-hybrid-sharding v3: triggerReady() is no longer automatic,
-  // must be called manually on the clientReady event.
-  client.once("clientReady", (readyClient) => {
+  // must be called manually on the client ready event.
+  client.once(Events.ClientReady, (readyClient) => {
     readyClient.cluster.triggerReady();
   });
 
