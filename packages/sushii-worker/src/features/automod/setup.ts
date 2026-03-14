@@ -1,23 +1,21 @@
 import type { Client } from "discord.js";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { Events } from "discord.js";
 import type { Logger } from "pino";
 
-import type * as schema from "@/infrastructure/database/schema";
+import type { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
-import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 
+import { SpamActionService } from "./application/SpamActionService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 
 export interface AutomodFeature {
-  eventHandlers: AutomodMessageHandler[];
-  services: {
-    spamDetectionService: SpamDetectionService;
-  };
+  eventHandlers: EventHandler<typeof Events.Raw>[];
+  destroy(): void;
 }
 
 export interface AutomodFeatureOptions {
-  db: NodePgDatabase<typeof schema>;
+  guildConfigRepository: GuildConfigRepository;
   client: Client;
   logger: Logger;
 }
@@ -25,32 +23,28 @@ export interface AutomodFeatureOptions {
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { db, client, logger } = options;
-
-  // Repositories
-  const guildConfigRepository: GuildConfigRepository =
-    new DrizzleGuildConfigRepository(
-      db,
-      logger.child({ component: "GuildConfigRepository" }),
-    );
+  const { guildConfigRepository, client, logger } = options;
 
   // Services
   const spamDetectionService = new SpamDetectionService(
     logger.child({ component: "SpamDetectionService" }),
   );
 
+  const spamActionService = new SpamActionService(
+    client,
+    logger.child({ component: "SpamActionService" }),
+  );
+
   // Event handlers
   const automodMessageHandler = new AutomodMessageHandler(
     spamDetectionService,
+    spamActionService,
     guildConfigRepository,
-    client,
     logger.child({ component: "AutomodMessageHandler" }),
   );
 
   return {
     eventHandlers: [automodMessageHandler],
-    services: {
-      spamDetectionService,
-    },
+    destroy: () => spamDetectionService.destroy(),
   };
 }

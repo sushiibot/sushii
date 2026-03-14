@@ -1,29 +1,18 @@
-import type { Client, GatewayDispatchPayload } from "discord.js";
+import type { GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents } from "discord.js";
 import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import type { SpamActionService } from "../../application/SpamActionService";
 import type { SpamDetectionService } from "../../application/SpamDetectionService";
-
-interface GuildMessageCreatePayload {
-  id: string;
-  channel_id: string;
-  guild_id: string;
-  author: {
-    id: string;
-    username: string;
-    bot?: boolean;
-  };
-  content?: string;
-}
 
 export class AutomodMessageHandler extends EventHandler<Events.Raw> {
   constructor(
     private readonly spamDetectionService: SpamDetectionService,
+    private readonly spamActionService: SpamActionService,
     private readonly guildConfigRepository: GuildConfigRepository,
-    private readonly client: Client,
     private readonly logger: Logger,
   ) {
     super();
@@ -37,7 +26,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       return;
     }
 
-    const payload = event.d as GuildMessageCreatePayload;
+    const payload = event.d;
 
     // Ignore DMs
     if (!payload.guild_id) {
@@ -49,8 +38,18 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       return;
     }
 
-    // Ignore messages without content
-    if (!payload.content?.trim()) {
+    // Derive spam key from content and/or attachment filenames so messages
+    // with the same combination of text + files hash identically across channels
+    const contentPart = payload.content?.trim();
+    const attachmentPart = payload.attachments?.length
+      ? payload.attachments.map((a) => a.filename).sort().join(",")
+      : undefined;
+    const spamKey = [contentPart, attachmentPart]
+      .filter((s): s is string => Boolean(s))
+      .join("|");
+
+    // Ignore messages with no content and no attachments
+    if (!spamKey) {
       return;
     }
 
@@ -65,15 +64,21 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       }
 
       // Check for spam
-      const isSpam = this.spamDetectionService.checkForSpam(
+      const spamMessages = this.spamDetectionService.checkForSpam(
         payload.guild_id,
         payload.author.id,
-        payload.content,
+        spamKey,
         payload.channel_id,
+        payload.id,
       );
 
-      if (isSpam) {
-        await this.handleSpamDetected(payload);
+      if (spamMessages) {
+        await this.spamActionService.executeSpamAction(
+          payload.guild_id,
+          payload.author.id,
+          payload.author.username,
+          spamMessages,
+        );
       }
     } catch (err) {
       this.logger.error(
@@ -84,69 +89,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           userId: payload.author.id,
         },
         "Failed to process message for automod spam detection",
-      );
-    }
-  }
-
-  private async handleSpamDetected(
-    payload: GuildMessageCreatePayload,
-  ): Promise<void> {
-    try {
-      // Get the guild and member to timeout
-      const guild = this.client.guilds.cache.get(payload.guild_id);
-      if (!guild) {
-        this.logger.warn(
-          { guildId: payload.guild_id },
-          "Guild not found in cache for spam timeout",
-        );
-        return;
-      }
-
-      const member = await guild.members
-        .fetch(payload.author.id)
-        .catch(() => null);
-      if (!member) {
-        this.logger.warn(
-          { guildId: payload.guild_id, userId: payload.author.id },
-          "Member not found for spam timeout",
-        );
-        return;
-      }
-
-      // Check if member can be timed out
-      if (!member.moderatable) {
-        this.logger.info(
-          { guildId: payload.guild_id, userId: payload.author.id },
-          "Member is not moderatable for spam timeout",
-        );
-
-        return;
-      }
-
-      // Timeout for 10 minutes with clear audit log reason
-      const timeoutDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
-      const reason =
-        "Automatic timeout: duplicate message spam detected across multiple channels";
-
-      await member.timeout(timeoutDuration, reason);
-
-      this.logger.info(
-        {
-          guildId: payload.guild_id,
-          userId: payload.author.id,
-          username: payload.author.username,
-          timeoutDuration,
-        },
-        "Applied automatic timeout for spam detection",
-      );
-    } catch (err) {
-      this.logger.error(
-        {
-          err,
-          guildId: payload.guild_id,
-          userId: payload.author.id,
-        },
-        "Failed to timeout user for spam",
       );
     }
   }

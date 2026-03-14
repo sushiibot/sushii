@@ -153,7 +153,7 @@ async function handleDiscordEvent(
           // Log the error with context
           logger.error(
             {
-              error,
+              err: error,
               eventType,
               handler: handler.constructor.name,
               channelId,
@@ -218,14 +218,19 @@ export function registerFeatures(
     logger,
   });
 
-  const automodFeature = setupAutomodFeature({ db, client, logger });
+  const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
+  const automodFeature = setupAutomodFeature({
+    client,
+    logger,
+    guildConfigRepository:
+      guildSettingsFeature.services.guildConfigurationRepository,
+  });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({ db, logger });
   const tagFeature = setupTagFeature({ db, logger });
   const userProfileFeature = setupUserProfileFeature({ db, client, logger });
   const socialFeature = setupSocialFeature({ db, client, logger });
   const notificationFeature = setupNotificationFeature({ db, logger });
-  const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
   const statusFeature = setupStatusFeature({ db });
   const remindersFeature = setupRemindersFeature({
@@ -413,7 +418,7 @@ export function registerFeatures(
       } catch (error) {
         logger.error(
           {
-            error,
+            err: error,
             eventType,
             handlers: group.map((h) => h.constructor.name),
           },
@@ -448,5 +453,8 @@ export function registerFeatures(
     tempBanRepository: moderationFeature.services.tempBanRepository,
     webhookLoggingServices: webhookLoggingFeature.services,
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
+    cleanup: () => {
+      automodFeature.destroy();
+    },
   };
 }

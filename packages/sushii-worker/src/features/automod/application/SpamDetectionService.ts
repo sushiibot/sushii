@@ -1,17 +1,23 @@
 import { createHash } from "node:crypto";
 import type { Logger } from "pino";
 
-interface MessageEntry {
-  contentHash: string;
-  channelId: string;
+interface ChannelRecord {
+  messageId: string;
   timestamp: number;
 }
 
+// contentHash -> channelId -> ChannelRecord[]
+type ContentHashTracker = Map<string, Map<string, ChannelRecord[]>>;
+
 export class SpamDetectionService {
-  // Per guild: Map<guildId, Map<userId, MessageEntry[]>>
+  static readonly SPAM_WINDOW_MS = 5000;
+  private static readonly CLEANUP_INTERVAL_MS = 30000;
+  private static readonly SPAM_CHANNEL_THRESHOLD = 3;
+
+  // Per guild: Map<guildId, Map<userId, ContentHashTracker>>
   private readonly spamTracking = new Map<
     string,
-    Map<string, MessageEntry[]>
+    Map<string, ContentHashTracker>
   >();
   private readonly cleanupInterval: Timer;
 
@@ -19,96 +25,95 @@ export class SpamDetectionService {
     // Cleanup inactive users every 30 seconds
     this.cleanupInterval = setInterval(() => {
       this.cleanupInactiveUsers();
-    }, 30000);
+    }, SpamDetectionService.CLEANUP_INTERVAL_MS);
   }
 
   /**
    * Check if a message should be considered spam
    * @param guildId - Discord guild ID
    * @param userId - Discord user ID
-   * @param content - Message content to check
+   * @param spamKey - Message content key to check
    * @param channelId - Channel where message was sent
-   * @returns True if this message triggers spam detection (3+ channels with same content)
+   * @param messageId - ID of the message being checked
+   * @returns null if not spam; Map<channelId, messageId[]> if spam detected (3+ channels)
    */
   checkForSpam(
     guildId: string,
     userId: string,
-    content: string,
+    spamKey: string,
     channelId: string,
-  ): boolean {
-    // Skip empty messages
-    if (!content.trim()) {
-      return false;
-    }
-
+    messageId: string,
+  ): Map<string, string[]> | null {
     const now = Date.now();
-    const contentHash = this.hashContent(content);
+    const cutoff = now - SpamDetectionService.SPAM_WINDOW_MS;
+    const contentHash = this.hashContent(spamKey);
 
-    // Get or create guild tracking
+    // Get or create guild map
     let guildMap = this.spamTracking.get(guildId);
     if (!guildMap) {
       guildMap = new Map();
       this.spamTracking.set(guildId, guildMap);
     }
 
-    // Get user's message queue and clean up old messages
-    const userQueue = this.cleanupUserMessages(guildMap, userId, now);
+    // Get or create user's content hash tracker
+    let contentHashTracker = guildMap.get(userId);
+    if (!contentHashTracker) {
+      contentHashTracker = new Map();
+      guildMap.set(userId, contentHashTracker);
+    }
 
-    // Add the new message
-    userQueue.push({
-      contentHash,
-      channelId,
-      timestamp: now,
-    });
+    // Get or create channel map for this content hash
+    let channelMap = contentHashTracker.get(contentHash);
+    if (!channelMap) {
+      channelMap = new Map();
+      contentHashTracker.set(contentHash, channelMap);
+    }
 
-    // Count unique channels for this content hash in recent messages
-    const channelsWithContent = new Set<string>();
-    for (const message of userQueue) {
-      if (message.contentHash === contentHash) {
-        channelsWithContent.add(message.channelId);
+    // Get or create records for this channel, filter stale, add new entry
+    const existing = channelMap.get(channelId) ?? [];
+    const recent = existing.filter((r) => r.timestamp > cutoff);
+    recent.push({ messageId, timestamp: now });
+    channelMap.set(channelId, recent);
+
+    // Count channels with at least one recent record for this content hash
+    let channelCount = 0;
+    for (const records of channelMap.values()) {
+      if (records.some((r) => r.timestamp > cutoff)) {
+        channelCount++;
       }
     }
 
-    const isSpam = channelsWithContent.size >= 3;
-
-    if (isSpam) {
-      this.logger.info(
-        {
-          guildId,
-          userId,
-          channelCount: channelsWithContent.size,
-          channels: Array.from(channelsWithContent),
-          contentHash,
-        },
-        "Spam detected: same content in multiple channels",
-      );
+    if (channelCount < SpamDetectionService.SPAM_CHANNEL_THRESHOLD) {
+      return null;
     }
 
-    return isSpam;
-  }
-
-  /**
-   * Clean up old messages for a specific user and return their current queue
-   */
-  private cleanupUserMessages(
-    guildMap: Map<string, MessageEntry[]>,
-    userId: string,
-    now: number,
-  ): MessageEntry[] {
-    const cutoff = now - 5000; // 5 seconds ago
-    const userQueue = guildMap.get(userId) || [];
-
-    // Filter to only recent messages
-    const recentMessages = userQueue.filter((msg) => msg.timestamp > cutoff);
-
-    if (recentMessages.length === 0) {
-      // Remove empty user entry
-      guildMap.delete(userId);
-    } else {
-      guildMap.set(userId, recentMessages);
+    // Collect all message IDs per channel for bulk delete
+    const spamMessages = new Map<string, string[]>();
+    for (const [cId, records] of channelMap) {
+      const recentRecords = records.filter((r) => r.timestamp > cutoff);
+      if (recentRecords.length > 0) {
+        spamMessages.set(
+          cId,
+          recentRecords.map((r) => r.messageId),
+        );
+      }
     }
 
-    return recentMessages;
+    // Clear user tracking immediately to prevent redundant concurrent timeout calls
+    guildMap.delete(userId);
+
+    this.logger.info(
+      {
+        guildId,
+        userId,
+        channelCount: spamMessages.size,
+        channels: Array.from(spamMessages.keys()),
+        contentHash,
+      },
+      "Spam detected: same content in multiple channels",
+    );
+
+    return spamMessages;
   }
 
   /**
@@ -116,34 +121,39 @@ export class SpamDetectionService {
    */
   private cleanupInactiveUsers(): void {
     const now = Date.now();
-    const cutoff = now - 5000; // 5 seconds ago
+    const cutoff = now - SpamDetectionService.SPAM_WINDOW_MS;
 
     for (const [guildId, guildMap] of this.spamTracking) {
-      for (const [userId, messageQueue] of guildMap) {
-        // Check if ANY message in queue is recent
-        const hasRecentMessages = messageQueue.some(
-          (msg) => msg.timestamp > cutoff,
-        );
-
-        if (!hasRecentMessages) {
+      for (const [userId, contentHashTracker] of guildMap) {
+        for (const [hash, channelMap] of contentHashTracker) {
+          for (const [cId, records] of channelMap) {
+            const fresh = records.filter((r) => r.timestamp > cutoff);
+            if (fresh.length === 0) {
+              channelMap.delete(cId);
+            } else {
+              channelMap.set(cId, fresh);
+            }
+          }
+          if (channelMap.size === 0) {
+            contentHashTracker.delete(hash);
+          }
+        }
+        if (contentHashTracker.size === 0) {
           guildMap.delete(userId);
         }
       }
-
-      // Remove empty guild entries
       if (guildMap.size === 0) {
         this.spamTracking.delete(guildId);
       }
     }
 
+    let totalUsers = 0;
+    for (const guildMap of this.spamTracking.values()) {
+      totalUsers += guildMap.size;
+    }
+
     this.logger.trace(
-      {
-        activeGuilds: this.spamTracking.size,
-        totalUsers: Array.from(this.spamTracking.values()).reduce(
-          (total, guildMap) => total + guildMap.size,
-          0,
-        ),
-      },
+      { activeGuilds: this.spamTracking.size, totalUsers },
       "Completed spam tracking cleanup",
     );
   }
@@ -154,19 +164,6 @@ export class SpamDetectionService {
   private hashContent(content: string): string {
     const normalized = content.trim().toLowerCase();
     return createHash("md5").update(normalized).digest("hex");
-  }
-
-  /**
-   * Get current tracking stats (for debugging)
-   */
-  getStats(): { activeGuilds: number; totalUsers: number } {
-    return {
-      activeGuilds: this.spamTracking.size,
-      totalUsers: Array.from(this.spamTracking.values()).reduce(
-        (total, guildMap) => total + guildMap.size,
-        0,
-      ),
-    };
   }
 
   /**

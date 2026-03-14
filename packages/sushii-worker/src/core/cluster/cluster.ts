@@ -74,7 +74,7 @@ async function initializeShardCluster(): Promise<void> {
   coreMetrics.registerShardCallbacks(client);
 
   // Register features -- adds commands to the router and starts tasks
-  registerFeatures(db, client, deploymentService, interactionRouter);
+  const features = registerFeatures(db, client, deploymentService, interactionRouter);
 
   // AFTER features are registered (includes registering commands)
 
@@ -98,6 +98,7 @@ async function initializeShardCluster(): Promise<void> {
   process.on("SIGTERM", async () => {
     log.info("SIGTERM received, shutting down shard gracefully");
     try {
+      features.cleanup();
       await deploymentService.stop();
       await client.destroy();
       await Sentry.close(2000);
