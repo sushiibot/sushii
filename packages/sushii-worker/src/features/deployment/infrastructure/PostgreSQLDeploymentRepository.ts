@@ -13,6 +13,7 @@ import { DeploymentChanged } from "../domain/events/DeploymentChanged";
 import type { DeploymentRepository } from "../domain/repositories/DeploymentRepository";
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
+const MAX_RECONNECT_ATTEMPTS_WARN = 10;
 
 export class PostgreSQLDeploymentRepository implements DeploymentRepository {
   private client: Client;
@@ -20,6 +21,7 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
   private readonly channelName = "deployment_changed";
   private isConnected = false;
   private isStopping = false;
+  private isReconnecting = false;
   private reconnectAttempts = 0;
   private currentDeploymentName: DeploymentName = "blue";
 
@@ -40,6 +42,14 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
       application_name: this.applicationName,
     });
 
+    return { client, db: drizzle(client) };
+  }
+
+  private attachClientListeners(client: Client): void {
+    if (client.listenerCount("error") > 0) {
+      throw new Error("Listeners already attached to this PostgreSQL client");
+    }
+
     client.on("error", (err) => {
       this.logger.error({ err }, "PostgreSQL client error");
       this.isConnected = false;
@@ -55,30 +65,41 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
     client.on("notification", (msg) => {
       this.handleNotification(msg);
     });
-
-    return { client, db: drizzle(client) };
   }
 
   private scheduleReconnect(): void {
-    if (this.isStopping) {
+    if (this.isStopping || this.isReconnecting) {
       return;
     }
 
-    const delay = Math.min(
+    this.isReconnecting = true;
+
+    const baseDelay = Math.min(
       1000 * 2 ** this.reconnectAttempts,
       MAX_RECONNECT_DELAY_MS,
     );
+    // Add up to 10% jitter to avoid thundering herd
+    const delay = baseDelay + Math.random() * 0.1 * baseDelay;
     this.reconnectAttempts++;
 
-    this.logger.info(
-      { delayMs: delay, attempt: this.reconnectAttempts },
-      "Scheduling PostgreSQL reconnect",
-    );
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS_WARN) {
+      this.logger.error(
+        { delayMs: delay, attempt: this.reconnectAttempts },
+        "PostgreSQL reconnect has failed many times — deployment state may be stale",
+      );
+    } else {
+      this.logger.info(
+        { delayMs: delay, attempt: this.reconnectAttempts },
+        "Scheduling PostgreSQL reconnect",
+      );
+    }
 
     setTimeout(() => this.reconnect(), delay);
   }
 
   private async reconnect(): Promise<void> {
+    this.isReconnecting = false;
+
     if (this.isStopping) {
       return;
     }
@@ -90,11 +111,16 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
 
     try {
       const { client, db } = this.createClient();
+
+      // Remove listeners from old client so it can't trigger more reconnects
+      this.client.removeAllListeners();
+
       this.client = client;
       this.db = db;
 
       await this.client.connect();
       await this.client.query(`LISTEN ${this.channelName}`);
+      this.attachClientListeners(this.client);
 
       // Re-sync deployment state in case a NOTIFY was missed while disconnected
       await this.getActive();
@@ -118,6 +144,7 @@ export class PostgreSQLDeploymentRepository implements DeploymentRepository {
     try {
       await this.client.connect();
       await this.client.query(`LISTEN ${this.channelName}`);
+      this.attachClientListeners(this.client);
 
       this.isConnected = true;
       this.logger.info(
