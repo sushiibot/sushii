@@ -4,6 +4,7 @@ import type { Client } from "discord.js";
 
 import type { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
 import logger from "@/shared/infrastructure/logger";
+import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 import { getCleanFilename } from "@/utils/url";
@@ -19,6 +20,10 @@ interface ModCase {
   executor_id: string | null;
   reason: string | null;
   attachments: string[];
+  /** Duration in seconds (for tempban/timeout cases) */
+  timeout_duration?: number | null;
+  /** When the moderation action was taken */
+  action_time?: Date | null;
 }
 
 export default async function buildModLogEmbed(
@@ -59,6 +64,25 @@ export default async function buildModLogEmbed(
     value: modCase.reason || "No reason provided.",
     inline: false,
   });
+
+  // Add tempban duration and expiry
+  if (
+    actionType === ActionType.TempBan &&
+    modCase.timeout_duration &&
+    modCase.action_time
+  ) {
+    const dur = dayjs.duration(modCase.timeout_duration, "seconds");
+    const expiryTs = toTimestamp(
+      dayjs(modCase.action_time).add(modCase.timeout_duration, "seconds"),
+      TimestampStyles.RelativeTime,
+    );
+
+    fields.push({
+      name: "Ban Duration",
+      value: `${dur.humanize()}\nExpiring ${expiryTs}`,
+      inline: false,
+    });
+  }
 
   if (timeoutChange) {
     if (timeoutChange.actionType === ActionType.Timeout) {

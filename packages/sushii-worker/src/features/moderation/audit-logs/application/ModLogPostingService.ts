@@ -28,9 +28,11 @@ export class ModLogPostingService {
   ): Promise<Result<string, string>> {
     try {
       // Build the mod log embed
+      // Use modLogCase.actionType (e.g. TempBan) rather than auditLogEvent.actionType
+      // (which Discord always reports as Ban for bans)
       const embed = await buildModLogEmbed(
         guild.client,
-        auditLogEvent.actionType,
+        modLogCase.actionType,
         targetUser,
         {
           case_id: modLogCase.caseId,
@@ -39,6 +41,8 @@ export class ModLogPostingService {
             modLogCase.executorId || auditLogEvent.executorId || null,
           reason: modLogCase.reason?.value || null,
           attachments: modLogCase.attachments,
+          timeout_duration: modLogCase.timeoutDuration,
+          action_time: modLogCase.actionTime,
         },
         auditLogEvent.timeoutChange,
       );

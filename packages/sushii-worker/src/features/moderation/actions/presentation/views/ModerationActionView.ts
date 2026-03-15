@@ -184,13 +184,11 @@ export function buildActionResultMessage(
       fullContent += "-# configured in `/settings`\n";
     }
 
-    // Add timeout duration if this is a timeout action
-    if (
-      (actionType === ActionType.Timeout ||
-        actionType === ActionType.TimeoutAdjust) &&
-      action.isTimeoutAction()
-    ) {
-      fullContent += `### ${emojis.duration} Timeout Duration`;
+    // Add duration if this is a temporal action (timeout or tempban)
+    if (action.isTemporalAction()) {
+      const durationLabel =
+        actionType === ActionType.TempBan ? "Ban Duration" : "Timeout Duration";
+      fullContent += `### ${emojis.duration} ${durationLabel}`;
       fullContent += ` \n> ${action.duration.originalString}\n`;
     }
 

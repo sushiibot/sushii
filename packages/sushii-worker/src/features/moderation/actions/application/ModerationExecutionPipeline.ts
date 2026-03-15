@@ -225,9 +225,9 @@ export class ModerationExecutionPipeline {
           finalActionType !== ActionType.Note &&
           finalActionType !== ActionType.Warn;
 
-        // Extract timeout duration in seconds if applicable
+        // Extract duration in seconds if applicable (timeout or tempban)
         let timeoutDuration: number | null = null;
-        if (action.isTimeoutAction()) {
+        if (action.isTemporalAction()) {
           timeoutDuration = action.duration.asSeconds();
         }
 
