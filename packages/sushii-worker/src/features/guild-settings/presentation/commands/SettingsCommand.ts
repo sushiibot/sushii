@@ -246,6 +246,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     switch (value) {
       case "logging":
       case "moderation":
+      case "lookup":
       case "mod-dms":
       case "automod":
       case "messages":
@@ -604,7 +605,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       case SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG:
         return { setting: "leaveMessage", page: "messages" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.LOOKUP_OPT_IN:
-        return { setting: "lookupOptIn", page: "moderation" };
+        return { setting: "lookupOptIn", page: "lookup" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM:
         return { setting: "timeoutCommandDm", page: "moderation" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM:

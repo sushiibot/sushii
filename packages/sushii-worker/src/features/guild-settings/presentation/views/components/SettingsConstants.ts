@@ -6,6 +6,7 @@ import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 export type SettingsPage =
   | "logging"
   | "moderation"
+  | "lookup"
   | "mod-dms"
   | "automod"
   | "messages";

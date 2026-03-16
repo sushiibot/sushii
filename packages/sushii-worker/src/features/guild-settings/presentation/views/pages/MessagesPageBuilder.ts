@@ -12,7 +12,7 @@ import {
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
-  createToggleSection,
+  addToggleSetting,
 } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
@@ -107,14 +107,13 @@ export function addMessagesContent(
     joinDescription += `\n**Example:** ${exampleJoinTemplate}`;
   }
 
-  container.addSectionComponents(
-    createToggleSection(
-      "Join Message",
-      joinDescription,
-      config.messageSettings.joinMessageEnabled,
-      SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
-      disabled,
-    ),
+  addToggleSetting(
+    container,
+    "Join Message",
+    joinDescription,
+    config.messageSettings.joinMessageEnabled,
+    SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
+    disabled,
   );
 
   if (config.messageSettings.joinMessage) {
@@ -156,14 +155,13 @@ export function addMessagesContent(
     leaveDescription += `\n**Example:** ${exampleLeaveTemplate}`;
   }
 
-  container.addSectionComponents(
-    createToggleSection(
-      "Leave Message",
-      leaveDescription,
-      config.messageSettings.leaveMessageEnabled,
-      SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,
-      disabled,
-    ),
+  addToggleSetting(
+    container,
+    "Leave Message",
+    leaveDescription,
+    config.messageSettings.leaveMessageEnabled,
+    SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,
+    disabled,
   );
 
   if (config.messageSettings.leaveMessage) {

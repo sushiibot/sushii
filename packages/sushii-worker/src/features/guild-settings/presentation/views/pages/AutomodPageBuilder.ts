@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 
 import {
-  createToggleSection,
+  addToggleSetting,
 } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
@@ -31,14 +31,13 @@ export function addAutomodContent(
   );
 
   // Spam Detection Toggle Section
-  container.addSectionComponents(
-    createToggleSection(
-      "Spam Detection",
-      "Automatically times out users who spam identical messages across channels",
-      config.moderationSettings.automodSpamEnabled,
-      SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
-      disabled,
-    ),
+  addToggleSetting(
+    container,
+    "Spam Detection",
+    "Automatically times out users who spam identical messages across channels",
+    config.moderationSettings.automodSpamEnabled,
+    SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
+    disabled,
   );
 
   container.addSeparatorComponents(

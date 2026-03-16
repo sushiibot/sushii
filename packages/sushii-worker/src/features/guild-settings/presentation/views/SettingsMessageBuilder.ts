@@ -14,11 +14,13 @@ import Color from "@/utils/colors";
 
 import {
   createFooter,
+  createNavLabel,
   createNavigationDropdown,
 } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
 import { addAutomodContent } from "./pages/AutomodPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
+import { addLookupContent } from "./pages/LookupPageBuilder";
 import { addMessagesContent } from "./pages/MessagesPageBuilder";
 import { addModDmsContent } from "./pages/ModDmsPageBuilder";
 import { addModerationContent } from "./pages/ModerationPageBuilder";
@@ -40,6 +42,9 @@ export function createSettingsMessage(
     case "moderation":
       addModerationContent(container, options, interaction);
       break;
+    case "lookup":
+      addLookupContent(container, options, interaction);
+      break;
     case "mod-dms":
       addModDmsContent(container, options, interaction);
       break;
@@ -55,6 +60,8 @@ export function createSettingsMessage(
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
+
+  container.addTextDisplayComponents(createNavLabel());
 
   const navigationRow = createNavigationDropdown(options.page, options.disabled);
   container.addActionRowComponents(navigationRow);

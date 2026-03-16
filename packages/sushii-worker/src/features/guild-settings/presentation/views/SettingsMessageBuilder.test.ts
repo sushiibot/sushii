@@ -80,6 +80,7 @@ const allEnabledConfig = new GuildConfig(
 const pages: SettingsPage[] = [
   "logging",
   "moderation",
+  "lookup",
   "mod-dms",
   "automod",
   "messages",

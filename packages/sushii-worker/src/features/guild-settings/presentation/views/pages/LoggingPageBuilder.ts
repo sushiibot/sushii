@@ -10,7 +10,7 @@ import {
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
-  createToggleSection,
+  addToggleSetting,
 } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
@@ -43,9 +43,7 @@ function createLogSection(
     }
   }
 
-  container.addSectionComponents(
-    createToggleSection(config.title, description, config.enabled, config.toggleCustomId, disabled),
-  );
+  addToggleSetting(container, config.title, description, config.enabled, config.toggleCustomId, disabled);
 
   // Channel Selection
   const channelSelectRow = new ActionRowBuilder<ChannelSelectMenuBuilder>();

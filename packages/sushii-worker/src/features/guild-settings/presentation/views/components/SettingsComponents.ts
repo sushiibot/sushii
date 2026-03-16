@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ContainerBuilder,
   ModalBuilder,
   SectionBuilder,
   StringSelectMenuBuilder,
@@ -29,6 +30,12 @@ export function createFooter(disabled = false): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(footerContent);
 }
 
+export function createNavLabel(): TextDisplayBuilder {
+  return new TextDisplayBuilder().setContent(
+    "-# Navigate between settings pages",
+  );
+}
+
 export function createNavigationDropdown(
   currentPage: SettingsPage,
   disabled = false,
@@ -36,31 +43,42 @@ export function createNavigationDropdown(
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT)
-      .setPlaceholder("Navigate to page...")
+      .setPlaceholder("Go to settings page...")
       .setDisabled(disabled)
       .addOptions(
         {
           label: "Logging",
+          description: "Log channels and toggles",
           value: "logging",
           default: currentPage === "logging",
         },
         {
           label: "Moderation",
+          description: "DM settings for moderation actions",
           value: "moderation",
           default: currentPage === "moderation",
         },
         {
+          label: "Lookup",
+          description: "Lookup data sharing",
+          value: "lookup",
+          default: currentPage === "lookup",
+        },
+        {
           label: "Mod DMs",
+          description: "DM message templates",
           value: "mod-dms",
           default: currentPage === "mod-dms",
         },
         {
           label: "Messages",
+          description: "Join/leave messages",
           value: "messages",
           default: currentPage === "messages",
         },
         {
           label: "Automod",
+          description: "Spam detection",
           value: "automod",
           default: currentPage === "automod",
         },
@@ -82,19 +100,26 @@ export function createToggleButton(
     .setDisabled(disabled);
 }
 
-export function createToggleSection(
+export function addToggleSetting(
+  container: ContainerBuilder,
   name: string,
   description: string,
   enabled: boolean,
-  toggleCustomId: string,
+  customId: string,
   disabled = false,
-): SectionBuilder {
-  const statusText = enabled ? "-# ● Enabled" : "-# ○ Disabled";
-  const content = `**${name}**\n${description}\n${statusText}`;
+): void {
+  const statusText = enabled ? "Enabled" : "Disabled";
+  const content = `**${name}** — ${statusText}\n${description}`;
 
-  return new SectionBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
-    .setButtonAccessory(createToggleButton(enabled, toggleCustomId, disabled));
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(content),
+  );
+
+  container.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      createToggleButton(enabled, customId, disabled),
+    ),
+  );
 }
 
 export function createEditSection(
