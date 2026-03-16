@@ -28,6 +28,7 @@ export function createSettingsMessage(
   interaction?: Interaction<CacheType>,
 ): InteractionReplyOptions & {
   flags: MessageFlags.IsComponentsV2;
+  components: ContainerBuilder[];
 } {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 

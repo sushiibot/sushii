@@ -31,11 +31,8 @@ function totalComponentCount(
   message: ReturnType<typeof createSettingsMessage>,
 ): number {
   let total = 0;
-  for (const topLevel of message.components as unknown as Record<
-    string,
-    unknown
-  >[]) {
-    total += countComponents(topLevel.toJSON() as Record<string, unknown>);
+  for (const topLevel of message.components) {
+    total += countComponents(topLevel.toJSON() as unknown as Record<string, unknown>);
   }
   return total;
 }
