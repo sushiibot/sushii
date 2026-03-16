@@ -24,29 +24,22 @@ export function addModerationContent(
 ): void {
   const { config, disabled = false } = options;
 
-  // Header
-  const headerText = new TextDisplayBuilder().setContent(
-    "## Moderation Settings",
-  );
-  container.addTextDisplayComponents(headerText);
+  // Lookup Settings Section (header + intro merged into section text)
+  const lookupIntroPrefix =
+    "## Moderation Settings\n\n### Lookup Settings\nWhen using `/lookup` to check user bans:" +
+    "\n- **Share Details**: See other servers' names and ban reasons (recommended for better moderation)" +
+    "\n- **Keep Private**: Only see ban dates (no server names or reasons)" +
+    "\n💡 **Note**: To see details from other servers, you must also share yours.\n\n";
 
-  // Lookup Settings Section
-  const lookupIntro = new TextDisplayBuilder().setContent(
-    "### Lookup Settings\nWhen using `/lookup` to check user bans:" +
-      "\n- **Share Details**: See other servers' names and ban reasons (recommended for better moderation)" +
-      "\n- **Keep Private**: Only see ban dates (no server names or reasons)" +
-      "\n💡 **Note**: To see details from other servers, you must also share yours.\n",
-  );
-  container.addTextDisplayComponents(lookupIntro);
-
-  // Lookup Data Sharing Section
-  const lookupTextContent = formatToggleSetting(
-    "🔍 Lookup Data Sharing",
-    config.moderationSettings.lookupDetailsOptIn,
-    config.moderationSettings.lookupDetailsOptIn
-      ? "Sharing server name and ban reasons with other servers"
-      : "Keeping server name and ban reasons private",
-  );
+  const lookupTextContent =
+    lookupIntroPrefix +
+    formatToggleSetting(
+      "🔍 Lookup Data Sharing",
+      config.moderationSettings.lookupDetailsOptIn,
+      config.moderationSettings.lookupDetailsOptIn
+        ? "Sharing server name and ban reasons with other servers"
+        : "Keeping server name and ban reasons private",
+    );
 
   const lookupText = new TextDisplayBuilder().setContent(lookupTextContent);
   const lookupSection = new SectionBuilder()
@@ -63,20 +56,20 @@ export function addModerationContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  // DM Settings Section
-  const dmIntroText =
+  // DM Settings Section (intro merged into first section text)
+  const dmIntroPrefix =
     "\n### Default DM Settings" +
     "\nChoose when the bot sends DMs to users for moderation actions." +
-    "\n💡 **Tip:** You can override these per command using the `dm_reason` option.\n";
-  const dmIntro = new TextDisplayBuilder().setContent(dmIntroText);
-  container.addTextDisplayComponents(dmIntro);
+    "\n💡 **Tip:** You can override these per command using the `dm_reason` option.\n\n";
 
   // Timeout Command DM Section
-  const timeoutCommandContent = formatToggleSetting(
-    "⏳ DM on `/timeout` command",
-    config.moderationSettings.timeoutCommandDmEnabled,
-    "When you use the `/timeout` command, send them a DM with the reason",
-  );
+  const timeoutCommandContent =
+    dmIntroPrefix +
+    formatToggleSetting(
+      "⏳ DM on `/timeout` command",
+      config.moderationSettings.timeoutCommandDmEnabled,
+      "When you use the `/timeout` command, send them a DM with the reason",
+    );
   const timeoutCommandText = new TextDisplayBuilder().setContent(
     timeoutCommandContent,
   );
@@ -90,11 +83,6 @@ export function addModerationContent(
       ),
     );
   container.addSectionComponents(timeoutCommandSection);
-
-  // Divider
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
 
   // Timeout Native DM Section
   const timeoutNativeContent = formatToggleSetting(
@@ -116,11 +104,6 @@ export function addModerationContent(
     );
   container.addSectionComponents(timeoutNativeSection);
 
-  // Divider
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
-
   const timeoutMessageContent = formatMessageSetting(
     "⏳ Timeout DM Message",
     config.moderationSettings.timeoutDmText,
@@ -131,9 +114,6 @@ export function addModerationContent(
     timeoutMessageContent,
   );
   container.addTextDisplayComponents(timeoutMessageText);
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
 
   const timeoutTextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -192,9 +172,6 @@ export function addModerationContent(
       ),
     );
   container.addSectionComponents(banToggleSection);
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
 
   const banMessageContent = formatMessageSetting(
     "🔨 Ban DM Message",
@@ -236,9 +213,6 @@ export function addModerationContent(
       ),
     );
   container.addSectionComponents(kickToggleSection);
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
 
   const kickMessageContent = formatMessageSetting(
     "👢 Kick DM Message",
