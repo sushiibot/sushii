@@ -27,7 +27,7 @@
     "@sentry/cli": "^2.57.0",
     "@sentry/node-core": "^10.22.0",
     "@sentry/opentelemetry": "^10.7.0",
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "bufferutil": "^4.0.9",
     "cron": "^4.3.1",
     "dayjs": "^1.11.13",
