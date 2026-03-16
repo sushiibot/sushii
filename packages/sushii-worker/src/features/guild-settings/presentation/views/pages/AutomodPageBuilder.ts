@@ -45,9 +45,11 @@ export function addAutomodContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
+  const modLogNote = config.loggingSettings.modLogChannel
+    ? `-# Timeouts will be tracked in <#${config.loggingSettings.modLogChannel}>.`
+    : "-# Timeouts will be tracked in your mod log channel if one is configured.";
+
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      "-# Timeouts will be tracked in your mod log channel if one is configured.",
-    ),
+    new TextDisplayBuilder().setContent(modLogNote),
   );
 }
