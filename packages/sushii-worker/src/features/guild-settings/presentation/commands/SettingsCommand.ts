@@ -4,6 +4,7 @@ import type {
   ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
   MessageComponentInteraction,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import {
   InteractionContextType,
@@ -71,7 +72,6 @@ export default class SettingsCommand extends SlashCommandHandler {
   ): ChannelPermissionsMap {
     const channelIds: string[] = [];
 
-    // Collect all log channel IDs that are configured
     if (config.loggingSettings.modLogChannel) {
       channelIds.push(config.loggingSettings.modLogChannel);
     }
@@ -88,7 +88,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       channelIds.push(config.messageSettings.messageChannel);
     }
 
-    // Remove duplicates and check permissions
     const uniqueChannelIds = [...new Set(channelIds)];
     return checkMultipleChannelsPermissions(
       interaction.guild,
@@ -145,7 +144,6 @@ export default class SettingsCommand extends SlashCommandHandler {
           return;
         }
 
-        // Handle component interactions (modal submissions are handled separately)
         const updatedPage = await this.handleComponentInteraction(
           i,
           interaction.guildId,
@@ -199,8 +197,61 @@ export default class SettingsCommand extends SlashCommandHandler {
       return this.handleChannelSelectInteraction(interaction, guildId);
     }
 
+    if (interaction.isStringSelectMenu()) {
+      return this.handleNavigationSelect(interaction, guildId);
+    }
+
     if (interaction.isButton()) {
       return this.handleButtonInteraction(interaction, guildId);
+    }
+  }
+
+  private async handleNavigationSelect(
+    interaction: StringSelectMenuInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage | undefined> {
+    const page = this.getPageFromNavigationSelect(interaction);
+    if (!page) {
+      return undefined;
+    }
+
+    const config = await this.guildSettingsService.getGuildSettings(guildId);
+    const messageLogBlocks =
+      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const channelPermissions = this.getChannelPermissions(interaction, config);
+
+    const updatedMessage = createSettingsMessage(
+      {
+        page,
+        config,
+        messageLogBlocks,
+        channelPermissions,
+        disabled: false,
+      },
+      interaction,
+    );
+
+    await interaction.update(updatedMessage);
+    return page;
+  }
+
+  private getPageFromNavigationSelect(
+    interaction: StringSelectMenuInteraction<"cached">,
+  ): SettingsPage | null {
+    if (interaction.customId !== SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT) {
+      return null;
+    }
+
+    const value = interaction.values[0];
+    switch (value) {
+      case "logging":
+      case "moderation":
+      case "mod-dms":
+      case "automod":
+      case "messages":
+        return value;
+      default:
+        return null;
     }
   }
 
@@ -208,7 +259,6 @@ export default class SettingsCommand extends SlashCommandHandler {
     interaction: ChannelSelectMenuInteraction<"cached">,
     guildId: string,
   ): Promise<SettingsPage | undefined> {
-    // Handle multi-select message log ignore channels
     if (
       interaction.customId === SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE
     ) {
@@ -216,7 +266,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       return "logging";
     }
 
-    // Handle single-select channel menus for log channels
     return this.handleLogChannelSelection(interaction, guildId);
   }
 
@@ -229,7 +278,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       await this.messageLogBlockService.getIgnoredChannels(guildId);
     const currentChannelIds = currentBlocks.map((block) => block.channelId);
 
-    // Remove channels that are no longer selected
     for (const block of currentBlocks) {
       if (!selectedChannelIds.includes(block.channelId)) {
         await this.messageLogBlockService.removeIgnoredChannel(
@@ -239,7 +287,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       }
     }
 
-    // Add newly selected channels
     for (const channelId of selectedChannelIds) {
       if (!currentChannelIds.includes(channelId)) {
         await this.messageLogBlockService.addIgnoredChannel(guildId, channelId);
@@ -343,33 +390,6 @@ export default class SettingsCommand extends SlashCommandHandler {
     const currentConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
 
-    // Handle navigation buttons
-    const navigationPage = this.getPageFromNavigationButton(
-      interaction.customId,
-    );
-    if (navigationPage) {
-      const messageLogBlocks =
-        await this.messageLogBlockService.getIgnoredChannels(guildId);
-      const currentChannelPermissions = this.getChannelPermissions(
-        interaction,
-        currentConfig,
-      );
-
-      const updatedMessage = createSettingsMessage(
-        {
-          page: navigationPage,
-          config: currentConfig,
-          messageLogBlocks,
-          channelPermissions: currentChannelPermissions,
-          disabled: false,
-        },
-        interaction,
-      );
-
-      await interaction.update(updatedMessage);
-      return navigationPage;
-    }
-
     // Handle modal-triggering buttons
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE) {
       const modal = createJoinMessageModal(
@@ -379,7 +399,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -389,15 +409,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Join message modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     if (
@@ -410,7 +427,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -420,15 +437,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Leave message modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     if (
@@ -441,7 +455,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -451,15 +465,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Timeout DM text modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT) {
@@ -470,7 +481,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -480,15 +491,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Warn DM text modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT) {
@@ -499,7 +507,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -509,15 +517,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Ban DM text modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT) {
@@ -528,7 +533,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000, // 2 minutes
+          time: 120000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -538,15 +543,12 @@ export default class SettingsCommand extends SlashCommandHandler {
         await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
-          {
-            interactionId: interaction.id,
-            err,
-          },
+          { interactionId: interaction.id, err },
           "Kick DM text modal submission timed out or failed",
         );
       }
 
-      return undefined; // No page change for modal buttons
+      return undefined;
     }
 
     // Handle toggle buttons
@@ -582,23 +584,6 @@ export default class SettingsCommand extends SlashCommandHandler {
 
     await interaction.update(updatedMessage);
     return page;
-  }
-
-  private getPageFromNavigationButton(customId: string): SettingsPage | null {
-    switch (customId) {
-      case SETTINGS_CUSTOM_IDS.NAVIGATION.LOGGING:
-        return "logging";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION.MODERATION:
-        return "moderation";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION.AUTOMOD:
-        return "automod";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES:
-        return "messages";
-      case SETTINGS_CUSTOM_IDS.NAVIGATION.ADVANCED:
-        return "advanced";
-      default:
-        return null;
-    }
   }
 
   private getSettingAndPageFromButton(customId: string): {
@@ -665,20 +650,20 @@ export default class SettingsCommand extends SlashCommandHandler {
         "timeout_dm_text_input",
       );
       await this.guildSettingsService.updateTimeoutDmText(guildId, newText);
-      targetPage = "moderation";
+      targetPage = "mod-dms";
     } else if (
       interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT
     ) {
       const newText =
         interaction.fields.getTextInputValue("warn_dm_text_input");
       await this.guildSettingsService.updateWarnDmText(guildId, newText);
-      targetPage = "moderation";
+      targetPage = "mod-dms";
     } else if (
       interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT
     ) {
       const newText = interaction.fields.getTextInputValue("ban_dm_text_input");
       await this.guildSettingsService.updateBanDmText(guildId, newText);
-      targetPage = "moderation";
+      targetPage = "mod-dms";
     } else if (
       interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT
     ) {
@@ -686,10 +671,9 @@ export default class SettingsCommand extends SlashCommandHandler {
         "kick_dm_text_input",
       );
       await this.guildSettingsService.updateKickDmText(guildId, newText);
-      targetPage = "moderation";
+      targetPage = "mod-dms";
     }
 
-    // Update the original settings panel with the new config
     const updatedConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
     const messageLogBlocks =

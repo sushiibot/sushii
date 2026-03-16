@@ -14,13 +14,13 @@ import Color from "@/utils/colors";
 
 import {
   createFooter,
-  createNavigationRow,
+  createNavigationDropdown,
 } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
-import { addAdvancedContent } from "./pages/AdvancedPageBuilder";
 import { addAutomodContent } from "./pages/AutomodPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
 import { addMessagesContent } from "./pages/MessagesPageBuilder";
+import { addModDmsContent } from "./pages/ModDmsPageBuilder";
 import { addModerationContent } from "./pages/ModerationPageBuilder";
 
 export function createSettingsMessage(
@@ -40,14 +40,14 @@ export function createSettingsMessage(
     case "moderation":
       addModerationContent(container, options, interaction);
       break;
+    case "mod-dms":
+      addModDmsContent(container, options, interaction);
+      break;
     case "automod":
       addAutomodContent(container, options, interaction);
       break;
     case "messages":
       addMessagesContent(container, options, interaction);
-      break;
-    case "advanced":
-      addAdvancedContent(container, options, interaction);
       break;
   }
 
@@ -56,7 +56,7 @@ export function createSettingsMessage(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  const navigationRow = createNavigationRow(options.page, options.disabled);
+  const navigationRow = createNavigationDropdown(options.page, options.disabled);
   container.addActionRowComponents(navigationRow);
 
   // Add footer (after navigation)

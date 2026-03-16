@@ -6,9 +6,9 @@ import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 export type SettingsPage =
   | "logging"
   | "moderation"
+  | "mod-dms"
   | "automod"
-  | "messages"
-  | "advanced";
+  | "messages";
 
 export interface SettingsMessageOptions {
   page: SettingsPage;
@@ -20,12 +20,7 @@ export interface SettingsMessageOptions {
 
 export const SETTINGS_CUSTOM_IDS = {
   NAVIGATION: {
-    BASE: "settings_nav",
-    LOGGING: "settings_nav_logging",
-    MODERATION: "settings_nav_moderation",
-    AUTOMOD: "settings_nav_automod",
-    MESSAGES: "settings_nav_messages",
-    ADVANCED: "settings_nav_advanced",
+    SELECT: "settings_nav_select",
   },
 
   TOGGLES: {

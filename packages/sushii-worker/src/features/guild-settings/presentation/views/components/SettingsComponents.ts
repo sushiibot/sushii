@@ -3,13 +3,14 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ModalBuilder,
+  SectionBuilder,
+  StringSelectMenuBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
 
 import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
-import { quoteMarkdownString } from "@/utils/markdown";
 
 import type { SettingsPage } from "./SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "./SettingsConstants";
@@ -28,111 +29,43 @@ export function createFooter(disabled = false): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(footerContent);
 }
 
-export function createNavigationRow(
+export function createNavigationDropdown(
   currentPage: SettingsPage,
   disabled = false,
-): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.LOGGING)
-      .setLabel("Logging")
-      .setStyle(
-        currentPage === "logging" ? ButtonStyle.Primary : ButtonStyle.Secondary,
-      )
-      .setDisabled(currentPage === "logging" || disabled),
-    new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.MODERATION)
-      .setLabel("Moderation")
-      .setStyle(
-        currentPage === "moderation"
-          ? ButtonStyle.Primary
-          : ButtonStyle.Secondary,
-      )
-      .setDisabled(currentPage === "moderation" || disabled),
-    new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.AUTOMOD)
-      .setLabel("Automod")
-      .setStyle(
-        currentPage === "automod" ? ButtonStyle.Primary : ButtonStyle.Secondary,
-      )
-      .setDisabled(currentPage === "automod" || disabled),
-    new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.MESSAGES)
-      .setLabel("Messages")
-      .setStyle(
-        currentPage === "messages"
-          ? ButtonStyle.Primary
-          : ButtonStyle.Secondary,
-      )
-      .setDisabled(currentPage === "messages" || disabled),
-    new ButtonBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.ADVANCED)
-      .setLabel("Advanced")
-      .setStyle(
-        currentPage === "advanced"
-          ? ButtonStyle.Primary
-          : ButtonStyle.Secondary,
-      )
-      .setDisabled(currentPage === "advanced" || disabled),
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT)
+      .setPlaceholder("Navigate to page...")
+      .setDisabled(disabled)
+      .addOptions(
+        {
+          label: "Logging",
+          value: "logging",
+          default: currentPage === "logging",
+        },
+        {
+          label: "Moderation",
+          value: "moderation",
+          default: currentPage === "moderation",
+        },
+        {
+          label: "Mod DMs",
+          value: "mod-dms",
+          default: currentPage === "mod-dms",
+        },
+        {
+          label: "Messages",
+          value: "messages",
+          default: currentPage === "messages",
+        },
+        {
+          label: "Automod",
+          value: "automod",
+          default: currentPage === "automod",
+        },
+      ),
   );
-}
-
-export function formatToggleMessageSetting(
-  name: string,
-  message: string | null,
-  enabled: boolean,
-  description: string,
-  defaultMessage?: string,
-): string {
-  let s = `**${name}** — `;
-  s += enabled ? "`✅ Enabled`" : "`❌ Disabled`";
-  s += `\n> ${description}`;
-
-  s += `\n\`\`\``;
-  if (message) {
-    s += `\n${message}`;
-  } else if (defaultMessage) {
-    s += `\nDefault: ${defaultMessage}`;
-  } else {
-    s += `\nNo message set`;
-  }
-  s += `\n\`\`\`\n`;
-
-  return s;
-}
-
-export function formatMessageSetting(
-  name: string,
-  message: string | null,
-  description: string,
-  defaultMessage?: string,
-): string {
-  let s = `**${name}**`;
-  s += `\n> ${description}`;
-
-  s += `\n\`\`\``;
-  if (message) {
-    s += `\n${message}`;
-  } else if (defaultMessage) {
-    s += `\nDefault: ${defaultMessage}`;
-  } else {
-    s += `\nNo message set`;
-  }
-  s += `\n\`\`\`\n`;
-
-  return s;
-}
-
-export function formatToggleSetting(
-  name: string,
-  enabled: boolean,
-  description: string,
-): string {
-  let s = `**${name}** — `;
-  s += enabled ? "`✅ Enabled`" : "`❌ Disabled`";
-  s += `\n${quoteMarkdownString(description)}`;
-
-  return s;
 }
 
 export function createToggleButton(
@@ -147,6 +80,40 @@ export function createToggleButton(
     .setLabel(action)
     .setStyle(currentlyEnabled ? ButtonStyle.Secondary : ButtonStyle.Success)
     .setDisabled(disabled);
+}
+
+export function createToggleSection(
+  name: string,
+  description: string,
+  enabled: boolean,
+  toggleCustomId: string,
+  disabled = false,
+): SectionBuilder {
+  const statusText = enabled ? "-# ● Enabled" : "-# ○ Disabled";
+  const content = `**${name}**\n${description}\n${statusText}`;
+
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+    .setButtonAccessory(createToggleButton(enabled, toggleCustomId, disabled));
+}
+
+export function createEditSection(
+  name: string,
+  description: string,
+  editCustomId: string,
+  disabled = false,
+): SectionBuilder {
+  const content = `**${name}**\n${description}`;
+
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+    .setButtonAccessory(
+      new ButtonBuilder()
+        .setCustomId(editCustomId)
+        .setLabel("Edit")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled),
+    );
 }
 
 export function createJoinMessageModal(

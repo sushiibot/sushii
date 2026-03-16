@@ -80,9 +80,9 @@ const allEnabledConfig = new GuildConfig(
 const pages: SettingsPage[] = [
   "logging",
   "moderation",
+  "mod-dms",
   "automod",
   "messages",
-  "advanced",
 ];
 
 describe("SettingsMessageBuilder component limits", () => {

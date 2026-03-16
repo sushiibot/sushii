@@ -3,7 +3,6 @@ import {
   ActionRowBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
-  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
@@ -11,8 +10,7 @@ import {
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
-  createToggleButton,
-  formatToggleSetting,
+  createToggleSection,
 } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
@@ -33,11 +31,7 @@ function createLogSection(
   options: SettingsMessageOptions,
   disabled = false,
 ): void {
-  let description = `${config.baseDescription}\n${
-    config.channel
-      ? `**Channel:** <#${config.channel}>`
-      : "**Channel:** No channel set"
-  }`;
+  let description = config.baseDescription;
 
   // Add permission warning if needed
   if (config.channel && options.channelPermissions?.[config.channel]) {
@@ -49,18 +43,9 @@ function createLogSection(
     }
   }
 
-  const content = formatToggleSetting(
-    config.title,
-    config.enabled,
-    description,
+  container.addSectionComponents(
+    createToggleSection(config.title, description, config.enabled, config.toggleCustomId, disabled),
   );
-  const text = new TextDisplayBuilder().setContent(content);
-  const section = new SectionBuilder()
-    .addTextDisplayComponents(text)
-    .setButtonAccessory(
-      createToggleButton(config.enabled, config.toggleCustomId, disabled),
-    );
-  container.addSectionComponents(section);
 
   // Channel Selection
   const channelSelectRow = new ActionRowBuilder<ChannelSelectMenuBuilder>();
@@ -84,7 +69,7 @@ export function addLoggingContent(
   const { config, disabled = false } = options;
 
   // Header
-  const headerText = new TextDisplayBuilder().setContent("## Logging Settings");
+  const headerText = new TextDisplayBuilder().setContent("## Logging");
   container.addTextDisplayComponents(headerText);
 
   // Logging Section
@@ -97,7 +82,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "🛡️ Mod Logs",
+      title: "Mod Logs",
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
       baseDescription:
@@ -117,7 +102,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "👥 Member Logs",
+      title: "Member Logs",
       enabled: config.loggingSettings.memberLogEnabled,
       channel: config.loggingSettings.memberLogChannel,
       baseDescription: "Logs member joins and leaves",
@@ -136,7 +121,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "📝 Message Logs",
+      title: "Message Logs",
       enabled: config.loggingSettings.messageLogEnabled,
       channel: config.loggingSettings.messageLogChannel,
       baseDescription: "Logs message edits and deletions",
@@ -153,23 +138,9 @@ export function addLoggingContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  let msgLogContent = "### Message Log Ignored Channels\n";
-  msgLogContent +=
-    "Select busy channels to skip logging there and reduce spam.\n";
-
-  if (options.messageLogBlocks && options.messageLogBlocks.length > 0) {
-    msgLogContent +=
-      "The following channels are currently ignored for message logs:\n";
-    msgLogContent += "> ";
-
-    msgLogContent += options.messageLogBlocks
-      .map((block) => `<#${block.channelId}>`)
-      .join(", ");
-  } else {
-    msgLogContent += "No channels are currently ignored for message logs.";
-  }
-
-  const msgLogText = new TextDisplayBuilder().setContent(msgLogContent);
+  const msgLogText = new TextDisplayBuilder().setContent(
+    "### Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.",
+  );
   container.addTextDisplayComponents(msgLogText);
 
   // Multi-select channel menu for managing ignored channels
@@ -183,11 +154,17 @@ export function addLoggingContent(
         .setPlaceholder("Add channels to ignore")
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setMinValues(0)
-        .setMaxValues(25) // Discord's limit
+        .setMaxValues(25)
         .setDefaultChannels(ignoredChannelIds.slice(0, 25))
         .setDisabled(disabled),
     );
   container.addActionRowComponents(msgLogChannelSelectRow);
+
+  const count = ignoredChannelIds.length;
+  const countText = new TextDisplayBuilder().setContent(
+    count > 0 ? `-# ${count} channel${count === 1 ? "" : "s"}` : "-# None selected",
+  );
+  container.addTextDisplayComponents(countText);
 
   // Separator
   container.addSeparatorComponents(
@@ -198,12 +175,12 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "⭐ Reaction Logs",
+      title: "Reaction Logs",
       enabled: config.loggingSettings.reactionLogEnabled,
       channel: config.loggingSettings.reactionLogChannel,
       baseDescription:
-        "Logs reaction removals, including who added the reaction *first*." +
-        " You can also right click a message > `View Reaction Starters` to view who initially added reactions",
+        "Logs reaction removals, including who added the reaction first." +
+        " You can also right click a message > View Reaction Starters to view who initially added reactions",
       toggleCustomId: SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG,
       selectCustomId: SETTINGS_CUSTOM_IDS.CHANNELS.SET_REACTION_LOG,
       selectPlaceholder: "Set reaction log channel",
