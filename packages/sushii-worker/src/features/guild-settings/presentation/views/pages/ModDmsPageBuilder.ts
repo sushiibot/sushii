@@ -19,7 +19,7 @@ export function addModDmsContent(
 
   // Header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Mod DMs"),
+    new TextDisplayBuilder().setContent("## Moderation DMs"),
   );
 
   // Section header + intro

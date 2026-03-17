@@ -54,16 +54,16 @@ export function createNavigationDropdown(
           default: currentPage === "moderation",
         },
         {
+          label: "Moderation DMs",
+          description: "DM message templates",
+          value: "mod-dms",
+          default: currentPage === "mod-dms",
+        },
+        {
           label: "Lookup",
           description: "Lookup data sharing",
           value: "lookup",
           default: currentPage === "lookup",
-        },
-        {
-          label: "Mod DMs",
-          description: "DM message templates",
-          value: "mod-dms",
-          default: currentPage === "mod-dms",
         },
         {
           label: "Messages",
