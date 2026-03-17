@@ -54,7 +54,7 @@ export function addModerationContent(
   addToggleSetting(
     container,
     "Kick DM",
-    "Always DM the user when kicked.",
+    "DM the user when kicked. Only works with the `/kick` command — native kicks cannot send DMs.",
     config.moderationSettings.kickDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,
     disabled,
