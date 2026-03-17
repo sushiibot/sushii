@@ -45,31 +45,27 @@ export function addMessagesContent(
   );
 
   // Join/Leave Messages Section Header
-  let headerContent = "### Join/Leave Messages\n";
-  headerContent +=
-    "Send custom messages when members join or leave the server.\n\n";
-  headerContent += "**Available placeholders:** `<mention>` · `<server>` · `<member_number>`";
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      "### Join/Leave Messages\nSend custom messages when members join or leave the server.",
+    ),
+  );
 
-  if (config.messageSettings.messageChannel) {
-    headerContent += `\n\n**Channel:** <#${config.messageSettings.messageChannel}>`;
-
-    if (options.channelPermissions?.[config.messageSettings.messageChannel]) {
-      const warning = formatPermissionWarning(
-        options.channelPermissions[config.messageSettings.messageChannel],
-      );
-      if (warning) {
-        headerContent += `\n${warning}`;
-      }
+  // Channel subsection
+  let channelLabel = "**Channel**";
+  if (config.messageSettings.messageChannel && options.channelPermissions?.[config.messageSettings.messageChannel]) {
+    const warning = formatPermissionWarning(
+      options.channelPermissions[config.messageSettings.messageChannel],
+    );
+    if (warning) {
+      channelLabel += `\n${warning}`;
     }
-  } else {
-    headerContent += "\n\n**Channel:** No channel set";
   }
 
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(headerContent),
+    new TextDisplayBuilder().setContent(channelLabel),
   );
 
-  // Channel Selection
   container.addActionRowComponents(
     new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
@@ -98,7 +94,7 @@ export function addMessagesContent(
   );
   const exampleJoinPreview = renderMessagePreview(exampleJoinTemplate, interaction);
 
-  let joinDescription = "Message sent when new members join";
+  let joinDescription = "Message sent when new members join.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
   if (config.messageSettings.joinMessage && joinPreview) {
     joinDescription += `\n**Preview:** ${joinPreview}`;
   } else if (exampleJoinPreview) {
@@ -146,7 +142,7 @@ export function addMessagesContent(
   );
   const exampleLeavePreview = renderMessagePreview(exampleLeaveTemplate, interaction);
 
-  let leaveDescription = "Message sent when members leave";
+  let leaveDescription = "Message sent when members leave.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
   if (config.messageSettings.leaveMessage && leavePreview) {
     leaveDescription += `\n**Preview:** ${leavePreview}`;
   } else if (exampleLeavePreview) {

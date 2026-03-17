@@ -121,7 +121,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     const msg = await interaction.reply(settingsMessage);
 
     const collector = msg.createMessageComponentCollector({
-      idle: 120000,
+      idle: 300000,
       dispose: true,
     });
 
@@ -400,7 +400,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -428,7 +428,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -456,7 +456,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -482,7 +482,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -508,7 +508,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {
@@ -534,7 +534,7 @@ export default class SettingsCommand extends SlashCommandHandler {
 
       try {
         const modalSubmission = await interaction.awaitModalSubmit({
-          time: 120000,
+          time: 300000,
         });
 
         if (!modalSubmission.isFromMessage()) {

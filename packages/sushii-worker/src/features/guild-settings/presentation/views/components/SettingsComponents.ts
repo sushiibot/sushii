@@ -21,10 +21,10 @@ export function createFooter(disabled = false): TextDisplayBuilder {
 
   if (disabled) {
     footerContent =
-      "-# Inputs expired after 2 minutes of inactivity, re-run command to make changes.";
+      "-# Inputs expired after 5 minutes of inactivity, re-run command to make changes.";
   } else {
     footerContent =
-      "-# Inputs expire in 2 minutes of inactivity. Changes are saved automatically.";
+      "-# Inputs expire in 5 minutes of inactivity. Changes are saved automatically.";
   }
 
   return new TextDisplayBuilder().setContent(footerContent);
@@ -111,14 +111,10 @@ export function addToggleSetting(
   const statusText = enabled ? "Enabled" : "Disabled";
   const content = `**${name}** — ${statusText}\n${description}`;
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(content),
-  );
-
-  container.addActionRowComponents(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      createToggleButton(enabled, customId, disabled),
-    ),
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+      .setButtonAccessory(createToggleButton(enabled, customId, disabled)),
   );
 }
 
