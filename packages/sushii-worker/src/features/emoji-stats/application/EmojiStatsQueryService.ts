@@ -78,7 +78,7 @@ export class EmojiStatsQueryService {
         { err, guildId, assetType, actionType },
         "Failed to query stats",
       );
-      throw new Error("Failed to retrieve emoji/sticker statistics");
+      throw new Error("Failed to retrieve emoji/sticker statistics", { cause: err });
     }
   }
 }

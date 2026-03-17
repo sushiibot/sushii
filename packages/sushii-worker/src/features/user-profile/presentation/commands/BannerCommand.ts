@@ -60,7 +60,7 @@ export class BannerCommand extends SlashCommandHandler {
         "Failed to get user banner",
       );
 
-      throw new Error("Failed to fetch user banner");
+      throw new Error("Failed to fetch user banner", { cause: error });
     }
   }
 }

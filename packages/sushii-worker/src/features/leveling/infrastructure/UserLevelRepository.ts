@@ -58,7 +58,8 @@ export class UserLevelRepository implements IUserLevelRepository {
       );
     } catch (error) {
       throw new Error(
-        `Failed to find user level for userId ${userId}, guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to find user level for userId ${userId}, guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -108,7 +109,8 @@ export class UserLevelRepository implements IUserLevelRepository {
       return BigInt(result[0]?.totalXp ?? 0);
     } catch (error) {
       throw new Error(
-        `Failed to get global messages for userId ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get global messages for userId ${userId}`,
+        { cause: error },
       );
     }
   }
@@ -278,7 +280,8 @@ export class UserLevelRepository implements IUserLevelRepository {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get guild timeframe rank for userId ${userId}, guildId ${guildId}, timeframe ${timeframe}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get guild timeframe rank for userId ${userId}, guildId ${guildId}, timeframe ${timeframe}`,
+        { cause: error },
       );
     }
   }
@@ -401,7 +404,8 @@ export class UserLevelRepository implements IUserLevelRepository {
       );
     } catch (error) {
       throw new Error(
-        `Failed to get leaderboard page for guildId ${guildId}, timeframe ${timeframe}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get leaderboard page for guildId ${guildId}, timeframe ${timeframe}`,
+        { cause: error },
       );
     }
   }
@@ -445,7 +449,8 @@ export class UserLevelRepository implements IUserLevelRepository {
       return result[0]?.count ?? 0;
     } catch (error) {
       throw new Error(
-        `Failed to get user count for guildId ${guildId}, timeframe ${timeframe}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get user count for guildId ${guildId}, timeframe ${timeframe}`,
+        { cause: error },
       );
     }
   }

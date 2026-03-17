@@ -52,7 +52,7 @@ export class AvatarCommand extends SlashCommandHandler {
         "Failed to get user avatar",
       );
 
-      throw new Error("Failed to fetch user avatar");
+      throw new Error("Failed to fetch user avatar", { cause: error });
     }
   }
 }

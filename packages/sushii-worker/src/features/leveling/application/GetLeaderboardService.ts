@@ -42,7 +42,8 @@ export class GetLeaderboardService {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get leaderboard data for guildId ${guildId}, timeframe ${timeframe}, page ${pageIndex}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get leaderboard data for guildId ${guildId}, timeframe ${timeframe}, page ${pageIndex}`,
+        { cause: error },
       );
     }
   }

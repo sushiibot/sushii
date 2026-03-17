@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { Err, Ok } from "ts-results";
+import { Ok } from "ts-results";
 
 import type {
   CachedGuildEntity,

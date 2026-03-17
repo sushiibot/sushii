@@ -43,7 +43,7 @@ export class LookupUserService {
       guildConfig.moderationSettings.lookupDetailsOptIn;
 
     const member = guild.members.cache.get(userId);
-    let user: User | null = null;
+    let user: User | null;
 
     if (member) {
       user = member.user;

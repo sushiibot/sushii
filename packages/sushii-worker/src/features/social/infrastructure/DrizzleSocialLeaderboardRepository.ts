@@ -50,7 +50,8 @@ export class DrizzleSocialLeaderboardRepository
       );
     } catch (error) {
       throw new Error(
-        `Failed to get rep leaderboard page for guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get rep leaderboard page for guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -90,7 +91,8 @@ export class DrizzleSocialLeaderboardRepository
       );
     } catch (error) {
       throw new Error(
-        `Failed to get fishy leaderboard page for guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get fishy leaderboard page for guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -131,7 +133,8 @@ export class DrizzleSocialLeaderboardRepository
       return (rankResult[0]?.count ?? 0) + 1;
     } catch (error) {
       throw new Error(
-        `Failed to get user rep rank for userId ${userId}, guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get user rep rank for userId ${userId}, guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -172,7 +175,8 @@ export class DrizzleSocialLeaderboardRepository
       return (rankResult[0]?.count ?? 0) + 1;
     } catch (error) {
       throw new Error(
-        `Failed to get user fishy rank for userId ${userId}, guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get user fishy rank for userId ${userId}, guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -196,7 +200,8 @@ export class DrizzleSocialLeaderboardRepository
       return result[0]?.count ?? 0;
     } catch (error) {
       throw new Error(
-        `Failed to get rep leaderboard count for guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get rep leaderboard count for guildId ${guildId}`,
+        { cause: error },
       );
     }
   }
@@ -220,7 +225,8 @@ export class DrizzleSocialLeaderboardRepository
       return result[0]?.count ?? 0;
     } catch (error) {
       throw new Error(
-        `Failed to get fishy leaderboard count for guildId ${guildId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get fishy leaderboard count for guildId ${guildId}`,
+        { cause: error },
       );
     }
   }

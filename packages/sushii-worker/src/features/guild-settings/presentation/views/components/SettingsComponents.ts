@@ -1,8 +1,8 @@
+import type { ContainerBuilder } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ContainerBuilder,
   ModalBuilder,
   SectionBuilder,
   StringSelectMenuBuilder,

@@ -1,5 +1,5 @@
 import type { Client } from "discord.js";
-import { Events } from "discord.js";
+import type { Events } from "discord.js";
 import type { Logger } from "pino";
 
 import type { EventHandler } from "@/core/cluster/presentation/EventHandler";

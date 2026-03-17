@@ -60,7 +60,7 @@ export class UserInfoCommand extends SlashCommandHandler {
         "Failed to get user info",
       );
 
-      throw new Error("Failed to fetch user information");
+      throw new Error("Failed to fetch user information", { cause: error });
     }
   }
 }

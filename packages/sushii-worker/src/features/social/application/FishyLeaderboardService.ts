@@ -37,7 +37,8 @@ export class FishyLeaderboardService {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get fishy leaderboard data for guildId ${guildId}, page ${pageIndex}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get fishy leaderboard data for guildId ${guildId}, page ${pageIndex}`,
+        { cause: error },
       );
     }
   }

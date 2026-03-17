@@ -20,7 +20,7 @@ export class ChannelSlowmode {
 
     const isUnitless = RE_ONLY_NUMBERS.test(trimmed);
 
-    let duration: plugin.Duration | null = null;
+    let duration: plugin.Duration | null;
     if (isUnitless) {
       duration = dayjs.duration({
         seconds: parseInt(trimmed, 10),

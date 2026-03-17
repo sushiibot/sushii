@@ -40,7 +40,8 @@ export class UserProfileRepository implements UserProfileRepositoryI {
       console.error(error);
 
       throw new Error(
-        `Failed to query user profile for userId ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to query user profile for userId ${userId}`,
+        { cause: error },
       );
     }
   }
