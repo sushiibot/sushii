@@ -8,6 +8,7 @@ import {
   MessageFlags,
   SeparatorBuilder,
   SeparatorSpacingSize,
+  TextDisplayBuilder,
 } from "discord.js";
 
 import Color from "@/utils/colors";
@@ -58,6 +59,10 @@ export function createSettingsMessage(
   // Add navigation dropdown
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent("-# Navigate between settings pages"),
   );
 
   const navigationRow = createNavigationDropdown(options.page, options.disabled);
