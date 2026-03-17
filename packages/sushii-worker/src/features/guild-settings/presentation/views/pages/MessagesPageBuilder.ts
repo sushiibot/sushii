@@ -27,7 +27,6 @@ function renderMessagePreview(
 
   return template
     .replace(/<mention>/g, `<@${interaction.user.id}>`)
-    .replace(/<username>/g, interaction.user.username)
     .replace(/<server>/g, interaction.guild.name)
     .replace(/<member_number>/g, interaction.guild.memberCount.toString());
 }
@@ -125,7 +124,7 @@ export function addMessagesContent(
       new ButtonBuilder()
         .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE)
         .setLabel("Edit Join Message")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled),
     ),
   );
@@ -173,7 +172,7 @@ export function addMessagesContent(
       new ButtonBuilder()
         .setCustomId(SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE)
         .setLabel("Edit Leave Message")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled),
     ),
   );

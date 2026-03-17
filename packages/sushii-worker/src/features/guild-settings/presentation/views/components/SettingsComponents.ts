@@ -30,11 +30,6 @@ export function createFooter(disabled = false): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(footerContent);
 }
 
-export function createNavLabel(): TextDisplayBuilder {
-  return new TextDisplayBuilder().setContent(
-    "-# Navigate between settings pages",
-  );
-}
 
 export function createNavigationDropdown(
   currentPage: SettingsPage,

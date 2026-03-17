@@ -14,7 +14,6 @@ import Color from "@/utils/colors";
 
 import {
   createFooter,
-  createNavLabel,
   createNavigationDropdown,
 } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
@@ -60,8 +59,6 @@ export function createSettingsMessage(
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
-
-  container.addTextDisplayComponents(createNavLabel());
 
   const navigationRow = createNavigationDropdown(options.page, options.disabled);
   container.addActionRowComponents(navigationRow);
