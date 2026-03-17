@@ -103,8 +103,7 @@ export function addToggleSetting(
   customId: string,
   disabled = false,
 ): void {
-  const statusText = enabled ? "Enabled" : "Disabled";
-  const content = `**${name}** — ${statusText}\n${description}`;
+  const content = `**${name}**\n${description}`;
 
   container.addSectionComponents(
     new SectionBuilder()
