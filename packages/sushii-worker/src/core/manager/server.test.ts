@@ -14,12 +14,15 @@ const logger = pino({ level: "silent" });
 function makeManager(
   clusters: { id: number; ready: boolean; shardList: number[] }[],
   totalShards = clusters.flatMap((c) => c.shardList).length,
+  totalClusters = clusters.length,
 ) {
   return {
     clusters: {
-      values: () => clusters,
+      values: () => clusters.values(),
+      size: clusters.length,
     },
     totalShards,
+    totalClusters,
   } as never;
 }
 
@@ -82,6 +85,27 @@ describe("GET /deployment/status", () => {
     expect(body.health).toBe("healthy");
     expect(body.total_shards).toBe(4);
     expect(body.clusters).toHaveLength(2);
+  });
+
+  test("ready_to_switch is false when not all clusters have spawned yet", async () => {
+    // 2 of 3 expected clusters have spawned, both ready — the bug we saw in production
+    const manager = makeManager(
+      [
+        { id: 0, ready: true, shardList: [0, 1, 2, 3] },
+        { id: 1, ready: true, shardList: [4, 5, 6, 7] },
+      ],
+      11, // totalShards (auto-detected from Discord)
+      3,  // totalClusters — cluster 2 hasn't spawned yet
+    );
+    const { service } = makeService("blue", "blue");
+    await service.start();
+
+    const app = createMonitoringApp(manager, [], service);
+    const res = await app.request("/deployment/status");
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(body.ready_to_switch).toBe(false);
+    expect(body.health).toBe("unhealthy");
   });
 
   test("ready_to_switch is false when a cluster is not ready", async () => {
@@ -188,6 +212,28 @@ describe("POST /deployment/switch", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.error).toInclude("does not match this instance");
+  });
+
+  test("returns 503 when not all clusters have spawned yet", async () => {
+    // 1 of 2 expected clusters has spawned and is ready — same bug as the status endpoint
+    const notSpawnedManager = makeManager(
+      [{ id: 0, ready: true, shardList: [0] }],
+      2, // totalShards
+      2, // totalClusters — cluster 1 hasn't spawned yet
+    );
+    const { service } = makeService("blue", "green");
+    await service.start();
+
+    const app = createMonitoringApp(notSpawnedManager, [], service);
+    const res = await app.request("/deployment/switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: "blue" }),
+    });
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.error).toInclude("not ready");
   });
 
   test("returns 503 when clusters are not ready", async () => {

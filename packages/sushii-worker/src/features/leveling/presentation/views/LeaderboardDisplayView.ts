@@ -1,78 +1,68 @@
+import type { ActionRowBuilder, ButtonBuilder } from "discord.js";
 import {
-  calculateLevel,
-  calculateLevelProgress,
-} from "@/shared/domain/utils/LevelCalculations";
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  TextDisplayBuilder,
+} from "discord.js";
+
+import { calculateLevel } from "@/shared/domain/utils/LevelCalculations";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
+import Color from "@/utils/colors";
 
 import type { LeaderboardData } from "../../application/GetLeaderboardService";
-import type { UserRank } from "../../domain/entities/UserRank";
-import { ProgressBar } from "../../domain/value-objects/ProgressBar";
-import { TimeFrame } from "../../domain/value-objects/TimeFrame";
+import { TimeFrame, timeFrameToString } from "../../domain/value-objects/TimeFrame";
 
-export function formatLeaderboardPage(
+export function buildLeaderboardContainer(
   data: LeaderboardData,
   timeframe: TimeFrame,
-  requestingUserId?: string,
-): string {
-  let description = "";
+  requestingUserId: string,
+  navButtons: ActionRowBuilder<ButtonBuilder> | null,
+  isDisabled: boolean,
+): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(Color.Info);
+  const title = `Server Leaderboard - ${timeFrameToString(timeframe)}`;
 
-  // Check if user is in the current page
   let userInTopList = false;
+  let entriesText = "";
+
   for (const entry of data.entries) {
     const level = calculateLevel(BigInt(entry.getAllTimeXp().getValue()));
-    const levelProgress = calculateLevelProgress(
-      BigInt(entry.getAllTimeXp().getValue()),
-    );
-    const progressBar = ProgressBar.fromProgress(
-      levelProgress.nextLevelXpProgress,
-      levelProgress.nextLevelXpRequired,
-    );
-
-    description += `${entry.getRank().getRank()}. **Level ${level}** • <@${entry.getUserId()}>\n`;
-    description += `${progressBar.render()}\n`;
-    description += `-# ${levelProgress.nextLevelXpProgress} / ${levelProgress.nextLevelXpRequired} XP\n\n`;
+    entriesText += `${entry.getRank().getRank()}. **Level ${level}** • <@${entry.getUserId()}>\n`;
 
     if (entry.getUserId() === requestingUserId) {
       userInTopList = true;
     }
   }
 
-  // Add user's rank if they're not in the top list and we have their data
-  if (!userInTopList && data.userRank && data.userLevel && requestingUserId) {
-    const userLevel = calculateLevel(BigInt(data.userLevel.getAllTimeXp()));
-    const userLevelProgress = calculateLevelProgress(
-      BigInt(data.userLevel.getAllTimeXp()),
-    );
-    const userProgressBar = ProgressBar.fromProgress(
-      userLevelProgress.nextLevelXpProgress,
-      userLevelProgress.nextLevelXpRequired,
-    );
-    const rankForTimeframe = getUserRankForTimeframe(data.userRank, timeframe);
+  const mainText = entriesText.trim()
+    ? `### ${title}\n${entriesText}`
+    : `### ${title}\nNo one has earned XP yet!`;
 
-    if (rankForTimeframe) {
-      description += "---\n";
-      description += `${rankForTimeframe}. **Level ${userLevel}** • <@${requestingUserId}>\n`;
-      description += `${userProgressBar.render()}\n`;
-      description += `-# ${userLevelProgress.nextLevelXpProgress} / ${userLevelProgress.nextLevelXpRequired} XP\n`;
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(mainText),
+  );
+
+  // Add user's own rank if they're not in the visible page
+  if (!userInTopList && data.userRank && data.userLevel) {
+    const userLevel = calculateLevel(BigInt(data.userLevel.getAllTimeXp()));
+    const rankForTimeframe = data.userRank
+      .getRankingForTimeFrame(timeframe)
+      .getRank();
+
+    if (rankForTimeframe !== null) {
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `${rankForTimeframe}. **Level ${userLevel}** • <@${requestingUserId}>`,
+        ),
+      );
     }
   }
 
-  return description;
-}
+  ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);
 
-function getUserRankForTimeframe(
-  userRank: UserRank,
-  timeframe: TimeFrame,
-): number | null {
-  switch (timeframe) {
-    case TimeFrame.DAY:
-      return userRank.getDayRank().getRank();
-    case TimeFrame.WEEK:
-      return userRank.getWeekRank().getRank();
-    case TimeFrame.MONTH:
-      return userRank.getMonthRank().getRank();
-    case TimeFrame.ALL_TIME:
-      return userRank.getAllTimeRank().getRank();
-    default:
-      return null;
-  }
+  return container;
 }

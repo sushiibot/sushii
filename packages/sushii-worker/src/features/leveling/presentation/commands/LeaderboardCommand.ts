@@ -1,22 +1,16 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 
-import type {
-  EmbedModifierFn,
-  GetPageFn,
-  GetTotalEntriesFn,
-} from "@/shared/presentation/Paginator";
-import Paginator from "@/shared/presentation/Paginator";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
-import Color from "@/utils/colors";
 
 import type { GetLeaderboardService } from "../../application/GetLeaderboardService";
+import type { LeaderboardData } from "../../application/GetLeaderboardService";
 import {
   TimeFrame,
   isValidTimeFrame,
-  timeFrameToString,
 } from "../../domain/value-objects/TimeFrame";
-import { formatLeaderboardPage } from "../views/LeaderboardDisplayView";
+import { buildLeaderboardContainer } from "../views/LeaderboardDisplayView";
 
 export default class LeaderboardCommand extends SlashCommandHandler {
   constructor(private readonly getLeaderboardService: GetLeaderboardService) {
@@ -66,47 +60,55 @@ export default class LeaderboardCommand extends SlashCommandHandler {
     }
     const timeframe = timeframeRaw as TimeFrame;
 
-    const getPageFn: GetPageFn = async (pageIndex, pageSize) => {
-      const leaderboardData = await this.getLeaderboardService.getLeaderboard(
-        interaction.guildId,
-        interaction.user.id,
-        timeframe,
-        pageIndex,
-        pageSize,
-      );
+    // Cache totalCount from fetchPage to avoid a redundant DB call in getTotalCount
+    let cachedTotalCount: number | undefined;
 
-      return formatLeaderboardPage(
-        leaderboardData,
-        timeframe,
-        interaction.user.id,
-      );
-    };
-
-    const getTotalEntriesFn: GetTotalEntriesFn = async () => {
-      const leaderboardData = await this.getLeaderboardService.getLeaderboard(
-        interaction.guildId,
-        interaction.user.id,
-        timeframe,
-        0,
-        1,
-      );
-      return leaderboardData.totalCount;
-    };
-
-    const embedModifierFn: EmbedModifierFn = (embed) => {
-      return embed
-        .setTitle(`Server Leaderboard - ${timeFrameToString(timeframe)}`)
-        .setColor(Color.Info);
-    };
-
-    const paginator = new Paginator({
+    const paginator = new ComponentsV2Paginator<LeaderboardData>({
       interaction,
-      getPageFn,
-      getTotalEntriesFn,
       pageSize: 10,
-      embedModifierFn,
+      callbacks: {
+        fetchPage: async (pageIndex, pageSize) => {
+          const data = await this.getLeaderboardService.getLeaderboard(
+            interaction.guildId,
+            interaction.user.id,
+            timeframe,
+            pageIndex,
+            pageSize,
+          );
+          cachedTotalCount = data.totalCount;
+          return [data];
+        },
+
+        getTotalCount: async () => {
+          if (cachedTotalCount !== undefined) {
+            return cachedTotalCount;
+          }
+          const data = await this.getLeaderboardService.getLeaderboard(
+            interaction.guildId,
+            interaction.user.id,
+            timeframe,
+            0,
+            1,
+          );
+          cachedTotalCount = data.totalCount;
+          return cachedTotalCount;
+        },
+
+        renderContainer: (data, state, navButtons) => {
+          if (!data[0]) {
+            throw new Error("No leaderboard data returned");
+          }
+          return buildLeaderboardContainer(
+            data[0],
+            timeframe,
+            interaction.user.id,
+            navButtons,
+            state.isDisabled,
+          );
+        },
+      },
     });
 
-    await paginator.paginate();
+    await paginator.start(false);
   }
 }

@@ -50,9 +50,12 @@ function createHealthServer(manager: ClusterManager): Server<unknown> {
   // Routes
   app.get("/health", (c) => {
     // All clients are ready (1 client -> multiple shards)
-    const allReady = Array.from(manager.clusters.values())
-      .map((s) => s.ready)
-      .every(Boolean);
+    const allSpawned =
+      manager.totalClusters > 0 &&
+      manager.clusters.size >= manager.totalClusters;
+    const allReady =
+      allSpawned &&
+      Array.from(manager.clusters.values()).every((s) => s.ready);
 
     const statusCode = allReady ? 200 : 503;
 
@@ -105,9 +108,12 @@ export function createMonitoringApp(
   // Routes
   app.get("/commands", (c) => c.json(commands));
   app.get("/status", (c) => {
-    const allReady = Array.from(manager.clusters.values())
-      .map((s) => s.ready)
-      .every(Boolean);
+    const allSpawned =
+      manager.totalClusters > 0 &&
+      manager.clusters.size >= manager.totalClusters;
+    const allReady =
+      allSpawned &&
+      Array.from(manager.clusters.values()).every((s) => s.ready);
 
     return c.json({
       status: allReady ? "healthy" : "unhealthy",
@@ -136,9 +142,12 @@ export function createMonitoringApp(
   });
 
   app.get("/deployment/status", (c) => {
-    const allReady = Array.from(manager.clusters.values())
-      .map((s) => s.ready)
-      .every(Boolean);
+    const allSpawned =
+      manager.totalClusters > 0 &&
+      manager.clusters.size >= manager.totalClusters;
+    const allReady =
+      allSpawned &&
+      Array.from(manager.clusters.values()).every((s) => s.ready);
 
     const thisDeployment = deploymentService.getProcessName();
     const activeDeployment = deploymentService.getCurrentDeployment();
@@ -207,10 +216,13 @@ export function createMonitoringApp(
       );
     }
 
-    // Check if all clusters are ready
-    const allReady = Array.from(manager.clusters.values())
-      .map((s) => s.ready)
-      .every(Boolean);
+    // Check if all clusters have spawned and are ready
+    const allSpawned =
+      manager.totalClusters > 0 &&
+      manager.clusters.size >= manager.totalClusters;
+    const allReady =
+      allSpawned &&
+      Array.from(manager.clusters.values()).every((s) => s.ready);
 
     if (!allReady) {
       logger.warn(
