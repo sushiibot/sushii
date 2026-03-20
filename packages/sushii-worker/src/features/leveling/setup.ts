@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
@@ -22,9 +23,14 @@ import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 interface LevelingDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
+  emojiRepository: BotEmojiRepository;
 }
 
-export function createLevelingServices({ db, logger }: LevelingDependencies) {
+export function createLevelingServices({
+  db,
+  logger,
+  emojiRepository,
+}: LevelingDependencies) {
   const userProfileRepository = new UserProfileRepository(db);
   const userLevelRepository = new UserLevelRepository(db);
   const levelRoleRepository = new LevelRoleRepositoryImpl(db);
@@ -60,6 +66,7 @@ export function createLevelingServices({ db, logger }: LevelingDependencies) {
     updateUserXpService,
     levelRoleService,
     xpBlockService,
+    emojiRepository,
   };
 }
 
@@ -72,10 +79,11 @@ export function createLevelingCommands(
     getLeaderboardService,
     levelRoleService,
     xpBlockService,
+    emojiRepository,
   } = services;
 
   const commands = [
-    new RankCommand(getUserRankService, logger.child({ module: "rank" })),
+    new RankCommand(getUserRankService, emojiRepository, logger.child({ module: "rank" })),
     new LeaderboardCommand(getLeaderboardService),
     new LevelRoleCommand(levelRoleService),
     new XpCommand(xpBlockService),
@@ -103,10 +111,11 @@ export function createLevelingEventHandlers(
 export function setupLevelingFeature({
   db,
   logger,
+  emojiRepository,
 }: LevelingDependencies): FeatureSetupWithServices<
   ReturnType<typeof createLevelingServices>
 > {
-  const services = createLevelingServices({ db, logger });
+  const services = createLevelingServices({ db, logger, emojiRepository });
   const commands = createLevelingCommands(services, logger);
   const events = createLevelingEventHandlers(services, logger);
 

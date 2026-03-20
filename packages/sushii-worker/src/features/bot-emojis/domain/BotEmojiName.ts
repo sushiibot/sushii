@@ -26,7 +26,12 @@ export const BotEmojiName = z.enum([
   "history",
   "duration",
 
-  // General
+  // Rank Card
+  "rep",
+  "fishies",
+  "level_server",
+  "level_global",
+  "rankings",
 
   // States
   "success",

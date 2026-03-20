@@ -6,11 +6,22 @@ import {
 } from "discord.js";
 import type { InteractionReplyOptions } from "discord.js";
 
+import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
+
 import type { UserRankData } from "../../application/GetUserRankService";
+
+export const RANK_CARD_EMOJIS = [
+  "rep",
+  "fishies",
+  "level_server",
+  "level_global",
+  "rankings",
+] as const satisfies readonly BotEmojiNameType[];
 
 export function formatRankCard(
   data: UserRankData,
   avatarURL: string,
+  emojis: EmojiMap<typeof RANK_CARD_EMOJIS>,
 ): InteractionReplyOptions {
   const { user, profile, guildLevel, globalLevel, rankings } = data;
 
@@ -18,36 +29,29 @@ export function formatRankCard(
   const globalProgressBar = globalLevel.getProgressBar().render();
 
   const content = `**${user.username}**
-💗 **Rep**: ${profile.getReputation().toLocaleString()}   🐟 **Fishies**: ${profile.getFishies().toLocaleString()}  
+${emojis.rep} **Rep**: ${profile.getReputation().toLocaleString()}   ${emojis.fishies} **Fishies**: ${profile.getFishies().toLocaleString()}
 
-**🌟 Server Level ${guildLevel.getCurrentLevel()}**
+${emojis.level_server} **Server Level ${guildLevel.getCurrentLevel()}**
 ${guildProgressBar}
 -# ${guildLevel.getXpDisplayText()}
 
-🏆 **Server Rankings**
-> **All Time**: 
-> \`${rankings.getAllTimeRank().getFormattedPosition()}\`
-> **Day**: 
-> \`${rankings.getDayRank().getFormattedPosition()}\`
-> **Week**: 
-> \`${rankings.getWeekRank().getFormattedPosition()}\`
-> **Month**: 
-> \`${rankings.getMonthRank().getFormattedPosition()}\`
+${emojis.rankings} **Server Rankings**
+> **All Time**: \`${rankings.getAllTimeRank().getFormattedPosition()}\`
+> **Day**: \`${rankings.getDayRank().getFormattedPosition()}\`
+> **Week**: \`${rankings.getWeekRank().getFormattedPosition()}\`
+> **Month**: \`${rankings.getMonthRank().getFormattedPosition()}\`
 
-**🌏 Global Level ${globalLevel.getCurrentLevel()}**  
+${emojis.level_global} **Global Level ${globalLevel.getCurrentLevel()}**
 ${globalProgressBar}
 -# ${globalLevel.getXpDisplayText()}
 `;
 
-  // ---------------------------------------------------------------------------
-  // Build section with both the avatar and the content
   const textContent = new TextDisplayBuilder().setContent(content);
 
   const section = new SectionBuilder()
     .setThumbnailAccessory((b) => b.setURL(avatarURL))
     .addTextDisplayComponents(textContent);
 
-  // Build container with section
   const container = new ContainerBuilder().addSectionComponents(section);
 
   return {

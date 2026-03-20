@@ -2,11 +2,15 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { GetUserRankService } from "../../application/GetUserRankService";
-import { formatRankCard } from "../views/RankDisplayView";
+import {
+  RANK_CARD_EMOJIS,
+  formatRankCard,
+} from "../views/RankDisplayView";
 
 export default class RankCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -23,6 +27,7 @@ export default class RankCommand extends SlashCommandHandler {
 
   constructor(
     private readonly getUserRankUseCase: GetUserRankService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -49,12 +54,9 @@ export default class RankCommand extends SlashCommandHandler {
       return;
     }
 
-    // Target avatar
-    const avatarURL = target.displayAvatarURL({
-      size: 512,
-    });
-
-    const msg = formatRankCard(result.safeUnwrap(), avatarURL);
+    const avatarURL = target.displayAvatarURL({ size: 512 });
+    const emojis = await this.emojiRepository.getEmojis(RANK_CARD_EMOJIS);
+    const msg = formatRankCard(result.safeUnwrap(), avatarURL, emojis);
 
     await interaction.reply(msg);
   }

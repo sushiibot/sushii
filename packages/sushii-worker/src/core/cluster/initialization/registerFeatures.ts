@@ -226,7 +226,11 @@ export function registerFeatures(
       guildSettingsFeature.services.guildConfigurationRepository,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
-  const levelingFeature = setupLevelingFeature({ db, logger });
+  const levelingFeature = setupLevelingFeature({
+    db,
+    logger,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
+  });
   const tagFeature = setupTagFeature({ db, logger });
   const userProfileFeature = setupUserProfileFeature({ db, client, logger });
   const socialFeature = setupSocialFeature({ db, client, logger });

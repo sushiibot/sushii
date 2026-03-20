@@ -69,10 +69,10 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   // Create guild config repository (shared service)
   const guildConfigRepository = new DrizzleGuildConfigRepository(db, logger);
 
-  // Create leveling services (needed for giveaways)
-  const levelingServices = createLevelingServices({ db, logger });
-
   const botEmojiRepository = new DrizzleBotEmojiRepository(db);
+
+  // Create leveling services (needed for giveaways)
+  const levelingServices = createLevelingServices({ db, logger, emojiRepository: botEmojiRepository });
 
   // Create moderation services with mock client
   const moderationFeature = setupModerationFeature({
