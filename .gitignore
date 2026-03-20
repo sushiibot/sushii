@@ -1,3 +1,9 @@
+openspec/
+
+# Generated emoji preview artifacts
+packages/sushii-worker/scripts/preview-emoji.html
+packages/sushii-worker/scripts/preview-emoji.png
+
 # Logs
 logs
 *.log
