@@ -20,7 +20,6 @@ interface PaginationConfig {
   pageJumpSize: number;
   emptyPageMessage: string;
   unauthorizedMessage: string;
-  expiredMessage: string;
 }
 
 // Error types
@@ -71,7 +70,6 @@ const DEFAULT_CONFIG: PaginationConfig = {
   emptyPageMessage: "There's nothing here... 🤔",
   unauthorizedMessage:
     "This isn't for you!! Run your own command to use these buttons.",
-  expiredMessage: "Expired, run the command again",
 };
 
 const BUTTON_EMOJIS = {
@@ -247,10 +245,6 @@ export default class Paginator {
     let currentPageLabel = `${this.currentPageIndex + 1} / ${totalPages}`;
     if (totalPages === 0) {
       currentPageLabel = "0 / 0";
-    }
-
-    if (expired) {
-      currentPageLabel = this.config.expiredMessage;
     }
 
     const currentPage = new ButtonBuilder()
@@ -540,7 +534,6 @@ export class PaginatorBuilder {
   withCustomMessages(messages: {
     emptyPage?: string;
     unauthorized?: string;
-    expired?: string;
   }): PaginatorBuilder {
     this.options.config = {
       ...this.options.config,
@@ -548,7 +541,6 @@ export class PaginatorBuilder {
       ...(messages.unauthorized && {
         unauthorizedMessage: messages.unauthorized,
       }),
-      ...(messages.expired && { expiredMessage: messages.expired }),
     };
     return this;
   }

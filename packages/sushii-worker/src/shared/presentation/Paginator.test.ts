@@ -245,7 +245,6 @@ describe("Paginator", () => {
         .withCustomMessages({
           emptyPage: "No data found",
           unauthorized: "Access denied",
-          expired: "Session expired",
         })
         .build();
 
