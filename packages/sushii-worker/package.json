@@ -10,7 +10,10 @@
     "lint": "eslint ./src",
     "prettier": "prettier --write ./src/**/*.ts",
     "test:e2e": "bun test --timeout 30000 ./tests/e2e/",
-    "test:integration": "TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000 ./tests/integration/"
+    "test:integration": "TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000 ./tests/integration/",
+    "assets:encrypt": "bun --env-file=.env scripts/encrypt-assets.ts",
+    "assets:verify": "bun --env-file=.env scripts/verify-assets.ts",
+    "assets:preview": "bun --env-file=.env scripts/preview-asset-mapping.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
@@ -28,6 +31,7 @@
     "@sentry/node-core": "^10.22.0",
     "@sentry/opentelemetry": "^10.7.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "age-encryption": "^0.3.0",
     "bufferutil": "^4.0.9",
     "cron": "^4.3.1",
     "dayjs": "^1.11.13",

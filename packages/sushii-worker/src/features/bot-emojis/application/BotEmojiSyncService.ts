@@ -1,8 +1,9 @@
 import { createHash } from "crypto";
 import type { Client } from "discord.js";
 import { readFile, readdir, stat } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import type { Logger } from "pino";
+import { Decrypter } from "age-encryption";
 
 import type { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 
@@ -26,6 +27,9 @@ interface SyncResult {
 export class BotEmojiSyncService {
   private readonly emojiService: BotEmojiService;
   private readonly emojisDirectory = "./emojis";
+  private readonly encryptedAssetsDirectory = resolve(
+    join(import.meta.dir, "../../../../assets-encrypted"),
+  );
 
   constructor(
     private readonly client: Client,
@@ -92,9 +96,15 @@ export class BotEmojiSyncService {
       errorMessages: [],
     };
 
-    // Get all emoji files
-    const emojiFiles = await this.getEmojiFiles();
-    if (emojiFiles.length === 0) {
+    // Get all emoji files (lucide + encrypted assets)
+    const [emojiFiles, encryptedAssets] = await Promise.all([
+      this.getEmojiFiles(),
+      this.loadEncryptedAssets(),
+    ]);
+
+    const allFiles = [...emojiFiles, ...encryptedAssets];
+
+    if (allFiles.length === 0) {
       this.logger.info("No emoji files found");
       return result;
     }
@@ -108,7 +118,7 @@ export class BotEmojiSyncService {
     const dbEmojiMap = new Map(dbEmojis.map((e) => [e.name, e]));
 
     // Process each emoji file
-    for (const file of emojiFiles) {
+    for (const file of allFiles) {
       try {
         result.processed++;
         await this.syncSingleEmoji(file, discordEmojis, dbEmojiMap, result);
@@ -128,12 +138,12 @@ export class BotEmojiSyncService {
   }
 
   private async syncSingleEmoji(
-    file: { name: BotEmojiNameType; path: string; hash: string },
+    file: { name: BotEmojiNameType; buffer: Buffer; hash: string },
     discordEmojis: Map<string, string>,
     dbEmojiMap: Map<BotEmojiNameType, BotEmoji>,
     result: SyncResult,
   ): Promise<void> {
-    const { name, path, hash } = file;
+    const { name, buffer, hash } = file;
 
     const discordId = discordEmojis.get(name);
     const dbEmoji = dbEmojiMap.get(name);
@@ -149,7 +159,7 @@ export class BotEmojiSyncService {
         const newId = await this.emojiService.replaceEmoji(
           name,
           discordId,
-          path,
+          buffer,
         );
         const updatedEmoji = dbEmoji.withNewId(newId, hash);
         await this.repository.updateEmoji(updatedEmoji);
@@ -167,14 +177,14 @@ export class BotEmojiSyncService {
       );
     } else if (!discordId && dbEmoji) {
       // DB exists, Discord missing - upload to Discord
-      const newId = await this.emojiService.createEmoji(name, path);
+      const newId = await this.emojiService.createEmoji(name, buffer);
       const updatedEmoji = dbEmoji.withNewId(newId, hash);
       await this.repository.updateEmoji(updatedEmoji);
       result.updated++;
       this.logger.info({ name, id: newId }, "Uploaded emoji to Discord");
     } else {
       // Neither exists - create new
-      const newId = await this.emojiService.createEmoji(name, path);
+      const newId = await this.emojiService.createEmoji(name, buffer);
       const newEmoji = new BotEmoji(name, newId, hash);
       await this.repository.saveEmoji(newEmoji);
       result.created++;
@@ -183,7 +193,7 @@ export class BotEmojiSyncService {
   }
 
   private async getEmojiFiles(): Promise<
-    { name: BotEmojiNameType; path: string; hash: string }[]
+    { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
   > {
     try {
       const files = await readdir(this.emojisDirectory);
@@ -191,7 +201,7 @@ export class BotEmojiSyncService {
 
       const validEmojis: {
         name: BotEmojiNameType;
-        path: string;
+        buffer: Buffer;
         hash: string;
       }[] = [];
 
@@ -227,13 +237,12 @@ export class BotEmojiSyncService {
           continue;
         }
 
-        // Calculate hash
         const buffer = await readFile(filePath);
         const hash = createHash("sha256")
           .update(new Uint8Array(buffer))
           .digest("hex");
 
-        validEmojis.push({ name, path: filePath, hash });
+        validEmojis.push({ name, buffer, hash });
       }
 
       this.logger.info(
@@ -249,6 +258,72 @@ export class BotEmojiSyncService {
         error.code === "ENOENT"
       ) {
         this.logger.info("Emojis directory not found - skipping sync");
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  private async loadEncryptedAssets(): Promise<
+    { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
+  > {
+    const assetKey = process.env.ASSET_KEY;
+    if (!assetKey) {
+      this.logger.warn(
+        "ASSET_KEY not set - skipping encrypted asset sync",
+      );
+      return [];
+    }
+
+    try {
+      const files = await readdir(this.encryptedAssetsDirectory);
+      const ageFiles = files.filter((f) => f.endsWith(".png.age"));
+
+      const assets: { name: BotEmojiNameType; buffer: Buffer; hash: string }[] =
+        [];
+
+      for (const filename of ageFiles) {
+        const name = filename.replace(/\.png\.age$/, "") as BotEmojiNameType;
+
+        if (!BotEmojiName.safeParse(name).success) {
+          this.logger.error(
+            { filename, name },
+            "Encrypted asset name not found in BotEmojiName enum",
+          );
+          continue;
+        }
+
+        const filePath = join(this.encryptedAssetsDirectory, filename);
+        const ciphertext = await readFile(filePath);
+
+        const decrypter = new Decrypter();
+        decrypter.addPassphrase(assetKey);
+        const plaintext = await decrypter.decrypt(
+          new Uint8Array(ciphertext),
+          "uint8array",
+        );
+
+        const buffer = Buffer.from(plaintext);
+        const hash = createHash("sha256")
+          .update(plaintext)
+          .digest("hex");
+
+        assets.push({ name, buffer, hash });
+      }
+
+      this.logger.info(
+        { count: assets.length },
+        "Loaded encrypted assets",
+      );
+
+      return assets;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        this.logger.info("assets-encrypted directory not found - skipping");
         return [];
       }
       throw error;

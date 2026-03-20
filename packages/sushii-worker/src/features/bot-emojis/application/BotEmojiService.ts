@@ -1,5 +1,4 @@
 import type { Client } from "discord.js";
-import { readFile } from "fs/promises";
 import type { Logger } from "pino";
 
 import type { BotEmojiNameType } from "../domain";
@@ -16,10 +15,8 @@ export class BotEmojiService {
   /**
    * Creates a new application emoji in Discord.
    */
-  async createEmoji(name: BotEmojiNameType, filePath: string): Promise<string> {
+  async createEmoji(name: BotEmojiNameType, buffer: Buffer): Promise<string> {
     try {
-      const buffer = await readFile(filePath);
-
       // Validate file size (Discord limit is 256KB)
       if (buffer.length > 256 * 1024) {
         throw new Error(
@@ -44,7 +41,7 @@ export class BotEmojiService {
       return emoji.id;
     } catch (error) {
       this.logger.error(
-        { err: error, name, filePath },
+        { err: error, name },
         "Failed to create application emoji",
       );
       throw error;
@@ -57,21 +54,21 @@ export class BotEmojiService {
   async replaceEmoji(
     name: BotEmojiNameType,
     oldId: string,
-    filePath: string,
+    buffer: Buffer,
   ): Promise<string> {
     try {
       // Delete the old emoji first
       await this.deleteEmoji(oldId);
 
       // Create the new emoji
-      const newId = await this.createEmoji(name, filePath);
+      const newId = await this.createEmoji(name, buffer);
 
       this.logger.info({ name, oldId, newId }, "Replaced application emoji");
 
       return newId;
     } catch (error) {
       this.logger.error(
-        { err: error, name, oldId, filePath },
+        { err: error, name, oldId },
         "Failed to replace application emoji",
       );
       throw error;
