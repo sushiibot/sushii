@@ -85,18 +85,21 @@ export function createNavigationDropdown(
             : undefined,
         },
         {
-          label: "Messages",
+          label: "Welcome Messages",
           description: "Join/leave messages",
           value: "messages",
           default: currentPage === "messages",
+          emoji: emojis?.dm_message
+            ? parseEmojiForSelect(emojis.dm_message)
+            : undefined,
         },
         {
           label: "Automod",
           description: "Spam detection",
           value: "automod",
           default: currentPage === "automod",
-          emoji: emojis?.lightning
-            ? parseEmojiForSelect(emojis.lightning)
+          emoji: emojis?.shield
+            ? parseEmojiForSelect(emojis.shield)
             : undefined,
         },
       ),

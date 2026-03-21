@@ -43,7 +43,7 @@ export function addMessagesContent(
   // Header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Messages`,
+      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Welcome Messages`,
     ),
   );
 
