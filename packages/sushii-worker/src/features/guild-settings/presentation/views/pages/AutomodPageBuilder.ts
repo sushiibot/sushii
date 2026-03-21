@@ -21,7 +21,7 @@ export function addAutomodContent(
   // Header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.lightning ? `${emojis.lightning} ` : ""}Automod`,
+      `## ${emojis?.shield ? `${emojis.shield} ` : ""}Automod`,
     ),
   );
 

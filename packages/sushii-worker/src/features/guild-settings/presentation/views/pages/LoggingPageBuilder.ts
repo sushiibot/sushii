@@ -85,7 +85,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: `${emojis?.history ? `${emojis.history} ` : ""}Mod Logs`,
+      title: `${emojis?.ban ? `${emojis.ban} ` : ""}Mod Logs`,
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
       baseDescription:
@@ -142,7 +142,7 @@ export function addLoggingContent(
   );
 
   const msgLogText = new TextDisplayBuilder().setContent(
-    "### Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.",
+    `${emojis?.sound_off ? `${emojis.sound_off} ` : ""}**Message Log Ignored Channels**\nSelect busy channels to skip logging there and reduce spam.`,
   );
   container.addTextDisplayComponents(msgLogText);
 

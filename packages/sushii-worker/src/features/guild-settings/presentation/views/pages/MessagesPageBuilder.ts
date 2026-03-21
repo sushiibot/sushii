@@ -38,9 +38,13 @@ export function addMessagesContent(
 ): void {
   const { config, disabled = false } = options;
 
+  const { emojis } = options;
+
   // Header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Messages"),
+    new TextDisplayBuilder().setContent(
+      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Messages`,
+    ),
   );
 
   // Join/Leave Messages Section Header
@@ -104,7 +108,7 @@ export function addMessagesContent(
 
   addToggleSetting(
     container,
-    "Join Message",
+    `${emojis?.member_join ? `${emojis.member_join} ` : ""}Join Message`,
     joinDescription,
     config.messageSettings.joinMessageEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
@@ -152,7 +156,7 @@ export function addMessagesContent(
 
   addToggleSetting(
     container,
-    "Leave Message",
+    `${emojis?.member_leave ? `${emojis.member_leave} ` : ""}Leave Message`,
     leaveDescription,
     config.messageSettings.leaveMessageEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,

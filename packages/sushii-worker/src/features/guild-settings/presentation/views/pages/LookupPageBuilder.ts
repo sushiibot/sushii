@@ -14,7 +14,9 @@ export function addLookupContent(
 
   // Page header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Lookup"),
+    new TextDisplayBuilder().setContent(
+      `## ${emojis?.lookup ? `${emojis.lookup} ` : ""}Lookup`,
+    ),
   );
 
   // Explanation

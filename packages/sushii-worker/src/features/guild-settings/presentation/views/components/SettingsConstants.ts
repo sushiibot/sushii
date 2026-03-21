@@ -28,6 +28,10 @@ export const SETTINGS_EMOJI_NAMES = [
   "warn",
   "lookup",
   "lightning",
+  "shield",
+  "sound_off",
+  "member_join",
+  "member_leave",
 ] as const satisfies readonly BotEmojiNameType[];
 
 export interface SettingsMessageOptions {
