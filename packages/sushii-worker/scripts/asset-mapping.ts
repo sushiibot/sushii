@@ -50,6 +50,7 @@ export const ASSET_MAPPING: { src: string; name: BotEmojiNameType }[] = [
 
   // Settings UI
   { src: "UI/Save/Save Outline 256.png", name: "save" },
+  { src: "Items/Scroll 2/Scroll 2 Outline 256.png", name: "logs" },
   { src: "Tools/Pencil/Pencil Outline 256.png", name: "message_log" },
   { src: "UI/Bell/Bell Outline 256.png", name: "bell" },
   { src: "General/Lightning Bolt/Lightning Bolt Outline 256.png", name: "lightning" },

@@ -45,6 +45,7 @@ export const BotEmojiName = z.enum([
 
   // Settings UI
   "save",
+  "logs",
   "message_log",
   "bell",
   "lightning",

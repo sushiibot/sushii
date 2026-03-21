@@ -67,9 +67,9 @@ export function addLoggingContent(
   const { config, disabled = false } = options;
 
   // Header
-  const saveEmoji = options.emojis?.save;
+  const logsEmoji = options.emojis?.logs;
   const headerText = new TextDisplayBuilder().setContent(
-    `## ${saveEmoji ? `${saveEmoji} ` : ""}Logging`,
+    `## ${logsEmoji ? `${logsEmoji} ` : ""}Logging`,
   );
   container.addTextDisplayComponents(headerText);
 

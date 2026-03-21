@@ -17,6 +17,7 @@ export type SettingsPage =
 
 export const SETTINGS_EMOJI_NAMES = [
   "save",
+  "logs",
   "history",
   "user",
   "message_log",
