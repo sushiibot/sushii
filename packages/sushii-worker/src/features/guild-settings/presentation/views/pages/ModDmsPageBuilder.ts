@@ -27,8 +27,8 @@ export function addModDmsContent(
   // Section header + intro
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      "### DM Message Templates\n" +
-      "Extra text sent alongside moderation DMs. Add server rules, appeal links, or additional context.",
+      "### Additional DM Text\n" +
+      "Extra text shown to members in moderation DMs, in addition to the reason. Use this for server rules, appeal links, or any other info you want members to see.",
     ),
   );
 
