@@ -1,5 +1,8 @@
 openspec/
 
+# Lefthook generated hooks dir (when core.hooksPath is used)
+.githooks/
+
 # Generated emoji preview artifacts
 packages/sushii-worker/scripts/preview-emoji.html
 packages/sushii-worker/scripts/preview-emoji.png
