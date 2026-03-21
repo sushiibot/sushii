@@ -10,7 +10,7 @@ import { join, resolve } from "path";
 
 import { ASSET_MAPPING } from "./asset-mapping";
 
-const OUTPUT_DIR = resolve(join(import.meta.dir, "../assets-encrypted"));
+const OUTPUT_DIR = resolve(join(import.meta.dir, "../assets"));
 
 const missing: string[] = [];
 
@@ -23,7 +23,7 @@ for (const { name } of ASSET_MAPPING) {
 
 if (missing.length > 0) {
   console.error(
-    `Error: ${missing.length} encrypted asset(s) missing from assets-encrypted/:\n`,
+    `Error: ${missing.length} encrypted asset(s) missing from assets/:\n`,
   );
   console.error(missing.join("\n"));
   console.error("\nRun: ASSET_KEY=<passphrase> bun scripts/encrypt-assets.ts");

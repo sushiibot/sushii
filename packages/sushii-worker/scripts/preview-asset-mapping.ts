@@ -2,7 +2,7 @@
  * Serves a live preview of all mapped assets over HTTP.
  *
  * Without ASSET_KEY: serves images directly from ASSETS_ROOT (original files)
- * With ASSET_KEY:    decrypts and serves from assets-encrypted/*.png.age
+ * With ASSET_KEY:    decrypts and serves from assets/*.png.age
  *
  * Usage:
  *   bun scripts/preview-asset-mapping.ts
@@ -21,7 +21,7 @@ const ASSET_KEY = process.env.ASSET_KEY ?? null;
 const ASSETS_ROOT = resolve(
   process.env.ASSETS_ROOT ?? join(import.meta.dir, "../../../../assets"),
 );
-const ENCRYPTED_DIR = resolve(join(import.meta.dir, "../assets-encrypted"));
+const ENCRYPTED_DIR = resolve(join(import.meta.dir, "../assets"));
 
 const MODE = ASSET_KEY ? "encrypted" : "source";
 

@@ -1,5 +1,5 @@
 /**
- * Encrypts licensed PNG assets into assets-encrypted/*.png.age
+ * Encrypts licensed PNG assets into assets/*.png.age
  *
  * Usage:
  *   ASSET_KEY=<passphrase> ASSETS_ROOT=<path> bun scripts/encrypt-assets.ts
@@ -22,7 +22,7 @@ if (!ASSET_KEY) {
 const ASSETS_ROOT = resolve(
   process.env.ASSETS_ROOT ?? join(import.meta.dir, "../../../../assets"),
 );
-const OUTPUT_DIR = resolve(join(import.meta.dir, "../assets-encrypted"));
+const OUTPUT_DIR = resolve(join(import.meta.dir, "../assets"));
 
 console.log(`Assets root: ${ASSETS_ROOT}`);
 console.log(`Output dir:  ${OUTPUT_DIR}`);

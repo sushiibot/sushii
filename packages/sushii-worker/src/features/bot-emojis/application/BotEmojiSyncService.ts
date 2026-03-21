@@ -23,12 +23,15 @@ interface SyncResult {
 
 /**
  * Service responsible for synchronizing emoji files with Discord and database.
+ *
+ * Reads from the assets/ directory. Files ending in .png.age are decrypted
+ * using ASSET_KEY; plain .png files are used as-is. If both exist for the
+ * same name, the encrypted asset takes priority.
  */
 export class BotEmojiSyncService {
   private readonly emojiService: BotEmojiService;
-  private readonly emojisDirectory = "./emojis";
-  private readonly encryptedAssetsDirectory = resolve(
-    join(import.meta.dir, "../../../../assets-encrypted"),
+  private readonly assetsDirectory = resolve(
+    join(import.meta.dir, "../../../../assets"),
   );
 
   constructor(
@@ -96,13 +99,7 @@ export class BotEmojiSyncService {
       errorMessages: [],
     };
 
-    // Get all emoji files (lucide + encrypted assets)
-    const [emojiFiles, encryptedAssets] = await Promise.all([
-      this.getEmojiFiles(),
-      this.loadEncryptedAssets(),
-    ]);
-
-    const allFiles = [...emojiFiles, ...encryptedAssets];
+    const allFiles = await this.loadAssets();
 
     if (allFiles.length === 0) {
       this.logger.info("No emoji files found");
@@ -192,130 +189,93 @@ export class BotEmojiSyncService {
     }
   }
 
-  private async getEmojiFiles(): Promise<
-    { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
-  > {
-    try {
-      const files = await readdir(this.emojisDirectory);
-      const pngFiles = files.filter((f) => f.endsWith(".png"));
-
-      const validEmojis: {
-        name: BotEmojiNameType;
-        buffer: Buffer;
-        hash: string;
-      }[] = [];
-
-      for (const filename of pngFiles) {
-        const filePath = join(this.emojisDirectory, filename);
-        const name = filename.replace(/\.png$/, "") as BotEmojiNameType;
-
-        // Validate filename format
-        if (!this.emojiService.validateEmojiName(filename)) {
-          this.logger.error(
-            { filename },
-            "Invalid emoji filename - must be lowercase with underscores only",
-          );
-          continue;
-        }
-
-        // Check if name exists in enum
-        if (!BotEmojiName.safeParse(name).success) {
-          this.logger.error(
-            { filename, name },
-            "Emoji filename not found in BotEmojiName enum - add it to the enum first",
-          );
-          continue;
-        }
-
-        // Check file size
-        const stats = await stat(filePath);
-        if (stats.size > 256 * 1024) {
-          this.logger.error(
-            { filename, size: stats.size },
-            "Emoji file too large - max 256KB",
-          );
-          continue;
-        }
-
-        const buffer = await readFile(filePath);
-        const hash = createHash("sha256")
-          .update(new Uint8Array(buffer))
-          .digest("hex");
-
-        validEmojis.push({ name, buffer, hash });
-      }
-
-      this.logger.info(
-        { total: pngFiles.length, valid: validEmojis.length },
-        "Processed emoji files",
-      );
-
-      return validEmojis;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
-        this.logger.info("Emojis directory not found - skipping sync");
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  private async loadEncryptedAssets(): Promise<
+  /**
+   * Loads all assets from the assets/ directory.
+   * Supports plain .png and encrypted .png.age files.
+   * If both exist for the same name, the encrypted asset takes priority.
+   */
+  private async loadAssets(): Promise<
     { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
   > {
     const assetKey = process.env.ASSET_KEY;
-    if (!assetKey) {
-      this.logger.warn(
-        "ASSET_KEY not set - skipping encrypted asset sync",
-      );
-      return [];
-    }
 
     try {
-      const files = await readdir(this.encryptedAssetsDirectory);
-      const ageFiles = files.filter((f) => f.endsWith(".png.age"));
+      const files = await readdir(this.assetsDirectory);
+
+      // Group by emoji name, tracking plain and encrypted variants
+      const byName = new Map<string, { plain?: string; encrypted?: string }>();
+
+      for (const filename of files) {
+        if (filename.endsWith(".png.age")) {
+          const name = filename.replace(/\.png\.age$/, "");
+          const entry = byName.get(name) ?? {};
+          entry.encrypted = filename;
+          byName.set(name, entry);
+        } else if (filename.endsWith(".png")) {
+          const name = filename.replace(/\.png$/, "");
+          const entry = byName.get(name) ?? {};
+          entry.plain = filename;
+          byName.set(name, entry);
+        }
+      }
+
+      const hasEncrypted = [...byName.values()].some((v) => v.encrypted);
+      if (hasEncrypted && !assetKey) {
+        this.logger.warn(
+          "ASSET_KEY not set - encrypted assets will be skipped, falling back to plain files",
+        );
+      }
 
       const assets: { name: BotEmojiNameType; buffer: Buffer; hash: string }[] =
         [];
 
-      for (const filename of ageFiles) {
-        const name = filename.replace(/\.png\.age$/, "") as BotEmojiNameType;
-
-        if (!BotEmojiName.safeParse(name).success) {
+      for (const [nameStr, { plain, encrypted }] of byName) {
+        const parsed = BotEmojiName.safeParse(nameStr);
+        if (!parsed.success) {
           this.logger.error(
-            { filename, name },
-            "Encrypted asset name not found in BotEmojiName enum",
+            { name: nameStr },
+            "Asset name not found in BotEmojiName enum - add it to the enum first",
           );
           continue;
         }
+        const name = parsed.data;
 
-        const filePath = join(this.encryptedAssetsDirectory, filename);
-        const ciphertext = await readFile(filePath);
-
-        const decrypter = new Decrypter();
-        decrypter.addPassphrase(assetKey);
-        const plaintext = await decrypter.decrypt(
-          new Uint8Array(ciphertext),
-          "uint8array",
-        );
-
-        const buffer = Buffer.from(plaintext);
-        const hash = createHash("sha256")
-          .update(plaintext)
-          .digest("hex");
-
-        assets.push({ name, buffer, hash });
+        if (encrypted && assetKey) {
+          // Prefer encrypted asset
+          const filePath = join(this.assetsDirectory, encrypted);
+          const ciphertext = await readFile(filePath);
+          const decrypter = new Decrypter();
+          decrypter.addPassphrase(assetKey);
+          const plaintext = await decrypter.decrypt(
+            new Uint8Array(ciphertext),
+            "uint8array",
+          );
+          const buffer = Buffer.from(plaintext);
+          const hash = createHash("sha256")
+            .update(plaintext)
+            .digest("hex");
+          assets.push({ name, buffer, hash });
+        } else if (plain) {
+          // Fall back to plain PNG
+          const filePath = join(this.assetsDirectory, plain);
+          const fileStats = await stat(filePath);
+          if (fileStats.size > 256 * 1024) {
+            this.logger.error(
+              { filename: plain, size: fileStats.size },
+              "Emoji file too large - max 256KB",
+            );
+            continue;
+          }
+          const buffer = await readFile(filePath);
+          const hash = createHash("sha256")
+            .update(new Uint8Array(buffer))
+            .digest("hex");
+          assets.push({ name, buffer, hash });
+        }
+        // if only encrypted but no key: skip silently (warning already logged above)
       }
 
-      this.logger.info(
-        { count: assets.length },
-        "Loaded encrypted assets",
-      );
-
+      this.logger.info({ count: assets.length }, "Loaded assets");
       return assets;
     } catch (error) {
       if (
@@ -323,7 +283,7 @@ export class BotEmojiSyncService {
         "code" in error &&
         error.code === "ENOENT"
       ) {
-        this.logger.info("assets-encrypted directory not found - skipping");
+        this.logger.info("assets directory not found - skipping sync");
         return [];
       }
       throw error;
@@ -355,7 +315,7 @@ export class BotEmojiSyncService {
       let description = `**Summary:**
 • Processed: ${result.processed} files
 • Created: ${result.created} emojis
-• Updated: ${result.updated} emojis  
+• Updated: ${result.updated} emojis
 • Skipped: ${result.skipped} emojis
 • Errors: ${result.errors} files
 • Duration: ${duration}ms`;
