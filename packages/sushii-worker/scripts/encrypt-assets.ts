@@ -1,6 +1,9 @@
 /**
  * Encrypts licensed PNG assets into assets/*.png.age
  *
+ * Skips assets that already have an encrypted file. To replace an asset,
+ * delete the corresponding .png.age file and re-run this script.
+ *
  * Usage:
  *   ASSET_KEY=<passphrase> ASSETS_ROOT=<path> bun scripts/encrypt-assets.ts
  *
@@ -29,6 +32,7 @@ console.log(`Output dir:  ${OUTPUT_DIR}`);
 console.log(`Encrypting ${ASSET_MAPPING.length} assets...\n`);
 
 let succeeded = 0;
+let skipped = 0;
 let failed = 0;
 
 for (const { src, name } of ASSET_MAPPING) {
@@ -36,6 +40,14 @@ for (const { src, name } of ASSET_MAPPING) {
   const outPath = join(OUTPUT_DIR, `${name}.png.age`);
 
   try {
+    // Skip if already encrypted. To replace an asset, delete the .png.age file.
+    const outFile = Bun.file(outPath);
+    if (await outFile.exists()) {
+      console.log(`  - ${name} (already exists, skipping)`);
+      skipped++;
+      continue;
+    }
+
     const plaintext = await readFile(srcPath);
 
     const encrypter = new Encrypter();
@@ -52,5 +64,5 @@ for (const { src, name } of ASSET_MAPPING) {
   }
 }
 
-console.log(`\nDone: ${succeeded} encrypted, ${failed} failed`);
+console.log(`\nDone: ${succeeded} encrypted, ${skipped} skipped, ${failed} failed`);
 if (failed > 0) process.exit(1);
