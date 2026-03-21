@@ -1,3 +1,7 @@
+import type {
+  BotEmojiNameType,
+  EmojiMap,
+} from "@/features/bot-emojis/domain";
 import type { MessageLogBlock } from "@/features/message-log/domain/entities/MessageLogBlock";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -11,12 +15,28 @@ export type SettingsPage =
   | "automod"
   | "messages";
 
+export const SETTINGS_EMOJI_NAMES = [
+  "save",
+  "history",
+  "user",
+  "message_log",
+  "bell",
+  "ban",
+  "timeout",
+  "kick",
+  "dm_message",
+  "warn",
+  "lookup",
+  "lightning",
+] as const satisfies readonly BotEmojiNameType[];
+
 export interface SettingsMessageOptions {
   page: SettingsPage;
   config: GuildConfig;
   messageLogBlocks?: MessageLogBlock[];
   channelPermissions?: ChannelPermissionsMap;
   disabled?: boolean;
+  emojis?: EmojiMap<typeof SETTINGS_EMOJI_NAMES>;
 }
 
 export const SETTINGS_CUSTOM_IDS = {

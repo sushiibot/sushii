@@ -10,11 +10,13 @@ export function addModerationContent(
   options: SettingsMessageOptions,
   _interaction?: Interaction<CacheType>,
 ): void {
-  const { config, disabled = false } = options;
+  const { config, disabled = false, emojis } = options;
 
   // Page header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Moderation"),
+    new TextDisplayBuilder().setContent(
+      `## ${emojis?.ban ? `${emojis.ban} ` : ""}Moderation`,
+    ),
   );
 
   container.addTextDisplayComponents(
@@ -26,7 +28,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    "DM on /timeout command",
+    `${emojis?.timeout ? `${emojis.timeout} ` : ""}DM on /timeout command`,
     "When you use the `/timeout` command, send them a DM with the reason",
     config.moderationSettings.timeoutCommandDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM,
@@ -35,7 +37,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    "DM on Discord Timeout",
+    `${emojis?.timeout ? `${emojis.timeout} ` : ""}DM on Discord Timeout`,
     "When you right-click a user → Timeout, send them a DM with the reason",
     config.moderationSettings.timeoutNativeDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM,
@@ -44,7 +46,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    "Ban DM",
+    `${emojis?.ban ? `${emojis.ban} ` : ""}Ban DM`,
     "Always DM the user when banned. Only works with `/ban` command — right-click bans cannot send DMs.",
     config.moderationSettings.banDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM,
@@ -53,7 +55,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    "Kick DM",
+    `${emojis?.kick ? `${emojis.kick} ` : ""}Kick DM`,
     "DM the user when kicked. Only works with the `/kick` command — native kicks cannot send DMs.",
     config.moderationSettings.kickDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,

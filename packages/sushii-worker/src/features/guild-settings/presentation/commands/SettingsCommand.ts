@@ -14,6 +14,7 @@ import {
 import type { ModalMessageModalSubmitInteraction } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -37,15 +38,24 @@ import {
   createWarnDmTextModal,
 } from "../views/components/SettingsComponents";
 import type { SettingsPage } from "../views/components/SettingsConstants";
-import { SETTINGS_CUSTOM_IDS } from "../views/components/SettingsConstants";
+import {
+  SETTINGS_CUSTOM_IDS,
+  SETTINGS_EMOJI_NAMES,
+} from "../views/components/SettingsConstants";
 
 export default class SettingsCommand extends SlashCommandHandler {
   constructor(
     private readonly guildSettingsService: GuildSettingsService,
     private readonly messageLogBlockService: MessageLogBlockService,
     private readonly logger: Logger,
+    private readonly emojiRepository?: BotEmojiRepository,
   ) {
     super();
+  }
+
+  private async getEmojis() {
+    if (!this.emojiRepository) return undefined;
+    return this.emojiRepository.getEmojis(SETTINGS_EMOJI_NAMES);
   }
 
   command = new SlashCommandBuilder()
@@ -98,11 +108,11 @@ export default class SettingsCommand extends SlashCommandHandler {
   private async showSettingsPanel(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const config = await this.guildSettingsService.getGuildSettings(
-      interaction.guildId,
-    );
-    const messageLogBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(interaction.guildId);
+    const [config, messageLogBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(interaction.guildId),
+      this.messageLogBlockService.getIgnoredChannels(interaction.guildId),
+      this.getEmojis(),
+    ]);
 
     let currentPage: SettingsPage = "logging";
     const channelPermissions = this.getChannelPermissions(interaction, config);
@@ -114,6 +124,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks,
         channelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );
@@ -159,13 +170,13 @@ export default class SettingsCommand extends SlashCommandHandler {
 
     collector.on("end", async () => {
       try {
-        const currentConfig = await this.guildSettingsService.getGuildSettings(
-          interaction.guildId,
+        const [currentConfig, currentBlocks, currentEmojis] = await Promise.all(
+          [
+            this.guildSettingsService.getGuildSettings(interaction.guildId),
+            this.messageLogBlockService.getIgnoredChannels(interaction.guildId),
+            this.getEmojis(),
+          ],
         );
-        const currentBlocks =
-          await this.messageLogBlockService.getIgnoredChannels(
-            interaction.guildId,
-          );
         const currentChannelPermissions = this.getChannelPermissions(
           interaction,
           currentConfig,
@@ -178,6 +189,7 @@ export default class SettingsCommand extends SlashCommandHandler {
             messageLogBlocks: currentBlocks,
             channelPermissions: currentChannelPermissions,
             disabled: true,
+            emojis: currentEmojis,
           },
           interaction,
         );
@@ -215,9 +227,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined;
     }
 
-    const config = await this.guildSettingsService.getGuildSettings(guildId);
-    const messageLogBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const [config, messageLogBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
     const channelPermissions = this.getChannelPermissions(interaction, config);
 
     const updatedMessage = createSettingsMessage(
@@ -227,6 +241,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks,
         channelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );
@@ -294,10 +309,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       }
     }
 
-    const updatedConfig =
-      await this.guildSettingsService.getGuildSettings(guildId);
-    const updatedBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -310,6 +326,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks: updatedBlocks,
         channelPermissions: updatedChannelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );
@@ -360,10 +377,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       );
     }
 
-    const updatedConfig =
-      await this.guildSettingsService.getGuildSettings(guildId);
-    const updatedBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -376,6 +394,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks: updatedBlocks,
         channelPermissions: updatedChannelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );
@@ -561,12 +580,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       throw new Error("Unknown button custom ID");
     }
 
-    const updatedConfig = await this.guildSettingsService.toggleSetting(
-      guildId,
-      setting,
-    );
-    const messageLogBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const [updatedConfig, messageLogBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.toggleSetting(guildId, setting),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -579,6 +597,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks,
         channelPermissions: updatedChannelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );
@@ -675,10 +694,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       targetPage = "mod-dms";
     }
 
-    const updatedConfig =
-      await this.guildSettingsService.getGuildSettings(guildId);
-    const messageLogBlocks =
-      await this.messageLogBlockService.getIgnoredChannels(guildId);
+    const [updatedConfig, messageLogBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
     const updatedChannelPermissions = this.getChannelPermissions(
       interaction,
       updatedConfig,
@@ -691,6 +711,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         messageLogBlocks,
         channelPermissions: updatedChannelPermissions,
         disabled: false,
+        emojis,
       },
       interaction,
     );

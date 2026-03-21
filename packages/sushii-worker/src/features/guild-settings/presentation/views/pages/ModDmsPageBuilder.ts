@@ -15,11 +15,13 @@ export function addModDmsContent(
   options: SettingsMessageOptions,
   _interaction?: Interaction<CacheType>,
 ): void {
-  const { config, disabled = false } = options;
+  const { config, disabled = false, emojis } = options;
 
   // Header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Moderation DMs"),
+    new TextDisplayBuilder().setContent(
+      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Moderation DMs`,
+    ),
   );
 
   // Section header + intro
@@ -33,7 +35,7 @@ export function addModDmsContent(
   // Timeout DM Text
   container.addSectionComponents(
     createEditSection(
-      "Timeout DM Text",
+      `${emojis?.timeout ? `${emojis.timeout} ` : ""}Timeout DM Text`,
       "Extra message added to timeout DMs.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT,
       disabled,
@@ -56,7 +58,7 @@ export function addModDmsContent(
   // Warn DM Text
   container.addSectionComponents(
     createEditSection(
-      "Warn DM Text",
+      `${emojis?.warn ? `${emojis.warn} ` : ""}Warn DM Text`,
       "Extra message added to warning DMs.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT,
       disabled,
@@ -79,7 +81,7 @@ export function addModDmsContent(
   // Ban DM Text
   container.addSectionComponents(
     createEditSection(
-      "Ban DM Text",
+      `${emojis?.ban ? `${emojis.ban} ` : ""}Ban DM Text`,
       "Extra message added to ban DMs. Add appeal links or final instructions here.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT,
       disabled,
@@ -102,7 +104,7 @@ export function addModDmsContent(
   // Kick DM Text
   container.addSectionComponents(
     createEditSection(
-      "Kick DM Text",
+      `${emojis?.kick ? `${emojis.kick} ` : ""}Kick DM Text`,
       "Extra message added to kick DMs. Add appeal links or additional instructions here.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT,
       disabled,

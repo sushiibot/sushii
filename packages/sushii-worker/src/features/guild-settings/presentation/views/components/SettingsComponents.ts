@@ -13,8 +13,18 @@ import {
 
 import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 
-import type { SettingsPage } from "./SettingsConstants";
+import type { EmojiMap } from "@/features/bot-emojis/domain";
+
+import type { SETTINGS_EMOJI_NAMES, SettingsPage } from "./SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "./SettingsConstants";
+
+export function parseEmojiForSelect(
+  emojiString: string,
+): { name: string; id: string } | undefined {
+  const match = emojiString.match(/^<a?:(\w+):(\d+)>$/);
+  if (!match) return undefined;
+  return { name: match[1], id: match[2] };
+}
 
 export function createFooter(disabled = false): TextDisplayBuilder {
   let footerContent: string;
@@ -34,6 +44,7 @@ export function createFooter(disabled = false): TextDisplayBuilder {
 export function createNavigationDropdown(
   currentPage: SettingsPage,
   disabled = false,
+  emojis?: EmojiMap<typeof SETTINGS_EMOJI_NAMES>,
 ): ActionRowBuilder<StringSelectMenuBuilder> {
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
@@ -46,24 +57,32 @@ export function createNavigationDropdown(
           description: "Log channels and toggles",
           value: "logging",
           default: currentPage === "logging",
+          emoji: emojis?.save ? parseEmojiForSelect(emojis.save) : undefined,
         },
         {
           label: "Moderation",
           description: "DM settings for moderation actions",
           value: "moderation",
           default: currentPage === "moderation",
+          emoji: emojis?.ban ? parseEmojiForSelect(emojis.ban) : undefined,
         },
         {
           label: "Moderation DMs",
           description: "DM message templates",
           value: "mod-dms",
           default: currentPage === "mod-dms",
+          emoji: emojis?.dm_message
+            ? parseEmojiForSelect(emojis.dm_message)
+            : undefined,
         },
         {
           label: "Lookup",
           description: "Lookup data sharing",
           value: "lookup",
           default: currentPage === "lookup",
+          emoji: emojis?.lookup
+            ? parseEmojiForSelect(emojis.lookup)
+            : undefined,
         },
         {
           label: "Messages",
@@ -76,6 +95,9 @@ export function createNavigationDropdown(
           description: "Spam detection",
           value: "automod",
           default: currentPage === "automod",
+          emoji: emojis?.lightning
+            ? parseEmojiForSelect(emojis.lightning)
+            : undefined,
         },
       ),
   );

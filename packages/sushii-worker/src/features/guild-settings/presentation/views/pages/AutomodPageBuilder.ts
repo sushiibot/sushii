@@ -16,11 +16,13 @@ export function addAutomodContent(
   options: SettingsMessageOptions,
   _interaction?: Interaction<CacheType>,
 ): void {
-  const { config, disabled = false } = options;
+  const { config, disabled = false, emojis } = options;
 
   // Header
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Automod"),
+    new TextDisplayBuilder().setContent(
+      `## ${emojis?.lightning ? `${emojis.lightning} ` : ""}Automod`,
+    ),
   );
 
   // Intro text
@@ -33,7 +35,7 @@ export function addAutomodContent(
   // Spam Detection Toggle Section
   addToggleSetting(
     container,
-    "Spam Detection",
+    `${emojis?.lightning ? `${emojis.lightning} ` : ""}Spam Detection`,
     "Automatically times out users who spam identical messages across channels",
     config.moderationSettings.automodSpamEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,

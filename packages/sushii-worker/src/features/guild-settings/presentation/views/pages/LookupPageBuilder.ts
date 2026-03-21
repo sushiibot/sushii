@@ -10,7 +10,7 @@ export function addLookupContent(
   options: SettingsMessageOptions,
   _interaction?: Interaction<CacheType>,
 ): void {
-  const { config, disabled = false } = options;
+  const { config, disabled = false, emojis } = options;
 
   // Page header
   container.addTextDisplayComponents(
@@ -30,7 +30,7 @@ export function addLookupContent(
 
   addToggleSetting(
     container,
-    "Lookup Data Sharing",
+    `${emojis?.lookup ? `${emojis.lookup} ` : ""}Lookup Data Sharing`,
     config.moderationSettings.lookupDetailsOptIn
       ? "Sharing server name and ban reasons with other servers"
       : "Keeping server name and ban reasons private",

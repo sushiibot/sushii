@@ -65,7 +65,7 @@ export function createSettingsMessage(
     new TextDisplayBuilder().setContent("-# Navigate between settings pages"),
   );
 
-  const navigationRow = createNavigationDropdown(options.page, options.disabled);
+  const navigationRow = createNavigationDropdown(options.page, options.disabled, options.emojis);
   container.addActionRowComponents(navigationRow);
 
   // Add footer (after navigation)

@@ -67,7 +67,10 @@ export function addLoggingContent(
   const { config, disabled = false } = options;
 
   // Header
-  const headerText = new TextDisplayBuilder().setContent("## Logging");
+  const saveEmoji = options.emojis?.save;
+  const headerText = new TextDisplayBuilder().setContent(
+    `## ${saveEmoji ? `${saveEmoji} ` : ""}Logging`,
+  );
   container.addTextDisplayComponents(headerText);
 
   // Logging Section
@@ -76,11 +79,13 @@ export function addLoggingContent(
   );
   container.addTextDisplayComponents(loggingIntro);
 
+  const { emojis } = options;
+
   // Mod Logs Section
   createLogSection(
     container,
     {
-      title: "Mod Logs",
+      title: `${emojis?.history ? `${emojis.history} ` : ""}Mod Logs`,
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
       baseDescription:
@@ -100,7 +105,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "Member Logs",
+      title: `${emojis?.user ? `${emojis.user} ` : ""}Member Logs`,
       enabled: config.loggingSettings.memberLogEnabled,
       channel: config.loggingSettings.memberLogChannel,
       baseDescription: "Logs member joins and leaves",
@@ -119,7 +124,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "Message Logs",
+      title: `${emojis?.message_log ? `${emojis.message_log} ` : ""}Message Logs`,
       enabled: config.loggingSettings.messageLogEnabled,
       channel: config.loggingSettings.messageLogChannel,
       baseDescription: "Logs message edits and deletions",
@@ -173,7 +178,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: "Reaction Logs",
+      title: `${emojis?.bell ? `${emojis.bell} ` : ""}Reaction Logs`,
       enabled: config.loggingSettings.reactionLogEnabled,
       channel: config.loggingSettings.reactionLogChannel,
       baseDescription:

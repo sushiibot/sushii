@@ -218,7 +218,11 @@ export function registerFeatures(
     logger,
   });
 
-  const guildSettingsFeature = setupGuildSettingsFeature({ db, logger });
+  const guildSettingsFeature = setupGuildSettingsFeature({
+    db,
+    logger,
+    botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
+  });
   const automodFeature = setupAutomodFeature({
     client,
     logger,
