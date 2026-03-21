@@ -61,6 +61,18 @@ Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Uses Drizz
 ## Best Practices
 - when creating new response messages or interaction responses, always use components v2 instead of embeds
 
+## Adding New Emoji Assets
+
+Source icons live in `~/sushii/assets/` (categorized subdirectories).
+
+**Process:**
+1. Search `~/sushii/assets/` for candidates: `find ~/sushii/assets -iname "*.png" | xargs -I{} basename {} .png | grep -iE "keyword"`
+2. Pick the **highest resolution + outline** variant (e.g. `Foo Outline 256.png`). Verify size is under 256KB.
+3. Copy using `/bin/cp` (bypasses the interactive `cp` alias): `/bin/cp "source/Foo Outline 256.png" assets/my_name.png`
+4. Add the name to `BotEmojiName` enum in `src/features/bot-emojis/domain/BotEmojiName.ts`
+5. Add to `SETTINGS_EMOJI_NAMES` in `src/features/guild-settings/presentation/views/components/SettingsConstants.ts` if used in settings
+6. Use via `emojis?.my_name` in the relevant page builder
+
 ## Documentation References
 
 When working on Discord interactions and components, refer to:
