@@ -21,7 +21,7 @@ COPY ./package.json ./bun.lockb ./
 COPY ./packages/sushii-worker/package.json ./packages/sushii-worker/
 
 # Install dependencies
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # Copy source code and stuff
 COPY ./packages/sushii-worker/ ./packages/sushii-worker/
