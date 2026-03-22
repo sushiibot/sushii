@@ -293,6 +293,7 @@ export function registerFeatures(
     client,
     db,
     guildSettingsFeature.services.guildConfigurationRepository,
+    botEmojiFeature.services.botEmojiRepository,
     deploymentService,
     logger.child({ component: "MessageLogFeature" }),
   );

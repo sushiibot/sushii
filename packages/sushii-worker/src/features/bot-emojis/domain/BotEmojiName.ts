@@ -53,6 +53,10 @@ export const BotEmojiName = z.enum([
   "sound_off",
   "member_join",
   "member_leave",
+
+  // Message Log
+  "message_delete",
+  "message_edit",
 ]);
 
 export type BotEmojiName = z.infer<typeof BotEmojiName>;

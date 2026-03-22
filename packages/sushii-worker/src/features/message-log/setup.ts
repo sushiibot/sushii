@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -23,6 +24,7 @@ export function setupMessageLog(
   client: Client,
   db: NodePgDatabase<typeof schema>,
   guildConfigRepository: GuildConfigRepository,
+  emojiRepository: BotEmojiRepository,
   deploymentService: DeploymentService,
   logger: Logger,
 ): FullFeatureSetupReturn<MessageLogServices> {
@@ -50,6 +52,7 @@ export function setupMessageLog(
     messageLogEventRepository,
     messageLogBlockRepository,
     guildConfigRepository,
+    emojiRepository,
     logger.child({ component: "MessageLogService" }),
   );
 

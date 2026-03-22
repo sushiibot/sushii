@@ -4,11 +4,13 @@ import type { Logger } from "pino";
 import type { Option } from "ts-results";
 import { None, Some } from "ts-results";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
-import SushiiEmoji from "@/shared/presentation/SushiiEmoji";
 import { getAPIUserTag } from "@/utils/APIUser";
 import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
+
+const MESSAGE_LOG_EMOJI_NAMES = ["message_delete", "message_edit"] as const;
 
 import type { MessageLogEvent } from "../domain/entities/MessageLogEvent";
 import type { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
@@ -25,6 +27,7 @@ export class MessageLogService {
     private readonly messageLogEventRepository: MessageLogEventRepository,
     private readonly messageLogBlockRepository: MessageLogBlockRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -78,7 +81,10 @@ export class MessageLogService {
       return;
     }
 
-    const embed = this.buildDeleteEmbed(payload, messageEvents[0]);
+    const emojis = await this.emojiRepository.getEmojis(
+      MESSAGE_LOG_EMOJI_NAMES,
+    );
+    const embed = this.buildDeleteEmbed(payload, messageEvents[0], emojis);
     await this.sendEmbeds(
       [embed],
       guildConfig.loggingSettings.messageLogChannel,
@@ -118,7 +124,10 @@ export class MessageLogService {
       return;
     }
 
-    const embeds = this.buildBulkDeleteEmbed(payload, messageEvents);
+    const emojis = await this.emojiRepository.getEmojis(
+      MESSAGE_LOG_EMOJI_NAMES,
+    );
+    const embeds = this.buildBulkDeleteEmbed(payload, messageEvents, emojis);
     await this.sendEmbeds(
       embeds,
       guildConfig.loggingSettings.messageLogChannel,
@@ -158,7 +167,10 @@ export class MessageLogService {
       return;
     }
 
-    const embedOption = this.buildEditEmbed(payload, messageEvents[0]);
+    const emojis = await this.emojiRepository.getEmojis(
+      MESSAGE_LOG_EMOJI_NAMES,
+    );
+    const embedOption = this.buildEditEmbed(payload, messageEvents[0], emojis);
     if (embedOption.some) {
       await this.sendEmbeds(
         [embedOption.val],
@@ -209,8 +221,9 @@ export class MessageLogService {
   private buildDeleteEmbed(
     payload: GuildMessageDeletePayload,
     messageEvent: MessageLogEvent,
+    emojis: Record<"message_delete" | "message_edit", string>,
   ): EmbedBuilder {
-    let description = `${SushiiEmoji.MessageDelete} **Message deleted in <#${payload.channel_id}>**\n`;
+    let description = `${emojis.message_delete} **Message deleted in <#${payload.channel_id}>**\n`;
 
     const msg = messageEvent.discordMessage;
 
@@ -287,6 +300,7 @@ export class MessageLogService {
   private buildEditEmbed(
     payload: GuildMessageUpdatePayload,
     messageEvent: MessageLogEvent,
+    emojis: Record<"message_delete" | "message_edit", string>,
   ): Option<EmbedBuilder> {
     if (!payload.content) {
       return None;
@@ -298,7 +312,7 @@ export class MessageLogService {
 
     const msg = messageEvent.discordMessage;
 
-    let description = `${SushiiEmoji.MessageEdit} **Message edited in <#${payload.channel_id}>**\n`;
+    let description = `${emojis.message_edit} **Message edited in <#${payload.channel_id}>**\n`;
     description += "**Before:**\n";
     description += this.quoteMarkdownString(messageEvent.content);
     description += "\n**After:**\n";
@@ -325,9 +339,10 @@ export class MessageLogService {
   private buildBulkDeleteEmbed(
     payload: GuildMessageDeleteBulkPayload,
     messageEvents: MessageLogEvent[],
+    emojis: Record<"message_delete" | "message_edit", string>,
   ): EmbedBuilder[] {
     const deleteCount = messageEvents.length.toLocaleString();
-    const description = `${SushiiEmoji.MessageDelete} **${deleteCount} messages deleted in <#${payload.channel_id}>**`;
+    const description = `${emojis.message_delete} **${deleteCount} messages deleted in <#${payload.channel_id}>**`;
 
     const messageStrings = messageEvents.map((m) => {
       let msgStr = `<@${m.authorId}>: `;
