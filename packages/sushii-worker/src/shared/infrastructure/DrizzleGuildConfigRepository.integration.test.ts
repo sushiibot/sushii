@@ -87,6 +87,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupDetailsOptIn: true,
         lookupPrompted: false,
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       ["123", "456", "789"],
     );
@@ -144,6 +145,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupDetailsOptIn: false,
         lookupPrompted: false,
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       [],
     );
@@ -183,6 +185,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupDetailsOptIn: true,
         lookupPrompted: true,
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       ["999"],
     );
@@ -234,6 +237,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupDetailsOptIn: false,
         lookupPrompted: false,
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       [],
     );
@@ -302,6 +306,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupDetailsOptIn: false,
         lookupPrompted: false,
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       disabledChannels,
     );
@@ -311,5 +316,62 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
 
     expect(savedConfig.disabledChannels).toHaveLength(100);
     expect(retrievedConfig.disabledChannels).toEqual(disabledChannels);
+  });
+
+  test("should save and retrieve automod alerts channel ID", async () => {
+    const guildId = "777000777000777000";
+    const alertsChannelId = "888999888999888999";
+
+    const config = new GuildConfig(
+      guildId,
+      null,
+      {
+        joinMessage: null,
+        joinMessageEnabled: true,
+        leaveMessage: null,
+        leaveMessageEnabled: true,
+        messageChannel: null,
+      },
+      {
+        modLogChannel: null,
+        modLogEnabled: true,
+        memberLogChannel: null,
+        memberLogEnabled: true,
+        messageLogChannel: null,
+        messageLogEnabled: true,
+        reactionLogChannel: null,
+        reactionLogEnabled: true,
+      },
+      {
+        timeoutDmText: null,
+        timeoutCommandDmEnabled: true,
+        timeoutNativeDmEnabled: true,
+        warnDmText: null,
+        banDmText: null,
+        banDmEnabled: true,
+        kickDmText: null,
+        kickDmEnabled: false,
+        lookupDetailsOptIn: false,
+        lookupPrompted: false,
+        automodSpamEnabled: true,
+        automodAlertsChannelId: alertsChannelId,
+      },
+      [],
+    );
+
+    const savedConfig = await repo.save(config);
+    const retrievedConfig = await repo.findByGuildId(guildId);
+
+    expect(savedConfig.moderationSettings.automodAlertsChannelId).toBe(
+      alertsChannelId,
+    );
+    expect(retrievedConfig.moderationSettings.automodAlertsChannelId).toBe(
+      alertsChannelId,
+    );
+
+    // Verify clearing it works too
+    const cleared = savedConfig.setAutomodAlertsChannel(null);
+    const clearedConfig = await repo.save(cleared);
+    expect(clearedConfig.moderationSettings.automodAlertsChannelId).toBeNull();
   });
 });

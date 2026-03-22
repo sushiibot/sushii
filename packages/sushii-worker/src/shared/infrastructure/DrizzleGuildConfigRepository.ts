@@ -87,6 +87,9 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         lookupDetailsOptIn: data.lookupDetailsOptIn ?? false,
         lookupPrompted: data.lookupPrompted ?? false,
         automodSpamEnabled: data.automodSpamEnabled ?? false,
+        automodAlertsChannelId: data.automodAlertsChannelId
+          ? data.automodAlertsChannelId.toString()
+          : null,
       },
       data.disabledChannels?.map((id) => id.toString()) ?? [],
     );
@@ -133,6 +136,9 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       lookupDetailsOptIn: config.moderationSettings.lookupDetailsOptIn,
       lookupPrompted: config.moderationSettings.lookupPrompted,
       automodSpamEnabled: config.moderationSettings.automodSpamEnabled,
+      automodAlertsChannelId: config.moderationSettings.automodAlertsChannelId
+        ? BigInt(config.moderationSettings.automodAlertsChannelId)
+        : null,
       disabledChannels: config.disabledChannels.map(BigInt),
     };
   }

@@ -83,6 +83,9 @@ export const SETTINGS_CUSTOM_IDS = {
 
     // Special Configuration
     MESSAGE_LOG_IGNORE: "settings_msglog_ignore_channels",
+
+    // Automod Channels
+    SET_AUTOMOD_ALERTS: "settings_set_automod_alerts_channel",
   },
 
   MODALS: {

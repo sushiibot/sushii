@@ -35,6 +35,7 @@ export interface ModerationSettings {
   lookupPrompted: boolean;
 
   automodSpamEnabled: boolean;
+  automodAlertsChannelId: string | null;
 }
 
 export type ToggleableSetting =
@@ -114,6 +115,7 @@ export class GuildConfig {
 
         // Automod settings
         automodSpamEnabled: false,
+        automodAlertsChannelId: null,
       },
       [],
     );
@@ -310,6 +312,12 @@ export class GuildConfig {
   setAutomodSpamEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.moderationSettings.automodSpamEnabled = enabled;
+    return config;
+  }
+
+  setAutomodAlertsChannel(channelId: string | null): GuildConfig {
+    const config = this.clone();
+    config.moderationSettings.automodAlertsChannelId = channelId;
     return config;
   }
 }

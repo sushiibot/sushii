@@ -97,6 +97,9 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (config.messageSettings.messageChannel) {
       channelIds.push(config.messageSettings.messageChannel);
     }
+    if (config.moderationSettings.automodAlertsChannelId) {
+      channelIds.push(config.moderationSettings.automodAlertsChannelId);
+    }
 
     const uniqueChannelIds = [...new Set(channelIds)];
     return checkMultipleChannelsPermissions(
@@ -282,7 +285,49 @@ export default class SettingsCommand extends SlashCommandHandler {
       return "logging";
     }
 
+    if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.CHANNELS.SET_AUTOMOD_ALERTS
+    ) {
+      return this.handleAutomodAlertsChannelSelection(interaction, guildId);
+    }
+
     return this.handleLogChannelSelection(interaction, guildId);
+  }
+
+  private async handleAutomodAlertsChannelSelection(
+    interaction: ChannelSelectMenuInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage> {
+    const channelId = interaction.values[0] ?? null;
+    await this.guildSettingsService.updateAutomodAlertsChannel(
+      guildId,
+      channelId,
+    );
+
+    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
+
+    const updatedMessage = createSettingsMessage(
+      {
+        page: "automod",
+        config: updatedConfig,
+        messageLogBlocks: updatedBlocks,
+        channelPermissions: updatedChannelPermissions,
+        disabled: false,
+        emojis,
+      },
+      interaction,
+    );
+
+    await interaction.update(updatedMessage);
+    return "automod";
   }
 
   private async handleMessageLogIgnoreChannels(

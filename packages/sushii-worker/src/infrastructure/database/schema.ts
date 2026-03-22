@@ -194,6 +194,9 @@ export const guildConfigsInAppPublic = appPublic.table(
     automodSpamEnabled: boolean("automod_spam_enabled")
       .default(false)
       .notNull(),
+    automodAlertsChannelId: bigint("automod_alerts_channel_id", {
+      mode: "bigint",
+    }),
   },
   () => [
     pgPolicy("admin_access", {

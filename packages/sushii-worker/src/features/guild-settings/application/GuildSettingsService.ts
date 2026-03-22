@@ -91,6 +91,18 @@ export class GuildSettingsService {
     return this.guildConfigRepository.save(updatedConfig);
   }
 
+  async updateAutomodAlertsChannel(
+    guildId: string,
+    channelId: string | null,
+  ): Promise<GuildConfig> {
+    this.logger.info({ guildId, channelId }, "Updating automod alerts channel");
+
+    const config = await this.guildConfigRepository.findByGuildId(guildId);
+    const updatedConfig = config.setAutomodAlertsChannel(channelId);
+
+    return this.guildConfigRepository.save(updatedConfig);
+  }
+
   async updateLogChannel(
     guildId: string,
     type: "mod" | "member" | "message" | "reaction",

@@ -1,6 +1,9 @@
 import {
+  ContainerBuilder,
   DiscordAPIError,
+  MessageFlags,
   RESTJSONErrorCodes,
+  TextDisplayBuilder,
   type Client,
   type Guild,
   type GuildMember,
@@ -23,6 +26,7 @@ export class SpamActionService {
     userId: string,
     username: string,
     spamMessages: Map<string, string[]>,
+    alertsChannelId?: string | null,
   ): Promise<void> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
@@ -77,6 +81,23 @@ export class SpamActionService {
         );
       }
     }
+
+    if (alertsChannelId) {
+      // Fire-and-forget: log on failure but don't interrupt the action
+      this.sendSpamAlert(
+        guild,
+        alertsChannelId,
+        userId,
+        username,
+        channelCount,
+        deletedMessageCount,
+      ).catch((err: unknown) => {
+        this.logger.warn(
+          { err, guildId, userId, alertsChannelId },
+          "Failed to send automod alert",
+        );
+      });
+    }
   }
 
   private async applySpamTimeout(
@@ -119,6 +140,36 @@ export class SpamActionService {
       },
       "Applied automatic timeout for spam detection",
     );
+  }
+
+  private async sendSpamAlert(
+    guild: Guild,
+    alertsChannelId: string,
+    userId: string,
+    username: string,
+    channelCount: number,
+    deletedMessageCount: number,
+  ): Promise<void> {
+    const channel = guild.channels.cache.get(alertsChannelId);
+    if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
+
+    const timeoutMinutes = SPAM_TIMEOUT_MS / 60_000;
+    const content = [
+      `### AutoMod Action: Spam Detection`,
+      `**User:** <@${userId}> (${username})`,
+      `**Action:** Timeout (${timeoutMinutes} minutes)`,
+      `**Reason:** Sent identical messages to ${channelCount} channels (${deletedMessageCount} messages deleted)`,
+    ].join("\n");
+
+    const container = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(content),
+    );
+
+    await channel.send({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    });
   }
 
   private async bulkDeleteSpamMessages(

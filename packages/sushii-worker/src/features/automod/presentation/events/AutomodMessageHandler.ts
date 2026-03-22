@@ -78,6 +78,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           payload.author.id,
           payload.author.username,
           spamMessages,
+          guildConfig.moderationSettings.automodAlertsChannelId,
         );
       }
     } catch (err) {
