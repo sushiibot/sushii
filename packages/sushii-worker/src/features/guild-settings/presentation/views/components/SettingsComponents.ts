@@ -46,6 +46,9 @@ export function createNavigationDropdown(
   disabled = false,
   emojis: EmojiMap<typeof SETTINGS_EMOJI_NAMES>,
 ): ActionRowBuilder<StringSelectMenuBuilder> {
+  // IMPORTANT: Each nav option's emoji must match the `## emoji PageName` header
+  // in its corresponding *PageBuilder.ts file. Keep these in sync when changing
+  // page header emojis.
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT)
@@ -57,7 +60,7 @@ export function createNavigationDropdown(
           description: "Log channels and toggles",
           value: "logging",
           default: currentPage === "logging",
-          emoji: parseEmojiForSelect(emojis.save),
+          emoji: parseEmojiForSelect(emojis.logs), // matches LoggingPageBuilder `## logs Logging`
         },
         {
           label: "Moderation",
@@ -89,7 +92,7 @@ export function createNavigationDropdown(
         },
         {
           label: "Automod",
-          description: "Spam detection",
+          description: "Automated moderation",
           value: "automod",
           default: currentPage === "automod",
           emoji: parseEmojiForSelect(emojis.shield),
