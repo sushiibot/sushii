@@ -20,7 +20,7 @@ export function addModDmsContent(
   // Header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Moderation DMs`,
+      `## ${emojis.dm_message} Moderation DMs`,
     ),
   );
 
@@ -35,7 +35,7 @@ export function addModDmsContent(
   // Timeout DM Text
   container.addSectionComponents(
     createEditSection(
-      `${emojis?.timeout ? `${emojis.timeout} ` : ""}Timeout DM Text`,
+      `${emojis.timeout} Timeout DM Text`,
       "Extra message added to timeout DMs.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT,
       disabled,
@@ -58,7 +58,7 @@ export function addModDmsContent(
   // Warn DM Text
   container.addSectionComponents(
     createEditSection(
-      `${emojis?.warn ? `${emojis.warn} ` : ""}Warn DM Text`,
+      `${emojis.warn} Warn DM Text`,
       "Extra message added to warning DMs.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT,
       disabled,
@@ -81,7 +81,7 @@ export function addModDmsContent(
   // Ban DM Text
   container.addSectionComponents(
     createEditSection(
-      `${emojis?.ban ? `${emojis.ban} ` : ""}Ban DM Text`,
+      `${emojis.ban} Ban DM Text`,
       "Extra message added to ban DMs. Add appeal links or final instructions here.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT,
       disabled,
@@ -104,7 +104,7 @@ export function addModDmsContent(
   // Kick DM Text
   container.addSectionComponents(
     createEditSection(
-      `${emojis?.kick ? `${emojis.kick} ` : ""}Kick DM Text`,
+      `${emojis.kick} Kick DM Text`,
       "Extra message added to kick DMs. Add appeal links or additional instructions here.",
       SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT,
       disabled,

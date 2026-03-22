@@ -43,7 +43,7 @@ export function addMessagesContent(
   // Header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.dm_message ? `${emojis.dm_message} ` : ""}Welcome Messages`,
+      `## ${emojis.dm_message} Welcome Messages`,
     ),
   );
 
@@ -108,7 +108,7 @@ export function addMessagesContent(
 
   addToggleSetting(
     container,
-    `${emojis?.member_join ? `${emojis.member_join} ` : ""}Join Message`,
+    `${emojis.member_join} Join Message`,
     joinDescription,
     config.messageSettings.joinMessageEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
@@ -156,7 +156,7 @@ export function addMessagesContent(
 
   addToggleSetting(
     container,
-    `${emojis?.member_leave ? `${emojis.member_leave} ` : ""}Leave Message`,
+    `${emojis.member_leave} Leave Message`,
     leaveDescription,
     config.messageSettings.leaveMessageEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,

@@ -44,7 +44,7 @@ export function createFooter(disabled = false): TextDisplayBuilder {
 export function createNavigationDropdown(
   currentPage: SettingsPage,
   disabled = false,
-  emojis?: EmojiMap<typeof SETTINGS_EMOJI_NAMES>,
+  emojis: EmojiMap<typeof SETTINGS_EMOJI_NAMES>,
 ): ActionRowBuilder<StringSelectMenuBuilder> {
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
@@ -57,50 +57,42 @@ export function createNavigationDropdown(
           description: "Log channels and toggles",
           value: "logging",
           default: currentPage === "logging",
-          emoji: emojis?.save ? parseEmojiForSelect(emojis.save) : undefined,
+          emoji: parseEmojiForSelect(emojis.save),
         },
         {
           label: "Moderation",
           description: "DM settings for moderation actions",
           value: "moderation",
           default: currentPage === "moderation",
-          emoji: emojis?.ban ? parseEmojiForSelect(emojis.ban) : undefined,
+          emoji: parseEmojiForSelect(emojis.ban),
         },
         {
           label: "Moderation DMs",
           description: "DM message templates",
           value: "mod-dms",
           default: currentPage === "mod-dms",
-          emoji: emojis?.dm_message
-            ? parseEmojiForSelect(emojis.dm_message)
-            : undefined,
+          emoji: parseEmojiForSelect(emojis.dm_message),
         },
         {
           label: "Lookup",
           description: "Lookup data sharing",
           value: "lookup",
           default: currentPage === "lookup",
-          emoji: emojis?.lookup
-            ? parseEmojiForSelect(emojis.lookup)
-            : undefined,
+          emoji: parseEmojiForSelect(emojis.lookup),
         },
         {
           label: "Welcome Messages",
           description: "Join/leave messages",
           value: "messages",
           default: currentPage === "messages",
-          emoji: emojis?.dm_message
-            ? parseEmojiForSelect(emojis.dm_message)
-            : undefined,
+          emoji: parseEmojiForSelect(emojis.dm_message),
         },
         {
           label: "Automod",
           description: "Spam detection",
           value: "automod",
           default: currentPage === "automod",
-          emoji: emojis?.shield
-            ? parseEmojiForSelect(emojis.shield)
-            : undefined,
+          emoji: parseEmojiForSelect(emojis.shield),
         },
       ),
   );

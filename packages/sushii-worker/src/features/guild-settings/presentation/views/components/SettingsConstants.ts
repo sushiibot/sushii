@@ -41,7 +41,7 @@ export interface SettingsMessageOptions {
   messageLogBlocks?: MessageLogBlock[];
   channelPermissions?: ChannelPermissionsMap;
   disabled?: boolean;
-  emojis?: EmojiMap<typeof SETTINGS_EMOJI_NAMES>;
+  emojis: EmojiMap<typeof SETTINGS_EMOJI_NAMES>;
 }
 
 export const SETTINGS_CUSTOM_IDS = {

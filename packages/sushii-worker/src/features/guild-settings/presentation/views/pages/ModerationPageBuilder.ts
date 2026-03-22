@@ -15,7 +15,7 @@ export function addModerationContent(
   // Page header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.ban ? `${emojis.ban} ` : ""}Moderation`,
+      `## ${emojis.ban} Moderation`,
     ),
   );
 
@@ -28,7 +28,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    `${emojis?.timeout ? `${emojis.timeout} ` : ""}DM on /timeout command`,
+    `${emojis.timeout} DM on /timeout command`,
     "When you use the `/timeout` command, send them a DM with the reason",
     config.moderationSettings.timeoutCommandDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM,
@@ -37,7 +37,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    `${emojis?.timeout ? `${emojis.timeout} ` : ""}DM on Discord Timeout`,
+    `${emojis.timeout} DM on Discord Timeout`,
     "When you right-click a user → Timeout, send them a DM with the reason",
     config.moderationSettings.timeoutNativeDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM,
@@ -46,7 +46,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    `${emojis?.ban ? `${emojis.ban} ` : ""}Ban DM`,
+    `${emojis.ban} Ban DM`,
     "Always DM the user when banned. Only works with `/ban` command — right-click bans cannot send DMs.",
     config.moderationSettings.banDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM,
@@ -55,7 +55,7 @@ export function addModerationContent(
 
   addToggleSetting(
     container,
-    `${emojis?.kick ? `${emojis.kick} ` : ""}Kick DM`,
+    `${emojis.kick} Kick DM`,
     "DM the user when kicked. Only works with the `/kick` command — native kicks cannot send DMs.",
     config.moderationSettings.kickDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,

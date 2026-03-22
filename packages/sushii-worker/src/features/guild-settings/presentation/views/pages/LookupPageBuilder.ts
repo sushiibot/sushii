@@ -15,7 +15,7 @@ export function addLookupContent(
   // Page header
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ${emojis?.lookup ? `${emojis.lookup} ` : ""}Lookup`,
+      `## ${emojis.lookup} Lookup`,
     ),
   );
 
@@ -32,7 +32,7 @@ export function addLookupContent(
 
   addToggleSetting(
     container,
-    `${emojis?.lookup ? `${emojis.lookup} ` : ""}Lookup Data Sharing`,
+    `${emojis.lookup} Lookup Data Sharing`,
     config.moderationSettings.lookupDetailsOptIn
       ? "Sharing server name and ban reasons with other servers"
       : "Keeping server name and ban reasons private",

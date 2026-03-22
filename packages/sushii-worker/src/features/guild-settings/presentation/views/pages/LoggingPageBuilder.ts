@@ -67,9 +67,8 @@ export function addLoggingContent(
   const { config, disabled = false } = options;
 
   // Header
-  const logsEmoji = options.emojis?.logs;
   const headerText = new TextDisplayBuilder().setContent(
-    `## ${logsEmoji ? `${logsEmoji} ` : ""}Logging`,
+    `## ${options.emojis.logs} Logging`,
   );
   container.addTextDisplayComponents(headerText);
 
@@ -85,7 +84,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: `${emojis?.ban ? `${emojis.ban} ` : ""}Mod Logs`,
+      title: `${emojis.ban} Mod Logs`,
       enabled: config.loggingSettings.modLogEnabled,
       channel: config.loggingSettings.modLogChannel,
       baseDescription:
@@ -105,7 +104,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: `${emojis?.user ? `${emojis.user} ` : ""}Member Logs`,
+      title: `${emojis.user} Member Logs`,
       enabled: config.loggingSettings.memberLogEnabled,
       channel: config.loggingSettings.memberLogChannel,
       baseDescription: "Logs member joins and leaves",
@@ -124,7 +123,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: `${emojis?.message_log ? `${emojis.message_log} ` : ""}Message Logs`,
+      title: `${emojis.message_log} Message Logs`,
       enabled: config.loggingSettings.messageLogEnabled,
       channel: config.loggingSettings.messageLogChannel,
       baseDescription: "Logs message edits and deletions",
@@ -142,7 +141,7 @@ export function addLoggingContent(
   );
 
   const msgLogText = new TextDisplayBuilder().setContent(
-    `${emojis?.sound_off ? `${emojis.sound_off} ` : ""}**Message Log Ignored Channels**\nSelect busy channels to skip logging there and reduce spam.`,
+    `${emojis.sound_off} **Message Log Ignored Channels**\nSelect busy channels to skip logging there and reduce spam.`,
   );
   container.addTextDisplayComponents(msgLogText);
 
@@ -178,7 +177,7 @@ export function addLoggingContent(
   createLogSection(
     container,
     {
-      title: `${emojis?.bell ? `${emojis.bell} ` : ""}Reaction Logs`,
+      title: `${emojis.bell} Reaction Logs`,
       enabled: config.loggingSettings.reactionLogEnabled,
       channel: config.loggingSettings.reactionLogChannel,
       baseDescription:

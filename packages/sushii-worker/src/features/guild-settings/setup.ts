@@ -14,13 +14,13 @@ import SettingsCommand from "./presentation/commands/SettingsCommand";
 interface GuildSettingsDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
-  botEmojiRepository?: BotEmojiRepository;
+  botEmojiRepository: BotEmojiRepository;
 }
 
 export function createGuildSettingsServices({
   db,
   logger,
-}: GuildSettingsDependencies) {
+}: Pick<GuildSettingsDependencies, "db" | "logger">) {
   const guildConfigurationRepository = new DrizzleGuildConfigRepository(
     db,
     logger.child({ module: "guildConfigurationRepository" }),
@@ -52,7 +52,7 @@ export function createGuildSettingsServices({
 export function createGuildSettingsCommands(
   services: ReturnType<typeof createGuildSettingsServices>,
   logger: Logger,
-  botEmojiRepository?: BotEmojiRepository,
+  botEmojiRepository: BotEmojiRepository,
 ) {
   const { guildSettingsService, messageLogBlockService } = services;
 

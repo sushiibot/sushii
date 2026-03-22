@@ -48,13 +48,12 @@ export default class SettingsCommand extends SlashCommandHandler {
     private readonly guildSettingsService: GuildSettingsService,
     private readonly messageLogBlockService: MessageLogBlockService,
     private readonly logger: Logger,
-    private readonly emojiRepository?: BotEmojiRepository,
+    private readonly emojiRepository: BotEmojiRepository,
   ) {
     super();
   }
 
   private async getEmojis() {
-    if (!this.emojiRepository) return undefined;
     return this.emojiRepository.getEmojis(SETTINGS_EMOJI_NAMES);
   }
 
