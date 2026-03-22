@@ -99,9 +99,11 @@ export function buildUserHistoryEmbeds(
   }
 
   const summary = buildCaseSummary(moderationHistory);
-  const summaryStr = Array.from(summary.entries()).map(
-    ([action, num]) => `**${action}** – ${num}`,
-  );
+  const summaryStr = Array.from(summary.entries()).map(([actionType, num]) => {
+    const emoji = emojis[getActionTypeBotEmoji(actionType)];
+    const action = formatActionTypeAsSentence(actionType);
+    return `${emoji} **${action}** – ${num}`;
+  });
 
   // Build case history
   const casesStr = moderationHistory.map((c) =>
@@ -149,14 +151,14 @@ export function buildUserHistoryEmbeds(
 
 export function buildCaseSummary(
   moderationHistory: ModerationCase[],
-): Map<string, number> {
+): Map<ActionType, number> {
   return moderationHistory.reduce((summary, moderationCase) => {
-    const actionStr = formatActionTypeAsSentence(moderationCase.actionType);
-    const oldCount = summary.get(actionStr) || 0;
-    summary.set(actionStr, oldCount + 1);
+    const { actionType } = moderationCase;
+    const oldCount = summary.get(actionType) || 0;
+    summary.set(actionType, oldCount + 1);
 
     return summary;
-  }, new Map<string, number>());
+  }, new Map<ActionType, number>());
 }
 
 export function addUserAccountInfo(
