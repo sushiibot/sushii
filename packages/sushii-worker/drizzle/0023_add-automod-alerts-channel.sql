@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."guild_configs" ADD COLUMN "automod_alerts_channel_id" bigint;
