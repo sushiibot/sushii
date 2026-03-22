@@ -22,6 +22,11 @@ export function addAutomodContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
+  // Page header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${emojis.shield} Automod`),
+  );
+
   // Alerts Channel Section
   const alertsChannelId = config.moderationSettings.automodAlertsChannelId;
   const alertsPermStatus =
@@ -30,9 +35,13 @@ export function addAutomodContent(
     ? formatPermissionWarning(alertsPermStatus)
     : null;
 
+  const modLogRef = config.loggingSettings.modLogChannel
+    ? `<#${config.loggingSettings.modLogChannel}>`
+    : "your mod log channel";
+
   const alertsDescription = [
     `### ${emojis.bell} Alerts Channel`,
-    "Receive notifications in a channel whenever automod takes action.",
+    `Automod actions are always tracked in ${modLogRef}. Set an alerts channel to also receive notifications there.`,
     alertsPermWarning,
   ]
     .filter(Boolean)
@@ -77,13 +86,5 @@ export function addAutomodContent(
 
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
-
-  const modLogNote = config.loggingSettings.modLogChannel
-    ? `-# Timeouts will be tracked in <#${config.loggingSettings.modLogChannel}>.`
-    : "-# Timeouts will be tracked in your mod log channel if one is configured.";
-
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(modLogNote),
   );
 }
