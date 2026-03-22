@@ -22,13 +22,6 @@ export function addAutomodContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
-  // Header
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `## ${emojis?.shield ? `${emojis.shield} ` : ""}Automod`,
-    ),
-  );
-
   // Alerts Channel Section
   const alertsChannelId = config.moderationSettings.automodAlertsChannelId;
   const alertsPermStatus =
@@ -38,7 +31,7 @@ export function addAutomodContent(
     : null;
 
   const alertsDescription = [
-    `### ${emojis?.bell ? `${emojis.bell} ` : ""}Alerts Channel`,
+    `### ${emojis.bell} Alerts Channel`,
     "Receive notifications in a channel whenever automod takes action.",
     alertsPermWarning,
   ]
@@ -72,17 +65,10 @@ export function addAutomodContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
-  // Intro text
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      "### Spam Detection\nTimes out users who send identical messages to 3+ channels within 5 seconds. Useful for catching hacked accounts spreading spam or malicious links.",
-    ),
-  );
-
   // Spam Detection Toggle Section
   addToggleSetting(
     container,
-    `${emojis?.lightning ? `${emojis.lightning} ` : ""}Spam Detection`,
+    `${emojis.lightning} Spam Detection`,
     "Automatically times out users who spam identical messages across channels",
     config.moderationSettings.automodSpamEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
