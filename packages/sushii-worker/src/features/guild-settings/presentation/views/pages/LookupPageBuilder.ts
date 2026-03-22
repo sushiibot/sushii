@@ -12,7 +12,7 @@ export function addLookupContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
-  // Page header
+  // Page header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `## ${emojis.lookup} Lookup`,

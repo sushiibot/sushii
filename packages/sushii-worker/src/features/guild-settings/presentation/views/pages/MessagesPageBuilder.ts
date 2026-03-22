@@ -40,7 +40,7 @@ export function addMessagesContent(
 
   const { emojis } = options;
 
-  // Header
+  // Header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `## ${emojis.dm_message} Welcome Messages`,

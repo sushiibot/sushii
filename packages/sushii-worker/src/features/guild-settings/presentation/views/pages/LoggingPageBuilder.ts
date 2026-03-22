@@ -66,7 +66,7 @@ export function addLoggingContent(
 ): void {
   const { config, disabled = false } = options;
 
-  // Header
+  // Header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   const headerText = new TextDisplayBuilder().setContent(
     `## ${options.emojis.logs} Logging`,
   );
