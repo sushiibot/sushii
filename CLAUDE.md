@@ -1,88 +1,51 @@
 # CLAUDE.md
 
-Discord bot (sushii) built with Discord.js, Bun, TypeScript monorepo. Uses Drizzle ORM and follows Clean Architecture with DDD.
+Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, PostgreSQL, Clean Architecture with DDD.
 
 ## Commands
 
-**Root**: `bun dev` | `bun test:worker`
-**Worker**: `bun dev` | `bun test` | `bun typecheck` | `bun lint` | `bun prettier` | `bunx drizzle-kit generate/migrate/studio`
+**Monorepo root**: `bun run dev:worker` | `bun run test:worker`
 
-## Architecture
-
-**Current (Legacy)**: `src/interactions/`, `src/events/`, `src/db/`, `src/tasks/`, `src/metrics/`
-**Target (Clean)**: 4-layer DDD with `src/core/`, `src/shared/`, `src/infrastructure/`, `src/features/{feature}/{domain,application,infrastructure,presentation}/`
-
-**Database**: PostgreSQL with 3 schemas (app_public, app_private, app_hidden). Uses Drizzle ORM.
-**Core**: client.ts, index.ts (sharding), shard.ts. Prometheus metrics :9090, pino logging.
-
-## Migration Guidelines
-
-**New Code**: Use 4-layer architecture in `src/features/{feature}/`
-**Existing**: Incremental migration without breaking functionality
-**Communication**: Domain events, not direct service calls
+**Worker** (`packages/sushii-worker`):
+`bun dev` | `bun test` | `bun typecheck` | `bun lint` | `bun prettier`
+`bunx drizzle-kit generate` | `bunx drizzle-kit migrate` | `bunx drizzle-kit studio`
 
 ## Key Practices
 
-**DI**: Explicit constructor injection in bootstrap. Factory functions OK for feature setup (e.g. `createModerationServices()`), avoid for hiding single service dependencies
-**Logging**: Use pino directly, `logger.info({context}, 'message')`, `err` field for errors  
-**Imports**: Absolute (`@/`) for cross-feature/shared, relative for within-feature
-**Sleep**: Use built-in `sleep` from "bun"
+**DI**: Explicit constructor injection in bootstrap. Factory functions OK for feature setup (e.g. `createModerationServices()`), avoid for hiding single service dependencies.
+**Logging**: Use pino directly — `logger.info({context}, 'message')`, `err` field for errors.
+**Imports**: Absolute (`@/`) for cross-feature/shared, relative for within-feature.
+**Sleep**: Use built-in `sleep` from `"bun"`.
 
-## Error Handling Guidelines
+## Error Handling
 
-**Error Messages**: Keep concise and searchable. Use Error `cause` for details: `throw new Error("Operation failed", { cause: originalError })`
-**Business Errors**: Use `Result<T, string>` for expected failures (validation, not found, permissions)
-**System Errors**: Use `throw new Error()` for unexpected failures (API down, DB connection lost)
-**Logging Errors**: Always use `{ err: error, ...context }` format with pino
-**Error Context**: Put debugging info in logger context, not error message: `logger.error({ err, userId, guildId }, "Ban failed")`
+**Messages**: Keep concise and searchable. Use `cause` for details: `throw new Error("Operation failed", { cause: originalError })`
+**Business errors**: `Result<T, string>` for expected failures (validation, not found, permissions).
+**System errors**: `throw new Error()` for unexpected failures (API down, DB connection lost).
+**Logging**: Always `{ err: error, ...context }` with pino. Put debugging info in logger context, not the error message.
 
-**Layer-Specific Rules**:
-- **Application Services**: NO try-catch blocks. Let infrastructure errors naturally throw. Use Result<T, string> for business validations only.
-- **Repository/Infrastructure**: Let database/API errors throw naturally. No Result types at this layer.
-- **Presentation**: Handle both Result types (business errors) and catch thrown errors (infrastructure failures) appropriately.
-- **When in doubt**: Business logic failures = Result, Infrastructure failures = throw
-
-## Layer Structure & Rules
-
-**Domain** (`/domain/`): Pure business logic, entities, interfaces. No external dependencies.
-**Application** (`/application/`): Service orchestration, calls infrastructure via interfaces.
-**Infrastructure** (`/infrastructure/`): Repository implementations, external adapters.
-**Presentation** (`/presentation/`): Discord commands, event handlers, DTOs.
-
-**Features**: moderation, leveling, giveaways, notifications, tags, roles
-
-**Dependencies**: Point inward to domain. Use events between features, not direct calls.
-**Testing**: Domain (unit), Application (mocked deps), Infrastructure (integration), Presentation (mocked services).
-
-## Testing
-
-- When running tests, use this with timeouts and env vars `TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000`
+**By layer**:
+- **Application**: NO try-catch. Let infrastructure errors throw. `Result<T, string>` for business validations only.
+- **Infrastructure**: Let DB/API errors throw naturally. No Result types.
+- **Presentation**: Handle Result types (business) AND catch thrown errors (infrastructure).
 
 ## Best Practices
-- when creating new response messages or interaction responses, always use components v2 instead of embeds
 
-## Adding New Emoji Assets
+- Always use **components v2** (not embeds) for new Discord messages and interaction responses.
 
-Source icons live in `~/sushii/assets/` (categorized subdirectories).
+## Documentation
 
-**Process:**
-1. Search `~/sushii/assets/` for candidates: `find ~/sushii/assets -iname "*.png" | xargs -I{} basename {} .png | grep -iE "keyword"`
-2. Pick the **highest resolution + outline** variant (e.g. `Foo Outline 256.png`). Verify size is under 256KB.
-3. Copy using `/bin/cp` (bypasses the interactive `cp` alias): `/bin/cp "source/Foo Outline 256.png" assets/my_name.png`
-4. Add the name to `BotEmojiName` enum in `src/features/bot-emojis/domain/BotEmojiName.ts`
-5. Add to `SETTINGS_EMOJI_NAMES` in `src/features/guild-settings/presentation/views/components/SettingsConstants.ts` if used in settings
-6. Use via `emojis?.my_name` in the relevant page builder
+**This project** (`.claude/docs/`):
+- **Architecture**: `.claude/docs/architecture.md` — layers, features, DB, migration guidelines
+- **Testing**: `.claude/docs/testing.md` — test commands, strategy by layer
+- **Emoji Assets**: `.claude/docs/emoji-assets.md` — adding assets, encryption, pre-commit checks
+- **Discord Interactions**: `.claude/discord-interaction-guide.md` — reply/update/followUp patterns
+- **Components v2**: `.claude/components_v2.md` — container-based component system with builders
 
-## Documentation References
-
-When working on Discord interactions and components, refer to:
-- **Discord Interactions**: `.claude/discord-interaction-guide.md` - Reply/update/followUp patterns
-- **Components v2**: `.claude/components_v2.md` - Container-based component system with builders
-
-When working on error fixes or deployments, refer to the `sushii-ansible` repo:
-- **Docs index**: `docs/README.md` - start here, links to all runbooks
-- **Sentry Workflow**: `docs/sentry-workflow.md` - fixing errors with commit messages, release tracking
-- **Deployment**: `docs/update-sushii-bot.md` - blue/green deploy and switchover
+**`sushii-ansible` repo** (deployments and ops):
+- **Docs index**: `docs/README.md`
+- **Sentry Workflow**: `docs/sentry-workflow.md`
+- **Deployment**: `docs/update-sushii-bot.md`
 
 ## Communication Guidelines
 
