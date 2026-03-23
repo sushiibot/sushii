@@ -50,7 +50,7 @@
     "pg-cursor": "^2.15.2",
     "pino": "^9.7.0",
     "ts-results": "^3.3.0",
-    "zod": "^3.25.67",
+    "zod": "^4.3.6",
     "zod-validation-error": "^3.5.2"
   },
   "devDependencies": {
