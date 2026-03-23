@@ -15,3 +15,13 @@ pre-commit:
           fi
         done
         exit $failed
+    verify-asset-mapping:
+      run: |
+        if git diff --cached --name-only | grep -qE "^packages/sushii-worker/(scripts/asset-mapping\.ts|assets/)"; then
+          cd packages/sushii-worker && bun run assets:verify
+        fi
+    check-emoji-types:
+      run: |
+        if git diff --cached --name-only | grep -qE "^packages/sushii-worker/(scripts/asset-mapping\.ts|src/features/bot-emojis/domain/BotEmojiName\.ts)"; then
+          cd packages/sushii-worker && bun typecheck
+        fi
