@@ -6,7 +6,6 @@ import {
   expect,
   test,
 } from "bun:test";
-import type { Embed } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
@@ -297,13 +296,12 @@ describe("Reason Command Integration", () => {
       // Assert error response for too many cases
       expect(spies.reply).toHaveBeenCalledTimes(1);
       const replyCall = spies.reply.mock.calls[0] as unknown as [
-        { embeds?: unknown[] },
+        { components?: { toJSON(): { components?: { content?: string }[] } }[] },
       ];
-      expect(replyCall[0]?.embeds).toBeDefined();
-      expect(replyCall[0]?.embeds?.[0]).toHaveProperty("data");
-      expect(
-        (replyCall[0]?.embeds?.[0] as unknown as Embed).data?.description,
-      ).toContain("25 cases");
+      expect(replyCall[0]?.components).toBeDefined();
+      const containerJson = replyCall[0]?.components?.[0]?.toJSON();
+      const textContent = containerJson?.components?.[0]?.content;
+      expect(textContent).toContain("25 cases");
     });
   });
 
