@@ -73,6 +73,31 @@ class MockTagRepository implements TagRepository {
     return toDelete.length;
   }
 
+  async rename(
+    currentName: TagName,
+    newName: TagName,
+    guildId: string,
+  ): Promise<Tag | null> {
+    const oldKey = this.createKey(currentName.getValue(), guildId);
+    const tag = this.tags.get(oldKey);
+    if (!tag) {
+      return null;
+    }
+
+    this.tags.delete(oldKey);
+
+    const tagData = tag.toData();
+    const renamedTagResult = Tag.create({ ...tagData, name: newName.getValue() });
+    if (renamedTagResult.err) {
+      return null;
+    }
+
+    const renamedTag = renamedTagResult.val;
+    const newKey = this.createKey(newName.getValue(), guildId);
+    this.tags.set(newKey, renamedTag);
+    return renamedTag;
+  }
+
   async findPaginatedByGuild(
     guildId: string,
     offset: number,

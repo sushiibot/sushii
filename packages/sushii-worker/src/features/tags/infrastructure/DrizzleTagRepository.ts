@@ -18,6 +18,10 @@ export class DrizzleTagRepository implements TagRepository {
     private readonly logger: Logger,
   ) {}
 
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
   async save(tag: Tag): Promise<void> {
     const tagData = tag.toData();
 
@@ -25,7 +29,7 @@ export class DrizzleTagRepository implements TagRepository {
       .insert(schema.tagsInAppPublic)
       .values({
         tagName: tagData.name,
-        content: tagData.content || "",
+        content: tagData.content ?? "",
         attachment: tagData.attachment,
         guildId: BigInt(tagData.guildId),
         ownerId: BigInt(tagData.ownerId),
@@ -38,7 +42,7 @@ export class DrizzleTagRepository implements TagRepository {
           schema.tagsInAppPublic.tagName,
         ],
         set: {
-          content: tagData.content || "",
+          content: tagData.content ?? "",
           attachment: tagData.attachment,
           useCount: tagData.useCount,
         },
@@ -105,12 +109,12 @@ export class DrizzleTagRepository implements TagRepository {
 
     if (filters.getStartsWith()) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `${filters.getStartsWith()}%`),
+        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(filters.getStartsWith()!)}%`),
       );
     } else if (filters.getContains()) {
       // Escape any special characters in the contains filter
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `%${filters.getContains()}%`),
+        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(filters.getContains()!)}%`),
       );
     }
 
@@ -136,11 +140,11 @@ export class DrizzleTagRepository implements TagRepository {
 
     if (filters.getStartsWith()) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `${filters.getStartsWith()}%`),
+        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(filters.getStartsWith()!)}%`),
       );
     } else if (filters.getContains()) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `%${filters.getContains()}%`),
+        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(filters.getContains()!)}%`),
       );
     }
 
@@ -191,7 +195,7 @@ export class DrizzleTagRepository implements TagRepository {
       .from(schema.tagsInAppPublic)
       .where(eq(schema.tagsInAppPublic.guildId, BigInt(guildId)));
 
-    return result[0]?.count || 0;
+    return result[0]?.count ?? 0;
   }
 
   async findByAutocomplete(guildId: string, query: string): Promise<Tag[]> {
@@ -201,13 +205,36 @@ export class DrizzleTagRepository implements TagRepository {
       .where(
         and(
           eq(schema.tagsInAppPublic.guildId, BigInt(guildId)),
-          ilike(schema.tagsInAppPublic.tagName, `%${query}%`),
+          ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(query)}%`),
         ),
       )
       .orderBy(desc(schema.tagsInAppPublic.tagName))
       .limit(25);
 
     return results.map((row) => this.mapToTag(row));
+  }
+
+  async rename(
+    currentName: TagName,
+    newName: TagName,
+    guildId: string,
+  ): Promise<Tag | null> {
+    const results = await this.db
+      .update(schema.tagsInAppPublic)
+      .set({ tagName: newName.getValue() })
+      .where(
+        and(
+          eq(schema.tagsInAppPublic.guildId, BigInt(guildId)),
+          eq(schema.tagsInAppPublic.tagName, currentName.getValue()),
+        ),
+      )
+      .returning();
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return this.mapToTag(results[0]);
   }
 
   async delete(name: TagName, guildId: string): Promise<Tag | null> {
@@ -234,7 +261,7 @@ export class DrizzleTagRepository implements TagRepository {
         ),
       );
 
-    return result.rowCount || 0;
+    return result.rowCount ?? 0;
   }
 
   private mapToTag(row: {

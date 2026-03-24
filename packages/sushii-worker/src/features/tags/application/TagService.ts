@@ -124,7 +124,10 @@ export class TagService {
       return Err("You don't have permission to edit this tag");
     }
 
-    if (!params.newContent && !params.newAttachment) {
+    if (
+      params.newContent === undefined &&
+      params.newAttachment === undefined
+    ) {
       return Err("Must provide either new content or new attachment");
     }
 
@@ -175,26 +178,15 @@ export class TagService {
       return Err(`Tag '${params.newName}' already exists`);
     }
 
-    const deletedTag = await this.tagRepository.delete(
+    const renamedTag = await this.tagRepository.rename(
       tag.getName(),
+      newNameResult.val,
       params.guildId,
     );
-    if (!deletedTag) {
-      return Err(`Failed to delete old tag '${params.currentName}'`);
+
+    if (!renamedTag) {
+      return Err(`Failed to rename tag '${params.currentName}'`);
     }
-
-    const newTagData: TagData = {
-      ...tag.toData(),
-      name: params.newName,
-    };
-
-    const newTagResult = Tag.create(newTagData);
-    if (newTagResult.err) {
-      return Err(newTagResult.val);
-    }
-
-    const newTag = newTagResult.val;
-    await this.tagRepository.save(newTag);
 
     this.logger.info(
       {
@@ -205,7 +197,7 @@ export class TagService {
       "Tag renamed successfully",
     );
 
-    return Ok(newTag);
+    return Ok(renamedTag);
   }
 
   async deleteTag(params: DeleteTagParams): Promise<Result<Tag, string>> {

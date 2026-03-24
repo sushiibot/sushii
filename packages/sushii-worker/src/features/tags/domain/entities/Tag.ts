@@ -140,6 +140,7 @@ export class Tag {
     let displayContent = this.content || "";
 
     if (this.attachment) {
+      if (displayContent) displayContent += "\n";
       displayContent += this.attachment;
     }
 
