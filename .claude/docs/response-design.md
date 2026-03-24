@@ -25,7 +25,7 @@ Container (accent color = status color)
 |--------|-------|-------|---------|
 | Success | bot emoji `success` (fallback: ✅) | `Color.Success` | `✅ **Tag deleted**` |
 | Error / not found | bot emoji `fail` (fallback: ❌) | `Color.Error` | `❌ **Tag not found**` |
-| Warning | bot emoji `warning` (fallback: ⚠️) | `Color.Warning` | `⚠️ **Missing permissions**` |
+| Warning | bot emoji `warning` (fallback: ⚠️) | `Color.Warning` | `⚠️ **No permission**` |
 | Info / neutral | none | `Color.Info` | `**Tag info**` |
 
 Title phrasing: past tense for success ("Tag deleted", "Role added"), noun phrase for errors ("Tag not found", "Permission denied").
@@ -115,6 +115,27 @@ return {
 ### 5. Interactive edit view (with buttons + state)
 
 See `TagMessageBuilder.createTagEditMessage` for the canonical example: content displayed as markdown text, action row below, footer hint as `-# subtext`.
+
+## Tone and copy
+
+Write for the person using the bot, not for a developer reading logs.
+
+**Titles stay short (2–4 words) but avoid system jargon** — use context-specific natural phrasing:
+- ❌ `Permission denied` → ✅ `No permission`
+- ❌ `Operation failed` → ✅ `Something went wrong`
+- ❌ `Invalid input` → ✅ `Invalid tag name` (context-specific beats generic)
+- ❌ `Tag deleted successfully` → ✅ `Tag deleted` (drop "successfully" — it's redundant)
+
+**Descriptions are where specifics go** — say what's wrong and what to do about it:
+- ❌ "You don't have permission."
+- ✅ "You can only edit your own tags. Ask a moderator to change this one."
+
+**Avoid CRUD terminology** in user-facing text: prefer "add", "change", "remove" over "create", "update", "delete".
+
+**Titles are sentence fragments** — no period, no full sentence:
+- ✅ `Tag deleted`
+- ✅ `Invalid tag name`
+- ❌ `The tag has been successfully deleted.`
 
 ## What to avoid
 
