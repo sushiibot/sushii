@@ -235,7 +235,11 @@ export function registerFeatures(
     logger,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
-  const tagFeature = setupTagFeature({ db, logger });
+  const tagFeature = setupTagFeature({
+    db,
+    logger,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
+  });
   const userProfileFeature = setupUserProfileFeature({ db, client, logger });
   const socialFeature = setupSocialFeature({ db, client, logger });
   const notificationFeature = setupNotificationFeature({ db, logger });

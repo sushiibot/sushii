@@ -5,6 +5,8 @@ import type {
 import { ComponentType, MessageFlags, PermissionFlagsBits } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
+
 import type { TagService } from "../../application/TagService";
 import type { Tag } from "../../domain/entities/Tag";
 import {
@@ -15,9 +17,11 @@ import {
   MODAL_SUBMISSION_TIMEOUT,
 } from "../TagConstants";
 import {
+  TAG_STATUS_EMOJIS,
+  type TagStatusEmojiMap,
   createTagDeleteConfirmationMessage,
   createTagEditMessage,
-  createTagErrorEmbed,
+  createTagErrorContainer,
 } from "../views/TagMessageBuilder";
 import {
   createEditContentModal,
@@ -27,6 +31,7 @@ import {
 export class TagEditInteractionHandler {
   constructor(
     private readonly tagService: TagService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -34,6 +39,8 @@ export class TagEditInteractionHandler {
     interaction: ChatInputCommandInteraction<"cached">,
     tag: Tag,
   ): Promise<void> {
+    const emojis = await this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS);
+
     const message = createTagEditMessage(tag);
     const interactionResponse = await interaction.reply(message);
 
@@ -48,13 +55,15 @@ export class TagEditInteractionHandler {
       try {
         if (buttonInteraction.user.id !== interaction.user.id) {
           await buttonInteraction.reply({
-            embeds: [
-              createTagErrorEmbed(
+            components: [
+              createTagErrorContainer(
                 "Sorry",
-                "You can only edit your own tag commands",
+                "Only the person who ran this command can use these buttons.",
+                emojis["fail"],
               ),
             ],
-            flags: MessageFlags.Ephemeral,
+            flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+            allowedMentions: { parse: [] },
           });
 
           return;
@@ -67,17 +76,20 @@ export class TagEditInteractionHandler {
           updatedTag = await this.handleEditContentModal(
             buttonInteraction,
             currentTag,
+            emojis,
           );
         } else if (buttonInteraction.customId === CUSTOM_IDS.RENAME) {
           updatedTag = await this.handleRenameModal(
             buttonInteraction,
             currentTag,
+            emojis,
           );
         } else if (buttonInteraction.customId === CUSTOM_IDS.DELETE) {
           const wasDeleted = await this.handleDeleteConfirmation(
             interaction,
             buttonInteraction,
             currentTag,
+            emojis,
           );
           if (wasDeleted) {
             collector.stop();
@@ -94,13 +106,15 @@ export class TagEditInteractionHandler {
         );
 
         await buttonInteraction.reply({
-          embeds: [
-            createTagErrorEmbed(
+          components: [
+            createTagErrorContainer(
               "Error",
               "An error occurred while processing your request.",
+              emojis["fail"],
             ),
           ],
-          flags: MessageFlags.Ephemeral,
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
         });
       }
     });
@@ -131,8 +145,6 @@ export class TagEditInteractionHandler {
             });
             await interaction.editReply(message);
           }
-
-          resolve();
         } catch (err) {
           this.logger.error(
             {
@@ -141,6 +153,8 @@ export class TagEditInteractionHandler {
             },
             "Error finalizing tag edit interaction",
           );
+        } finally {
+          resolve();
         }
       });
     });
@@ -149,6 +163,7 @@ export class TagEditInteractionHandler {
   private async handleEditContentModal(
     interaction: ButtonInteraction<"cached">,
     tag: Tag,
+    emojis: TagStatusEmojiMap,
   ): Promise<Tag | undefined> {
     const tagData = tag.toData();
     const modal = createEditContentModal(tag);
@@ -174,12 +189,20 @@ export class TagEditInteractionHandler {
         hasManageGuildPermission: interaction.member.permissions.has(
           PermissionFlagsBits.ManageGuild,
         ),
-        newContent: newContent || null,
+        newContent: newContent.length > 0 ? newContent : null,
+        newAttachment: tagData.attachment ?? undefined,
       });
       if (updatedTagResult.err) {
         await modalSubmission.reply({
-          embeds: [createTagErrorEmbed("Update Failed", updatedTagResult.val)],
-          flags: MessageFlags.Ephemeral,
+          components: [
+            createTagErrorContainer(
+              "Update Failed",
+              updatedTagResult.val,
+              emojis["fail"],
+            ),
+          ],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
         });
 
         return;
@@ -203,6 +226,7 @@ export class TagEditInteractionHandler {
   private async handleRenameModal(
     interaction: ButtonInteraction<"cached">,
     tag: Tag,
+    emojis: TagStatusEmojiMap,
   ): Promise<Tag | undefined> {
     const tagData = tag.toData();
     const modal = createRenameModal(tag);
@@ -233,8 +257,15 @@ export class TagEditInteractionHandler {
 
       if (renamedTagResult.err) {
         await modalSubmission.reply({
-          embeds: [createTagErrorEmbed("Rename Failed", renamedTagResult.val)],
-          flags: MessageFlags.Ephemeral,
+          components: [
+            createTagErrorContainer(
+              "Rename Failed",
+              renamedTagResult.val,
+              emojis["fail"],
+            ),
+          ],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
         });
 
         return;
@@ -259,6 +290,7 @@ export class TagEditInteractionHandler {
     originalInteraction: ChatInputCommandInteraction<"cached">,
     buttonInteraction: ButtonInteraction<"cached">,
     tag: Tag,
+    emojis: TagStatusEmojiMap,
   ): Promise<boolean> {
     const tagData = tag.toData();
 
@@ -299,9 +331,18 @@ export class TagEditInteractionHandler {
       collector.on("collect", async (confirmInteraction) => {
         try {
           if (confirmInteraction.user.id !== buttonInteraction.user.id) {
-            throw new Error(
-              "Non-matching user tried to confirm delete, but should be ephemeral",
-            );
+            await confirmInteraction.reply({
+              components: [
+                createTagErrorContainer(
+                  "Not your confirmation",
+                  "Only the person who initiated the delete can confirm it.",
+                  emojis["fail"],
+                ),
+              ],
+              flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+              allowedMentions: { parse: [] },
+            });
+            return;
           }
 
           this.logger.debug(
@@ -326,8 +367,13 @@ export class TagEditInteractionHandler {
 
             if (result.err) {
               await confirmInteraction.update({
-                embeds: [createTagErrorEmbed("Delete Failed", result.val)],
-                components: [],
+                components: [
+                  createTagErrorContainer(
+                    "Delete Failed",
+                    result.val,
+                    emojis["fail"],
+                  ),
+                ],
               });
 
               collector.stop();
@@ -361,13 +407,17 @@ export class TagEditInteractionHandler {
             },
             "Error occurred while handling delete confirmation",
           );
+          collector.stop();
         }
       });
 
       collector.on("end", async (_collected, endReason) => {
         if (endReason === "time") {
-          // Just delete the reply message
-          await buttonInteraction.deleteReply();
+          try {
+            await buttonInteraction.deleteReply();
+          } catch {
+            // Interaction token may have expired
+          }
         }
 
         resolve(deleted);

@@ -6,10 +6,11 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { TagService } from "../../application/TagService";
-import { createTagNotFoundEmbed } from "../views/TagMessageBuilder";
+import { TAG_STATUS_EMOJIS, createTagNotFoundContainer } from "../views/TagMessageBuilder";
 
 export class TagGetCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -27,6 +28,7 @@ export class TagGetCommand extends SlashCommandHandler {
 
   constructor(
     private readonly tagService: TagService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -42,12 +44,16 @@ export class TagGetCommand extends SlashCommandHandler {
       throw new Error("Missing tag name");
     }
 
-    const result = await this.tagService.useTag(tagName, interaction.guildId);
+    const [result, emojis] = await Promise.all([
+      this.tagService.useTag(tagName, interaction.guildId),
+      this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS),
+    ]);
 
     if (result.err) {
       await interaction.reply({
-        embeds: [createTagNotFoundEmbed(tagName)],
-        flags: MessageFlags.Ephemeral,
+        components: [createTagNotFoundContainer(tagName, emojis["fail"])],
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
       });
       return;
     }

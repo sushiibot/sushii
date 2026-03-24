@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
@@ -20,9 +21,10 @@ import {
 interface TagDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
+  emojiRepository: BotEmojiRepository;
 }
 
-export function createTagServices({ db, logger }: TagDependencies) {
+export function createTagServices({ db, logger }: Pick<TagDependencies, "db" | "logger">) {
   const tagRepository = new DrizzleTagRepository(
     db,
     logger.child({ module: "tags" }),
@@ -53,12 +55,14 @@ export function createTagServices({ db, logger }: TagDependencies) {
 
 export function createTagCommands(
   services: ReturnType<typeof createTagServices>,
+  emojiRepository: BotEmojiRepository,
   logger: Logger,
 ) {
   const { tagService, tagSearchService, tagAdminService } = services;
 
   const tagEditInteractionHandler = new TagEditInteractionHandler(
     tagService,
+    emojiRepository,
     logger.child({ module: "tagEditInteractionHandler" }),
   );
 
@@ -66,17 +70,28 @@ export function createTagCommands(
     new TagInfoCommand(
       tagService,
       tagSearchService,
+      emojiRepository,
       logger.child({ module: "tagInfoCommand" }),
     ),
     new TagEditCommand(
       tagService,
       tagEditInteractionHandler,
+      emojiRepository,
       logger.child({ module: "tagEditCommand" }),
     ),
-    new TagAddCommand(tagService, logger.child({ module: "tagAddCommand" })),
-    new TagGetCommand(tagService, logger.child({ module: "tagGetCommand" })),
+    new TagAddCommand(
+      tagService,
+      emojiRepository,
+      logger.child({ module: "tagAddCommand" }),
+    ),
+    new TagGetCommand(
+      tagService,
+      emojiRepository,
+      logger.child({ module: "tagGetCommand" }),
+    ),
     new TagAdminCommand(
       tagAdminService,
+      emojiRepository,
       logger.child({ module: "tagAdminCommand" }),
     ),
   ];
@@ -114,11 +129,12 @@ export function createTagEventHandlers(
 export function setupTagFeature({
   db,
   logger,
+  emojiRepository,
 }: TagDependencies): FeatureSetupWithServices<
   ReturnType<typeof createTagServices>
 > {
   const services = createTagServices({ db, logger });
-  const commands = createTagCommands(services, logger);
+  const commands = createTagCommands(services, emojiRepository, logger);
   const events = createTagEventHandlers(services, logger);
 
   return {

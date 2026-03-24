@@ -8,10 +8,11 @@ export { TagGetAutocomplete } from "./events/TagGetAutocomplete";
 export { TagMentionHandler } from "./events/TagMentionHandler";
 export { TagEditInteractionHandler } from "./commands/TagEditInteractionHandler";
 export {
-  createTagInfoEmbed,
-  createTagDeleteSuccessMessage as createTagDeleteSuccessEmbed,
-  createTagErrorEmbed,
-  createTagNotFoundEmbed,
+  createTagInfoMessage,
+  createTagErrorContainer,
+  createTagNotFoundContainer,
   processTagAttachment,
   type TagUpdateData,
+  type TagStatusEmojiMap,
+  TAG_STATUS_EMOJIS,
 } from "./views/TagMessageBuilder";

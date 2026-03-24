@@ -1,16 +1,24 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
-  EmbedBuilder,
+  ContainerBuilder,
   InteractionContextType,
+  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
+  TextDisplayBuilder,
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { TagAdminService } from "../../application/TagAdminService";
+import {
+  TAG_STATUS_EMOJIS,
+  type TagStatusEmojiMap,
+  createTagErrorContainer,
+} from "../views/TagMessageBuilder";
 
 enum TagAdminSubcommand {
   Delete = "delete",
@@ -50,6 +58,7 @@ export class TagAdminCommand extends SlashCommandHandler {
 
   constructor(
     private readonly tagAdminService: TagAdminService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -58,16 +67,14 @@ export class TagAdminCommand extends SlashCommandHandler {
   async handler(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    if (!interaction.inCachedGuild()) {
-      throw new Error("Not in cached guild");
-    }
+    const emojis = await this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS);
 
     switch (interaction.options.getSubcommand()) {
       case TagAdminSubcommand.Delete:
-        return this.deleteHandler(interaction);
+        return this.deleteHandler(interaction, emojis);
 
       case TagAdminSubcommand.DeleteUserTags:
-        return this.deleteUserTagsHandler(interaction);
+        return this.deleteUserTagsHandler(interaction, emojis);
       default:
         throw new Error("Unknown subcommand.");
     }
@@ -75,6 +82,7 @@ export class TagAdminCommand extends SlashCommandHandler {
 
   private async deleteHandler(
     interaction: ChatInputCommandInteraction<"cached">,
+    emojis: TagStatusEmojiMap,
   ): Promise<void> {
     const tagName = interaction.options.getString("name", true);
 
@@ -84,29 +92,32 @@ export class TagAdminCommand extends SlashCommandHandler {
     });
 
     if (result.err) {
-      const embed = new EmbedBuilder()
-        .setTitle("Tag Admin")
-        .setDescription(result.val)
-        .setColor(Color.Error);
-
       await interaction.reply({
-        embeds: [embed],
+        components: [
+          createTagErrorContainer("Delete failed", result.val, emojis["fail"]),
+        ],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
       });
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("Tag Admin")
-      .setDescription(`Tag \`${tagName}\` deleted`)
-      .setColor(Color.Info);
-
+    const container = new ContainerBuilder().setAccentColor(Color.Success);
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${emojis["success"]} **Tag deleted**\nTag \`${tagName}\` has been deleted.`,
+      ),
+    );
     await interaction.reply({
-      embeds: [embed],
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
     });
   }
 
   private async deleteUserTagsHandler(
     interaction: ChatInputCommandInteraction<"cached">,
+    emojis: TagStatusEmojiMap,
   ): Promise<void> {
     const user = interaction.options.getUser("user", true);
 
@@ -116,24 +127,26 @@ export class TagAdminCommand extends SlashCommandHandler {
     });
 
     if (deleteCount === 0) {
-      const embed = new EmbedBuilder()
-        .setTitle("No tags deleted")
-        .setDescription(`${user} had no tags.`)
-        .setColor(Color.Error);
-
       await interaction.reply({
-        embeds: [embed],
+        components: [
+          createTagErrorContainer("No tags deleted", `${user} had no tags.`, emojis["fail"]),
+        ],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
       });
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("Tags deleted")
-      .setDescription(`${deleteCount} tags created by ${user} deleted`)
-      .setColor(Color.Info);
-
+    const container = new ContainerBuilder().setAccentColor(Color.Success);
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${emojis["success"]} **Tags deleted**\n${deleteCount} tags created by ${user} deleted.`,
+      ),
+    );
     await interaction.reply({
-      embeds: [embed],
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
     });
   }
 }

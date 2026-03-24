@@ -5,8 +5,7 @@ import type {
   InteractionReplyOptions,
   ModalSubmitInteraction,
 } from "discord.js";
-import { EmbedBuilder } from "discord.js";
-import { MessageFlags } from "discord.js";
+import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
 import { t } from "i18next";
 
 import Color from "../../utils/colors";
@@ -16,16 +15,15 @@ type ReplyableInteraction =
   | ButtonInteraction
   | ModalSubmitInteraction;
 
-export function getErrorMessageEmbeds(
+function buildErrorContainer(
   title: string,
   description: string,
-): EmbedBuilder[] {
-  return [
-    new EmbedBuilder()
-      .setTitle(title || "Error")
-      .setDescription(description || "An error occurred")
-      .setColor(Color.Error),
-  ];
+): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`❌ **${title}**\n${description}`),
+  );
+  return container;
 }
 
 export function getErrorMessage(
@@ -34,8 +32,11 @@ export function getErrorMessage(
   ephemeral: boolean = false,
 ): InteractionReplyOptions {
   return {
-    embeds: getErrorMessageEmbeds(title, description),
-    flags: ephemeral ? MessageFlags.Ephemeral : undefined,
+    components: [buildErrorContainer(title, description)],
+    flags:
+      MessageFlags.IsComponentsV2 |
+      (ephemeral ? MessageFlags.Ephemeral : 0),
+    allowedMentions: { parse: [] },
   };
 }
 
@@ -44,7 +45,8 @@ export function getErrorMessageEdit(
   description: string,
 ): InteractionEditReplyOptions {
   return {
-    embeds: getErrorMessageEmbeds(title, description),
+    components: [buildErrorContainer(title, description)],
+    flags: MessageFlags.IsComponentsV2,
   };
 }
 

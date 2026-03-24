@@ -56,7 +56,7 @@ export class TagMentionHandler extends EventHandler<Events.MessageCreate> {
       });
     } catch (error) {
       this.logger.error(
-        { error, guildId: msg.guildId, tagName: content },
+        { err: error, guildId: msg.guildId, tagName: content },
         "Error handling tag mention",
       );
     }

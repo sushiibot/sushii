@@ -1,15 +1,21 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+import {
+  InteractionContextType,
+  MessageFlags,
+  SlashCommandBuilder,
+} from "discord.js";
 import { t } from "i18next";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import { interactionReplyErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { TagService } from "../../application/TagService";
 import {
-  createTagErrorEmbed,
-  createTagSuccessEmbed,
+  TAG_STATUS_EMOJIS,
+  createTagAddSuccessContainer,
+  createTagErrorContainer,
   processTagAttachment,
 } from "../views/TagMessageBuilder";
 
@@ -42,6 +48,7 @@ export class TagAddCommand extends SlashCommandHandler {
 
   constructor(
     private readonly tagService: TagService,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -60,16 +67,21 @@ export class TagAddCommand extends SlashCommandHandler {
     const tagContent = interaction.options.getString("content") || null;
     const tagAttachment = interaction.options.getAttachment("attachment");
 
+    const emojis = await this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS);
+
     if (!tagContent && !tagAttachment) {
       await interaction.reply({
-        embeds: [
-          createTagErrorEmbed(
+        components: [
+          createTagErrorContainer(
             "Missing Content",
             t("tag.add.error.missing_content_and_attachment", {
               ns: "commands",
             }),
-          ).toJSON(),
+            emojis["fail"],
+          ),
         ],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
       });
 
       return;
@@ -81,17 +93,15 @@ export class TagAddCommand extends SlashCommandHandler {
       return;
     }
 
-    const { fields, files } = embedDataRes.data;
-
-    const embed = createTagSuccessEmbed(
-      t("tag.add.success.title", { ns: "commands", tagName }),
-      fields,
-      tagAttachment?.url,
-    );
+    const { files } = embedDataRes.data;
 
     await interaction.reply({
-      embeds: [embed],
+      components: [
+        createTagAddSuccessContainer(tagName, tagContent, emojis["success"]),
+      ],
+      flags: MessageFlags.IsComponentsV2,
       files,
+      allowedMentions: { parse: [] },
     });
 
     let attachmentUrl;
@@ -101,14 +111,16 @@ export class TagAddCommand extends SlashCommandHandler {
         attachmentUrl = replyMsg.attachments.at(0)?.url;
       } catch {
         await interaction.editReply({
-          embeds: [
-            createTagErrorEmbed(
+          components: [
+            createTagErrorContainer(
               t("tag.add.error.failed_title", { ns: "commands" }),
               t("tag.add.error.failed_get_original_message", {
                 ns: "commands",
               }),
+              emojis["fail"],
             ),
           ],
+          flags: MessageFlags.IsComponentsV2,
         });
 
         return;
@@ -125,12 +137,14 @@ export class TagAddCommand extends SlashCommandHandler {
 
     if (result.err) {
       await interaction.editReply({
-        embeds: [
-          createTagErrorEmbed(
+        components: [
+          createTagErrorContainer(
             t("tag.add.error.failed_title", { ns: "commands" }),
             result.val,
+            emojis["fail"],
           ),
         ],
+        flags: MessageFlags.IsComponentsV2,
       });
     }
   }

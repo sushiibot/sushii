@@ -1,11 +1,12 @@
-import type { APIEmbedField, InteractionReplyOptions } from "discord.js";
+import type { InteractionReplyOptions } from "discord.js";
 import {
   ActionRowBuilder,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  EmbedBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   SeparatorBuilder,
   TextDisplayBuilder,
@@ -15,99 +16,92 @@ import { t } from "i18next";
 import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
+import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
+
 import type { Tag } from "../../domain/entities/Tag";
 import { CUSTOM_IDS } from "../TagConstants";
 
+export const TAG_STATUS_EMOJIS = ["success", "fail"] as const satisfies readonly BotEmojiNameType[];
+
+export type TagStatusEmojiMap = EmojiMap<typeof TAG_STATUS_EMOJIS>;
+
 export interface TagUpdateData {
-  fields: APIEmbedField[];
+  fields: { name: string; value: string }[];
   files: AttachmentBuilder[];
 }
 
-export function createTagInfoEmbed(tag: Tag): EmbedBuilder {
-  const tagData = tag.toData();
-
-  return new EmbedBuilder()
-    .setTitle(
-      t("tag.info.success.title", { ns: "commands", tagName: tagData.name }),
-    )
-    .setColor(Color.Info)
-    .setFields([
-      {
-        name: t("tag.info.success.content", { ns: "commands" }),
-        value: tagData.content || "No content",
-      },
-      {
-        name: t("tag.info.success.attachment", { ns: "commands" }),
-        value: tagData.attachment || "No attachment",
-      },
-      {
-        name: t("tag.info.success.owner", { ns: "commands" }),
-        value: `<@${tagData.ownerId}>`,
-      },
-      {
-        name: t("tag.info.success.use_count", { ns: "commands" }),
-        value: tagData.useCount.toString(),
-      },
-    ])
-    .setImage(tagData.attachment || null)
-    .setTimestamp(dayjs.utc(tagData.created).toDate());
-}
-
-export function createTagSuccessEmbed(
-  title: string,
-  fields: APIEmbedField[],
-  attachment?: string | null,
-): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setFields(fields)
-    .setColor(Color.Success);
-
-  if (attachment) {
-    embed.setImage(attachment);
-  }
-
-  return embed;
-}
-
-export function createTagDeleteSuccessMessage(
+export function createTagInfoMessage(
   tag: Tag,
-): InteractionReplyOptions & {
-  flags: MessageFlags.IsComponentsV2;
-} {
+): InteractionReplyOptions & { flags: MessageFlags.IsComponentsV2 } {
   const tagData = tag.toData();
+  const createdTimestamp = Math.floor(dayjs.utc(tagData.created).unix());
 
-  const container = new ContainerBuilder();
+  let content = `**${tagData.name}**\n\n`;
+  content += `**Content**\n${tagData.content || "No content"}\n\n`;
+  content += `**Owner** <@${tagData.ownerId}>\n`;
+  content += `**Use Count** ${tagData.useCount}\n\n`;
+  content += `-# Created <t:${createdTimestamp}:R>`;
 
-  const content = `### Tag Deleted
-The tag \`${tagData.name}\` has been successfully deleted.`;
-  const text = new TextDisplayBuilder().setContent(content);
+  const container = new ContainerBuilder().setAccentColor(Color.Info);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(content),
+  );
 
-  container.addTextDisplayComponents(text);
+  if (tagData.attachment) {
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(tagData.attachment),
+      ),
+    );
+  }
 
   return {
     components: [container],
-    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    allowedMentions: {
-      parse: [],
-    },
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
   };
 }
 
-export function createTagErrorEmbed(
-  title: string,
-  description: string,
-): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(description)
-    .setColor(Color.Error);
+export function createTagAddSuccessContainer(
+  tagName: string,
+  content: string | null,
+  emoji = "✅",
+): ContainerBuilder {
+  let text = `${emoji} **Tag added** \`${tagName}\``;
+  if (content) {
+    text += `\n\n${content}`;
+  }
+
+  const container = new ContainerBuilder().setAccentColor(Color.Success);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(text),
+  );
+  return container;
 }
 
-export function createTagNotFoundEmbed(tagName: string): EmbedBuilder {
-  return new EmbedBuilder()
-    .setDescription(t("tag.get.not_found", { ns: "commands", tagName }))
-    .setColor(Color.Error);
+export function createTagErrorContainer(
+  title: string,
+  description: string,
+  emoji = "❌",
+): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`${emoji} **${title}**\n${description}`),
+  );
+  return container;
+}
+
+export function createTagNotFoundContainer(
+  tagName: string,
+  emoji = "❌",
+): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `${emoji} **Tag not found**\n${t("tag.get.not_found", { ns: "commands", tagName })}`,
+    ),
+  );
+  return container;
 }
 
 export async function processTagAttachment(
@@ -116,7 +110,7 @@ export async function processTagAttachment(
 ): Promise<
   { success: true; data: TagUpdateData } | { success: false; error: string }
 > {
-  const fields: APIEmbedField[] = [];
+  const fields: { name: string; value: string }[] = [];
   const files: AttachmentBuilder[] = [];
 
   if (newContent) {
@@ -134,6 +128,12 @@ export async function processTagAttachment(
 
     try {
       const file = await fetch(newAttachment.url);
+      if (!file.ok) {
+        return {
+          success: false,
+          error: `Failed to fetch attachment (HTTP ${file.status}).`,
+        };
+      }
       const buf = await file.arrayBuffer();
 
       const attachment = new AttachmentBuilder(Buffer.from(buf)).setName(
@@ -152,6 +152,7 @@ export async function processTagAttachment(
   return { success: true, data: { fields, files } };
 }
 
+
 interface TagEditMessageFlags {
   disabled?: boolean;
   showDeleteConfirmation?: boolean;
@@ -169,9 +170,7 @@ interface TagEditMessageFlags {
  */
 export function createTagEditMessage(
   tag: Tag,
-  flags: TagEditMessageFlags = {
-    disabled: false,
-  },
+  flags: TagEditMessageFlags = {},
 ): InteractionReplyOptions & {
   flags: MessageFlags.IsComponentsV2;
 } {
@@ -223,17 +222,17 @@ ${tag.getUseCount()}
       .setCustomId(CUSTOM_IDS.RENAME)
       .setLabel("Rename")
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(flags.disabled),
+      .setDisabled(!!(flags.disabled || flags.deleted)),
     new ButtonBuilder()
       .setCustomId(CUSTOM_IDS.EDIT_CONTENT)
       .setLabel("Edit Content")
       .setStyle(ButtonStyle.Primary)
-      .setDisabled(flags.disabled),
+      .setDisabled(!!(flags.disabled || flags.deleted)),
     new ButtonBuilder()
       .setCustomId(CUSTOM_IDS.DELETE)
       .setLabel("Delete")
       .setStyle(ButtonStyle.Danger)
-      .setDisabled(flags.disabled),
+      .setDisabled(!!(flags.disabled || flags.deleted)),
   );
 
   container.addActionRowComponents(actionRow);
@@ -245,58 +244,6 @@ ${tag.getUseCount()}
       parse: [],
     },
   };
-}
-
-export function createTagEditEmbed(tag: Tag): EmbedBuilder {
-  const tagData = tag.toData();
-
-  return new EmbedBuilder()
-    .setTitle("Editing Tag - " + tagData.name)
-    .setColor(Color.Info)
-    .setFields([
-      {
-        name: "Name",
-        value: tagData.name,
-      },
-      {
-        name: "Content",
-        value: tagData.content || "No content",
-      },
-      {
-        name: "Attachment",
-        value: tagData.attachment || "No attachment",
-      },
-      {
-        name: "Owner",
-        value: `<@${tagData.ownerId}>`,
-      },
-      {
-        name: "Use Count",
-        value: tagData.useCount.toString(),
-      },
-    ])
-    .setImage(tagData.attachment || null)
-    .setTimestamp(dayjs.utc(tagData.created).toDate())
-    .setFooter({
-      text: "Editing expires in 2 minutes",
-    });
-}
-
-export function createTagEditActionRow(): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(CUSTOM_IDS.EDIT_CONTENT)
-      .setLabel("Edit Content")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(CUSTOM_IDS.RENAME)
-      .setLabel("Rename")
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(CUSTOM_IDS.DELETE)
-      .setLabel("Delete")
-      .setStyle(ButtonStyle.Danger),
-  );
 }
 
 export function createTagDeleteConfirmationMessage(

@@ -5,14 +5,17 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
+
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { TagService } from "../../application/TagService";
 import {
-  createTagErrorEmbed,
-  createTagNotFoundEmbed,
+  TAG_STATUS_EMOJIS,
+  createTagErrorContainer,
+  createTagNotFoundContainer,
 } from "../views/TagMessageBuilder";
 import type { TagEditInteractionHandler } from "./TagEditInteractionHandler";
 
@@ -33,6 +36,7 @@ export class TagEditCommand extends SlashCommandHandler {
   constructor(
     private readonly tagService: TagService,
     private readonly editInteractionHandler: TagEditInteractionHandler,
+    private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
   ) {
     super();
@@ -48,12 +52,16 @@ export class TagEditCommand extends SlashCommandHandler {
       throw new Error("Missing tag name.");
     }
 
-    const tag = await this.tagService.getTag(tagName, interaction.guildId);
-    const embed = createTagNotFoundEmbed(tagName);
+    const [tag, emojis] = await Promise.all([
+      this.tagService.getTag(tagName, interaction.guildId),
+      this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS),
+    ]);
 
     if (!tag) {
       await interaction.reply({
-        embeds: [embed],
+        components: [createTagNotFoundContainer(tagName, emojis["fail"])],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
       });
       return;
     }
@@ -63,14 +71,16 @@ export class TagEditCommand extends SlashCommandHandler {
     );
 
     if (!tag.canBeModifiedBy(interaction.user.id, hasManageGuildPermission)) {
-      const embed = createTagErrorEmbed(
-        "Permission Denied",
-        "You don't have permission to edit this tag, you can only edit your own tags.",
-      );
-
       await interaction.reply({
-        embeds: [embed],
-        flags: MessageFlags.Ephemeral,
+        components: [
+          createTagErrorContainer(
+            "Permission Denied",
+            "You don't have permission to edit this tag, you can only edit your own tags.",
+            emojis["fail"],
+          ),
+        ],
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
       });
       return;
     }
