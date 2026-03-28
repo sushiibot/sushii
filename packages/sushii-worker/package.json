@@ -43,7 +43,7 @@
     "hono": "^4.8.5",
     "i18next": "^23.16.8",
     "i18next-fs-backend": "^2.6.0",
-    "node-gyp": "^11.2.0",
+    "node-gyp": "^12.2.0",
     "parse-duration": "^2.1.4",
     "path-to-regexp": "^8.2.0",
     "pg": "^8.16.2",
