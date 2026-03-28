@@ -43,10 +43,15 @@ export class NativeTimeoutDMService {
         "Sending timeout DM to user",
       );
 
-      // Convert string reason to domain value object
+      // Convert string reason to domain value object.
+      // AutoMod reasons contain internal rate details (e.g. channel counts,
+      // time windows) that should not be exposed to users in DMs.
       let reason: Reason | null = null;
-      if (auditLogEvent.reason) {
-        const reasonResult = Reason.create(auditLogEvent.reason);
+      const rawReason = auditLogEvent.reason?.startsWith("[AutoMod]")
+        ? "Automated moderation action"
+        : auditLogEvent.reason;
+      if (rawReason) {
+        const reasonResult = Reason.create(rawReason);
         if (reasonResult.ok) {
           reason = reasonResult.val;
         }
