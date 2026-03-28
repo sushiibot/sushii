@@ -3,6 +3,7 @@ import {
   DiscordAPIError,
   MessageFlags,
   RESTJSONErrorCodes,
+  SeparatorBuilder,
   TextDisplayBuilder,
   type Client,
   type Guild,
@@ -10,7 +11,14 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import Color from "@/utils/colors";
+
 import { SpamDetectionService } from "./SpamDetectionService";
+
+interface SpamAttachment {
+  filename: string;
+  url: string;
+}
 
 // Timeout duration applied to spam offenders
 const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -26,6 +34,8 @@ export class SpamActionService {
     userId: string,
     username: string,
     spamMessages: Map<string, string[]>,
+    spamContent: string | null,
+    spamAttachments: SpamAttachment[],
     alertsChannelId?: string | null,
   ): Promise<void> {
     const guild = this.client.guilds.cache.get(guildId);
@@ -91,6 +101,8 @@ export class SpamActionService {
         username,
         channelCount,
         deletedMessageCount,
+        spamContent,
+        spamAttachments,
       ).catch((err: unknown) => {
         this.logger.warn(
           { err, guildId, userId, alertsChannelId },
@@ -149,21 +161,46 @@ export class SpamActionService {
     username: string,
     channelCount: number,
     deletedMessageCount: number,
+    spamContent: string | null,
+    spamAttachments: SpamAttachment[],
   ): Promise<void> {
     const channel = guild.channels.cache.get(alertsChannelId);
     if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
 
     const timeoutMinutes = SPAM_TIMEOUT_MS / 60_000;
-    const content = [
-      `### AutoMod Action: Spam Detection`,
-      `**User:** <@${userId}> (${username})`,
-      `**Action:** Timeout (${timeoutMinutes} minutes)`,
-      `**Reason:** Sent identical messages to ${channelCount} channels (${deletedMessageCount} messages deleted)`,
+    const summary = [
+      `-# AutoMod · Spam Detection`,
+      `<@${userId}> (\`${username}\`) timed out for ${timeoutMinutes} minutes`,
+      `Same message sent to ${channelCount} channels · ${deletedMessageCount} messages deleted`,
     ].join("\n");
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
-    );
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Warning)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(summary));
+
+    // Show the triggering content if available
+    const contentLines: string[] = [];
+    if (spamContent) {
+      // Truncate to keep the alert readable
+      const truncated =
+        spamContent.length > 500
+          ? `${spamContent.slice(0, 500)}…`
+          : spamContent;
+      contentLines.push(`\`\`\`\n${truncated}\n\`\`\``);
+    }
+    if (spamAttachments.length > 0) {
+      contentLines.push(
+        spamAttachments.map((a) => `[${a.filename}](${a.url})`).join("\n"),
+      );
+    }
+
+    if (contentLines.length > 0) {
+      container
+        .addSeparatorComponents(new SeparatorBuilder())
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(contentLines.join("\n")),
+        );
+    }
 
     await channel.send({
       components: [container],

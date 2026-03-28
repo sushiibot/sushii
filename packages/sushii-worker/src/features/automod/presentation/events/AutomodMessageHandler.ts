@@ -73,11 +73,19 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       );
 
       if (spamMessages) {
+        const attachments = (payload.attachments ?? []).map(
+          (a: { filename: string; url: string }) => ({
+            filename: a.filename,
+            url: a.url,
+          }),
+        );
         await this.spamActionService.executeSpamAction(
           payload.guild_id,
           payload.author.id,
           payload.author.username,
           spamMessages,
+          contentPart ?? null,
+          attachments,
           guildConfig.moderationSettings.automodAlertsChannelId,
         );
       }
