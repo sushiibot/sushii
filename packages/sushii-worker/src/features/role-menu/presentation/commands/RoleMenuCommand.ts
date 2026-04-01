@@ -1,9 +1,10 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type { ChatInputCommandInteraction, TextChannel } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  ComponentType,
   DiscordAPIError,
   EmbedBuilder,
   InteractionContextType,
@@ -353,7 +354,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
         cancelButton,
       );
 
-      await interaction.reply({
+      const confirmReply = await interaction.reply({
         embeds: [
           new EmbedBuilder()
             .setTitle("⚠️ Delete Confirmation")
@@ -365,6 +366,97 @@ export class RoleMenuCommand extends SlashCommandHandler {
         ],
         components: [row.toJSON()],
         ephemeral: true,
+        withResponse: true,
+      });
+
+      if (!confirmReply.resource?.message) {
+        throw new Error("Failed to get confirmation message resource");
+      }
+
+      let confirmation;
+      try {
+        confirmation =
+          await confirmReply.resource.message.awaitMessageComponent({
+            filter: (i) => i.user.id === interaction.user.id,
+            time: 60_000,
+            componentType: ComponentType.Button,
+          });
+      } catch (_err) {
+        // Timed out — disable buttons
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Delete Cancelled")
+              .setDescription("Confirmation timed out.")
+              .setColor(Color.Warning)
+              .toJSON(),
+          ],
+          components: [],
+        });
+        return;
+      }
+
+      if (confirmation.customId === `cancel_delete_menu:${name}`) {
+        await confirmation.update({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Delete Cancelled")
+              .setDescription(`Cancelled deletion of "${name}".`)
+              .setColor(Color.Warning)
+              .toJSON(),
+          ],
+          components: [],
+        });
+        return;
+      }
+
+      // Confirmed — remove active Discord messages first
+      if (interaction.channel?.isTextBased()) {
+        const removeResult = await this.roleMenuMessageService.removeActiveMenus(
+          interaction.guildId,
+          name,
+          interaction.channel as TextChannel,
+        );
+
+        if (removeResult.err) {
+          this.logger.warn(
+            { err: removeResult.val, menuName: name },
+            "Failed to remove some active menus during deletion",
+          );
+        }
+      }
+
+      // Delete the menu record
+      const deleteResult = await this.roleMenuManagementService.deleteMenu(
+        interaction.guildId,
+        name,
+      );
+
+      if (deleteResult.err) {
+        await confirmation.update({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Error")
+              .setDescription(deleteResult.val)
+              .setColor(Color.Error)
+              .toJSON(),
+          ],
+          components: [],
+        });
+        return;
+      }
+
+      await confirmation.update({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Deleted role menu")
+            .setDescription(
+              `Menu "${name}" and ${activeMessages.length} active menus have been deleted.`,
+            )
+            .setColor(Color.Success)
+            .toJSON(),
+        ],
+        components: [],
       });
       return;
     }
