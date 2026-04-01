@@ -411,7 +411,8 @@ export class RoleMenuCommand extends SlashCommandHandler {
       }
 
       if (confirmation.customId !== `confirm_delete_menu:${name}`) {
-        // Unexpected custom ID — do nothing
+        // Unexpected custom ID — acknowledge silently
+        await confirmation.deferUpdate();
         return;
       }
 
@@ -422,6 +423,8 @@ export class RoleMenuCommand extends SlashCommandHandler {
           name,
           interaction.guild,
         );
+
+        const removedCount = removeResult.ok ? removeResult.val : 0;
 
         if (removeResult.err) {
           this.logger.warn(
@@ -455,7 +458,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
             new EmbedBuilder()
               .setTitle("Deleted role menu")
               .setDescription(
-                `Menu "${name}" and ${activeMessages.length} active menus have been deleted.`,
+                `Menu "${name}" and ${removedCount} active menus have been deleted.`,
               )
               .setColor(Color.Success)
               .toJSON(),

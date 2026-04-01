@@ -140,6 +140,12 @@ export class RoleMenuMessageService {
           );
           await discordMessage.delete();
 
+          // Remove tracking record only for successfully deleted messages
+          await this.roleMenuRepository.deleteMessage(
+            guildId,
+            menuName,
+            message.messageId,
+          );
           removedCount++;
         } catch (error) {
           this.logger.warn(
@@ -149,9 +155,6 @@ export class RoleMenuMessageService {
           failures.push(`Message ${message.messageId}: ${String(error)}`);
         }
       }
-
-      // Remove tracking records
-      await this.roleMenuRepository.deleteAllMessages(guildId, menuName);
 
       if (failures.length > 0) {
         return Err(
