@@ -1,4 +1,4 @@
-import type { TextChannel } from "discord.js";
+import type { Guild } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
@@ -102,7 +102,7 @@ export class RoleMenuMessageService {
   async removeActiveMenus(
     guildId: string,
     menuName: string,
-    channel: TextChannel,
+    guild: Guild,
   ): Promise<Result<number, string>> {
     this.logger.debug({ guildId, menuName }, "Removing active menus");
 
@@ -123,7 +123,7 @@ export class RoleMenuMessageService {
       for (const message of activeMessages) {
         try {
           // Get the channel where this message was sent
-          const messageChannel = await channel.guild.channels.fetch(
+          const messageChannel = await guild.channels.fetch(
             message.channelId,
           );
 

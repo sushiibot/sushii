@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction, TextChannel } from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -410,12 +410,17 @@ export class RoleMenuCommand extends SlashCommandHandler {
         return;
       }
 
-      // Confirmed — remove active Discord messages first
-      if (interaction.channel?.isTextBased()) {
+      if (confirmation.customId !== `confirm_delete_menu:${name}`) {
+        // Unexpected custom ID — do nothing
+        return;
+      }
+
+      try {
+        // Remove active Discord messages first
         const removeResult = await this.roleMenuMessageService.removeActiveMenus(
           interaction.guildId,
           name,
-          interaction.channel as TextChannel,
+          interaction.guild,
         );
 
         if (removeResult.err) {
@@ -424,40 +429,55 @@ export class RoleMenuCommand extends SlashCommandHandler {
             "Failed to remove some active menus during deletion",
           );
         }
-      }
 
-      // Delete the menu record
-      const deleteResult = await this.roleMenuManagementService.deleteMenu(
-        interaction.guildId,
-        name,
-      );
+        // Delete the menu record
+        const deleteResult = await this.roleMenuManagementService.deleteMenu(
+          interaction.guildId,
+          name,
+        );
 
-      if (deleteResult.err) {
+        if (deleteResult.err) {
+          await confirmation.update({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("Error")
+                .setDescription(deleteResult.val)
+                .setColor(Color.Error)
+                .toJSON(),
+            ],
+            components: [],
+          });
+          return;
+        }
+
+        await confirmation.update({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Deleted role menu")
+              .setDescription(
+                `Menu "${name}" and ${activeMessages.length} active menus have been deleted.`,
+              )
+              .setColor(Color.Success)
+              .toJSON(),
+          ],
+          components: [],
+        });
+      } catch (error) {
+        this.logger.error(
+          { err: error, menuName: name },
+          "Error during role menu deletion",
+        );
         await confirmation.update({
           embeds: [
             new EmbedBuilder()
               .setTitle("Error")
-              .setDescription(deleteResult.val)
+              .setDescription("An unexpected error occurred while deleting the menu.")
               .setColor(Color.Error)
               .toJSON(),
           ],
           components: [],
         });
-        return;
       }
-
-      await confirmation.update({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Deleted role menu")
-            .setDescription(
-              `Menu "${name}" and ${activeMessages.length} active menus have been deleted.`,
-            )
-            .setColor(Color.Success)
-            .toJSON(),
-        ],
-        components: [],
-      });
       return;
     }
 
