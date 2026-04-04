@@ -757,8 +757,21 @@ export default class InteractionRouter {
       return;
     }
 
+    const ageMs = Date.now() - interaction.createdTimestamp;
+    if (ageMs > 2500) {
+      log.warn(
+        {
+          interactionId: interaction.id,
+          interactionType: interaction.type,
+          ageMs,
+        },
+        "Interaction is older than 2500ms, may fail with unknown interaction error",
+      );
+    }
+
     await tracer.startActiveSpan("handleAPIInteraction", async (span) => {
       span.setAttribute("interactionType", interaction.type);
+      span.setAttribute("interactionAgeMs", ageMs);
 
       try {
         let success = true;
