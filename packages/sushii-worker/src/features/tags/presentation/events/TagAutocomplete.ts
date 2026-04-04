@@ -41,11 +41,14 @@ export class TagAutocomplete extends AutocompleteHandler {
 
       const choices = tags
         .slice(0, 25)
-        .filter((t) => t.getName().getValue().length <= 100)
-        .map((tag) => ({
-          name: tag.getName().getValue(),
-          value: tag.getName().getValue(),
-        }));
+        .filter((t) => {
+          const name = t.getName().getValue().trim();
+          return name.length >= 1 && name.length <= 100;
+        })
+        .map((tag) => {
+          const name = tag.getName().getValue().trim();
+          return { name, value: name };
+        });
 
       await interaction.respond(choices || []);
     } catch (error) {
