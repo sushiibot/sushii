@@ -1,9 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { Message } from "discord.js";
-import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
+import { ChannelType, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import { Notification } from "../domain/entities/Notification";
+import type { UserNotificationSettings } from "../domain/repositories/NotificationUserSettingsRepository";
 import { NotificationMetrics } from "../infrastructure/metrics/NotificationMetrics";
 import { NotificationMessageService } from "./NotificationMessageService";
 import type { NotificationService } from "./NotificationService";
@@ -15,6 +16,9 @@ describe("NotificationMessageService", () => {
     >(() => Promise.resolve([])),
     cleanupMemberLeft: mock<NotificationService["cleanupMemberLeft"]>(() =>
       Promise.resolve(),
+    ),
+    getUserSettingsMap: mock<NotificationService["getUserSettingsMap"]>(() =>
+      Promise.resolve(new Map()),
     ),
   };
 
@@ -88,7 +92,7 @@ describe("NotificationMessageService", () => {
       content: "test hello world",
       guildId: "guild1",
       channelId: "channel1",
-      channel: { parentId: "category1" },
+      channel: { parentId: "category1", isThread: () => false },
     };
 
     await service.processMessage(mockMessage as unknown as Message);
@@ -136,6 +140,7 @@ describe("NotificationMessageService", () => {
       channelId: "channel1",
       channel: {
         parentId: "category1",
+        isThread: () => false,
         permissionsFor: mock(() => ({ has: () => true })),
       },
       guild: mockGuild,
@@ -182,7 +187,7 @@ describe("NotificationMessageService", () => {
       content: "test message",
       guildId: "guild1",
       channelId: "channel1",
-      channel: { parentId: "category1" },
+      channel: { parentId: "category1", isThread: () => false },
       guild: mockGuild,
     };
 
@@ -192,5 +197,120 @@ describe("NotificationMessageService", () => {
       "guild1",
       "user1",
     );
+  });
+
+  describe("public thread filtering (ignoreUnjoinedThreads)", () => {
+    const userId = "user1";
+
+    function makeThreadMessage(isMember: boolean) {
+      const memberSend = mock(() => Promise.resolve());
+
+      const mockGuild = {
+        members: {
+          fetch: mock((id: string) => {
+            if (id === userId) {
+              return Promise.resolve({
+                id: userId,
+                send: memberSend,
+                displayAvatarURL: () => "avatar.png",
+              });
+            }
+            return Promise.reject(new Error("Member not found"));
+          }),
+        },
+      };
+
+      const mockMessage = {
+        inGuild: () => true,
+        author: {
+          bot: false,
+          id: "author123",
+          displayName: "Author",
+          tag: "Author#0000",
+          displayAvatarURL: () =>
+            "https://cdn.discordapp.com/avatars/author123/abc.png",
+        },
+        content: "test keyword",
+        guildId: "guild1",
+        channelId: "thread1",
+        channel: {
+          parentId: "channel1",
+          isThread: () => true,
+          type: ChannelType.PublicThread,
+          members: {
+            fetch: mock(() => Promise.resolve()),
+            cache: { has: mock((_id: string) => isMember) },
+          },
+          permissionsFor: mock(() => ({ has: () => true })),
+        },
+        guild: mockGuild,
+        url: "https://discord.com/channels/guild1/thread1/msg123",
+        member: null,
+      };
+
+      return { mockMessage, mockGuild, memberSend };
+    }
+
+    test("public thread + ignoreUnjoinedThreads: true + user IS a thread member → notification sent", async () => {
+      const notifications = [Notification.create("guild1", userId, "keyword")];
+      mockNotificationService.findMatchingNotifications.mockResolvedValue(
+        notifications,
+      );
+
+      const settings: UserNotificationSettings = {
+        ignoreUnjoinedThreads: true,
+      };
+      mockNotificationService.getUserSettingsMap.mockResolvedValue(
+        new Map([[userId, settings]]),
+      );
+
+      const { mockMessage, memberSend } = makeThreadMessage(true);
+
+      await service.processMessage(mockMessage as unknown as Message);
+
+      expect(memberSend).toHaveBeenCalled();
+    });
+
+    test("public thread + ignoreUnjoinedThreads: true + user is NOT a thread member → notification suppressed", async () => {
+      const notifications = [Notification.create("guild1", userId, "keyword")];
+      mockNotificationService.findMatchingNotifications.mockResolvedValue(
+        notifications,
+      );
+
+      const settings: UserNotificationSettings = {
+        ignoreUnjoinedThreads: true,
+      };
+      mockNotificationService.getUserSettingsMap.mockResolvedValue(
+        new Map([[userId, settings]]),
+      );
+
+      const { mockMessage, memberSend } = makeThreadMessage(false);
+
+      await service.processMessage(mockMessage as unknown as Message);
+
+      expect(memberSend).not.toHaveBeenCalled();
+    });
+
+    test("public thread + ignoreUnjoinedThreads: false → notification sent regardless of thread membership", async () => {
+      const notifications = [Notification.create("guild1", userId, "keyword")];
+      mockNotificationService.findMatchingNotifications.mockResolvedValue(
+        notifications,
+      );
+
+      const settings: UserNotificationSettings = {
+        ignoreUnjoinedThreads: false,
+      };
+      mockNotificationService.getUserSettingsMap.mockResolvedValue(
+        new Map([[userId, settings]]),
+      );
+
+      // User is NOT a thread member, but ignoreUnjoinedThreads is false so they
+      // should still receive the notification.
+      const { mockMessage, memberSend } = makeThreadMessage(false);
+
+      await service.processMessage(mockMessage as unknown as Message);
+
+      expect(memberSend).toHaveBeenCalled();
+    });
   });
 });

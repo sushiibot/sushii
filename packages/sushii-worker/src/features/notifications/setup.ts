@@ -8,6 +8,7 @@ import { NotificationMessageService } from "./application/NotificationMessageSer
 import { NotificationService } from "./application/NotificationService";
 import { DrizzleNotificationBlockRepository } from "./infrastructure/DrizzleNotificationBlockRepository";
 import { DrizzleNotificationRepository } from "./infrastructure/DrizzleNotificationRepository";
+import { DrizzleNotificationUserSettingsRepository } from "./infrastructure/DrizzleNotificationUserSettingsRepository";
 import { NotificationMetrics } from "./infrastructure/metrics/NotificationMetrics";
 import { NotificationAutocomplete } from "./presentation/autocompletes/NotificationAutocomplete";
 import { NotificationCommand } from "./presentation/commands/NotificationCommand";
@@ -26,10 +27,13 @@ export function createNotificationServices(
   const notificationBlockRepository = new DrizzleNotificationBlockRepository(
     db,
   );
+  const notificationUserSettingsRepository =
+    new DrizzleNotificationUserSettingsRepository(db);
 
   const notificationService = new NotificationService(
     notificationRepository,
     notificationBlockRepository,
+    notificationUserSettingsRepository,
     logger.child({ module: "notificationService" }),
   );
 
@@ -88,33 +92,16 @@ export function setupNotificationFeature({
 }: NotificationDependencies): FeatureSetupWithServices<
   ReturnType<typeof createNotificationServices>
 > {
-  const notificationRepository = new DrizzleNotificationRepository(db);
-  const notificationBlockRepository = new DrizzleNotificationBlockRepository(
-    db,
-  );
-
-  const notificationService = new NotificationService(
-    notificationRepository,
-    notificationBlockRepository,
-    logger.child({ module: "notificationService" }),
-  );
-
+  // notificationMetrics is created first because createNotificationServices
+  // requires it. The callback captures `services` which is assigned immediately
+  // after, so it is always defined by the time the callback is invoked.
+  let services: ReturnType<typeof createNotificationServices>;
   const notificationMetrics = new NotificationMetrics(() =>
-    notificationService.getTotalNotificationCount(),
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    services!.notificationService.getTotalNotificationCount(),
   );
 
-  const notificationMessageService = new NotificationMessageService(
-    notificationService,
-    logger.child({ module: "notificationMessageService" }),
-    notificationMetrics,
-  );
-
-  const services = {
-    notificationRepository,
-    notificationBlockRepository,
-    notificationService,
-    notificationMessageService,
-  };
+  services = createNotificationServices({ db, logger }, notificationMetrics);
   const commands = createNotificationCommands(services, logger);
   const events = createNotificationEventHandlers(
     services,

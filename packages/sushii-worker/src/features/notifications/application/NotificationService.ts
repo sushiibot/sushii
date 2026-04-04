@@ -4,11 +4,17 @@ import { Notification } from "../domain/entities/Notification";
 import { NotificationBlock } from "../domain/entities/NotificationBlock";
 import type { NotificationBlockRepository } from "../domain/repositories/NotificationBlockRepository";
 import type { NotificationRepository } from "../domain/repositories/NotificationRepository";
+import type {
+  NotificationUserSettingsRepository,
+  UserNotificationSettings,
+} from "../domain/repositories/NotificationUserSettingsRepository";
+import { DEFAULT_USER_NOTIFICATION_SETTINGS } from "../domain/repositories/NotificationUserSettingsRepository";
 
 export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly blockRepository: NotificationBlockRepository,
+    private readonly userSettingsRepository: NotificationUserSettingsRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -149,6 +155,33 @@ export class NotificationService {
 
   async getTotalNotificationCount(): Promise<number> {
     return this.notificationRepository.getTotalCount();
+  }
+
+  async setIgnoreUnjoinedThreads(
+    userId: string,
+    value: boolean,
+  ): Promise<void> {
+    await this.userSettingsRepository.setIgnoreUnjoinedThreads(userId, value);
+  }
+
+  async getUserSettingsMap(
+    userIds: string[],
+  ): Promise<Map<string, UserNotificationSettings>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const settingsMap =
+      await this.userSettingsRepository.getSettingsForUsers(userIds);
+
+    // Fill in defaults for users with no stored settings
+    for (const userId of userIds) {
+      if (!settingsMap.has(userId)) {
+        settingsMap.set(userId, { ...DEFAULT_USER_NOTIFICATION_SETTINGS });
+      }
+    }
+
+    return settingsMap;
   }
 
   async cleanupMemberLeft(guildId: string, userId: string): Promise<void> {

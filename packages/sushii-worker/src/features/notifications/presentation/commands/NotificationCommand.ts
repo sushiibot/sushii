@@ -1,10 +1,12 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ChannelType,
+  ContainerBuilder,
   EmbedBuilder,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
+  TextDisplayBuilder,
 } from "discord.js";
 import { t } from "i18next";
 
@@ -24,7 +26,15 @@ enum NotificationCommandName {
   BlockUser = "user",
   Blocklist = "blocklist",
   Unblock = "unblock",
+  IgnoreThreads = "ignore-threads",
 }
+
+const THREAD_FILTER_CHOICES = [
+  { name: "Only threads I've joined", value: "joined_only" },
+  { name: "All threads", value: "all" },
+] as const;
+
+type ThreadFilterChoice = (typeof THREAD_FILTER_CHOICES)[number]["value"];
 
 export class NotificationCommand extends SlashCommandHandler {
   constructor(private readonly notificationService: NotificationService) {
@@ -112,6 +122,22 @@ export class NotificationCommand extends SlashCommandHandler {
             .setRequired(true),
         ),
     )
+    .addSubcommand((c) =>
+      c
+        .setName(NotificationCommandName.IgnoreThreads)
+        .setDescription(
+          "Choose which threads you want to receive notifications from.",
+        )
+        .addStringOption((o) =>
+          o
+            .setName("threads")
+            .setDescription(
+              "Choose which threads you want to receive notifications from.",
+            )
+            .setRequired(true)
+            .addChoices(...THREAD_FILTER_CHOICES),
+        ),
+    )
     .toJSON();
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -147,6 +173,8 @@ export class NotificationCommand extends SlashCommandHandler {
         return this.handleBlocklist(interaction);
       case NotificationCommandName.Unblock:
         return this.handleUnblock(interaction);
+      case NotificationCommandName.IgnoreThreads:
+        return this.handleSettingsThreads(interaction);
       default:
         throw new Error("Invalid subcommand.");
     }
@@ -427,6 +455,39 @@ export class NotificationCommand extends SlashCommandHandler {
     await interaction.reply({
       embeds: [embed.toJSON()],
       flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  private async handleSettingsThreads(
+    interaction: ChatInputCommandInteraction<"cached">,
+  ): Promise<void> {
+    const filter = interaction.options.getString(
+      "threads",
+      true,
+    ) as ThreadFilterChoice;
+
+    const ignoreUnjoinedThreads = filter === "joined_only";
+
+    await this.notificationService.setIgnoreUnjoinedThreads(
+      interaction.user.id,
+      ignoreUnjoinedThreads,
+    );
+
+    const description = ignoreUnjoinedThreads
+      ? "You will only receive notifications from threads you've joined."
+      : "You will receive notifications from all threads you can see.";
+
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Success)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `## Notification settings updated\n${description}`,
+        ),
+      );
+
+    await interaction.reply({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 

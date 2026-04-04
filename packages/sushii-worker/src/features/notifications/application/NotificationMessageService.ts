@@ -8,6 +8,10 @@ import {
 import type { Logger } from "pino";
 
 import type { Notification } from "../domain/entities/Notification";
+import {
+  DEFAULT_USER_NOTIFICATION_SETTINGS,
+  type UserNotificationSettings,
+} from "../domain/repositories/NotificationUserSettingsRepository";
 import type { NotificationMetrics } from "../infrastructure/metrics/NotificationMetrics";
 import { createNotificationEmbed } from "../presentation/views/NotificationEmbedView";
 import type { NotificationService } from "./NotificationService";
@@ -40,14 +44,26 @@ export class NotificationMessageService {
       return;
     }
 
-    // Pre-fetch all thread members once to populate cache, avoiding N API calls
-    // (one per notification) later when checking private thread membership.
-    if (message.channel.type === ChannelType.PrivateThread) {
+    const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
+
+    const userIds = uniqueNotifications.map((n) => n.userId);
+    const settingsMap =
+      await this.notificationService.getUserSettingsMap(userIds);
+
+    // Pre-fetch thread members once to populate cache, avoiding N API calls
+    // later when checking thread membership. Only fetch when needed:
+    // - Private threads always require membership checks.
+    // - Public threads only need it when at least one user has ignoreUnjoinedThreads on.
+    const needsThreadMemberFetch =
+      message.channel.isThread() &&
+      (message.channel.type === ChannelType.PrivateThread ||
+        [...settingsMap.values()].some((s) => s.ignoreUnjoinedThreads));
+
+    if (needsThreadMemberFetch) {
       await message.channel.members.fetch();
     }
 
-    const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
-    await this.sendNotifications(message, uniqueNotifications);
+    await this.sendNotifications(message, uniqueNotifications, settingsMap);
 
     this.notificationMetrics.sentNotificationsCounter.add(1, {
       status: "success",
@@ -68,10 +84,14 @@ export class NotificationMessageService {
   private async sendNotifications(
     message: Message<true>,
     notifications: Notification[],
+    settingsMap: Map<string, UserNotificationSettings>,
   ): Promise<void> {
     for (const notification of notifications) {
       try {
-        await this.sendNotificationToUser(message, notification);
+        const settings =
+          settingsMap.get(notification.userId) ??
+          DEFAULT_USER_NOTIFICATION_SETTINGS;
+        await this.sendNotificationToUser(message, notification, settings);
       } catch (error) {
         this.logger.error(
           { error, guildId: message.guildId, userId: notification.userId },
@@ -84,6 +104,7 @@ export class NotificationMessageService {
   private async sendNotificationToUser(
     message: Message<true>,
     notification: Notification,
+    settings: UserNotificationSettings,
   ): Promise<void> {
     let member: GuildMember;
 
@@ -94,7 +115,7 @@ export class NotificationMessageService {
       return;
     }
 
-    if (!(await this.canMemberViewChannel(message, member))) {
+    if (!(await this.canMemberViewChannel(message, member, settings))) {
       this.logger.debug(
         {
           guildId: message.guildId,
@@ -203,6 +224,7 @@ export class NotificationMessageService {
   private async canMemberViewChannel(
     message: Message,
     member: GuildMember,
+    settings: UserNotificationSettings,
   ): Promise<boolean> {
     if (!message.inGuild()) {
       return false;
@@ -217,6 +239,12 @@ export class NotificationMessageService {
     // not thread membership. Private thread members must be explicitly added.
     // Cache was pre-populated in processMessage, so this is a cache-only lookup.
     if (message.channel.type === ChannelType.PrivateThread) {
+      return message.channel.members.cache.has(member.id);
+    }
+
+    // For public threads, optionally filter to only members who have joined.
+    // Cache was pre-populated in processMessage for all thread types.
+    if (message.channel.isThread() && settings.ignoreUnjoinedThreads) {
       return message.channel.members.cache.has(member.id);
     }
 

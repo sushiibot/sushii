@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 
 import { NotificationBlock } from "../domain/entities/NotificationBlock";
 import type { NotificationBlockRepository } from "../domain/repositories/NotificationBlockRepository";
+import { DEFAULT_USER_NOTIFICATION_SETTINGS } from "../domain/repositories/NotificationUserSettingsRepository";
 import { NotificationService } from "./NotificationService";
 
 describe("NotificationService", () => {
@@ -25,6 +26,11 @@ describe("NotificationService", () => {
     ),
   };
 
+  const mockUserSettingsRepo = {
+    setIgnoreUnjoinedThreads: mock(() => Promise.resolve()),
+    getSettingsForUsers: mock(() => Promise.resolve(new Map())),
+  };
+
   const mockLogger = {
     debug: mock(),
     error: mock(),
@@ -33,6 +39,7 @@ describe("NotificationService", () => {
   const service = new NotificationService(
     mockNotificationRepo,
     mockBlockRepo,
+    mockUserSettingsRepo,
     mockLogger as unknown as Logger,
   );
 
@@ -73,5 +80,51 @@ describe("NotificationService", () => {
 
     expect(result).toBe(block);
     expect(mockBlockRepo.delete).toHaveBeenCalledWith("user1", "blocked1");
+  });
+
+  test("setIgnoreUnjoinedThreads calls repo with correct args", async () => {
+    await service.setIgnoreUnjoinedThreads("user1", true);
+
+    expect(mockUserSettingsRepo.setIgnoreUnjoinedThreads).toHaveBeenCalledWith(
+      "user1",
+      true,
+    );
+  });
+
+  describe("getUserSettingsMap", () => {
+    test("returns empty Map without calling repo when given empty array", async () => {
+      mockUserSettingsRepo.getSettingsForUsers.mockClear();
+
+      const result = await service.getUserSettingsMap([]);
+
+      expect(result).toEqual(new Map());
+      expect(mockUserSettingsRepo.getSettingsForUsers).not.toHaveBeenCalled();
+    });
+
+    test("returns the repo's map when all users have stored settings", async () => {
+      const storedSettings = new Map([
+        ["user1", { ignoreUnjoinedThreads: true }],
+        ["user2", { ignoreUnjoinedThreads: false }],
+      ]);
+      mockUserSettingsRepo.getSettingsForUsers.mockResolvedValue(storedSettings);
+
+      const result = await service.getUserSettingsMap(["user1", "user2"]);
+
+      expect(result.get("user1")).toEqual({ ignoreUnjoinedThreads: true });
+      expect(result.get("user2")).toEqual({ ignoreUnjoinedThreads: false });
+    });
+
+    test("fills in defaults for users not present in repo result", async () => {
+      // Repo only returns settings for user1; user2 is absent
+      const storedSettings = new Map([
+        ["user1", { ignoreUnjoinedThreads: true }],
+      ]);
+      mockUserSettingsRepo.getSettingsForUsers.mockResolvedValue(storedSettings);
+
+      const result = await service.getUserSettingsMap(["user1", "user2"]);
+
+      expect(result.get("user1")).toEqual({ ignoreUnjoinedThreads: true });
+      expect(result.get("user2")).toEqual(DEFAULT_USER_NOTIFICATION_SETTINGS);
+    });
   });
 });
