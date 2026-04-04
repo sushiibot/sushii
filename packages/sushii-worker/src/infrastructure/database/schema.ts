@@ -372,6 +372,28 @@ export const notificationBlocksInAppPublic = appPublic.table(
   ],
 );
 
+export const notificationUserSettingsInAppPublic = appPublic.table(
+  "notification_user_settings",
+  {
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    ignoreUnjoinedThreads: boolean("ignore_unjoined_threads")
+      .notNull()
+      .default(false),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId],
+      name: "notification_user_settings_pkey",
+    }),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
 export const levelRolesInAppPublic = appPublic.table(
   "level_roles",
   {

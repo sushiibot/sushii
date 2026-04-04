@@ -169,6 +169,13 @@
       "when": 1774201349467,
       "tag": "0023_add-automod-alerts-channel",
       "breakpoints": false
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1774923207658,
+      "tag": "0024_notification-user-settings",
+      "breakpoints": false
     }
   ]
 }
