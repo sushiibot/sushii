@@ -50,3 +50,11 @@ jobs:
         run: |
           echo "Built and pushed image: ghcr.io/sushiibot/api-proxy:${{ steps.sha.outputs.sha_short }}"
           echo "Also tagged as: ghcr.io/sushiibot/api-proxy:latest"
+
+  docker-cleanup:
+    needs: docker-build
+    uses: sushiibot/sushii-workflows/.github/workflows/docker-cleanup.yml@main
+    with:
+      image_name: ghcr.io/sushiibot/api-proxy
+    permissions:
+      packages: write

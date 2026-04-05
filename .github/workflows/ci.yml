@@ -145,3 +145,12 @@ jobs:
       image_version: ${{ needs.docker-build.outputs.sha_short }}
       environment: staging
     secrets: inherit
+
+  docker-cleanup:
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: sushiibot/sushii-workflows/.github/workflows/docker-cleanup.yml@main
+    with:
+      image_name: ghcr.io/sushiibot/sushii-worker
+    permissions:
+      packages: write
