@@ -1,4 +1,3 @@
-import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -35,8 +34,6 @@ import logger from "@/shared/infrastructure/logger";
 import type InteractionRouter from "../discord/InteractionRouter";
 import type { EventHandler, EventType } from "../presentation/EventHandler";
 import { registerTasks } from "./registerTasks";
-
-const tracer = opentelemetry.trace.getTracer("feature-event-handler");
 
 // Extract channelId from event arguments based on event type
 function extractChannelIdFromEvent(
@@ -117,58 +114,22 @@ async function handleDiscordEvent(
       continue;
     }
 
-    // Handler is either exempt OR deployment is active
-    const p = tracer.startActiveSpan(
-      `${eventType}.${handler.constructor.name}`,
-      async (span) => {
-        try {
-          // Set basic attributes
-          span.setAttributes({
-            "event.type": eventType,
-            "handler.name": handler.constructor.name,
-            "handler.exempt": handler.isExemptFromDeploymentCheck ?? false,
-            "deployment.active": isDeploymentActive,
-          });
-
-          // Add pre-extracted context attributes
-          if (channelId) {
-            span.setAttribute("channel.id", channelId);
-          }
-          if (guildId) {
-            span.setAttribute("guild.id", guildId);
-          }
-          if (userId) {
-            span.setAttribute("user.id", userId);
-          }
-
-          return await handler.handle(
-            ...(args as Parameters<typeof handler.handle>),
-          );
-        } catch (error) {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error instanceof Error ? error.message : "Unknown error",
-          });
-
-          // Log the error with context
-          logger.error(
-            {
-              err: error,
-              eventType,
-              handler: handler.constructor.name,
-              channelId,
-              guildId,
-              userId,
-            },
-            `Error in handler ${handler.constructor.name} for event ${eventType}`,
-          );
-
-          throw error;
-        } finally {
-          span.end();
-        }
-      },
-    );
+    // Handlers that need tracing create their own spans internally.
+    const p = handler
+      .handle(...(args as Parameters<typeof handler.handle>))
+      .catch((error) => {
+        logger.error(
+          {
+            err: error,
+            eventType,
+            handler: handler.constructor.name,
+            channelId,
+            guildId,
+            userId,
+          },
+          `Error in handler ${handler.constructor.name} for event ${eventType}`,
+        );
+      });
 
     promises.push(p);
   }
