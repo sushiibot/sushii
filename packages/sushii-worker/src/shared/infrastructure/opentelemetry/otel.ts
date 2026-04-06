@@ -18,7 +18,6 @@ import {
   BatchSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import {
-  ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import * as Sentry from "@sentry/bun";
@@ -56,13 +55,16 @@ export function initializeOtel(logger: Logger, clusterId: number) {
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
   // BasicTracerProvider doesn't auto-read env vars like NodeSDK — use envDetector explicitly.
-  // Merging: envDetector values win over the fallback attributes below.
-  const resource = detectResources({ detectors: [envDetector] }).merge(
-    resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: "sushii_bot",
-      [ATTR_SERVICE_VERSION]: config.build.gitHash ?? "unknown",
-      "cluster.id": clusterId,
-    }),
+  // OTEL_SERVICE_NAME must be set in the environment — not hardcoded here since multiple services share this file.
+  // merge(other): other's attributes win, so envDetector result overrides the fallback attributes below.
+  const fallbackAttributes: Record<string, string> = {
+    "cluster.id": clusterId,
+  };
+  if (config.build.gitHash) {
+    fallbackAttributes[ATTR_SERVICE_VERSION] = config.build.gitHash;
+  }
+  const resource = resourceFromAttributes(fallbackAttributes).merge(
+    detectResources({ detectors: [envDetector] }),
   );
 
   // ---------------------------------------------------------------------------
