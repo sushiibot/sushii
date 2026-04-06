@@ -1,8 +1,11 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents } from "discord.js";
 import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { SpamActionService } from "../../application/SpamActionService";
@@ -32,6 +35,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     if (!payload.guild_id) {
       return;
     }
+    const guildId = payload.guild_id;
 
     // Ignore bots
     if (payload.author.bot) {
@@ -56,7 +60,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     try {
       // Check if guild has automod enabled
       const guildConfig = await this.guildConfigRepository.findByGuildId(
-        payload.guild_id,
+        guildId,
       );
 
       if (!guildConfig.moderationSettings.automodSpamEnabled) {
@@ -65,7 +69,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
 
       // Check for spam
       const spamMessages = this.spamDetectionService.checkForSpam(
-        payload.guild_id,
+        guildId,
         payload.author.id,
         spamKey,
         payload.channel_id,
@@ -79,22 +83,39 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             url: a.url,
           }),
         );
-        await this.spamActionService.executeSpamAction(
-          payload.guild_id,
-          payload.author.id,
-          payload.author.username,
-          spamMessages,
-          contentPart ?? null,
-          attachments,
-          guildConfig.moderationSettings.automodAlertsChannelId,
-        );
+        await tracer.startActiveSpan("automod.spam-action", async (span) => {
+          span.setAttributes({
+            "guild.id": guildId,
+            "user.id": payload.author.id,
+            "spam.channel_count": spamMessages.size,
+          });
+          try {
+            await this.spamActionService.executeSpamAction(
+              guildId,
+              payload.author.id,
+              payload.author.username,
+              spamMessages,
+              contentPart ?? null,
+              attachments,
+              guildConfig.moderationSettings.automodAlertsChannelId,
+            );
+          } catch (err) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+          } finally {
+            span.end();
+          }
+        });
       }
     } catch (err) {
       this.logger.error(
         {
           err,
           messageId: payload.id,
-          guildId: payload.guild_id,
+          guildId: guildId,
           userId: payload.author.id,
         },
         "Failed to process message for automod spam detection",

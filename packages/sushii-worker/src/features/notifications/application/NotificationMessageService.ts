@@ -1,4 +1,7 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { GuildMember, Message } from "discord.js";
+
+const tracer = opentelemetry.trace.getTracer("notifications");
 import {
   ChannelType,
   DiscordAPIError,
@@ -44,29 +47,47 @@ export class NotificationMessageService {
       return;
     }
 
-    const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
+    // Notifications matched — span covers delivery work only.
+    await tracer.startActiveSpan("notifications.deliver", async (span) => {
+      span.setAttributes({
+        "guild.id": message.guildId,
+        "channel.id": message.channelId,
+        "matched_count": matchedNotifications.length,
+      });
+      try {
+        const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
 
-    const userIds = uniqueNotifications.map((n) => n.userId);
-    const settingsMap =
-      await this.notificationService.getUserSettingsMap(userIds);
+        const userIds = uniqueNotifications.map((n) => n.userId);
+        const settingsMap =
+          await this.notificationService.getUserSettingsMap(userIds);
 
-    // Pre-fetch thread members once to populate cache, avoiding N API calls
-    // later when checking thread membership. Only fetch when needed:
-    // - Private threads always require membership checks.
-    // - Public threads only need it when at least one user has ignoreUnjoinedThreads on.
-    const needsThreadMemberFetch =
-      message.channel.isThread() &&
-      (message.channel.type === ChannelType.PrivateThread ||
-        [...settingsMap.values()].some((s) => s.ignoreUnjoinedThreads));
+        // Pre-fetch thread members once to populate cache, avoiding N API calls
+        // later when checking thread membership. Only fetch when needed:
+        // - Private threads always require membership checks.
+        // - Public threads only need it when at least one user has ignoreUnjoinedThreads on.
+        const needsThreadMemberFetch =
+          message.channel.isThread() &&
+          (message.channel.type === ChannelType.PrivateThread ||
+            [...settingsMap.values()].some((s) => s.ignoreUnjoinedThreads));
 
-    if (needsThreadMemberFetch) {
-      await message.channel.members.fetch();
-    }
+        if (needsThreadMemberFetch) {
+          await message.channel.members.fetch();
+        }
 
-    await this.sendNotifications(message, uniqueNotifications, settingsMap);
+        await this.sendNotifications(message, uniqueNotifications, settingsMap);
 
-    this.notificationMetrics.sentNotificationsCounter.add(1, {
-      status: "success",
+        this.notificationMetrics.sentNotificationsCounter.add(1, {
+          status: "success",
+        });
+      } catch (err) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      } finally {
+        span.end();
+      }
     });
   }
 

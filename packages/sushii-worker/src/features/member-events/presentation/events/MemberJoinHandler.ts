@@ -1,8 +1,11 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { GuildMember } from "discord.js";
 import { Events } from "discord.js";
 import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
+
+const tracer = opentelemetry.trace.getTracer("member-events");
 
 import type {
   JoinLeaveMessageService,
@@ -21,21 +24,28 @@ export class MemberJoinHandler extends EventHandler<Events.GuildMemberAdd> {
   readonly eventType = Events.GuildMemberAdd;
 
   async handle(member: GuildMember): Promise<void> {
-    try {
-      // Run both services in parallel
-      await Promise.allSettled([
-        this.memberLogService.logMemberJoin(member),
-        this.joinLeaveMessageService.sendJoinMessage(member),
-      ]);
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId: member.guild.id,
-          userId: member.user.id,
-        },
-        "Unexpected error in member join handler",
-      );
-    }
+    await tracer.startActiveSpan("member-events.join", async (span) => {
+      span.setAttributes({
+        "guild.id": member.guild.id,
+        "user.id": member.user.id,
+      });
+      try {
+        await Promise.allSettled([
+          this.memberLogService.logMemberJoin(member),
+          this.joinLeaveMessageService.sendJoinMessage(member),
+        ]);
+      } catch (error) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        this.logger.error(
+          { err: error, guildId: member.guild.id, userId: member.user.id },
+          "Unexpected error in member join handler",
+        );
+      } finally {
+        span.end();
+      }
+    });
   }
 }

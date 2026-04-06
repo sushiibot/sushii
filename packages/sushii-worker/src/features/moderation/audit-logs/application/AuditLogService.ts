@@ -1,7 +1,10 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Guild, GuildAuditLogsEntry, User } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
+
+const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
 
 import type { DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
@@ -53,65 +56,78 @@ export class AuditLogService {
         return Ok.EMPTY;
       }
 
-      // Step 2: Handle native timeout DMs if applicable
-      let updatedModLogCase = processedLog.modLogCase;
-      const dmResult = await this.sendTimeoutDMIfNeeded(
-        processedLog.auditLogEvent,
-        processedLog.targetUser,
-        guild,
-        processedLog.modLogCase.caseId,
-        processedLog.wasPendingCase,
-      );
-      if (dmResult.err) {
-        this.logger?.warn(
-          { err: dmResult.val },
-          "Failed to send native timeout DM, continuing with mod log posting",
-        );
-      } else if (dmResult.ok) {
-        // Update the case object with DM information if DM was sent successfully
-        const dmInfo = dmResult.val;
-        if (dmInfo) {
-          const dmResultForCase: DMResult = {};
+      // A real moderation case matched — span covers steps 2-4.
+      return tracer.startActiveSpan(
+        "moderation.audit-log.process-case",
+        async (span) => {
+          span.setAttributes({
+            "guild.id": guild.id,
+            "action.type": String(processedLog.auditLogEvent.actionType),
+            "target.id": processedLog.modLogCase.userId,
+            "case.id": processedLog.modLogCase.caseId,
+            "was_pending_case": processedLog.wasPendingCase,
+          });
 
-          if (dmInfo.channelId) {
-            dmResultForCase.channelId = dmInfo.channelId;
+          try {
+            // Step 2: Handle native timeout DMs if applicable
+            let updatedModLogCase = processedLog.modLogCase;
+            const dmResult = await this.sendTimeoutDMIfNeeded(
+              processedLog.auditLogEvent,
+              processedLog.targetUser,
+              guild,
+              processedLog.modLogCase.caseId,
+              processedLog.wasPendingCase,
+            );
+            if (dmResult.err) {
+              this.logger?.warn(
+                { err: dmResult.val },
+                "Failed to send native timeout DM, continuing with mod log posting",
+              );
+            } else if (dmResult.ok) {
+              const dmInfo = dmResult.val;
+              if (dmInfo) {
+                const dmResultForCase: DMResult = {};
+                if (dmInfo.channelId) dmResultForCase.channelId = dmInfo.channelId;
+                if (dmInfo.messageId) dmResultForCase.messageId = dmInfo.messageId;
+                if (dmInfo.error) dmResultForCase.error = dmInfo.error;
+                updatedModLogCase = processedLog.modLogCase.withDMResult(dmResultForCase);
+              }
+            }
+
+            // Step 3: Post mod log message with updated case
+            const postResult = await this.modLogPostingService.postModLogMessage(
+              processedLog.auditLogEvent,
+              updatedModLogCase,
+              processedLog.targetUser,
+              guild,
+              processedLog.guildConfig.modLogChannelId,
+            );
+
+            if (postResult.err) {
+              span.setStatus({ code: SpanStatusCode.ERROR, message: postResult.val });
+              return postResult as Err<string>;
+            }
+
+            // Step 4: Update mod log case with message ID
+            const messageId = postResult.val;
+            await this.updateCaseMessageId(
+              processedLog.modLogCase.guildId,
+              processedLog.modLogCase.caseId,
+              messageId,
+            );
+
+            return Ok.EMPTY;
+          } catch (err) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+          } finally {
+            span.end();
           }
-
-          if (dmInfo.messageId) {
-            dmResultForCase.messageId = dmInfo.messageId;
-          }
-
-          if (dmInfo.error) {
-            dmResultForCase.error = dmInfo.error;
-          }
-
-          updatedModLogCase =
-            processedLog.modLogCase.withDMResult(dmResultForCase);
-        }
-      }
-
-      // Step 3: Post mod log message with updated case
-      const postResult = await this.modLogPostingService.postModLogMessage(
-        processedLog.auditLogEvent,
-        updatedModLogCase,
-        processedLog.targetUser,
-        guild,
-        processedLog.guildConfig.modLogChannelId,
+        },
       );
-
-      if (postResult.err) {
-        return postResult as Err<string>;
-      }
-
-      // Step 4: Update mod log case with message ID
-      const messageId = postResult.val;
-      await this.updateCaseMessageId(
-        processedLog.modLogCase.guildId,
-        processedLog.modLogCase.caseId,
-        messageId,
-      );
-
-      return Ok.EMPTY;
     } catch (error) {
       this.logger?.error(
         {
