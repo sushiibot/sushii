@@ -1,14 +1,22 @@
+import { context, metrics, propagation, trace } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import {
   detectResources,
   envDetector,
   resourceFromAttributes,
 } from "@opentelemetry/resources";
-import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import {
+  MeterProvider,
+  PeriodicExportingMetricReader,
+} from "@opentelemetry/sdk-metrics";
+import {
+  BasicTracerProvider,
+  BatchSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -48,7 +56,8 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   });
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
-  // Merging with defaults: envDetector values win over the fallback attributes.
+  // BasicTracerProvider doesn't auto-read env vars like NodeSDK — use envDetector explicitly.
+  // Merging: envDetector values win over the fallback attributes below.
   const resource = detectResources({ detectors: [envDetector] }).merge(
     resourceFromAttributes({
       [ATTR_SERVICE_NAME]: "sushii_bot",
@@ -57,46 +66,54 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     }),
   );
 
+  // ---------------------------------------------------------------------------
+  // Traces — BasicTracerProvider works in Bun; NodeSDK/NodeTracerProvider don't
+  // (they use import-in-the-middle / async_hooks which fail silently in Bun)
+  // ---------------------------------------------------------------------------
+  const traceExporter = new OTLPTraceExporter();
+  const tracerProvider = new BasicTracerProvider({
+    resource,
+    sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
+    spanProcessors: [
+      new SentrySpanProcessor(),
+      new BatchSpanProcessor(traceExporter),
+    ],
+  });
+
+  trace.setGlobalTracerProvider(tracerProvider);
+  propagation.setGlobalPropagator(new SentryPropagator());
+
+  // AsyncLocalStorage is supported by Bun — required for parent-child span tracking.
+  // SentryContextManager wraps it for Sentry context propagation.
+  const contextManager = new SentryContextManager();
+  contextManager.enable();
+  context.setGlobalContextManager(contextManager);
+
+  // UndiciInstrumentation uses diagnostics_channel (no module patching) — works in Bun.
+  // Note: PinoInstrumentation uses require-in-the-middle and is NOT compatible with Bun.
+  registerInstrumentations({
+    instrumentations: [new UndiciInstrumentation()],
+  });
+
+  validateOpenTelemetrySetup();
+
+  // ---------------------------------------------------------------------------
+  // Metrics
+  // ---------------------------------------------------------------------------
   const parsed = parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL ?? "", 10);
   const exportIntervalMillis = Number.isNaN(parsed) ? 60_000 : parsed;
 
-  const sdk = new NodeSDK({
-    // Base
+  const meterProvider = new MeterProvider({
     resource,
-
-    // Traces
-    sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
-    spanProcessors: [
-      // Ensure spans are correctly linked & sent to Sentry
-      new SentrySpanProcessor(),
+    readers: [
+      new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter(),
+        exportIntervalMillis,
+        exportTimeoutMillis: 5_000,
+      }),
     ],
-    // Ensure trace propagation works
-    textMapPropagator: new SentryPropagator(),
-    // Ensure context & request isolation are correctly managed
-    contextManager: new SentryContextManager(),
-
-    // Exporter
-    traceExporter: new OTLPTraceExporter(),
-
-    // Instrumentations
-    // - PinoInstrumentation: injects trace_id/span_id into pino log records
-    // - UndiciInstrumentation: traces undici HTTP calls (including discord.js) via diagnostics_channel
-    instrumentations: [
-      new PinoInstrumentation(),
-      new UndiciInstrumentation(),
-    ],
-
-    // Metrics
-    metricReader: new PeriodicExportingMetricReader({
-      exporter: new OTLPMetricExporter(),
-      exportIntervalMillis,
-      exportTimeoutMillis: 5_000,
-    }),
   });
-
-  sdk.start();
-
-  validateOpenTelemetrySetup();
+  metrics.setGlobalMeterProvider(meterProvider);
 
   logger.info(
     {
@@ -106,5 +123,9 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     "opentelemetry initialized",
   );
 
-  return sdk;
+  const shutdown = async () => {
+    await Promise.all([tracerProvider.shutdown(), meterProvider.shutdown()]);
+  };
+
+  return { tracerProvider, meterProvider, shutdown };
 }
