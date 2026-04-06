@@ -1,13 +1,18 @@
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import {
-  defaultResource,
+  detectResources,
+  envDetector,
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import {
+  ATTR_SERVICE_NAME,
+  ATTR_SERVICE_VERSION,
+} from "@opentelemetry/semantic-conventions";
 import * as Sentry from "@sentry/bun";
 import {
   SentryContextManager,
@@ -22,6 +27,16 @@ import type { Logger } from "pino";
 
 import { config } from "@/shared/infrastructure/config";
 
+// Standard OTel env vars (read via envDetector):
+//   OTEL_EXPORTER_OTLP_ENDPOINT     — HTTP collector (default: http://localhost:4318)
+//   OTEL_EXPORTER_OTLP_HEADERS      — auth headers (key=value,key2=value2)
+//   OTEL_SERVICE_NAME               — overrides default "sushii_bot"
+//   OTEL_RESOURCE_ATTRIBUTES        — e.g. deployment.environment=production
+//
+// Custom env vars (read manually):
+//   GIT_HASH                        — mapped to service.version
+//   OTEL_METRIC_EXPORT_INTERVAL     — metric flush interval in ms (default 60000)
+
 export function initializeOtel(logger: Logger, clusterId: number) {
   const sentryClient = Sentry.init({
     dsn: config.sentry.dsn,
@@ -32,36 +47,30 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     tracesSampleRate: 0.005,
   });
 
-  const resource = defaultResource().merge(
+  // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
+  // Merging with defaults: envDetector values win over the fallback attributes.
+  const resource = detectResources({ detectors: [envDetector] }).merge(
     resourceFromAttributes({
       [ATTR_SERVICE_NAME]: "sushii_bot",
-      // No version yet
-      // [ATTR_SERVICE_VERSION]: "v1.0.0"
+      [ATTR_SERVICE_VERSION]: config.build.gitHash ?? "unknown",
       "cluster.id": clusterId,
     }),
   );
 
-  // Log OTEL configuration for debugging
-  logger.info(
-    {
-      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-    },
-    "Initializing OTEL metric exporter",
-  );
+  const parsed = parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL ?? "", 10);
+  const exportIntervalMillis = Number.isNaN(parsed) ? 60_000 : parsed;
 
   const sdk = new NodeSDK({
     // Base
-    resource: resource,
+    resource,
 
     // Traces
     sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
     spanProcessors: [
       // Ensure spans are correctly linked & sent to Sentry
       new SentrySpanProcessor(),
-      // Add additional processors here
     ],
     // Ensure trace propagation works
-    // This relies on the SentrySampler for correct propagation
     textMapPropagator: new SentryPropagator(),
     // Ensure context & request isolation are correctly managed
     contextManager: new SentryContextManager(),
@@ -69,25 +78,30 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     // Exporter
     traceExporter: new OTLPTraceExporter(),
 
+    // Instrumentations
+    // - PinoInstrumentation: injects trace_id/span_id into pino log records
+    // - UndiciInstrumentation: traces undici HTTP calls (including discord.js) via diagnostics_channel
+    instrumentations: [
+      new PinoInstrumentation(),
+      new UndiciInstrumentation(),
+    ],
+
     // Metrics
-    instrumentations: [getNodeAutoInstrumentations()],
     metricReader: new PeriodicExportingMetricReader({
-      // Configured via env vars, e.g. `OTEL_EXPORTER_OTLP_ENDPOINT`
       exporter: new OTLPMetricExporter(),
-      exportIntervalMillis: 60_000,
+      exportIntervalMillis,
       exportTimeoutMillis: 5_000,
     }),
   });
 
-  // initialize the SDK and register with the OpenTelemetry API
-  // this enables the API to record telemetry
   sdk.start();
 
   validateOpenTelemetrySetup();
 
   logger.info(
     {
-      resource: resource.getRawAttributes(),
+      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      exportIntervalMillis,
     },
     "opentelemetry initialized",
   );
