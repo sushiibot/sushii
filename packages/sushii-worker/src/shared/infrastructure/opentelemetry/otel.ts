@@ -52,7 +52,6 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     release: config.build.gitHash,
     skipOpenTelemetrySetup: true,
 
-    tracesSampleRate: 1.0,
   });
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
