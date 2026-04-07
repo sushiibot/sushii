@@ -43,14 +43,19 @@ import { config } from "@/shared/infrastructure/config";
 // Custom env vars (read manually):
 //   GIT_HASH                        — mapped to service.version
 //   OTEL_METRIC_EXPORT_INTERVAL     — metric flush interval in ms (default 60000)
+//   SENTRY_TRACES_SAMPLE_RATE       — SentrySampler sample rate (default 1.0)
 
 export function initializeOtel(logger: Logger, clusterId: number) {
+  const sentryTracesSampleRate = parseFloat(
+    process.env.SENTRY_TRACES_SAMPLE_RATE ?? "1.0",
+  );
+
   const sentryClient = Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.sentry.environment,
     release: config.build.gitHash,
     skipOpenTelemetrySetup: true,
-
+    tracesSampleRate: sentryTracesSampleRate,
   });
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
@@ -58,7 +63,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   // OTEL_SERVICE_NAME must be set in the environment — not hardcoded here since multiple services share this file.
   // merge(other): other's attributes win, so envDetector result overrides the fallback attributes below.
   const fallbackAttributes: Record<string, string> = {
-    "cluster.id": clusterId,
+    "cluster.id": String(clusterId),
   };
   if (config.build.gitHash) {
     fallbackAttributes[ATTR_SERVICE_VERSION] = config.build.gitHash;
