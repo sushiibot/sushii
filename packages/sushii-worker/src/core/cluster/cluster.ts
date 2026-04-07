@@ -3,6 +3,7 @@ import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { Client, Events, GatewayIntentBits, Options, Partials } from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
+import { makeTracedDiscordRequest } from "@/shared/infrastructure/opentelemetry/discordRestTracing";
 import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
 
 import "../../shared/domain/dayjs";
@@ -48,6 +49,7 @@ async function initializeShardCluster(): Promise<void> {
     ],
     rest: {
       version: "10",
+      makeRequest: makeTracedDiscordRequest,
       // Optional proxy URL
       ...(config.discord.proxyUrl
         ? {
