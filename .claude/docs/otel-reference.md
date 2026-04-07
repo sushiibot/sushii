@@ -19,12 +19,61 @@ Key findings from that issue:
 
 A native `bun-otel` package is in progress (PR #24063) but not merged as of 2026-04.
 
+## Pino log-trace correlation
+
+Add a mixin to the pino logger to inject trace context into every log record:
+
+```ts
+import { trace } from "@opentelemetry/api";
+import pino from "pino";
+
+const logger = pino({
+  // ...
+  mixin() {
+    const span = trace.getActiveSpan();
+    if (!span) return {};
+    const { traceId, spanId, traceFlags } = span.spanContext();
+    if (!traceId) return {};
+    return { trace_id: traceId, span_id: spanId, trace_flags: traceFlags };
+  },
+});
+```
+
+**Do not use `@opentelemetry/instrumentation-pino`** — it relies on module patching which silently fails in Bun (same root cause as NodeSDK). The manual mixin uses the OTel API directly and works correctly.
+
+The otel-collector-agent is already configured to parse JSON log bodies and promote `trace_id`/`span_id` to OTel log record fields — no per-service changes needed. See `sushii-ansible/services/monitoring/otel-collector-agent/otel-collector-agent-config.yaml`.
+
+## Bun fetch() tracing
+
+`UndiciInstrumentation` only captures undici HTTP calls. Bun's native `fetch()` is **not** undici and is not captured automatically. Wrap `fetch()` manually with a `SpanKind.CLIENT` span using these attributes for SigNoz external API monitoring:
+
+```ts
+import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
+
+tracer.startActiveSpan("GET api.example.com", {
+  kind: SpanKind.CLIENT,
+  attributes: {
+    "http.request.method": method,
+    "url.full": req.url,
+    "server.address": hostname,
+  },
+}, async (span) => {
+  const res = await fetch(req);
+  span.setAttribute("http.response.status_code", res.status);
+  // ...
+  span.end();
+});
+```
+
+`server.address` and `url.full` are required for SigNoz's External API monitoring view to detect and group calls by domain.
+
 ## Services using this pattern
 
 | Service | Status |
 |---|---|
 | sushii-modmail | canonical source (updated 2026-04) |
 | sushii-leveling-bot | updated 2026-04 |
+| sushii-sns | updated 2026-04 (includes pino mixin + tracedFetch) |
 
 When you improve the template, update this table and backport to the listed services.
 
