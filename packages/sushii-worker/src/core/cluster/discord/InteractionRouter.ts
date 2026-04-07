@@ -39,6 +39,21 @@ import parseValidationError from "@/utils/parseValidationError";
 
 const tracer = opentelemetry.trace.getTracer("interaction-client");
 
+function getInteractionSpanName(type: InteractionType): string {
+  switch (type) {
+    case InteractionType.ApplicationCommand:
+      return "discord.interaction.command";
+    case InteractionType.ApplicationCommandAutocomplete:
+      return "discord.interaction.autocomplete";
+    case InteractionType.MessageComponent:
+      return "discord.interaction.component";
+    case InteractionType.ModalSubmit:
+      return "discord.interaction.modal";
+    default:
+      return "discord.interaction";
+  }
+}
+
 // For JSON.stringify()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (BigInt.prototype as any).toJSON = function (): string {
@@ -769,7 +784,7 @@ export default class InteractionRouter {
       );
     }
 
-    await tracer.startActiveSpan("handleAPIInteraction", async (span) => {
+    await tracer.startActiveSpan(getInteractionSpanName(interaction.type), async (span) => {
       span.setAttribute("interactionType", interaction.type);
       span.setAttribute("interactionAgeMs", ageMs);
 
