@@ -82,7 +82,7 @@ if (!parsed.success) {
 
   logger.error(
     {
-      error: parsed.error.format(),
+      error: z.prettifyError(parsed.error),
     },
     "❌ Invalid environment variables",
   );

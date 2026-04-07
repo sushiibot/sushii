@@ -666,7 +666,7 @@ export default class InteractionRouter {
         },
       });
 
-      log.error(e, "error handling modal %s: %s", interaction.id);
+      log.error(e, "error handling modal %s", interaction.id);
       return false;
     }
   }
@@ -748,7 +748,7 @@ export default class InteractionRouter {
       return true;
     } catch (e) {
       Sentry.captureException(e);
-      log.error(e, "error handling select menu %s: %o", interaction.id);
+      log.error(e, "error handling select menu %s", interaction.id);
       return false;
     }
   }
