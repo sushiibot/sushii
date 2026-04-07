@@ -2,7 +2,7 @@
 
 Canonical setup for sushii-* services running on Bun (non-Sentry). Copy from `.claude/templates/otel/` — only change the tracer name in `tracing.ts`.
 
-> **sushii-worker** is different: uses `NodeSDK` + Sentry integration. See `packages/sushii-worker/src/shared/infrastructure/opentelemetry/otel.ts`.
+> **sushii-worker** is different: uses `BasicTracerProvider` + Sentry integration (`SentrySampler`, `SentrySpanProcessor`, `SentryContextManager`, `SentryPropagator`). See `packages/sushii-worker/src/shared/infrastructure/opentelemetry/otel.ts`.
 
 ## Why not NodeSDK / NodeTracerProvider?
 
@@ -15,7 +15,7 @@ Key findings from that issue:
 - Auto-instrumentation (http, pg, etc.) does not work — module patching is broken in Bun's ESM
 - `BasicTracerProvider` + HTTP exporters work correctly
 - `AsyncLocalStorage` **is** supported by Bun, so `AsyncLocalStorageContextManager` works
-- `@opentelemetry/instrumentation-undici` works because it uses `diagnostics_channel` only (no module patching) — this gives automatic tracing for all undici HTTP calls including discord.js
+- `@opentelemetry/instrumentation-undici` works because it uses `diagnostics_channel` only (no module patching) — but only captures true undici calls. Discord.js in Bun uses the **global `fetch`** (web entry point), not undici directly, so Discord REST calls are **not** captured automatically (see Discord REST section below)
 
 A native `bun-otel` package is in progress (PR #24063) but not merged as of 2026-04.
 
@@ -66,6 +66,31 @@ tracer.startActiveSpan("GET api.example.com", {
 ```
 
 `server.address` and `url.full` are required for SigNoz's External API monitoring view to detect and group calls by domain.
+
+## Discord REST tracing (sushii-worker)
+
+Discord.js in Bun uses global `fetch` (not undici), so `UndiciInstrumentation` — although still registered — misses all Discord API calls. Instead, hook into `@discordjs/rest`'s `makeRequest` option.
+
+**Key points:**
+- Extract `MakeRequestInit` from `RESTOptions["makeRequest"]` to avoid undici version conflicts
+- Normalize path segments: snowflakes (`\d{17,21}`) → `{id}`, long base64url strings (80+ chars) → `{token}`
+- Query params are excluded (only `pathname` is used)
+- Set `url.full` to `https://discord.com${normalizedPath}` — SigNoz External API monitoring requires `url.full` to detect and group calls by domain; using the normalized path prevents token leakage
+- Use `http.route` for the normalized path (OTel semantic conventions)
+
+See `packages/sushii-worker/src/shared/infrastructure/opentelemetry/discordRestTracing.ts` for the full implementation.
+
+Wire it up in the Discord client constructor:
+
+```ts
+import { makeTracedDiscordRequest } from "@/shared/infrastructure/opentelemetry/discordRestTracing";
+
+new Client({
+  rest: {
+    makeRequest: makeTracedDiscordRequest,
+  },
+});
+```
 
 ## Services using this pattern
 

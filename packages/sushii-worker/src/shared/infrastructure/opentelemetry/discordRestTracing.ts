@@ -56,6 +56,10 @@ export async function makeTracedDiscordRequest(
       attributes: {
         "http.request.method": method,
         "http.route": route,
+        // url.full is required for SigNoz External API monitoring to detect and group
+        // calls by domain. We use the normalized path (tokens replaced) so no
+        // interaction tokens or snowflakes are stored in traces.
+        "url.full": `https://discord.com${route}`,
         "server.address": "discord.com",
       },
     },
