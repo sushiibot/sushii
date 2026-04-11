@@ -10,7 +10,7 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 /**
  * Bounded in-memory cache for native Discord AutoMod alert messages.
  * Keyed by guildId → userId → list of recent alert entries.
- * Entries are pruned lazily on read (no background timer needed).
+ * Entries are consumed and removed when read (no background timer needed).
  */
 export class AutomodAlertCache {
   private readonly cache = new Map<string, Map<string, AutomodAlertEntry[]>>();
@@ -42,7 +42,7 @@ export class AutomodAlertCache {
     guildMap.set(userId, fresh);
   }
 
-  getRecent(guildId: string, userId: string): readonly AutomodAlertEntry[] {
+  consumeRecent(guildId: string, userId: string): readonly AutomodAlertEntry[] {
     const guildMap = this.cache.get(guildId);
     if (!guildMap) return [];
 
@@ -52,13 +52,10 @@ export class AutomodAlertCache {
     const cutoff = Date.now() - MAX_AGE_MS;
     const recent = entries.filter((e) => e.timestamp >= cutoff);
 
-    // Prune in place
-    if (recent.length !== entries.length) {
-      if (recent.length === 0) {
-        guildMap.delete(userId);
-      } else {
-        guildMap.set(userId, recent);
-      }
+    // Remove consumed entries; clean up guild map if now empty
+    guildMap.delete(userId);
+    if (guildMap.size === 0) {
+      this.cache.delete(guildId);
     }
 
     return recent;

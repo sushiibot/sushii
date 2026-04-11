@@ -57,6 +57,13 @@ export class MessageDeleteAuditLogCache {
       return Promise.resolve(audit);
     }
 
+    // Resolve any existing wait for the same key so the first caller doesn't hang.
+    const existing = this.pendingWaits.get(k);
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.resolve(null);
+    }
+
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pendingWaits.delete(k);

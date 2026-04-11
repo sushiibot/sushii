@@ -26,7 +26,7 @@ export class AutomodAlertReactionService {
     targetUserId: string,
     actionType: ActionType,
   ): Promise<void> {
-    const entries = this.cache.getRecent(guild.id, targetUserId);
+    const entries = this.cache.consumeRecent(guild.id, targetUserId);
     if (entries.length === 0) return;
 
     // Prefer the bot's custom emoji, fall back to unicode
@@ -36,7 +36,7 @@ export class AutomodAlertReactionService {
       ? `${botEmoji.name}:${botEmoji.id}`
       : getActionTypeEmoji(actionType);
 
-    await Promise.allSettled(
+    await Promise.all(
       entries.map(async (entry) => {
         try {
           const channel = await guild.channels.fetch(entry.channelId);
