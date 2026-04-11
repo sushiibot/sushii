@@ -9,10 +9,12 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { MessageCacheService } from "./application/MessageCacheService";
+import { MessageDeleteAuditLogCache } from "./application/MessageDeleteAuditLogCache";
 import { MessageLogService } from "./application/MessageLogService";
 import { DrizzleMessageLogBlockRepository } from "./infrastructure/DrizzleMessageLogBlockRepository";
 import { DrizzleMessageLogEventRepository } from "./infrastructure/DrizzleMessageLogEventRepository";
 import { DeleteOldMessagesTask } from "./infrastructure/tasks/DeleteOldMessagesTask";
+import { MessageDeleteAuditLogHandler } from "./presentation/events/MessageDeleteAuditLogHandler";
 import { MessageLogRawHandler } from "./presentation/events/MessageLogRawHandler";
 
 interface MessageLogServices {
@@ -47,19 +49,27 @@ export function setupMessageLog(
     logger.child({ component: "MessageCacheService" }),
   );
 
+  const auditLogCache = new MessageDeleteAuditLogCache();
+
   const messageLogService = new MessageLogService(
     client,
     messageLogEventRepository,
     messageLogBlockRepository,
     guildConfigRepository,
     emojiRepository,
+    auditLogCache,
     logger.child({ component: "MessageLogService" }),
   );
 
-  // Create raw handler
+  // Create event handlers
   const messageLogRawHandler = new MessageLogRawHandler(
     messageCacheService,
     messageLogService,
+  );
+
+  const messageDeleteAuditLogHandler = new MessageDeleteAuditLogHandler(
+    auditLogCache,
+    logger.child({ component: "MessageDeleteAuditLogHandler" }),
   );
 
   // Create tasks
@@ -74,7 +84,7 @@ export function setupMessageLog(
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
-    eventHandlers: [messageLogRawHandler],
+    eventHandlers: [messageLogRawHandler, messageDeleteAuditLogHandler],
     tasks: [deleteOldMessagesTask],
     services: {
       messageCacheService,

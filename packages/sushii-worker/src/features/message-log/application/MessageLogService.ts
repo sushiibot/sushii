@@ -1,4 +1,4 @@
-import type { Client } from "discord.js";
+import type { Client, Message } from "discord.js";
 import { EmbedBuilder, messageLink } from "discord.js";
 import type { Logger } from "pino";
 import type { Option } from "ts-results";
@@ -12,6 +12,7 @@ import Color from "@/utils/colors";
 
 const MESSAGE_LOG_EMOJI_NAMES = ["message_delete", "message_edit"] as const;
 
+import type { MessageDeleteAuditLogCache } from "./MessageDeleteAuditLogCache";
 import type { MessageLogEvent } from "../domain/entities/MessageLogEvent";
 import type { MessageLogBlockRepository } from "../domain/repositories/MessageLogBlockRepository";
 import type { MessageLogEventRepository } from "../domain/repositories/MessageLogEventRepository";
@@ -28,6 +29,7 @@ export class MessageLogService {
     private readonly messageLogBlockRepository: MessageLogBlockRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly emojiRepository: BotEmojiRepository,
+    private readonly auditLogCache: MessageDeleteAuditLogCache,
     private readonly logger: Logger,
   ) {}
 
@@ -85,11 +87,21 @@ export class MessageLogService {
       MESSAGE_LOG_EMOJI_NAMES,
     );
     const embed = this.buildDeleteEmbed(payload, messageEvents[0], emojis);
-    await this.sendEmbeds(
+    const sentMessage = await this.sendEmbeds(
       [embed],
       guildConfig.loggingSettings.messageLogChannel,
       payload.guild_id,
     );
+
+    if (sentMessage) {
+      this.auditLogCache.set(
+        payload.guild_id,
+        payload.channel_id,
+        messageEvents[0].authorId,
+        sentMessage,
+        embed.toJSON(),
+      );
+    }
   }
 
   private async processBulkDeleteEvent(
@@ -184,7 +196,7 @@ export class MessageLogService {
     embeds: EmbedBuilder[],
     logChannelId: string,
     guildId: string,
-  ): Promise<void> {
+  ): Promise<Message | null> {
     const channel = this.client.channels.cache.get(logChannelId);
     if (!channel || !channel.isSendable()) {
       this.logger.warn(
@@ -194,18 +206,24 @@ export class MessageLogService {
         },
         "Log msg channel not found or not sendable",
       );
-      return;
+      return null;
     }
 
     try {
+      let firstMessage: Message | null = null;
       const chunkSize = 10;
       for (let i = 0; i < embeds.length; i += chunkSize) {
         const chunk = embeds.slice(i, i + chunkSize).map((e) => e.toJSON());
 
-        await channel.send({
+        const sent = await channel.send({
           embeds: chunk,
         });
+
+        if (i === 0) {
+          firstMessage = sent;
+        }
       }
+      return firstMessage;
     } catch (err) {
       this.logger.warn(
         {
@@ -215,6 +233,7 @@ export class MessageLogService {
         },
         "Failed to send message log",
       );
+      return null;
     }
   }
 
