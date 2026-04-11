@@ -60,13 +60,7 @@ export class AuditLogService {
   ): Promise<Result<void, string>> {
     try {
       // Step 1: Convert audit log entry to moderation case
-      const caseResult = await this.findOrCreateModCase(entry, guild);
-
-      if (caseResult.err) {
-        return caseResult as Err<string>;
-      }
-
-      const findResult = caseResult.val;
+      const findResult = await this.findOrCreateModCase(entry, guild);
 
       if (findResult.tag === "unrelated") {
         return Ok.EMPTY;
@@ -183,94 +177,82 @@ export class AuditLogService {
   private async findOrCreateModCase(
     entry: GuildAuditLogsEntry,
     guild: Guild,
-  ): Promise<Result<FindOrCreateResult, string>> {
-    try {
-      // Convert Discord entry to domain entity
-      const auditLogEvent = AuditLogEvent.fromDiscordEntry(guild.id, entry);
-      if (!auditLogEvent) {
-        // Unrelated audit log entry
-        return Ok({ tag: "unrelated" });
-      }
+  ): Promise<FindOrCreateResult> {
+    // Convert Discord entry to domain entity
+    const auditLogEvent = AuditLogEvent.fromDiscordEntry(guild.id, entry);
+    if (!auditLogEvent) {
+      // Unrelated audit log entry
+      return { tag: "unrelated" };
+    }
 
+    this.logger.debug(
+      {
+        guildId: guild.id,
+        actionType: auditLogEvent.actionType,
+        targetId: auditLogEvent.targetId,
+        executorId: auditLogEvent.executorId,
+      },
+      "Processing moderation audit log event",
+    );
+
+    // Validate target
+    if (!entry.targetId || entry.targetType !== "User") {
+      this.logger.debug(
+        { guildId: guild.id, targetType: entry.targetType },
+        "Audit log target is not a user",
+      );
+
+      return { tag: "unrelated" };
+    }
+
+    // Fetch target user
+    const targetUser = await guild.client.users.fetch(entry.targetId);
+
+    // Find or create mod log case (always do this to mark pending cases as complete)
+    const { modLogCase, wasPendingCase } =
+      await this.resolvePendingOrCreateCase(auditLogEvent, targetUser);
+
+    // Check guild configuration for mod log posting
+    const guildConfig = await this.guildConfigRepository.findByGuildId(
+      guild.id,
+    );
+    if (
+      !guildConfig.loggingSettings.modLogChannel ||
+      !guildConfig.loggingSettings.modLogEnabled
+    ) {
       this.logger.debug(
         {
           guildId: guild.id,
-          actionType: auditLogEvent.actionType,
-          targetId: auditLogEvent.targetId,
-          executorId: auditLogEvent.executorId,
+          modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+          modLogEnabled: guildConfig.loggingSettings.modLogEnabled,
+          wasPendingCase,
+          caseId: modLogCase.caseId,
         },
-        "Processing moderation audit log event",
+        "Case processed but mod log not configured or disabled",
       );
 
-      // Validate target
-      if (!entry.targetId || entry.targetType !== "User") {
-        this.logger.debug(
-          { guildId: guild.id, targetType: entry.targetType },
-          "Audit log target is not a user",
-        );
-
-        return Ok({ tag: "unrelated" });
-      }
-
-      // Fetch target user
-      const targetUser = await guild.client.users.fetch(entry.targetId);
-
-      // Find or create mod log case (always do this to mark pending cases as complete)
-      const { modLogCase, wasPendingCase } =
-        await this.resolvePendingOrCreateCase(auditLogEvent, targetUser);
-
-      // Check guild configuration for mod log posting
-      const guildConfig = await this.guildConfigRepository.findByGuildId(
-        guild.id,
-      );
-      if (
-        !guildConfig.loggingSettings.modLogChannel ||
-        !guildConfig.loggingSettings.modLogEnabled
-      ) {
-        this.logger.debug(
-          {
-            guildId: guild.id,
-            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
-            modLogEnabled: guildConfig.loggingSettings.modLogEnabled,
-            wasPendingCase,
-            caseId: modLogCase.caseId,
-          },
-          "Case processed but mod log not configured or disabled",
-        );
-
-        // Case has been processed (marked as not pending), but no mod log posting
-        return Ok({
-          tag: "skip" as const,
-          auditLogEvent,
-          targetUserId: auditLogEvent.targetId,
-        });
-      }
-
-      return Ok({
-        tag: "ok" as const,
+      // Case has been processed (marked as not pending), but no mod log posting
+      return {
+        tag: "skip",
         auditLogEvent,
         targetUserId: auditLogEvent.targetId,
-        processedLog: {
-          auditLogEvent,
-          modLogCase,
-          targetUser,
-          guildConfig: {
-            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
-          },
-          wasPendingCase,
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId: guild.id,
-          entryAction: entry.action,
-        },
-        "Failed to find or create mod case",
-      );
-      return Err(`Failed to find or create mod case: ${error}`);
+      };
     }
+
+    return {
+      tag: "ok",
+      auditLogEvent,
+      targetUserId: auditLogEvent.targetId,
+      processedLog: {
+        auditLogEvent,
+        modLogCase,
+        targetUser,
+        guildConfig: {
+          modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+        },
+        wasPendingCase,
+      },
+    };
   }
 
   /**
