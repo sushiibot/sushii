@@ -355,7 +355,7 @@ export class MessageLogService {
 
     const embed = new EmbedBuilder()
       .setAuthor({
-        name: `${msg.author.username}#${msg.author.discriminator} (ID: ${msg.author.id})`,
+        name: `${getAPIUserTag(msg.author)} (ID: ${msg.author.id})`,
         iconURL: authorIcon || undefined,
       })
       .setDescription(description.substring(0, 4096))
