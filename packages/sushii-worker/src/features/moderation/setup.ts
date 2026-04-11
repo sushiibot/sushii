@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
@@ -75,6 +76,7 @@ interface ModerationDependencies {
   client: Client;
   logger: Logger;
   emojiRepository: BotEmojiRepository;
+  automodAlertReactionService: AutomodAlertReactionService;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -86,6 +88,7 @@ export function createModerationServices({
   client,
   logger,
   emojiRepository,
+  automodAlertReactionService,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -207,6 +210,7 @@ export function createModerationServices({
     nativeTimeoutDMService,
     modLogPostingService,
     guildConfigRepository,
+    automodAlertReactionService,
     logger.child({ module: "auditLogService" }),
   );
 
@@ -373,6 +377,7 @@ export function setupModerationFeature({
   logger,
   deploymentService,
   emojiRepository,
+  automodAlertReactionService,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
@@ -381,6 +386,7 @@ export function setupModerationFeature({
     client,
     logger,
     emojiRepository,
+    automodAlertReactionService,
   });
   const commands = createModerationCommands(services, logger);
   const events = createModerationEventHandlers(services, logger);

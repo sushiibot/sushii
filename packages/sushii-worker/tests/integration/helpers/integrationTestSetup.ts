@@ -2,6 +2,8 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 
+import { AutomodAlertCache } from "@/features/automod/application/AutomodAlertCache";
+import { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import { DrizzleBotEmojiRepository } from "@/features/bot-emojis";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
@@ -75,12 +77,18 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   const levelingServices = createLevelingServices({ db, logger, emojiRepository: botEmojiRepository });
 
   // Create moderation services with mock client
+  const automodAlertReactionService = new AutomodAlertReactionService(
+    new AutomodAlertCache(),
+    botEmojiRepository,
+    logger,
+  );
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
     logger,
     deploymentService,
     emojiRepository: botEmojiRepository,
+    automodAlertReactionService,
   });
 
   // Create giveaway services with mock client

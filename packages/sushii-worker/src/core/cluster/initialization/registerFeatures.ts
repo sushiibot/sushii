@@ -189,6 +189,7 @@ export function registerFeatures(
     logger,
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({
@@ -222,6 +223,8 @@ export function registerFeatures(
     logger,
     deploymentService,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
+    automodAlertReactionService:
+      automodFeature.services.automodAlertReactionService,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,

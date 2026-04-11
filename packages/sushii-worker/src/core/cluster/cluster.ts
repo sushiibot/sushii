@@ -39,6 +39,7 @@ async function initializeShardCluster(): Promise<void> {
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildExpressions,
+      GatewayIntentBits.AutoModerationExecution,
     ],
     partials: [
       Partials.Message,

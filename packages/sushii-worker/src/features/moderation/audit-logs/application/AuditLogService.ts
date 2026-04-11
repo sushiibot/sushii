@@ -6,6 +6,7 @@ import { Err, Ok } from "ts-results";
 
 const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
 
+import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
@@ -25,12 +26,27 @@ import type {
  * Application service for handling Discord audit log events end-to-end.
  * Orchestrates the complete workflow from audit log entry to mod log posting.
  */
+/**
+ * Internal tagged result from findOrCreateModCase.
+ * Distinguishes unrelated events from real mod actions where mod log posting is skipped.
+ */
+type FindOrCreateResult =
+  | { tag: "unrelated" }
+  | { tag: "skip"; auditLogEvent: AuditLogEvent; targetUserId: string }
+  | {
+      tag: "ok";
+      auditLogEvent: AuditLogEvent;
+      targetUserId: string;
+      processedLog: ProcessedAuditLog;
+    };
+
 export class AuditLogService {
   constructor(
     private readonly modLogRepository: ModLogRepository,
     private readonly nativeTimeoutDMService: NativeTimeoutDMService,
     private readonly modLogPostingService: ModLogPostingService,
     private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly automodAlertReactionService: AutomodAlertReactionService,
     private readonly logger: Logger,
   ) {}
 
@@ -50,11 +66,29 @@ export class AuditLogService {
         return caseResult as Err<string>;
       }
 
-      const processedLog = caseResult.val;
-      if (!processedLog) {
-        // Not a moderation-related event or mod log disabled
+      const findResult = caseResult.val;
+
+      if (findResult.tag === "unrelated") {
         return Ok.EMPTY;
       }
+
+      // Real moderation event — react to any recent native AutoMod alerts for this user
+      this.automodAlertReactionService
+        .reactToRecentAlerts(
+          guild,
+          findResult.targetUserId,
+          findResult.auditLogEvent.actionType,
+        )
+        .catch((err: unknown) => {
+          this.logger.warn({ err }, "Failed to react to automod alerts");
+        });
+
+      if (findResult.tag === "skip") {
+        // Mod log posting is disabled, but the case has been processed
+        return Ok.EMPTY;
+      }
+
+      const processedLog = findResult.processedLog;
 
       // A real moderation case matched — span covers steps 2-4.
       return tracer.startActiveSpan(
@@ -149,13 +183,13 @@ export class AuditLogService {
   private async findOrCreateModCase(
     entry: GuildAuditLogsEntry,
     guild: Guild,
-  ): Promise<Result<ProcessedAuditLog | null, string>> {
+  ): Promise<Result<FindOrCreateResult, string>> {
     try {
       // Convert Discord entry to domain entity
       const auditLogEvent = AuditLogEvent.fromDiscordEntry(guild.id, entry);
       if (!auditLogEvent) {
         // Unrelated audit log entry
-        return Ok(null);
+        return Ok({ tag: "unrelated" });
       }
 
       this.logger.debug(
@@ -175,7 +209,7 @@ export class AuditLogService {
           "Audit log target is not a user",
         );
 
-        return Ok(null);
+        return Ok({ tag: "unrelated" });
       }
 
       // Fetch target user
@@ -205,17 +239,26 @@ export class AuditLogService {
         );
 
         // Case has been processed (marked as not pending), but no mod log posting
-        return Ok(null);
+        return Ok({
+          tag: "skip" as const,
+          auditLogEvent,
+          targetUserId: auditLogEvent.targetId,
+        });
       }
 
       return Ok({
+        tag: "ok" as const,
         auditLogEvent,
-        modLogCase,
-        targetUser,
-        guildConfig: {
-          modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+        targetUserId: auditLogEvent.targetId,
+        processedLog: {
+          auditLogEvent,
+          modLogCase,
+          targetUser,
+          guildConfig: {
+            modLogChannelId: guildConfig.loggingSettings.modLogChannel,
+          },
+          wasPendingCase,
         },
-        wasPendingCase,
       });
     } catch (error) {
       this.logger.error(
