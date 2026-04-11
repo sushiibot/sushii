@@ -1,5 +1,5 @@
 import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
-import { type AutoModerationActionExecution, AutoModerationActionType, Events } from "discord.js";
+import { Events, type Message, MessageType } from "discord.js";
 import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
@@ -9,11 +9,13 @@ import type { AutomodAlertCache } from "../../application/AutomodAlertCache";
 const tracer = opentelemetry.trace.getTracer("automod");
 
 /**
- * Listens for native Discord AutoMod action executions and tracks alert messages
- * in the AutomodAlertCache so mods can see reactions when actions are taken.
+ * Listens for native Discord AutoMod alert messages (type 24) via messageCreate
+ * and tracks them in the AutomodAlertCache so mods can see reactions when
+ * actions are taken. Using messageCreate avoids the ManageGuild permission
+ * requirement of the AutoModerationActionExecution gateway event.
  */
-export class AutomodAlertExecutionHandler extends EventHandler<Events.AutoModerationActionExecution> {
-  readonly eventType = Events.AutoModerationActionExecution;
+export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCreate> {
+  readonly eventType = Events.MessageCreate;
 
   // Always track alerts regardless of which slot is active. The cache is
   // in-memory and slot-local, so if tracking were gated on the active slot,
@@ -28,70 +30,53 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.AutoModera
     super();
   }
 
-  async handle(execution: AutoModerationActionExecution): Promise<void> {
+  async handle(message: Message): Promise<void> {
+    if (message.type !== MessageType.AutoModerationAction) {
+      return;
+    }
+
     await tracer.startActiveSpan("automod.alert.track", async (span) => {
       span.setAttributes({
-        "guild.id": execution.guild.id,
-        "user.id": execution.userId,
-        "action.type": execution.action.type,
-        "alert.message.id": execution.alertSystemMessageId ?? "",
-        "alert.channel.id": execution.action.metadata?.channelId ?? "",
+        "guild.id": message.guildId ?? "",
+        "message.id": message.id,
+        "channel.id": message.channelId,
       });
 
       try {
-        this.logger.debug(
-          {
-            guildId: execution.guild.id,
-            userId: execution.userId,
-            actionType: execution.action.type,
-            alertSystemMessageId: execution.alertSystemMessageId,
-            channelId: execution.action.metadata?.channelId,
-          },
-          "AutoModerationActionExecution received",
-        );
-
-        if (execution.action.type !== AutoModerationActionType.SendAlertMessage) {
+        if (!message.guildId) {
           span.setAttribute("skipped", true);
-          span.setAttribute("skip.reason", "not_send_alert_message");
+          span.setAttribute("skip.reason", "no_guild_id");
           return;
         }
 
-        if (!execution.alertSystemMessageId) {
+        const targetUser = message.mentions.users.first();
+        if (!targetUser) {
           this.logger.debug(
-            { guildId: execution.guild.id, userId: execution.userId },
-            "AutoMod alert execution has no alertSystemMessageId, skipping",
+            { messageId: message.id, channelId: message.channelId },
+            "AutoMod alert message has no mentioned user, skipping",
           );
           span.setAttribute("skipped", true);
-          span.setAttribute("skip.reason", "no_alert_system_message_id");
+          span.setAttribute("skip.reason", "no_mentioned_user");
           return;
         }
 
-        const channelId = execution.action.metadata?.channelId;
-        if (!channelId) {
-          this.logger.debug(
-            { guildId: execution.guild.id, userId: execution.userId },
-            "AutoMod alert execution has no channelId in metadata, skipping",
-          );
-          span.setAttribute("skipped", true);
-          span.setAttribute("skip.reason", "no_channel_id");
-          return;
-        }
+        span.setAttribute("user.id", targetUser.id);
 
         this.cache.track(
-          execution.guild.id,
-          execution.userId,
-          execution.alertSystemMessageId,
-          channelId,
+          message.guildId,
+          targetUser.id,
+          message.id,
+          message.channelId,
         );
 
         span.setAttribute("tracked", true);
 
         this.logger.debug(
           {
-            guildId: execution.guild.id,
-            userId: execution.userId,
-            messageId: execution.alertSystemMessageId,
-            channelId,
+            guildId: message.guildId,
+            userId: targetUser.id,
+            messageId: message.id,
+            channelId: message.channelId,
           },
           "Tracked native AutoMod alert message",
         );

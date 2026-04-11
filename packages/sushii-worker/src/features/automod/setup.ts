@@ -14,7 +14,7 @@ import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlert
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 
 export interface AutomodFeature {
-  eventHandlers: EventHandler<Events.Raw | Events.AutoModerationActionExecution>[];
+  eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler];
   services: {
     automodAlertReactionService: AutomodAlertReactionService;
   };
