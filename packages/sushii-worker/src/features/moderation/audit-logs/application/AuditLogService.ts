@@ -107,7 +107,7 @@ export class AuditLogService {
               processedLog.wasPendingCase,
             );
             if (dmResult.err) {
-              this.logger?.warn(
+              this.logger.warn(
                 { err: dmResult.val },
                 "Failed to send native timeout DM, continuing with mod log posting",
               );
@@ -157,7 +157,7 @@ export class AuditLogService {
         },
       );
     } catch (error) {
-      this.logger?.error(
+      this.logger.error(
         {
           err: error,
           guildId: guild.id,
@@ -418,7 +418,7 @@ export class AuditLogService {
       targetUser.tag,
       auditLogEvent.executorId || null,
       auditLogEvent.reason
-        ? Reason.create(auditLogEvent.reason).unwrap()
+        ? Reason.create(auditLogEvent.reason.slice(0, 1024)).unwrap()
         : null,
       null, // Will be set when message is sent
       [], // No attachments for audit log cases
