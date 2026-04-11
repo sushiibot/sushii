@@ -30,8 +30,8 @@ enum NotificationCommandName {
 }
 
 const THREAD_FILTER_CHOICES = [
-  { name: "Only threads I've joined", value: "joined_only" },
-  { name: "All threads", value: "all" },
+  { name: "Only notify me from threads I've joined", value: "joined_only" },
+  { name: "Notify me from all threads", value: "all" },
 ] as const;
 
 type ThreadFilterChoice = (typeof THREAD_FILTER_CHOICES)[number]["value"];
