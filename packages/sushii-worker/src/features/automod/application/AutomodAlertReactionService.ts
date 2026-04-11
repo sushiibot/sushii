@@ -1,3 +1,4 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Guild } from "discord.js";
 import type { Logger } from "pino";
 
@@ -9,6 +10,8 @@ import {
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 
 import type { AutomodAlertCache } from "./AutomodAlertCache";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 
 /**
  * Reacts to recent native Discord AutoMod alert messages with the mod action emoji.
@@ -26,40 +29,93 @@ export class AutomodAlertReactionService {
     targetUserId: string,
     actionType: ActionType,
   ): Promise<void> {
-    const entries = this.cache.consumeRecent(guild.id, targetUserId);
-    if (entries.length === 0) {
-      this.logger.debug(
-        { guildId: guild.id, targetUserId, actionType },
-        "No recent automod alert entries found for user, skipping reaction",
-      );
-      return;
-    }
+    await tracer.startActiveSpan("automod.alert.react", async (span) => {
+      span.setAttributes({
+        "guild.id": guild.id,
+        "user.id": targetUserId,
+        "action.type": String(actionType),
+      });
 
-    // Prefer the bot's custom emoji, fall back to unicode
-    const emojiName = getActionTypeBotEmoji(actionType);
-    const botEmoji = await this.emojiRepository.getEmojiByName(emojiName);
-    const emojiString = botEmoji
-      ? `${botEmoji.name}:${botEmoji.id}`
-      : getActionTypeEmoji(actionType);
+      try {
+        const entries = this.cache.consumeRecent(guild.id, targetUserId);
 
-    await Promise.all(
-      entries.map(async (entry) => {
-        try {
-          const channel = await guild.channels.fetch(entry.channelId);
-          if (!channel?.isTextBased()) return;
-          const message = await channel.messages.fetch(entry.messageId);
-          await message.react(emojiString);
+        span.setAttribute("alert.entries.count", entries.length);
+
+        if (entries.length === 0) {
           this.logger.debug(
-            { guildId: guild.id, targetUserId, messageId: entry.messageId, emojiString },
-            "Reacted to automod alert message",
+            { guildId: guild.id, targetUserId, actionType },
+            "No recent automod alert entries found for user, skipping reaction",
           );
-        } catch (err) {
-          this.logger.warn(
-            { err, messageId: entry.messageId, channelId: entry.channelId },
-            "Failed to react to automod alert message",
-          );
+          return;
         }
-      }),
-    );
+
+        // Prefer the bot's custom emoji, fall back to unicode
+        const emojiName = getActionTypeBotEmoji(actionType);
+        const botEmoji = await this.emojiRepository.getEmojiByName(emojiName);
+        const emojiString = botEmoji
+          ? `${botEmoji.name}:${botEmoji.id}`
+          : getActionTypeEmoji(actionType);
+
+        span.setAttribute("emoji", emojiString);
+
+        await Promise.all(
+          entries.map((entry) =>
+            this.reactToMessage(guild, targetUserId, entry.channelId, entry.messageId, emojiString),
+          ),
+        );
+      } catch (error) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async reactToMessage(
+    guild: Guild,
+    targetUserId: string,
+    channelId: string,
+    messageId: string,
+    emojiString: string,
+  ): Promise<void> {
+    return tracer.startActiveSpan("automod.alert.react.message", async (span) => {
+      span.setAttributes({
+        "guild.id": guild.id,
+        "user.id": targetUserId,
+        "message.id": messageId,
+        "channel.id": channelId,
+        "emoji": emojiString,
+      });
+
+      try {
+        const channel = await guild.channels.fetch(channelId);
+        if (!channel?.isTextBased()) {
+          span.setAttribute("skipped", true);
+          span.setAttribute("skip.reason", "not_text_channel");
+          return;
+        }
+        const message = await channel.messages.fetch(messageId);
+        await message.react(emojiString);
+        this.logger.debug(
+          { guildId: guild.id, targetUserId, messageId, emojiString },
+          "Reacted to automod alert message",
+        );
+      } catch (err) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: err instanceof Error ? err.message : String(err),
+        });
+        this.logger.warn(
+          { err, messageId, channelId },
+          "Failed to react to automod alert message",
+        );
+      } finally {
+        span.end();
+      }
+    });
   }
 }
