@@ -27,7 +27,13 @@ export class AutomodAlertReactionService {
     actionType: ActionType,
   ): Promise<void> {
     const entries = this.cache.consumeRecent(guild.id, targetUserId);
-    if (entries.length === 0) return;
+    if (entries.length === 0) {
+      this.logger.debug(
+        { guildId: guild.id, targetUserId, actionType },
+        "No recent automod alert entries found for user, skipping reaction",
+      );
+      return;
+    }
 
     // Prefer the bot's custom emoji, fall back to unicode
     const emojiName = getActionTypeBotEmoji(actionType);
@@ -43,6 +49,10 @@ export class AutomodAlertReactionService {
           if (!channel?.isTextBased()) return;
           const message = await channel.messages.fetch(entry.messageId);
           await message.react(emojiString);
+          this.logger.debug(
+            { guildId: guild.id, targetUserId, messageId: entry.messageId, emojiString },
+            "Reacted to automod alert message",
+          );
         } catch (err) {
           this.logger.warn(
             { err, messageId: entry.messageId, channelId: entry.channelId },
