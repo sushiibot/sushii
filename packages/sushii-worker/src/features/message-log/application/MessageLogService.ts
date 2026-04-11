@@ -87,21 +87,31 @@ export class MessageLogService {
       MESSAGE_LOG_EMOJI_NAMES,
     );
     const embed = this.buildDeleteEmbed(payload, messageEvents[0], emojis);
-    const sentMessage = await this.sendEmbeds(
+
+    // Wait up to 5s for the audit log executor. Resolves immediately if the
+    // audit log already arrived, or with null if it never arrives (self-delete,
+    // no audit log permissions, etc.).
+    const executor = await this.auditLogCache.waitForExecutor(
+      payload.guild_id,
+      payload.channel_id,
+      messageEvents[0].authorId,
+    );
+
+    if (executor) {
+      embed.addFields([
+        {
+          name: "Deleted by",
+          value: `<@${executor.executorId}> (${executor.executorUsername})`,
+          inline: true,
+        },
+      ]);
+    }
+
+    await this.sendEmbeds(
       [embed],
       guildConfig.loggingSettings.messageLogChannel,
       payload.guild_id,
     );
-
-    if (sentMessage) {
-      this.auditLogCache.set(
-        payload.guild_id,
-        payload.channel_id,
-        messageEvents[0].authorId,
-        sentMessage,
-        embed.toJSON(),
-      );
-    }
   }
 
   private async processBulkDeleteEvent(

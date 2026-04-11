@@ -1,27 +1,35 @@
-import type { APIEmbed } from "discord.js";
-import type { Message } from "discord.js";
+const TTL_MS = 5_000;
 
-const TTL_MS = 10_000;
+export interface AuditExecutor {
+  executorId: string;
+  executorUsername: string;
+}
 
-interface PendingEntry {
-  sentMessage: Message;
-  embedData: APIEmbed;
-  expiresAt: number;
+interface PendingWait {
+  resolve: (executor: AuditExecutor | null) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 /**
- * Short-lived cache of sent message log embeds waiting to be enriched with
- * audit log executor info. Keyed by guildId:channelId:targetUserId.
+ * Bidirectional short-lived cache for correlating MessageDelete gateway events
+ * with GuildAuditLogEntryCreate events. Keyed by guildId:channelId:targetUserId.
  *
- * When a moderator deletes another user's message, Discord emits:
- *  1. MessageDelete gateway event (fast)
- *  2. GuildAuditLogEntryCreate event (slower)
+ * When a moderator deletes another user's message, Discord emits both events
+ * but in no guaranteed order:
+ *  - MessageDelete gateway event (usually fast)
+ *  - GuildAuditLogEntryCreate event (usually slower, but not always)
  *
- * The message log embed is sent on (1) and stored here. When (2) arrives,
- * the embed is edited to include "Deleted by" info.
+ * MessageLogService calls waitForExecutor() which holds the send for up to 5s.
+ * MessageDeleteAuditLogHandler calls notifyExecutor() when the audit entry arrives.
+ *
+ * If the audit log never arrives (e.g., no audit log permission), the Promise
+ * resolves with null after TTL_MS and the embed is sent without executor info.
  */
 export class MessageDeleteAuditLogCache {
-  private readonly pending = new Map<string, PendingEntry>();
+  // MessageDelete arrived first — waiting for audit log to resolve the Promise.
+  private readonly pendingWaits = new Map<string, PendingWait>();
+  // Audit log arrived first — waiting for MessageDelete to pick it up.
+  private readonly pendingAudit = new Map<string, AuditExecutor>();
 
   private key(
     guildId: string,
@@ -31,33 +39,62 @@ export class MessageDeleteAuditLogCache {
     return `${guildId}:${channelId}:${targetUserId}`;
   }
 
-  set(
+  /**
+   * Called by MessageLogService. Returns executor info if available within TTL_MS,
+   * or null if the audit log never arrives (no permissions, self-delete, etc.).
+   */
+  waitForExecutor(
     guildId: string,
     channelId: string,
     targetUserId: string,
-    sentMessage: Message,
-    embedData: APIEmbed,
-  ): void {
-    this.pending.set(this.key(guildId, channelId, targetUserId), {
-      sentMessage,
-      embedData,
-      expiresAt: Date.now() + TTL_MS,
+  ): Promise<AuditExecutor | null> {
+    const k = this.key(guildId, channelId, targetUserId);
+
+    // Audit log already arrived — return immediately.
+    const audit = this.pendingAudit.get(k);
+    if (audit) {
+      this.pendingAudit.delete(k);
+      return Promise.resolve(audit);
+    }
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingWaits.delete(k);
+        resolve(null);
+      }, TTL_MS);
+
+      // Don't keep the process alive just for this timer.
+      timer.unref();
+
+      this.pendingWaits.set(k, { resolve, timer });
     });
   }
 
   /**
-   * Returns and removes the pending entry if it exists and hasn't expired.
+   * Called by MessageDeleteAuditLogHandler when the audit log entry arrives.
+   * Returns true if a waiting MessageDelete handler was resolved, false if the
+   * audit log arrived first (executor info is stored for waitForExecutor).
    */
-  getAndClear(
+  notifyExecutor(
     guildId: string,
     channelId: string,
     targetUserId: string,
-  ): PendingEntry | null {
+    executor: AuditExecutor,
+  ): boolean {
     const k = this.key(guildId, channelId, targetUserId);
-    const entry = this.pending.get(k);
-    if (!entry) return null;
-    this.pending.delete(k);
-    if (entry.expiresAt < Date.now()) return null;
-    return entry;
+
+    const wait = this.pendingWaits.get(k);
+    if (wait) {
+      clearTimeout(wait.timer);
+      this.pendingWaits.delete(k);
+      wait.resolve(executor);
+      return true;
+    }
+
+    // MessageDelete hasn't been processed yet — store for when it arrives.
+    // Auto-delete after TTL to avoid leaking if MessageDelete never fires.
+    this.pendingAudit.set(k, executor);
+    setTimeout(() => this.pendingAudit.delete(k), TTL_MS).unref();
+    return false;
   }
 }

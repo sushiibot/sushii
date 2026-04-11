@@ -69,7 +69,6 @@ export function setupMessageLog(
 
   const messageDeleteAuditLogHandler = new MessageDeleteAuditLogHandler(
     auditLogCache,
-    logger.child({ component: "MessageDeleteAuditLogHandler" }),
   );
 
   // Create tasks
