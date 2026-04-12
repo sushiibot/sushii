@@ -97,9 +97,7 @@ export class LookupCommand extends SlashCommandHandler {
       member = null;
     }
 
-    const message = buildUserLookupReply(targetUser, member, lookupResult.val, {
-      showBasicInfo: true,
-    });
+    const message = buildUserLookupReply(targetUser, member, lookupResult.val);
 
     log.info(
       {

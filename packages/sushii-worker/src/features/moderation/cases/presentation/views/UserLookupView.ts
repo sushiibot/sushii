@@ -10,17 +10,12 @@ import {
 
 import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
-import type { UserInfo } from "@/features/moderation/shared/domain/types/UserInfo";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { getActionTypeEmoji } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { formatBanEntry } from "./LookupBanEntryFormatter";
-
-interface LookupOptions {
-  showBasicInfo: boolean;
-}
 
 /**
  * Build user lookup container using components v2 - shows ALL cross-server bans
@@ -30,35 +25,20 @@ export function buildUserLookupReply(
   targetUser: User,
   member: GuildMember | null,
   lookupResult: UserLookupResult,
-  options: LookupOptions,
 ): InteractionReplyOptions {
-  const { userInfo, crossServerBans, currentGuildLookupOptIn } = lookupResult;
+  const { crossServerBans, currentGuildLookupOptIn } = lookupResult;
 
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
-  // Cross-server bans section with user avatar
-  const bansSection = buildBansSection(
-    targetUser,
-    crossServerBans,
-    currentGuildLookupOptIn,
-  );
-  container.addSectionComponents(bansSection);
+  // User header with avatar thumbnail
+  const headerSection = buildUserHeaderSection(targetUser, member);
+  container.addSectionComponents(headerSection);
 
-  if (options.showBasicInfo) {
-    // Add separator
-    container.addSeparatorComponents(new SeparatorBuilder());
+  container.addSeparatorComponents(new SeparatorBuilder());
 
-    // Account information
-    const accountSection = buildAccountSection(targetUser, userInfo);
-    container.addTextDisplayComponents(accountSection);
-
-    // Member information (only if user is in server)
-    if (member) {
-      container.addSeparatorComponents(new SeparatorBuilder());
-      const memberSection = buildMemberSection(member);
-      container.addTextDisplayComponents(memberSection);
-    }
-  }
+  // Cross-server bans section
+  const bansText = buildBansText(crossServerBans, currentGuildLookupOptIn);
+  container.addTextDisplayComponents(bansText);
 
   return {
     components: [container],
@@ -67,11 +47,63 @@ export function buildUserLookupReply(
   };
 }
 
-function buildBansSection(
+function buildUserHeaderSection(
   targetUser: User,
+  member: GuildMember | null,
+): SectionBuilder {
+  const displayName = targetUser.globalName ?? targetUser.username;
+  const showUsername =
+    targetUser.globalName !== null &&
+    targetUser.globalName !== targetUser.username;
+
+  const title = showUsername
+    ? `### ${displayName} (\`${targetUser.username}\`)`
+    : `### ${displayName}`;
+
+  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
+  const parts: string[] = [
+    `\`${targetUser.id}\``,
+    `Created <t:${createdTimestamp}:R>`,
+  ];
+
+  if (member?.joinedTimestamp) {
+    const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
+    parts.push(`Joined <t:${joinedTimestamp}:R>`);
+  }
+
+  if (member?.nickname) {
+    parts.push(`Nickname: ${member.nickname}`);
+  }
+
+  // Show highest role with any elevated permissions, plus total count
+  if (member && member.roles.cache.size > 1) {
+    const nonEveryoneRoles = member.roles.cache
+      .filter((role) => role.name !== "@everyone")
+      .sort((a, b) => b.position - a.position);
+
+    const highestPermRole = nonEveryoneRoles.find(
+      (role) => role.permissions.bitfield !== 0n,
+    );
+
+    if (highestPermRole) {
+      const count = nonEveryoneRoles.size;
+      parts.push(`${highestPermRole} (${count} role${count === 1 ? "" : "s"})`);
+    }
+  }
+
+  const content = `${title}\n${parts.join(" • ")}`;
+
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+    .setThumbnailAccessory(
+      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
+    );
+}
+
+function buildBansText(
   crossServerBans: UserLookupBan[],
   currentGuildLookupOptIn: boolean,
-): SectionBuilder {
+): TextDisplayBuilder {
   const lookupEmoji = getActionTypeEmoji(ActionType.Lookup);
   const totalBans = crossServerBans.length;
 
@@ -109,61 +141,5 @@ function buildBansSection(
     }
   }
 
-  return new SectionBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
-    .setThumbnailAccessory(
-      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
-    );
-}
-
-function buildAccountSection(
-  targetUser: User,
-  _userInfo: UserInfo,
-): TextDisplayBuilder {
-  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-
-  const content = [
-    "### 👤 Account Information",
-    "",
-    `**Username:** \`${targetUser.username}\``,
-    `**Display Name:** \`${targetUser.globalName}\``,
-    `**ID:** \`${targetUser.id}\``,
-    `**Created:** <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
-  ].join("\n");
-
   return new TextDisplayBuilder().setContent(content);
-}
-
-function buildMemberSection(member: GuildMember): TextDisplayBuilder {
-  const joinedTimestamp = member.joinedTimestamp
-    ? timestampToUnixTime(member.joinedTimestamp)
-    : null;
-
-  const joinedFormatted = joinedTimestamp
-    ? `<t:${joinedTimestamp}:F> (<t:${joinedTimestamp}:R>)`
-    : "Unknown";
-
-  const content = [
-    "### 🏠 Member Information",
-    "",
-    `**Joined:** ${joinedFormatted}`,
-    `**Nickname:** ${member.nickname || "None"}`,
-  ];
-
-  // Add roles if user has any (excluding @everyone)
-  if (member.roles.cache.size > 1) {
-    const roles = member.roles.cache
-      .filter((role) => role.name !== "@everyone")
-      .sort((a, b) => b.position - a.position)
-      .map((role) => role.toString())
-      .join(", ");
-
-    if (roles) {
-      const rolesStr = `**Roles:** ${roles}`;
-
-      content.push(rolesStr);
-    }
-  }
-
-  return new TextDisplayBuilder().setContent(content.join("\n"));
 }
