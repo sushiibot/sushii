@@ -52,8 +52,18 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
         const targetUser = message.mentions.users.first();
         if (!targetUser) {
           this.logger.debug(
-            { messageId: message.id, channelId: message.channelId },
-            "AutoMod alert message has no mentioned user, skipping",
+            {
+              messageId: message.id,
+              channelId: message.channelId,
+              embedCount: message.embeds.length,
+              embeds: message.embeds.map((e) => ({
+                authorName: e.author?.name,
+                authorIconURL: e.author?.iconURL,
+                authorURL: e.author?.url,
+                fields: e.fields.map((f) => ({ name: f.name, value: f.value })),
+              })),
+            },
+            "AutoMod alert message has no mentioned user, dumping embed structure",
           );
           span.setAttribute("skipped", true);
           span.setAttribute("skip.reason", "no_mentioned_user");
