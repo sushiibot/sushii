@@ -8,7 +8,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import type { UpdateUserXpService } from "../../application/UpdateUserXpService";
 
-const tracer = opentelemetry.trace.getTracer("message-level-handler");
+const tracer = opentelemetry.trace.getTracer("leveling");
 const log = newModuleLogger("messageLevelHandler");
 
 export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
@@ -33,7 +33,7 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
     }
 
     const result = await tracer.startActiveSpan(
-      "updateUserXp",
+      "leveling.xp.update",
       async (span: Span) => {
         try {
           return await this.updateUserXpService.execute(
@@ -83,7 +83,7 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
       return;
     }
 
-    await tracer.startActiveSpan("update_member_roles", async (span) => {
+    await tracer.startActiveSpan("leveling.roles.update", async (span) => {
       try {
         if (!msg.member) {
           throw new Error("Member not found for message");
