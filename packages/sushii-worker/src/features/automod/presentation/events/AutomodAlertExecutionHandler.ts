@@ -49,32 +49,15 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
           return;
         }
 
-        const targetUser = message.mentions.users.first();
-        if (!targetUser) {
-          this.logger.debug(
-            {
-              messageId: message.id,
-              channelId: message.channelId,
-              embedCount: message.embeds.length,
-              embeds: message.embeds.map((e) => ({
-                authorName: e.author?.name,
-                authorIconURL: e.author?.iconURL,
-                authorURL: e.author?.url,
-                fields: e.fields.map((f) => ({ name: f.name, value: f.value })),
-              })),
-            },
-            "AutoMod alert message has no mentioned user, dumping embed structure",
-          );
-          span.setAttribute("skipped", true);
-          span.setAttribute("skip.reason", "no_mentioned_user");
-          return;
-        }
+        // The AutoMod alert message is authored by the user who triggered the
+        // rule — message.author.id is the target user.
+        const targetUserId = message.author.id;
 
-        span.setAttribute("user.id", targetUser.id);
+        span.setAttribute("user.id", targetUserId);
 
         this.cache.track(
           message.guildId,
-          targetUser.id,
+          targetUserId,
           message.id,
           message.channelId,
         );
@@ -84,7 +67,7 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
         this.logger.debug(
           {
             guildId: message.guildId,
-            userId: targetUser.id,
+            userId: targetUserId,
             messageId: message.id,
             channelId: message.channelId,
           },
