@@ -174,6 +174,7 @@ export class SchedulePollService {
 
     // Fetch events
     const cacheEmpty = !this.cache.has(key);
+    const wasFullFetch = cacheEmpty || !channel.syncToken;
     let changedItems: CalendarEventItem[];
     let newSyncToken: string | undefined;
 
@@ -295,7 +296,9 @@ export class SchedulePollService {
       return isSameMonth(d, year, month);
     });
 
-    if (currentMonthChanges.length > 0) {
+    // Only send notifications for incremental changes, not full fetches.
+    // Full fetches would spuriously report every event as "added".
+    if (!wasFullFetch && currentMonthChanges.length > 0) {
       await this.sendEventChangeNotifications(channel, currentMonthChanges, previousEvents);
     }
 

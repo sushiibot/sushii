@@ -47,10 +47,15 @@ function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string 
     timePart = "";
   }
 
-  const line = timePart ? `${timePart} ${summaryText}` : summaryText;
+  let line = timePart ? `${timePart} ${summaryText}` : summaryText;
 
   if (isNextUpcoming) {
-    return `➡️ **${line}**`;
+    line = `➡️ **${line}**`;
+  }
+
+  const MAX_LINE_LENGTH = MAX_TEXT_DISPLAY_CHARS - 50;
+  if (line.length > MAX_LINE_LENGTH) {
+    line = line.slice(0, MAX_LINE_LENGTH) + "…";
   }
 
   return line;
