@@ -14,7 +14,7 @@ import {
 import type { SchedulePollService } from "./SchedulePollService";
 
 export function formatPollInterval(pollIntervalSec: number): string {
-  const intervalMin = Math.round(pollIntervalSec / 60);
+  const intervalMin = Math.floor(pollIntervalSec / 60);
   return intervalMin >= 1
     ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
     : `every ${pollIntervalSec} seconds`;

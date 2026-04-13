@@ -105,7 +105,7 @@ export class DrizzleScheduleChannelRepository
         configuredByUserId: data.configuredByUserId,
         calendarId: data.calendarId,
         calendarTitle: data.calendarTitle,
-        displayTitle: data.displayTitle ?? null,
+        displayTitle: data.displayTitle ?? null, // new rows default to null; undefined means "don't overwrite on conflict"
         pollIntervalSec: data.pollIntervalSec ?? 120,
         nextPollAt: data.nextPollAt,
         consecutiveFailures: 0,

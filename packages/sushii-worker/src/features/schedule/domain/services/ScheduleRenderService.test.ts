@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import type { APIComponentInContainer, APITextDisplayComponent } from "discord-api-types/v10";
+import { ComponentType } from "discord-api-types/v10";
 
 import type { ScheduleEvent } from "../entities/ScheduleEvent";
 import { renderSchedule } from "./ScheduleRenderService";
@@ -40,27 +42,29 @@ function makeAllDayEvent(id: string, summary: string, startDate: string): Schedu
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getComponents(chunk: MessageChunk): any[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (chunk.container.toJSON() as any).components ?? [];
+function getComponents(chunk: MessageChunk): APIComponentInContainer[] {
+  return chunk.container.toJSON().components ?? [];
 }
 
 function getTextContent(chunks: MessageChunk[]): string {
   return chunks
     .flatMap((chunk) =>
       getComponents(chunk)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((c: any) => c.type === 10)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any) => c.content as string),
+        .filter((c): c is APITextDisplayComponent => c.type === ComponentType.TextDisplay)
+        .map((c) => c.content),
     )
     .join("\n");
 }
 
 function countSeparators(chunk: MessageChunk): number {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return getComponents(chunk).filter((c: any) => c.type === 14).length;
+  return getComponents(chunk).filter((c) => c.type === ComponentType.Separator).length;
+}
+
+function getChunkTextContent(chunk: MessageChunk): string {
+  return getComponents(chunk)
+    .filter((c): c is APITextDisplayComponent => c.type === ComponentType.TextDisplay)
+    .map((c) => c.content)
+    .join("\n");
 }
 
 describe("renderSchedule", () => {
@@ -282,22 +286,12 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule(events, "archive", "Test Calendar", YEAR, MONTH, NOW);
       expect(chunks.length).toBeGreaterThan(1);
 
-      const firstText = getComponents(chunks[0])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((c: any) => c.type === 10)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any) => c.content as string)
-        .join("\n");
+      const firstText = getChunkTextContent(chunks[0]);
 
       expect(firstText).toContain("**Test Calendar** 🗓️");
 
       for (let i = 1; i < chunks.length; i++) {
-        const text = getComponents(chunks[i])
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.type === 10)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any) => c.content as string)
-          .join("\n");
+        const text = getChunkTextContent(chunks[i]);
         expect(text).not.toContain("**Test Calendar** 🗓️");
       }
     });
@@ -311,12 +305,7 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule(events, "archive", "Test Calendar", YEAR, MONTH, NOW);
       expect(chunks.length).toBeGreaterThan(1);
 
-      const lastText = getComponents(chunks.at(-1)!)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((c: any) => c.type === 10)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any) => c.content as string)
-        .join("\n");
+      const lastText = getChunkTextContent(chunks.at(-1)!);
 
       expect(lastText).toContain("All times are shown in your local timezone");
     });

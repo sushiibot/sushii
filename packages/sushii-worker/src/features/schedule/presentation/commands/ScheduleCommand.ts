@@ -237,6 +237,7 @@ export class ScheduleCommand extends SlashCommandHandler {
         lines.push(`🏷️ Title: ${sc.displayTitle}`);
       }
       lines.push(`📅 ${sc.calendarTitle}`);
+      lines.push(`-# Calendar ID: ${sc.calendarId}`);
       lines.push(`🔔 Log channel: <#${sc.logChannelId}>`);
       lines.push(`🔄 Next sync: ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`);
       if (sc.consecutiveFailures > 0) {

@@ -169,7 +169,7 @@ export class SchedulePollService {
     const unarchivedPrev = prevMessages.filter((m) => !m.isArchived);
 
     if (unarchivedPrev.length > 0) {
-      await this.archivePreviousMonth(channel, prevMonthYear, prevMonth, unarchivedPrev);
+      await this.archivePreviousMonth(channel, prevMonthYear, prevMonth, unarchivedPrev, now);
     }
 
     // Fetch events
@@ -345,6 +345,7 @@ export class SchedulePollService {
     year: number,
     month: number,
     unarchivedMessages: ScheduleChannelMessage[],
+    now: Date,
   ): Promise<void> {
     // Fetch previous month events from Google Calendar directly
     const startOfPrevMonth = new Date(Date.UTC(year, month - 1, 1)).toISOString();
@@ -370,7 +371,7 @@ export class SchedulePollService {
       return;
     }
 
-    const archiveChunks = renderSchedule(prevEvents, "archive", channel.displayTitle, year, month, new Date());
+    const archiveChunks = renderSchedule(prevEvents, "archive", channel.displayTitle, year, month, now);
 
     const discordChannel = await this.fetchTextChannel(channel.channelId.toString(), "archivePreviousMonth");
 
@@ -491,6 +492,7 @@ export class SchedulePollService {
           : "";
         const prevSummary = prevEvent?.summary ?? event.summary;
         const cancelLabel = prevTimePart ? `${prevTimePart} ${prevSummary}` : prevSummary;
+        // TODO: use emojis.trash once emoji service is available in SchedulePollService
         lines.push(`🗑️ Event removed: ${cancelLabel}`);
         continue; // skip the rest of the loop body
       } else if (wasInCache) {
@@ -547,14 +549,14 @@ export class SchedulePollService {
     const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendPermanentErrorAlert");
     if (!logChannel) return;
 
-    const errorContainer = new ContainerBuilder()
+    const alertContainer = new ContainerBuilder()
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(message)
       );
 
     try {
       await logChannel.send({
-        components: [errorContainer],
+        components: [alertContainer],
         flags: MessageFlags.IsComponentsV2,
       });
     } catch (err) {

@@ -131,9 +131,10 @@ export function renderSchedule(
 ): MessageChunk[] {
   const monthYearStr = MONTH_YEAR_FORMAT.format(new Date(year, month - 1));
 
+  // TODO: pass calendarEmoji param (bot emoji: "schedule") once emoji service is threaded through
   let header: string;
   if (title !== null) {
-    const safeTitle = title.replace(/\*/g, '\\*');
+    const safeTitle = title.replace(/[*_~`]/g, '\\$&');
     header = `**${safeTitle}** 🗓️\n-# ${monthYearStr}`;
   } else {
     header = `**${monthYearStr}** 🗓️`;
