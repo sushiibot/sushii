@@ -54,4 +54,8 @@ export const ASSET_MAPPING: { src: string; name: BotEmojiNameType }[] = [
   { src: "Tools/Pencil/Pencil Outline 256.png", name: "message_log" },
   { src: "UI/Bell/Bell Outline 256.png", name: "bell" },
   { src: "General/Lightning Bolt/Lightning Bolt Outline 256.png", name: "lightning" },
+
+  // Schedule
+  { src: "UI/Calendar 2/Calendar 2 Outline 256.png", name: "schedule" },
+  { src: "UI/Trash/Trash Outline 256.png", name: "trash" },
 ];
