@@ -11,6 +11,7 @@ import {
   pgSchema,
   primaryKey,
   serial,
+  smallint,
   text,
   timestamp,
   unique,
@@ -919,5 +920,83 @@ export const legacyCommandNotificationsInAppPublic = appPublic.table(
       to: ["sushii_admin"],
       using: sql`true`,
     }),
+  ],
+);
+
+export const scheduleChannelsInAppPublic = appPublic.table(
+  "schedule_channels",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    logChannelId: bigint("log_channel_id", { mode: "bigint" }).notNull(),
+    configuredByUserId: bigint("configured_by_user_id", {
+      mode: "bigint",
+    }).notNull(),
+    calendarId: text("calendar_id").notNull(),
+    calendarTitle: text("calendar_title").notNull().default(""),
+    timezone: text("timezone").notNull().default("UTC"),
+    syncToken: text("sync_token"),
+    pollIntervalSec: integer("poll_interval_sec").notNull().default(120),
+    nextPollAt: timestamp("next_poll_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    lastErrorAt: timestamp("last_error_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    lastErrorReason: text("last_error_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.channelId],
+      name: "schedule_channels_pkey",
+    }),
+    index("schedule_channels_next_poll_at_idx").on(table.nextPollAt),
+  ],
+);
+
+export const scheduleChannelMessagesInAppPublic = appPublic.table(
+  "schedule_channel_messages",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    year: smallint("year").notNull(),
+    month: smallint("month").notNull(),
+    messageIndex: smallint("message_index").notNull(),
+    messageId: bigint("message_id", { mode: "bigint" }).notNull(),
+    contentHash: text("content_hash").notNull().default(""),
+    isArchived: boolean("is_archived").notNull().default(false),
+    lastUpdatedAt: timestamp("last_updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.channelId, table.year, table.month, table.messageIndex],
+      name: "schedule_channel_messages_pkey",
+    }),
+    foreignKey({
+      columns: [table.guildId, table.channelId],
+      foreignColumns: [
+        scheduleChannelsInAppPublic.guildId,
+        scheduleChannelsInAppPublic.channelId,
+      ],
+      name: "fk_schedule_channel",
+    }).onDelete("cascade"),
+    index("schedule_channel_messages_channel_idx").on(
+      table.guildId,
+      table.channelId,
+    ),
   ],
 );

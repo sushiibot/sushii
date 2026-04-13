@@ -176,6 +176,13 @@
       "when": 1774923207658,
       "tag": "0024_notification-user-settings",
       "breakpoints": false
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776015754684,
+      "tag": "0025_add-schedule-channels",
+      "breakpoints": false
     }
   ]
 }
