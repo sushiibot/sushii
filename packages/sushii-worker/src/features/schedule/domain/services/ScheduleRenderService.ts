@@ -27,7 +27,8 @@ function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string 
     try {
       new URL(event.location);
       const escapedSummary = event.summary.replace(/[\[\]]/g, '\\$&');
-      summaryText = `[${escapedSummary}](${event.location})`;
+      const safeLocation = event.location.replace(/\)/g, '%29');
+      summaryText = `[${escapedSummary}](${safeLocation})`;
     } catch {
       summaryText = event.summary;
     }
@@ -170,6 +171,8 @@ export function renderSchedule(
     if (segment.type === "separator") {
       flushTextToContainer();
       currentContainer.addSeparatorComponents(new SeparatorBuilder());
+      // Hash includes text content and separator positions ("---" marks).
+      // If separator rendering changes, update this hash format too to force re-render.
       rawParts.push("---");
       continue;
     }

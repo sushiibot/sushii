@@ -50,6 +50,7 @@ export function setupScheduleFeature(
     scheduleChannelRepository,
     calendarClient,
     schedulePollService,
+    !!apiKey,   // isConfigured
     client,
     logger.child({ component: "ScheduleChannelService" }),
   );

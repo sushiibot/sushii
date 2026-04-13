@@ -26,11 +26,16 @@ export class ScheduleChannelService {
     private readonly repo: ScheduleChannelRepository,
     private readonly calendarClient: GoogleCalendarClient,
     private readonly schedulePollService: SchedulePollService,
+    private readonly isConfigured: boolean,
     private readonly client: Client,
     private readonly logger: Logger,
   ) {}
 
   async configure(input: ConfigureScheduleChannelInput): Promise<Result<ScheduleChannel, string>> {
+    if (!this.isConfigured) {
+      return Err("Schedule sync is not configured on this bot. The `GOOGLE_CALENDAR_API_KEY` environment variable is not set.");
+    }
+
     const calendarId = parseCalendarId(input.calendarInput);
     if (!calendarId) {
       return Err(
@@ -65,6 +70,8 @@ export class ScheduleChannelService {
       nextPollAt: new Date(),
     });
 
+    this.schedulePollService.clearCache(channel);
+
     // Post confirmation to log channel
     try {
       const logChannel = await this.client.channels.fetch(
@@ -95,6 +102,7 @@ export class ScheduleChannelService {
     }
 
     await this.repo.delete(guildId, channelId);
+    this.schedulePollService.clearCache(existing);
     return Ok(undefined);
   }
 

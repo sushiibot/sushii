@@ -206,6 +206,17 @@ describe("renderSchedule", () => {
       expect(allText).toContain("[Event \\[Special\\]](https://example.com/stream)");
     });
 
+    it("encodes ) in location URL to prevent markdown injection", () => {
+      const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
+        location: "https://x.com/watch?v=abc123)",
+      });
+      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+      // The ) should be encoded as %29 so it does not terminate the markdown link early
+      expect(allText).toContain("[Event](https://x.com/watch?v=abc123%29)");
+      expect(allText).not.toContain("https://x.com/watch?v=abc123)");
+    });
+
     it("ignores non-URL location", () => {
       const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
         location: "Madison Square Garden, New York",

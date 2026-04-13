@@ -2,6 +2,7 @@ import type { Client, TextChannel } from "discord.js";
 import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
+import { Semaphore } from "@/shared/infrastructure/concurrency/Semaphore";
 import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
 import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
 import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
@@ -14,41 +15,6 @@ import type {
 import { GoogleCalendarError } from "../infrastructure/google/GoogleCalendarClient";
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-class Semaphore {
-  private queue: Array<() => void> = [];
-  private running = 0;
-
-  constructor(private readonly maxConcurrent: number) {}
-
-  async acquire(): Promise<void> {
-    if (this.running < this.maxConcurrent) {
-      this.running++;
-      return;
-    }
-    return new Promise((resolve) => {
-      this.queue.push(() => {
-        this.running++;
-        resolve();
-      });
-    });
-  }
-
-  release(): void {
-    this.running--;
-    const next = this.queue.shift();
-    if (next) next();
-  }
-
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    await this.acquire();
-    try {
-      return await fn();
-    } finally {
-      this.release();
-    }
-  }
-}
 
 function mapCalendarItemToEvent(item: CalendarEventItem): ScheduleEvent {
   const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
@@ -85,6 +51,17 @@ function computeBackoffNextPollAt(
 
 function isSameMonth(date: Date, year: number, month: number): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
+}
+
+/**
+ * Returns the effective Date for a ScheduleEvent, normalising all-day events
+ * (which carry a date-only string) to midnight UTC.
+ */
+function getEventDate(event: ScheduleEvent): Date | null {
+  if (event.isAllDay && event.startDate) {
+    return new Date(`${event.startDate}T00:00:00Z`);
+  }
+  return event.startUtc;
 }
 
 function sortEvents(events: ScheduleEvent[]): ScheduleEvent[] {
@@ -215,9 +192,7 @@ export class SchedulePollService {
         // Trim cache to current month only
         const cached = this.cache.get(key) ?? [];
         this.cache.set(key, cached.filter((e) => {
-          const d = e.isAllDay && e.startDate
-            ? new Date(`${e.startDate}T00:00:00Z`)
-            : e.startUtc;
+          const d = getEventDate(e);
           return d ? isSameMonth(d, year, month) : false;
         }));
       } else {
@@ -280,25 +255,26 @@ export class SchedulePollService {
     }
 
     // Recovery notification if previous failures
+    const nextPollAt = computeNextPollAt(channel.pollIntervalSec);
     if (channel.consecutiveFailures > 0) {
       await this.sendRecoveryNotification(channel);
       await this.repo.resetFailures(
         channel.guildId,
         channel.channelId,
-        computeNextPollAt(channel.pollIntervalSec),
+        nextPollAt,
       );
       await this.repo.updateSyncToken(
         channel.guildId,
         channel.channelId,
         newSyncToken ?? null,
-        computeNextPollAt(channel.pollIntervalSec),
+        nextPollAt,
       );
     } else {
       await this.repo.updateSyncToken(
         channel.guildId,
         channel.channelId,
         newSyncToken ?? null,
-        computeNextPollAt(channel.pollIntervalSec),
+        nextPollAt,
       );
     }
 
@@ -314,12 +290,15 @@ export class SchedulePollService {
       await this.sendEventChangeNotifications(channel, currentMonthChanges, previousEventIds);
     }
 
-    // Re-render current month and sync Discord messages
+    // Re-render current month and sync Discord messages.
+    // fullFetch already bounds the cache to the current month's UTC window, so
+    // the isSameMonth filter below is a no-op for the full-fetch case.  It
+    // exists primarily to drop events that arrive via incremental sync from
+    // outside the current month window (e.g. a recurring event that started
+    // last month).
     const events = this.cache.get(key) ?? [];
     const currentMonthEvents = events.filter((e) => {
-      const d = e.isAllDay && e.startDate
-        ? new Date(`${e.startDate}T00:00:00Z`)
-        : e.startUtc;
+      const d = getEventDate(e);
       return d ? isSameMonth(d, year, month) : false;
     });
 
