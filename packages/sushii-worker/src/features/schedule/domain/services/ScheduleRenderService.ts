@@ -116,7 +116,8 @@ export function renderSchedule(
   title: string,
   now: Date,
 ): MessageChunk[] {
-  const header = `**${title} 🗓️**`;
+  const safeTitle = title.replace(/\*/g, '\\*');
+  const header = `**${safeTitle} 🗓️**`;
   const segments = buildSegments(events, mode, now);
 
   if (segments.length === 0) {

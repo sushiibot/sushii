@@ -81,11 +81,11 @@ export class GoogleCalendarClient {
         `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`,
       );
       url.searchParams.set("key", this.apiKey);
-      url.searchParams.set("singleEvents", "true");
 
       if (options.syncToken) {
         url.searchParams.set("syncToken", options.syncToken);
       } else {
+        url.searchParams.set("singleEvents", "true");
         if (options.timeMin) url.searchParams.set("timeMin", options.timeMin);
         if (options.timeMax) url.searchParams.set("timeMax", options.timeMax);
       }

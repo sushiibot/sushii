@@ -1,4 +1,4 @@
-import type { Client, TextChannel } from "discord.js";
+import type { Client } from "discord.js";
 import type { Logger } from "pino";
 import { Ok, Err } from "ts-results";
 import type { Result } from "ts-results";

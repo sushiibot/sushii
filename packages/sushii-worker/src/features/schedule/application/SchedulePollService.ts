@@ -284,9 +284,12 @@ export class SchedulePollService {
     const currentMonthChanges = changedItems.filter((item) => {
       const startStr = item.start?.dateTime ?? item.start?.date;
       if (!startStr) {
-          // If the cancelled event was never in our cache (e.g., after a 410 rebuild),
-        // we silently skip it — we can't determine month or show event details.
-        return item.status === "cancelled" && previousEvents.has(item.id);
+        // Cancelled items may omit start — check if it was in this month's cache
+        // (also verify by date in case the snapshot includes cross-month events)
+        const prevEvent = previousEvents.get(item.id);
+        if (!prevEvent) return false;
+        const prevDate = getEventDate(prevEvent);
+        return prevDate ? isSameMonth(prevDate, year, month) : false;
       }
       const d = new Date(startStr);
       return isSameMonth(d, year, month);
@@ -384,6 +387,15 @@ export class SchedulePollService {
               components: [chunk.container],
               flags: MessageFlags.IsComponentsV2,
             });
+            await this.repo.upsertMessage(
+              channel.guildId,
+              channel.channelId,
+              year,
+              month,
+              i,
+              existing.messageId,
+              chunk.hash,
+            );
           } catch (err) {
             this.logger.warn(
               { err, messageId: existing.messageId.toString() },
