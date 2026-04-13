@@ -112,8 +112,8 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
-      expect(allText).toContain("-# Past");
-      expect(allText).toContain("-# Upcoming");
+      expect(allText).toMatch(/^-# Past$/m);
+      expect(allText).toMatch(/^-# Upcoming$/m);
     });
 
     it("shows no section labels when all events are upcoming only", () => {
@@ -123,8 +123,8 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
-      expect(allText).not.toContain("-# Past");
-      expect(allText).not.toContain("-# Upcoming");
+      expect(allText).not.toMatch(/^-# Past$/m);
+      expect(allText).not.toMatch(/^-# Upcoming$/m);
     });
 
     it("shows no section labels when all events are past only", () => {
@@ -134,8 +134,8 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule([past1, past2], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
-      expect(allText).not.toContain("-# Past");
-      expect(allText).not.toContain("-# Upcoming");
+      expect(allText).not.toMatch(/^-# Past$/m);
+      expect(allText).not.toMatch(/^-# Upcoming$/m);
     });
   });
 

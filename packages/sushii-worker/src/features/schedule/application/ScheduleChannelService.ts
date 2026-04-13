@@ -13,6 +13,13 @@ import {
 } from "../infrastructure/google/GoogleCalendarClient";
 import type { SchedulePollService } from "./SchedulePollService";
 
+export function formatPollInterval(pollIntervalSec: number): string {
+  const intervalMin = Math.round(pollIntervalSec / 60);
+  return intervalMin >= 1
+    ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
+    : `every ${pollIntervalSec} seconds`;
+}
+
 export interface ConfigureScheduleChannelInput {
   guildId: bigint;
   channelId: bigint;
@@ -60,7 +67,8 @@ export class ScheduleChannelService {
     }
 
     const calendarTitle = metadata.summary;          // always the Google Calendar name
-    const displayTitle = input.title?.trim() || null; // user-provided override, null = month/year only
+    // undefined = not provided by user (don't overwrite existing); string|null = explicit set
+    const displayTitle = input.title !== undefined ? (input.title.trim() || null) : undefined;
 
     const channel = await this.repo.upsert({
       guildId: input.guildId,
@@ -81,11 +89,8 @@ export class ScheduleChannelService {
         input.logChannelId.toString(),
       );
       if (!logChannel?.isTextBased() || logChannel.isDMBased()) return Ok(channel);
-      const intervalMin = Math.round(channel.pollIntervalSec / 60);
-      const intervalDisplay = intervalMin >= 1
-        ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
-        : `every ${channel.pollIntervalSec} seconds`;
-      const titleDisplay = displayTitle ? `**${displayTitle}**` : "month/year only";
+      const intervalDisplay = formatPollInterval(channel.pollIntervalSec);
+      const titleDisplay = channel.displayTitle ? `**${channel.displayTitle}**` : "month/year only";
       const container = new ContainerBuilder().addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
           `✅ Schedule channel configured: <#${input.channelId}> will now sync ${intervalDisplay}. Schedule title: ${titleDisplay}.`,

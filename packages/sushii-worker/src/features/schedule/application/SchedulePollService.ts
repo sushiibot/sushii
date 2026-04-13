@@ -505,9 +505,12 @@ export class SchedulePollService {
     const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendEventChangeNotifications");
     if (!logChannel) return;
 
+    const raw = lines.join("\n");
+    const content = raw.length > 4000 ? raw.slice(0, 4000) + "\n…(truncated)" : raw;
+
     const container = new ContainerBuilder()
       .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(lines.join("\n"))
+        new TextDisplayBuilder().setContent(content)
       );
 
     try {
@@ -544,8 +547,16 @@ export class SchedulePollService {
     const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendPermanentErrorAlert");
     if (!logChannel) return;
 
+    const errorContainer = new ContainerBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(message)
+      );
+
     try {
-      await logChannel.send({ content: message });
+      await logChannel.send({
+        components: [errorContainer],
+        flags: MessageFlags.IsComponentsV2,
+      });
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },
@@ -558,9 +569,17 @@ export class SchedulePollService {
     const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendRecoveryNotification");
     if (!logChannel) return;
 
+    const recoveryContainer = new ContainerBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `✅ Schedule sync for <#${channel.channelId}> has recovered and is now working again.`
+        )
+      );
+
     try {
       await logChannel.send({
-        content: `✅ Schedule sync for <#${channel.channelId}> has recovered and is now working again.`,
+        components: [recoveryContainer],
+        flags: MessageFlags.IsComponentsV2,
       });
     } catch (err) {
       this.logger.warn(

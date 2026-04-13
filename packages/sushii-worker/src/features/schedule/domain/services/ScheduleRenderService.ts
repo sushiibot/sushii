@@ -18,6 +18,7 @@ type RenderSegment =
   | { type: "separator" };
 
 const MAX_TEXT_DISPLAY_CHARS = 3800;
+const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
 const FOOTER_TEXT_LIVE = "-# All times are shown in your local timezone";
 const FOOTER_TEXT_ARCHIVE = "-# All times are shown in your local timezone · archived";
 
@@ -128,7 +129,7 @@ export function renderSchedule(
   month: number,
   now: Date,
 ): MessageChunk[] {
-  const monthYearStr = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, month - 1));
+  const monthYearStr = MONTH_YEAR_FORMAT.format(new Date(year, month - 1));
 
   let header: string;
   if (title !== null) {

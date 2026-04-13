@@ -13,8 +13,8 @@ import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
+import { formatPollInterval } from "../../application/ScheduleChannelService";
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
-import type { ScheduleChannel } from "../../domain/entities/ScheduleChannel";
 
 function errorContainer(message: string): { components: ContainerBuilder[]; flags: number } {
   const container = new ContainerBuilder().addTextDisplayComponents(
@@ -148,10 +148,7 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const sc = result.val;
     const displayTitleText = sc.displayTitle ?? "(month/year only)";
-    const intervalMin = Math.round(sc.pollIntervalSec / 60);
-    const intervalDisplay = intervalMin >= 1
-      ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
-      : `every ${sc.pollIntervalSec} seconds`;
+    const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
 
     const content = [
       "✅ **Schedule channel configured!**",
