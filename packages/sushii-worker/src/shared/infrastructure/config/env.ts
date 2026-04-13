@@ -72,6 +72,9 @@ const envSchema = z.object({
 
   // E2E testing webhook URL for deployment commands
   E2E_WEBHOOK_URL: z.string().optional(),
+
+  // Google Calendar API key for schedule channel feature
+  GOOGLE_CALENDAR_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

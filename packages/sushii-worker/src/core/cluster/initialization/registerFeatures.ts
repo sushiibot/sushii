@@ -21,6 +21,7 @@ import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
+import { setupScheduleFeature } from "@/features/schedule/setup";
 import { setupRoleMenuFeature } from "@/features/role-menu/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
@@ -213,6 +214,12 @@ export function registerFeatures(
     deploymentService,
     logger: logger.child({ feature: "Reminders" }),
   });
+  const scheduleFeature = setupScheduleFeature({
+    db,
+    client,
+    deploymentService,
+    logger: logger.child({ feature: "Schedule" }),
+  });
   const roleMenuFeature = setupRoleMenuFeature({
     db,
     logger: logger.child({ feature: "RoleMenu" }),
@@ -284,6 +291,7 @@ export function registerFeatures(
     ...notificationFeature.commands,
     ...guildSettingsFeature.commands,
     ...remindersFeature.commands,
+    ...scheduleFeature.commands,
     ...roleMenuFeature.commands,
     ...moderationFeature.commands,
     ...giveawayFeature.commands,
@@ -298,6 +306,7 @@ export function registerFeatures(
     ...notificationFeature.autocompletes,
     ...guildSettingsFeature.autocompletes,
     ...remindersFeature.autocompletes,
+    ...scheduleFeature.autocompletes,
     ...roleMenuFeature.autocompletes,
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
@@ -319,6 +328,7 @@ export function registerFeatures(
     ...notificationFeature.buttonHandlers,
     ...guildSettingsFeature.buttonHandlers,
     ...remindersFeature.buttonHandlers,
+    ...scheduleFeature.buttonHandlers,
     ...roleMenuFeature.buttonHandlers,
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
@@ -416,6 +426,7 @@ export function registerFeatures(
     ...reactionLogFeature.tasks,
     ...statsFeature.tasks,
     ...remindersFeature.tasks,
+    ...scheduleFeature.tasks,
   ];
 
   registerTasks(client, featureTasks);

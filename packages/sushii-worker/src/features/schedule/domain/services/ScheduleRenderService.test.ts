@@ -1,0 +1,242 @@
+import { describe, expect, it } from "bun:test";
+
+import type { ScheduleEvent } from "../entities/ScheduleEvent";
+import { renderSchedule } from "./ScheduleRenderService";
+import type { MessageChunk } from "./ScheduleRenderService";
+
+const NOW = new Date("2024-06-15T12:00:00Z");
+
+function makeEvent(
+  id: string,
+  summary: string,
+  startUtc: Date | null,
+  opts: Partial<ScheduleEvent> = {},
+): ScheduleEvent {
+  return {
+    id,
+    summary,
+    startUtc,
+    startDate: null,
+    isAllDay: false,
+    url: null,
+    location: null,
+    status: "confirmed",
+    ...opts,
+  };
+}
+
+function makeAllDayEvent(id: string, summary: string, startDate: string): ScheduleEvent {
+  return {
+    id,
+    summary,
+    startUtc: null,
+    startDate,
+    isAllDay: true,
+    url: null,
+    location: null,
+    status: "confirmed",
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getComponents(chunk: MessageChunk): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (chunk.container.toJSON() as any).components ?? [];
+}
+
+function getTextContent(chunks: MessageChunk[]): string {
+  return chunks
+    .flatMap((chunk) =>
+      getComponents(chunk)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c.type === 10)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => c.content as string),
+    )
+    .join("\n");
+}
+
+function countSeparators(chunk: MessageChunk): number {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return getComponents(chunk).filter((c: any) => c.type === 14).length;
+}
+
+describe("renderSchedule", () => {
+  describe("live mode", () => {
+    it("places separator between past and upcoming events", () => {
+      const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
+      const upcomingEvent = makeEvent("2", "Upcoming Event", new Date("2024-06-20T10:00:00Z"));
+
+      const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", NOW);
+
+      expect(countSeparators(chunks[0])).toBe(1);
+    });
+
+    it("marks first upcoming event with ➡️", () => {
+      const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
+      const upcoming1 = makeEvent("2", "First Upcoming", new Date("2024-06-20T10:00:00Z"));
+      const upcoming2 = makeEvent("3", "Second Upcoming", new Date("2024-06-25T10:00:00Z"));
+
+      const chunks = renderSchedule([pastEvent, upcoming1, upcoming2], "live", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("➡️");
+      expect(allText).toMatch(/➡️ \*\*.*First Upcoming/);
+      expect(allText).not.toMatch(/➡️ \*\*.*Second Upcoming/);
+    });
+
+    it("shows no separator when all events are past", () => {
+      const past1 = makeEvent("1", "Past 1", new Date("2024-06-01T10:00:00Z"));
+      const past2 = makeEvent("2", "Past 2", new Date("2024-06-05T10:00:00Z"));
+
+      const chunks = renderSchedule([past1, past2], "live", "Test Calendar", NOW);
+
+      expect(countSeparators(chunks[0])).toBe(0);
+    });
+
+    it("shows no separator when all events are upcoming", () => {
+      const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
+      const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
+
+      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", NOW);
+
+      expect(countSeparators(chunks[0])).toBe(0);
+    });
+  });
+
+  describe("archive mode", () => {
+    it("renders a flat plain list with no separator and no ➡️", () => {
+      const past = makeEvent("1", "Past Event", new Date("2024-05-10T10:00:00Z"));
+      const upcoming = makeEvent("2", "Future Event", new Date("2024-07-20T10:00:00Z"));
+
+      const chunks = renderSchedule([past, upcoming], "archive", "Test Calendar", NOW);
+
+      expect(countSeparators(chunks[0])).toBe(0);
+      expect(getTextContent(chunks)).not.toContain("➡️");
+    });
+
+    it("excludes cancelled events", () => {
+      const confirmed = makeEvent("1", "Confirmed", new Date("2024-06-20T10:00:00Z"));
+      const cancelled = makeEvent("2", "Cancelled", new Date("2024-06-22T10:00:00Z"), { status: "cancelled" });
+
+      const chunks = renderSchedule([confirmed, cancelled], "archive", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("Confirmed");
+      expect(allText).not.toContain("Cancelled");
+    });
+  });
+
+  describe("chunk splitting", () => {
+    it("splits into multiple chunks when content exceeds 3800 chars", () => {
+      const longSummary = "A".repeat(200);
+      const events = Array.from({ length: 30 }, (_, i) =>
+        makeEvent(
+          String(i),
+          `${longSummary} ${i}`,
+          new Date(`2024-06-${(i % 20) + 1}T10:00:00Z`),
+        ),
+      );
+
+      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      expect(chunks.length).toBeGreaterThan(1);
+    });
+
+    it("each chunk hash is deterministic", () => {
+      const events = [
+        makeEvent("1", "Event A", new Date("2024-06-20T10:00:00Z")),
+        makeEvent("2", "Event B", new Date("2024-06-25T10:00:00Z")),
+      ];
+
+      const chunks1 = renderSchedule(events, "live", "Test Calendar", NOW);
+      const chunks2 = renderSchedule(events, "live", "Test Calendar", NOW);
+
+      for (let i = 0; i < chunks1.length; i++) {
+        expect(chunks1[i].hash).toBe(chunks2[i].hash);
+      }
+    });
+  });
+
+  describe("event formatting", () => {
+    it("uses D timestamp style for all-day events", () => {
+      const allDay = makeAllDayEvent("1", "All Day Event", "2024-06-20");
+      const chunks = renderSchedule([allDay], "live", "Test Calendar", NOW);
+      expect(getTextContent(chunks)).toMatch(/<t:\d+:D>/);
+    });
+
+    it("uses f timestamp style for timed events", () => {
+      const timed = makeEvent("1", "Timed Event", new Date("2024-06-20T10:00:00Z"));
+      const chunks = renderSchedule([timed], "live", "Test Calendar", NOW);
+      expect(getTextContent(chunks)).toMatch(/<t:\d+:f>/);
+    });
+
+    it("renders URL location as hyperlink", () => {
+      const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
+        location: "https://example.com/stream",
+      });
+      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      expect(getTextContent(chunks)).toContain("[Event](https://example.com/stream)");
+    });
+
+    it("ignores non-URL location", () => {
+      const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
+        location: "Madison Square Garden, New York",
+      });
+      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+      expect(allText).toContain("Event");
+      expect(allText).not.toContain("Madison Square Garden");
+      expect(allText).not.toContain("[Event]");
+    });
+  });
+
+  describe("header and footer", () => {
+    it("includes header on first chunk only", () => {
+      const longSummary = "A".repeat(200);
+      const events = Array.from({ length: 30 }, (_, i) =>
+        makeEvent(String(i), `${longSummary} ${i}`, new Date(`2024-06-${(i % 20) + 1}T10:00:00Z`)),
+      );
+
+      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      expect(chunks.length).toBeGreaterThan(1);
+
+      const firstText = getComponents(chunks[0])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c.type === 10)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => c.content as string)
+        .join("\n");
+
+      expect(firstText).toContain("**Test Calendar 🗓️**");
+
+      for (let i = 1; i < chunks.length; i++) {
+        const text = getComponents(chunks[i])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((c: any) => c.type === 10)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((c: any) => c.content as string)
+          .join("\n");
+        expect(text).not.toContain("**Test Calendar 🗓️**");
+      }
+    });
+
+    it("includes footer on last chunk only", () => {
+      const longSummary = "A".repeat(200);
+      const events = Array.from({ length: 30 }, (_, i) =>
+        makeEvent(String(i), `${longSummary} ${i}`, new Date(`2024-06-${(i % 20) + 1}T10:00:00Z`)),
+      );
+
+      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      expect(chunks.length).toBeGreaterThan(1);
+
+      const lastText = getComponents(chunks.at(-1)!)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c.type === 10)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => c.content as string)
+        .join("\n");
+
+      expect(lastText).toContain("All times are shown in your local timezone");
+    });
+  });
+});
