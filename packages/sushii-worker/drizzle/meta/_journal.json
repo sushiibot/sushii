@@ -183,6 +183,13 @@
       "when": 1776064167406,
       "tag": "0025_add-schedule-channels",
       "breakpoints": false
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1776119500000,
+      "tag": "0026_add-schedule-display-title",
+      "breakpoints": false
     }
   ]
 }
