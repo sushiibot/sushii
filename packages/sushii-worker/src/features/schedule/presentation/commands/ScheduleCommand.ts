@@ -16,6 +16,16 @@ import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import type { ScheduleChannel } from "../../domain/entities/ScheduleChannel";
 
+function errorContainer(message: string): { components: ContainerBuilder[]; flags: number } {
+  const container = new ContainerBuilder().addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(message),
+  );
+  return {
+    components: [container],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
+  };
+}
+
 export class ScheduleCommand extends SlashCommandHandler {
   serverOnly = true;
 
@@ -50,7 +60,7 @@ export class ScheduleCommand extends SlashCommandHandler {
         .addStringOption((o) =>
           o
             .setName("title")
-            .setDescription("Display title for the schedule (defaults to calendar name).")
+            .setDescription("Display title shown above the schedule. If omitted, only the month and year are shown.")
             .setRequired(false),
         ),
     )
@@ -132,13 +142,35 @@ export class ScheduleCommand extends SlashCommandHandler {
     });
 
     if (result.err) {
-      await interaction.editReply({ content: `❌ ${result.val}` });
+      await interaction.editReply(errorContainer(`❌ ${result.val}`));
       return;
     }
 
     const sc = result.val;
+    const displayTitleText = sc.displayTitle ?? "(month/year only)";
+    const intervalMin = Math.round(sc.pollIntervalSec / 60);
+    const intervalDisplay = intervalMin >= 1
+      ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
+      : `every ${sc.pollIntervalSec} seconds`;
+
+    const content = [
+      "✅ **Schedule channel configured!**",
+      "",
+      `**Channel:** <#${sc.channelId}>`,
+      `**Log channel:** <#${sc.logChannelId}>`,
+      `**Calendar:** ${sc.calendarTitle}`,
+      `**Schedule title:** ${displayTitleText}`,
+      "",
+      `-# Syncing ${intervalDisplay}`,
+    ].join("\n");
+
+    const container = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(content),
+    );
+
     await interaction.editReply({
-      content: `✅ Schedule channel configured!\n**Channel:** <#${sc.channelId}>\n**Log channel:** <#${sc.logChannelId}>\n**Calendar:** ${sc.calendarTitle}`,
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 
@@ -158,12 +190,23 @@ export class ScheduleCommand extends SlashCommandHandler {
     );
 
     if (result.err) {
-      await interaction.editReply({ content: `❌ ${result.val}` });
+      await interaction.editReply(errorContainer(`❌ ${result.val}`));
       return;
     }
 
+    const content = [
+      "✅ **Schedule channel removed**",
+      "",
+      `Configuration for <#${channel.id}> has been deleted. Existing messages in the channel have been left intact.`,
+    ].join("\n");
+
+    const container = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(content),
+    );
+
     await interaction.editReply({
-      content: `✅ Schedule channel configuration removed for <#${channel.id}>. Existing messages in the channel have been left intact.`,
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 
@@ -178,7 +221,13 @@ export class ScheduleCommand extends SlashCommandHandler {
     const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId));
 
     if (channels.length === 0) {
-      await interaction.editReply({ content: "No schedule channels are configured in this server." });
+      const emptyContainer = new ContainerBuilder().addTextDisplayComponents(
+        new TextDisplayBuilder().setContent("No schedule channels are configured in this server."),
+      );
+      await interaction.editReply({
+        components: [emptyContainer],
+        flags: MessageFlags.IsComponentsV2,
+      });
       return;
     }
 
@@ -186,14 +235,18 @@ export class ScheduleCommand extends SlashCommandHandler {
     const lines: string[] = ["**Configured Schedule Channels**\n"];
 
     for (const sc of channels) {
-      lines.push(`**<#${sc.channelId}>** — ${sc.calendarTitle}`);
-      lines.push(`  Log channel: <#${sc.logChannelId}>`);
-      lines.push(`  Next sync: ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`);
+      lines.push(`**<#${sc.channelId}>**`);
+      if (sc.displayTitle) {
+        lines.push(`🏷️ Title: ${sc.displayTitle}`);
+      }
+      lines.push(`📅 ${sc.calendarTitle}`);
+      lines.push(`🔔 Log channel: <#${sc.logChannelId}>`);
+      lines.push(`🔄 Next sync: ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`);
       if (sc.consecutiveFailures > 0) {
-        lines.push(`  ⚠️ Failing (${sc.consecutiveFailures} consecutive failures)`);
-        if (sc.lastErrorReason) {
-          lines.push(`  Last error: ${sc.lastErrorReason}`);
-        }
+        const failureLine = sc.lastErrorReason
+          ? `⚠️ Failing (${sc.consecutiveFailures} consecutive failures) — last error: ${sc.lastErrorReason}`
+          : `⚠️ Failing (${sc.consecutiveFailures} consecutive failures)`;
+        lines.push(failureLine);
       }
       lines.push("");
     }
@@ -228,12 +281,23 @@ export class ScheduleCommand extends SlashCommandHandler {
     );
 
     if (result.err) {
-      await interaction.editReply({ content: `❌ ${result.val}` });
+      await interaction.editReply(errorContainer(`❌ ${result.val}`));
       return;
     }
 
+    const content = [
+      `✅ **Resync queued for <#${channel.id}>**`,
+      "",
+      "-# The schedule channel will update at the next poll.",
+    ].join("\n");
+
+    const container = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(content),
+    );
+
     await interaction.editReply({
-      content: `✅ Full resync queued for <#${channel.id}>. It will update within the next minute.`,
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 }
