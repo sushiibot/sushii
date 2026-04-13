@@ -52,10 +52,21 @@ export class NotificationMessageService {
       span.setAttributes({
         "guild.id": message.guildId,
         "channel.id": message.channelId,
-        "matched_count": matchedNotifications.length,
+        "channel.type": ChannelType[message.channel.type],
+        ...(message.channel.parentId && { "channel.parent_id": message.channel.parentId }),
+        "message.id": message.id,
+        "author.id": message.author.id,
+        "notification.matched_count": matchedNotifications.length,
       });
       try {
         const uniqueNotifications = this.deduplicateByUser(matchedNotifications);
+
+        span.setAttributes({
+          "notification.delivered_count": uniqueNotifications.length,
+          "notification.keywords": [
+            ...new Set(uniqueNotifications.map((n) => n.keyword)),
+          ],
+        });
 
         const userIds = uniqueNotifications.map((n) => n.userId);
         const settingsMap =
@@ -69,6 +80,8 @@ export class NotificationMessageService {
           message.channel.isThread() &&
           (message.channel.type === ChannelType.PrivateThread ||
             [...settingsMap.values()].some((s) => s.ignoreUnjoinedThreads));
+
+        span.setAttribute("notification.thread_member_fetch", needsThreadMemberFetch);
 
         if (needsThreadMemberFetch) {
           await message.channel.members.fetch();
