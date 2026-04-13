@@ -198,8 +198,12 @@ export class ScheduleCommand extends SlashCommandHandler {
       lines.push("");
     }
 
+    const content = lines.join("\n").trimEnd();
+    const truncated = content.length > 4000
+      ? content.slice(0, 4000) + "\n…(truncated)"
+      : content;
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(lines.join("\n").trimEnd()),
+      new TextDisplayBuilder().setContent(truncated),
     );
 
     await interaction.editReply({

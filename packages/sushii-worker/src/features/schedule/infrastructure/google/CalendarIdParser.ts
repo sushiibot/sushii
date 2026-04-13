@@ -1,7 +1,9 @@
 /**
  * Parse a Google Calendar ID from any supported input format:
  * - Share link: ?cid=<base64-encoded ID>
- * - iCal URL: /ical/<id>/public/
+ * - iCal URL: /ical/<id>/public/ or /ical/<id>/private/ (both are valid URL
+ *   formats; private calendars will result in a 403 from the Google Calendar
+ *   API when fetched, which is handled in the error path)
  * - Embed URL: ?src=<url-encoded ID>
  * - Raw ID: contains '@'
  *
@@ -38,8 +40,9 @@ export function parseCalendarId(input: string): string | null {
     return src;
   }
 
-  // iCal URL: /ical/<id>/public/
-  const icalMatch = url.pathname.match(/\/ical\/([^/]+)\/public\//);
+  // iCal URL: /ical/<id>/public/ or /ical/<id>/private/
+  // Both are valid URL formats; access control is enforced at the API level.
+  const icalMatch = url.pathname.match(/\/ical\/([^/]+)\/(public|private)\//);
   if (icalMatch) {
     return decodeURIComponent(icalMatch[1]);
   }

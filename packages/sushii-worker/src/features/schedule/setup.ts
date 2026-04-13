@@ -66,12 +66,14 @@ export function setupScheduleFeature(
     logger.child({ component: "ScheduleCommand" }),
   );
 
+  const tasks = apiKey ? [schedulePollTask] : [];
+
   return {
     commands: [scheduleCommand],
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
     eventHandlers: [],
-    tasks: [schedulePollTask],
+    tasks,
   };
 }

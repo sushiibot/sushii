@@ -96,8 +96,9 @@ function sortEvents(events: ScheduleEvent[]): ScheduleEvent[] {
 }
 
 export class SchedulePollService {
-  // In-memory cache: calendarId → events
+  // In-memory cache: "${guildId}:${channelId}" → events
   private readonly cache = new Map<string, ScheduleEvent[]>();
+  private readonly inProgressChannels = new Set<string>();
   private readonly httpSemaphore = new Semaphore(10);
   private readonly discordSemaphore = new Semaphore(5);
 
@@ -108,12 +109,17 @@ export class SchedulePollService {
     private readonly logger: Logger,
   ) {}
 
-  clearCache(calendarId: string): void {
-    this.cache.delete(calendarId);
+  private cacheKey(channel: ScheduleChannel): string {
+    return `${channel.guildId}:${channel.channelId}`;
   }
 
-  applyDiff(calendarId: string, changedItems: CalendarEventItem[]): void {
-    const existing = this.cache.get(calendarId) ?? [];
+  clearCache(channel: ScheduleChannel): void {
+    this.cache.delete(this.cacheKey(channel));
+  }
+
+  applyDiff(channel: ScheduleChannel, changedItems: CalendarEventItem[]): void {
+    const key = this.cacheKey(channel);
+    const existing = this.cache.get(key) ?? [];
     const eventMap = new Map(existing.map((e) => [e.id, e]));
 
     for (const item of changedItems) {
@@ -124,7 +130,7 @@ export class SchedulePollService {
       }
     }
 
-    this.cache.set(calendarId, sortEvents(Array.from(eventMap.values())));
+    this.cache.set(key, sortEvents(Array.from(eventMap.values())));
   }
 
   async pollAll(): Promise<void> {
@@ -137,8 +143,13 @@ export class SchedulePollService {
 
     await Promise.allSettled(
       dueChannels.map((channel) =>
-        this.httpSemaphore.run(() =>
-          this.pollChannel(channel).catch((err) => {
+        this.httpSemaphore.run(async () => {
+          const key = `${channel.guildId}:${channel.channelId}`;
+          if (this.inProgressChannels.has(key)) return;
+          this.inProgressChannels.add(key);
+          try {
+            await this.pollChannel(channel);
+          } catch (err) {
             this.logger.error(
               {
                 err,
@@ -147,8 +158,10 @@ export class SchedulePollService {
               },
               "Unexpected error polling schedule channel",
             );
-          }),
-        ),
+          } finally {
+            this.inProgressChannels.delete(key);
+          }
+        }),
       ),
     );
   }
@@ -158,9 +171,11 @@ export class SchedulePollService {
     const year = now.getUTCFullYear();
     const month = now.getUTCMonth() + 1;
 
+    const key = this.cacheKey(channel);
+
     // Snapshot previous event IDs before any cache mutation
     const previousEventIds = new Set(
-      (this.cache.get(channel.calendarId) ?? []).map((e) => e.id),
+      (this.cache.get(key) ?? []).map((e) => e.id),
     );
 
     // Archive check: detect messages from previous month that aren't archived yet
@@ -179,7 +194,7 @@ export class SchedulePollService {
     }
 
     // Fetch events
-    const cacheEmpty = !this.cache.has(channel.calendarId);
+    const cacheEmpty = !this.cache.has(key);
     let changedItems: CalendarEventItem[];
     let newSyncToken: string | undefined;
 
@@ -196,7 +211,15 @@ export class SchedulePollService {
         });
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-        this.applyDiff(channel.calendarId, changedItems);
+        this.applyDiff(channel, changedItems);
+        // Trim cache to current month only
+        const cached = this.cache.get(key) ?? [];
+        this.cache.set(key, cached.filter((e) => {
+          const d = e.isAllDay && e.startDate
+            ? new Date(`${e.startDate}T00:00:00Z`)
+            : e.startUtc;
+          return d ? isSameMonth(d, year, month) : false;
+        }));
       } else {
         // No sync token — full fetch
         const result = await this.fullFetch(channel, year, month);
@@ -217,7 +240,7 @@ export class SchedulePollService {
             null,
             computeNextPollAt(channel.pollIntervalSec),
           );
-          this.cache.delete(channel.calendarId);
+          this.cache.delete(key);
           return; // Will refetch next tick
         }
 
@@ -292,7 +315,7 @@ export class SchedulePollService {
     }
 
     // Re-render current month and sync Discord messages
-    const events = this.cache.get(channel.calendarId) ?? [];
+    const events = this.cache.get(key) ?? [];
     const currentMonthEvents = events.filter((e) => {
       const d = e.isAllDay && e.startDate
         ? new Date(`${e.startDate}T00:00:00Z`)
@@ -316,7 +339,7 @@ export class SchedulePollService {
       timeMax: endOfMonth,
     });
     this.cache.set(
-      channel.calendarId,
+      this.cacheKey(channel),
       sortEvents(
         result.items
           .filter((i) => i.status !== "cancelled")

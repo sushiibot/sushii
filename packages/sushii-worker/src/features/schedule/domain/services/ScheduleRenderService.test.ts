@@ -158,6 +158,25 @@ describe("renderSchedule", () => {
   });
 
   describe("event formatting", () => {
+    it("all-day event on today is classified as upcoming, not past", () => {
+      // NOW is 2024-06-15T12:00:00Z — midnight UTC of 2024-06-15 is before NOW,
+      // but the event is happening today so it must NOT be classified as past.
+      const todayAllDay = makeAllDayEvent("1", "Today Event", "2024-06-15");
+      const chunks = renderSchedule([todayAllDay], "live", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+      // Should appear as first upcoming (marked with ➡️) and no separator
+      expect(allText).toContain("➡️");
+      expect(countSeparators(chunks[0])).toBe(0);
+    });
+
+    it("all-day event in the past is classified as past", () => {
+      const pastAllDay = makeAllDayEvent("1", "Past All Day", "2024-06-14");
+      const futureAllDay = makeAllDayEvent("2", "Future All Day", "2024-06-20");
+      const chunks = renderSchedule([pastAllDay, futureAllDay], "live", "Test Calendar", NOW);
+      // Separator separates past from upcoming
+      expect(countSeparators(chunks[0])).toBe(1);
+    });
+
     it("uses D timestamp style for all-day events", () => {
       const allDay = makeAllDayEvent("1", "All Day Event", "2024-06-20");
       const chunks = renderSchedule([allDay], "live", "Test Calendar", NOW);
@@ -176,6 +195,15 @@ describe("renderSchedule", () => {
       });
       const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
       expect(getTextContent(chunks)).toContain("[Event](https://example.com/stream)");
+    });
+
+    it("escapes ] in summary when rendering as hyperlink", () => {
+      const event = makeEvent("1", "Event [Special]", new Date("2024-06-20T10:00:00Z"), {
+        location: "https://example.com/stream",
+      });
+      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const allText = getTextContent(chunks);
+      expect(allText).toContain("[Event \\[Special\\]](https://example.com/stream)");
     });
 
     it("ignores non-URL location", () => {

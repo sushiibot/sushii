@@ -11,9 +11,16 @@ describe("parseCalendarId", () => {
     expect(parseCalendarId(url)).toBe(calId);
   });
 
-  it("parses iCal URL format", () => {
+  it("parses iCal URL format with /public/ path", () => {
     const calId = "example%40group.calendar.google.com";
     const url = `https://calendar.google.com/calendar/ical/${calId}/public/basic.ics`;
+
+    expect(parseCalendarId(url)).toBe("example@group.calendar.google.com");
+  });
+
+  it("parses iCal URL format with /private/ path", () => {
+    const calId = "example%40group.calendar.google.com";
+    const url = `https://calendar.google.com/calendar/ical/${calId}/private/basic.ics`;
 
     expect(parseCalendarId(url)).toBe("example@group.calendar.google.com");
   });

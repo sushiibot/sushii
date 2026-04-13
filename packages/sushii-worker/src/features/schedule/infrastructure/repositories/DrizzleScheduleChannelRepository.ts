@@ -194,6 +194,8 @@ export class DrizzleScheduleChannelRepository
       .update(schema.scheduleChannelsInAppPublic)
       .set({
         consecutiveFailures: 0,
+        lastErrorAt: null,
+        lastErrorReason: null,
         nextPollAt,
         updatedAt: new Date(),
       })

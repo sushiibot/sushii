@@ -26,7 +26,8 @@ function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string 
   if (event.location) {
     try {
       new URL(event.location);
-      summaryText = `[${event.summary}](${event.location})`;
+      const escapedSummary = event.summary.replace(/[\[\]]/g, '\\$&');
+      summaryText = `[${escapedSummary}](${event.location})`;
     } catch {
       summaryText = event.summary;
     }
@@ -70,14 +71,18 @@ function buildSegments(
   const past: ScheduleEvent[] = [];
   const upcoming: ScheduleEvent[] = [];
 
-  for (const event of confirmed) {
-    const eventTime = event.isAllDay
-      ? event.startDate
-        ? new Date(`${event.startDate}T00:00:00Z`)
-        : null
-      : event.startUtc;
+  const todayDate = now.toISOString().slice(0, 10);
 
-    if (eventTime && eventTime < now) {
+  for (const event of confirmed) {
+    let isPast: boolean;
+    if (event.isAllDay) {
+      // For all-day events, compare dates only — an event on today is not past
+      isPast = !!event.startDate && event.startDate < todayDate;
+    } else {
+      isPast = !!event.startUtc && event.startUtc < now;
+    }
+
+    if (isPast) {
       past.push(event);
     } else {
       upcoming.push(event);
@@ -117,13 +122,13 @@ export function renderSchedule(
     const content = `${header}\n\n*No events this month.*\n\n${FOOTER_TEXT}`;
     const container = new ContainerBuilder();
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
-    const hash = Bun.hash.xxHash64(content).toString();
+    const hash = Bun.hash.xxHash64(content).toString(16);
     return [{ container, hash }];
   }
 
   // Inject header into first text segment and footer into last text segment
   const firstTextIdx = segments.findIndex((s) => s.type === "text");
-  const lastTextIdx = [...segments].map((s, i) => ({ s, i })).filter(({ s }) => s.type === "text").at(-1)?.i ?? -1;
+  const lastTextIdx = segments.findLastIndex((s) => s.type === "text");
 
   const enrichedSegments: RenderSegment[] = segments.map((seg, i) => {
     if (seg.type !== "text") return seg;
@@ -155,7 +160,7 @@ export function renderSchedule(
   function finalizeChunk(): void {
     flushTextToContainer();
     const raw = rawParts.join("\n");
-    const hash = Bun.hash.xxHash64(raw).toString();
+    const hash = Bun.hash.xxHash64(raw).toString(16);
     chunks.push({ container: currentContainer, hash });
     currentContainer = new ContainerBuilder();
     rawParts = [];

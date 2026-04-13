@@ -69,7 +69,8 @@ export class ScheduleChannelService {
     try {
       const logChannel = await this.client.channels.fetch(
         input.logChannelId.toString(),
-      ) as TextChannel;
+      );
+      if (!logChannel?.isTextBased() || logChannel.isDMBased()) return Ok(channel);
       const intervalMin = Math.round(channel.pollIntervalSec / 60);
       const intervalDisplay = intervalMin >= 1
         ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
@@ -114,7 +115,7 @@ export class ScheduleChannelService {
       now.getUTCMonth() + 1,
     );
 
-    this.schedulePollService.clearCache(existing.calendarId);
+    this.schedulePollService.clearCache(existing);
 
     return Ok(undefined);
   }
