@@ -48,8 +48,13 @@ export class GoogleCalendarClient {
   constructor(private readonly apiKey: string) {}
 
   async getCalendarMetadata(calendarId: string): Promise<CalendarMetadata> {
-    const url = new URL(`${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}`);
+    // calendars.get requires OAuth2 even for public calendars; events.list works with API keys.
+    // Fetch zero events — the response still includes summary and timeZone.
+    const url = new URL(
+      `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`,
+    );
     url.searchParams.set("key", this.apiKey);
+    url.searchParams.set("maxResults", "1");
     url.searchParams.set("fields", "summary,timeZone");
 
     const response = await fetch(url.toString());
@@ -61,7 +66,7 @@ export class GoogleCalendarClient {
       );
     }
 
-    const data = (await response.json()) as { summary: string; timeZone: string };
+    const data = (await response.json()) as { summary?: string; timeZone?: string };
     return {
       summary: data.summary ?? "",
       timeZone: data.timeZone ?? "UTC",

@@ -56,7 +56,7 @@ export class ScheduleChannelService {
       metadata = await this.calendarClient.getCalendarMetadata(calendarId);
     } catch (err) {
       if (err instanceof GoogleCalendarError) {
-        if (err.statusCode === 403 || err.statusCode === 404) {
+        if (err.statusCode === 401 || err.statusCode === 403 || err.statusCode === 404) {
           return Err(
             "The calendar is not publicly accessible. Please make the Google Calendar public and try again.",
           );
