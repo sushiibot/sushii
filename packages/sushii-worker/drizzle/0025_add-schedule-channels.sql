@@ -18,7 +18,6 @@ CREATE TABLE "app_public"."schedule_channels" (
 	"configured_by_user_id" bigint NOT NULL,
 	"calendar_id" text NOT NULL,
 	"calendar_title" text DEFAULT '' NOT NULL,
-	"timezone" text DEFAULT 'UTC' NOT NULL,
 	"sync_token" text,
 	"poll_interval_sec" integer DEFAULT 120 NOT NULL,
 	"next_poll_at" timestamp with time zone NOT NULL,

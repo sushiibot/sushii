@@ -8,7 +8,6 @@ export interface UpsertScheduleChannelData {
   configuredByUserId: bigint;
   calendarId: string;
   calendarTitle: string;
-  timezone: string;
   pollIntervalSec?: number;
   nextPollAt: Date;
 }

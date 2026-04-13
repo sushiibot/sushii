@@ -5,7 +5,6 @@ export interface ScheduleChannel {
   configuredByUserId: bigint;
   calendarId: string;
   calendarTitle: string;
-  timezone: string;
   syncToken: string | null;
   pollIntervalSec: number;
   nextPollAt: Date;

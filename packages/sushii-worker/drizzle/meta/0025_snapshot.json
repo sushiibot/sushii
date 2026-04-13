@@ -1,5 +1,5 @@
 {
-  "id": "2394a1b9-e3d4-45a4-b498-e51ac5f1ea8c",
+  "id": "0087a57f-80d7-4617-998e-dfbe90f48a12",
   "prevId": "10d7345a-0ee1-4b43-ad5b-d3d97c78d66c",
   "version": "7",
   "dialect": "postgresql",
@@ -2502,13 +2502,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'UTC'"
         },
         "sync_token": {
           "name": "sync_token",
