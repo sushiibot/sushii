@@ -3,6 +3,7 @@ import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
 import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
+import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
 import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
 import type { ScheduleChannelRepository } from "../domain/repositories/ScheduleChannelRepository";
 import { renderSchedule } from "../domain/services/ScheduleRenderService";
@@ -74,8 +75,9 @@ function computeBackoffNextPollAt(
   intervalSec: number,
   consecutiveFailures: number,
 ): Date {
+  const cappedFailures = Math.min(consecutiveFailures, 10);
   const backoffSec = Math.min(
-    intervalSec * Math.pow(2, consecutiveFailures),
+    intervalSec * Math.pow(2, cappedFailures),
     3600,
   );
   return new Date(Date.now() + backoffSec * 1000);
@@ -83,6 +85,14 @@ function computeBackoffNextPollAt(
 
 function isSameMonth(date: Date, year: number, month: number): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
+}
+
+function sortEvents(events: ScheduleEvent[]): ScheduleEvent[] {
+  return [...events].sort((a, b) => {
+    const aTime = a.startUtc?.getTime() ?? (a.startDate ? new Date(`${a.startDate}T00:00:00Z`).getTime() : 0);
+    const bTime = b.startUtc?.getTime() ?? (b.startDate ? new Date(`${b.startDate}T00:00:00Z`).getTime() : 0);
+    return aTime - bTime;
+  });
 }
 
 export class SchedulePollService {
@@ -98,6 +108,10 @@ export class SchedulePollService {
     private readonly logger: Logger,
   ) {}
 
+  clearCache(calendarId: string): void {
+    this.cache.delete(calendarId);
+  }
+
   applyDiff(calendarId: string, changedItems: CalendarEventItem[]): void {
     const existing = this.cache.get(calendarId) ?? [];
     const eventMap = new Map(existing.map((e) => [e.id, e]));
@@ -110,7 +124,7 @@ export class SchedulePollService {
       }
     }
 
-    this.cache.set(calendarId, Array.from(eventMap.values()));
+    this.cache.set(calendarId, sortEvents(Array.from(eventMap.values())));
   }
 
   async pollAll(): Promise<void> {
@@ -144,6 +158,11 @@ export class SchedulePollService {
     const year = now.getUTCFullYear();
     const month = now.getUTCMonth() + 1;
 
+    // Snapshot previous event IDs before any cache mutation
+    const previousEventIds = new Set(
+      (this.cache.get(channel.calendarId) ?? []).map((e) => e.id),
+    );
+
     // Archive check: detect messages from previous month that aren't archived yet
     const prevMonthYear = month === 1 ? year - 1 : year;
     const prevMonth = month === 1 ? 12 : month - 1;
@@ -167,19 +186,9 @@ export class SchedulePollService {
     try {
       if (cacheEmpty) {
         // Full fetch
-        const startOfMonth = new Date(Date.UTC(year, month - 1, 1)).toISOString();
-        const endOfMonth = new Date(Date.UTC(year, month, 1)).toISOString();
-        const result = await this.calendarClient.listEvents(channel.calendarId, {
-          timeMin: startOfMonth,
-          timeMax: endOfMonth,
-        });
+        const result = await this.fullFetch(channel, year, month);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-        // Initialize cache with full result
-        this.cache.set(
-          channel.calendarId,
-          changedItems.filter((i) => i.status !== "cancelled").map(mapCalendarItemToEvent),
-        );
       } else if (channel.syncToken) {
         // Incremental fetch
         const result = await this.calendarClient.listEvents(channel.calendarId, {
@@ -190,18 +199,9 @@ export class SchedulePollService {
         this.applyDiff(channel.calendarId, changedItems);
       } else {
         // No sync token — full fetch
-        const startOfMonth = new Date(Date.UTC(year, month - 1, 1)).toISOString();
-        const endOfMonth = new Date(Date.UTC(year, month, 1)).toISOString();
-        const result = await this.calendarClient.listEvents(channel.calendarId, {
-          timeMin: startOfMonth,
-          timeMax: endOfMonth,
-        });
+        const result = await this.fullFetch(channel, year, month);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-        this.cache.set(
-          channel.calendarId,
-          changedItems.filter((i) => i.status !== "cancelled").map(mapCalendarItemToEvent),
-        );
       }
     } catch (err) {
       if (err instanceof GoogleCalendarError) {
@@ -264,6 +264,12 @@ export class SchedulePollService {
         channel.channelId,
         computeNextPollAt(channel.pollIntervalSec),
       );
+      await this.repo.updateSyncToken(
+        channel.guildId,
+        channel.channelId,
+        newSyncToken ?? null,
+        computeNextPollAt(channel.pollIntervalSec),
+      );
     } else {
       await this.repo.updateSyncToken(
         channel.guildId,
@@ -282,7 +288,7 @@ export class SchedulePollService {
     });
 
     if (currentMonthChanges.length > 0) {
-      await this.sendEventChangeNotifications(channel, currentMonthChanges);
+      await this.sendEventChangeNotifications(channel, currentMonthChanges, previousEventIds);
     }
 
     // Re-render current month and sync Discord messages
@@ -298,19 +304,57 @@ export class SchedulePollService {
     await this.syncDiscordMessages(channel, year, month, chunks);
   }
 
+  private async fullFetch(
+    channel: ScheduleChannel,
+    year: number,
+    month: number,
+  ): Promise<{ items: CalendarEventItem[]; nextSyncToken?: string }> {
+    const startOfMonth = new Date(Date.UTC(year, month - 1, 1)).toISOString();
+    const endOfMonth = new Date(Date.UTC(year, month, 1)).toISOString();
+    const result = await this.calendarClient.listEvents(channel.calendarId, {
+      timeMin: startOfMonth,
+      timeMax: endOfMonth,
+    });
+    this.cache.set(
+      channel.calendarId,
+      sortEvents(
+        result.items
+          .filter((i) => i.status !== "cancelled")
+          .map(mapCalendarItemToEvent),
+      ),
+    );
+    return result;
+  }
+
   private async archivePreviousMonth(
     channel: ScheduleChannel,
     year: number,
     month: number,
-    unarchivedMessages: Array<{ messageIndex: number; messageId: bigint; contentHash: string; isArchived: boolean; guildId: bigint; channelId: bigint; year: number; month: number; lastUpdatedAt: Date }>,
+    unarchivedMessages: ScheduleChannelMessage[],
   ): Promise<void> {
-    const cachedEvents = this.cache.get(channel.calendarId) ?? [];
-    const prevEvents = cachedEvents.filter((e) => {
-      const d = e.isAllDay && e.startDate
-        ? new Date(`${e.startDate}T00:00:00Z`)
-        : e.startUtc;
-      return d ? isSameMonth(d, year, month) : false;
-    });
+    // Fetch previous month events from Google Calendar directly
+    const startOfPrevMonth = new Date(Date.UTC(year, month - 1, 1)).toISOString();
+    const endOfPrevMonth = new Date(Date.UTC(year, month, 1)).toISOString();
+
+    let prevEvents: ScheduleEvent[] = [];
+    try {
+      const result = await this.calendarClient.listEvents(channel.calendarId, {
+        timeMin: startOfPrevMonth,
+        timeMax: endOfPrevMonth,
+      });
+      prevEvents = sortEvents(
+        result.items
+          .filter((i) => i.status !== "cancelled")
+          .map(mapCalendarItemToEvent),
+      );
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId: channel.guildId.toString(), channelId: channel.channelId.toString() },
+        "Failed to fetch previous month events for archiving, skipping archive render",
+      );
+      await this.repo.markArchived(channel.guildId, channel.channelId, year, month);
+      return;
+    }
 
     const now = new Date();
     const archiveChunks = renderSchedule(prevEvents, "archive", channel.calendarTitle || "Schedule", now);
@@ -321,7 +365,8 @@ export class SchedulePollService {
 
       await this.discordSemaphore.run(async () => {
         try {
-          const discordChannel = await this.client.channels.fetch(channel.channelId.toString()) as TextChannel;
+          const discordChannel = await this.fetchTextChannel(channel.channelId.toString(), "archivePreviousMonth");
+          if (!discordChannel) return;
           const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
           await discordMsg.edit({
             components: [chunk.container],
@@ -342,6 +387,7 @@ export class SchedulePollService {
   private async sendEventChangeNotifications(
     channel: ScheduleChannel,
     changedItems: CalendarEventItem[],
+    previousEventIds: Set<string>,
   ): Promise<void> {
     const lines: string[] = [];
 
@@ -355,7 +401,7 @@ export class SchedulePollService {
 
       const label = timePart ? `${timePart} ${event.summary}` : event.summary;
 
-      const wasInCache = this.cache.get(channel.calendarId)?.some((e) => e.id === item.id) ?? false;
+      const wasInCache = previousEventIds.has(item.id);
 
       if (item.status === "cancelled") {
         lines.push(`🗑️ Event removed: ${label}`);
@@ -368,10 +414,10 @@ export class SchedulePollService {
 
     if (lines.length === 0) return;
 
+    const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendEventChangeNotifications");
+    if (!logChannel) return;
+
     try {
-      const logChannel = await this.client.channels.fetch(
-        channel.logChannelId.toString(),
-      ) as TextChannel;
       await logChannel.send({ content: lines.join("\n") });
     } catch (err) {
       this.logger.warn(
@@ -399,10 +445,10 @@ export class SchedulePollService {
         ? `⚠️ <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`
         : `⚠️ <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`;
 
+    const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendPermanentErrorAlert");
+    if (!logChannel) return;
+
     try {
-      const logChannel = await this.client.channels.fetch(
-        channel.logChannelId.toString(),
-      ) as TextChannel;
       await logChannel.send({ content: message });
     } catch (err) {
       this.logger.warn(
@@ -413,10 +459,10 @@ export class SchedulePollService {
   }
 
   private async sendRecoveryNotification(channel: ScheduleChannel): Promise<void> {
+    const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendRecoveryNotification");
+    if (!logChannel) return;
+
     try {
-      const logChannel = await this.client.channels.fetch(
-        channel.logChannelId.toString(),
-      ) as TextChannel;
       await logChannel.send({
         content: `✅ Schedule sync for <#${channel.channelId}> has recovered and is now working again.`,
       });
@@ -425,6 +471,20 @@ export class SchedulePollService {
         { err, logChannelId: channel.logChannelId.toString() },
         "Failed to send recovery notification to log channel",
       );
+    }
+  }
+
+  private async fetchTextChannel(channelId: string, context: string): Promise<TextChannel | null> {
+    try {
+      const ch = await this.client.channels.fetch(channelId);
+      if (!ch?.isTextBased() || ch.isDMBased()) {
+        this.logger.warn({ channelId, context }, "Channel is not a guild text channel");
+        return null;
+      }
+      return ch as TextChannel;
+    } catch (err) {
+      this.logger.warn({ err, channelId, context }, "Failed to fetch channel");
+      return null;
     }
   }
 
@@ -442,8 +502,10 @@ export class SchedulePollService {
     );
 
     const discordChannel = await this.discordSemaphore.run(() =>
-      this.client.channels.fetch(channel.channelId.toString()),
-    ) as TextChannel;
+      this.fetchTextChannel(channel.channelId.toString(), "syncDiscordMessages"),
+    );
+
+    if (!discordChannel) return;
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];

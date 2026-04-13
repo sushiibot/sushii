@@ -10,6 +10,7 @@ import {
   GoogleCalendarClient,
   GoogleCalendarError,
 } from "../infrastructure/google/GoogleCalendarClient";
+import type { SchedulePollService } from "./SchedulePollService";
 
 export interface ConfigureScheduleChannelInput {
   guildId: bigint;
@@ -18,13 +19,13 @@ export interface ConfigureScheduleChannelInput {
   configuredByUserId: bigint;
   calendarInput: string;
   title?: string;
-  timezone?: string;
 }
 
 export class ScheduleChannelService {
   constructor(
     private readonly repo: ScheduleChannelRepository,
     private readonly calendarClient: GoogleCalendarClient,
+    private readonly schedulePollService: SchedulePollService,
     private readonly client: Client,
     private readonly logger: Logger,
   ) {}
@@ -48,15 +49,11 @@ export class ScheduleChannelService {
           );
         }
       }
-      this.logger.error(
-        { err, calendarId },
-        "Failed to validate calendar during configure",
-      );
-      return Err("Failed to validate the calendar. Please try again later.");
+      // Re-throw unexpected errors — let the presentation layer handle them
+      throw err;
     }
 
     const calendarTitle = input.title ?? metadata.summary;
-    const timezone = input.timezone ?? metadata.timeZone;
 
     const channel = await this.repo.upsert({
       guildId: input.guildId,
@@ -65,7 +62,6 @@ export class ScheduleChannelService {
       configuredByUserId: input.configuredByUserId,
       calendarId,
       calendarTitle,
-      timezone,
       nextPollAt: new Date(),
     });
 
@@ -74,8 +70,12 @@ export class ScheduleChannelService {
       const logChannel = await this.client.channels.fetch(
         input.logChannelId.toString(),
       ) as TextChannel;
+      const intervalMin = Math.round(channel.pollIntervalSec / 60);
+      const intervalDisplay = intervalMin >= 1
+        ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
+        : `every ${channel.pollIntervalSec} seconds`;
       await logChannel.send({
-        content: `✅ Schedule channel configured: <#${input.channelId}> will now sync **${calendarTitle}** every 2 minutes.`,
+        content: `✅ Schedule channel configured: <#${input.channelId}> will now sync **${calendarTitle}** ${intervalDisplay}.`,
       });
     } catch (err) {
       this.logger.warn(
@@ -113,6 +113,8 @@ export class ScheduleChannelService {
       now.getUTCFullYear(),
       now.getUTCMonth() + 1,
     );
+
+    this.schedulePollService.clearCache(existing.calendarId);
 
     return Ok(undefined);
   }

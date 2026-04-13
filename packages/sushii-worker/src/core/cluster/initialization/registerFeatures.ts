@@ -364,6 +364,7 @@ export function registerFeatures(
     ...emojiStatsFeature.eventHandlers,
     ...messageLogFeature.eventHandlers,
     ...reactionLogFeature.eventHandlers,
+    ...scheduleFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------

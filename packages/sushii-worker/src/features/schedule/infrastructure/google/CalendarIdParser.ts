@@ -35,7 +35,7 @@ export function parseCalendarId(input: string): string | null {
   // Embed URL: ?src=CALENDAR_ID
   const src = url.searchParams.get("src");
   if (src) {
-    return decodeURIComponent(src);
+    return src;
   }
 
   // iCal URL: /ical/<id>/public/

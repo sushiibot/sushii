@@ -52,12 +52,6 @@ export class ScheduleCommand extends SlashCommandHandler {
             .setName("title")
             .setDescription("Display title for the schedule (defaults to calendar name).")
             .setRequired(false),
-        )
-        .addStringOption((o) =>
-          o
-            .setName("timezone")
-            .setDescription("Timezone for display (defaults to calendar timezone).")
-            .setRequired(false),
         ),
     )
     .addSubcommand((c) =>
@@ -127,7 +121,6 @@ export class ScheduleCommand extends SlashCommandHandler {
     const logChannel = interaction.options.getChannel("log-channel", true);
     const calendarInput = interaction.options.getString("calendar", true);
     const title = interaction.options.getString("title") ?? undefined;
-    const timezone = interaction.options.getString("timezone") ?? undefined;
 
     const result = await this.scheduleChannelService.configure({
       guildId: BigInt(interaction.guildId),
@@ -136,7 +129,6 @@ export class ScheduleCommand extends SlashCommandHandler {
       configuredByUserId: BigInt(interaction.user.id),
       calendarInput,
       title,
-      timezone,
     });
 
     if (result.err) {
@@ -146,7 +138,7 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const sc = result.val;
     await interaction.editReply({
-      content: `✅ Schedule channel configured!\n**Channel:** <#${sc.channelId}>\n**Log channel:** <#${sc.logChannelId}>\n**Calendar:** ${sc.calendarTitle}\n**Timezone:** ${sc.timezone}`,
+      content: `✅ Schedule channel configured!\n**Channel:** <#${sc.channelId}>\n**Log channel:** <#${sc.logChannelId}>\n**Calendar:** ${sc.calendarTitle}`,
     });
   }
 

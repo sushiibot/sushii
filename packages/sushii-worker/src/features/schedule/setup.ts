@@ -26,9 +26,13 @@ export function setupScheduleFeature(
 ): FeatureSetupWithTasks {
   const { db, client, deploymentService, logger } = deps;
 
-  const apiKey = env.GOOGLE_CALENDAR_API_KEY ?? "";
-
-  const calendarClient = new GoogleCalendarClient(apiKey);
+  const apiKey = env.GOOGLE_CALENDAR_API_KEY;
+  if (!apiKey) {
+    deps.logger.warn(
+      "GOOGLE_CALENDAR_API_KEY is not set — schedule channel feature will not function. Set the env var and restart.",
+    );
+  }
+  const calendarClient = new GoogleCalendarClient(apiKey ?? "");
 
   const scheduleChannelRepository = new DrizzleScheduleChannelRepository(
     db,
@@ -45,6 +49,7 @@ export function setupScheduleFeature(
   const scheduleChannelService = new ScheduleChannelService(
     scheduleChannelRepository,
     calendarClient,
+    schedulePollService,
     client,
     logger.child({ component: "ScheduleChannelService" }),
   );
