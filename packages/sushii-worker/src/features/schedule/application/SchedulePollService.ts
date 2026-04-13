@@ -1,5 +1,5 @@
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import { MessageFlags } from "discord.js";
+import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
 import type { Logger } from "pino";
 
 import { Semaphore } from "@/shared/infrastructure/concurrency/Semaphore";
@@ -314,8 +314,7 @@ export class SchedulePollService {
       return d ? isSameMonth(d, year, month) : false;
     });
 
-    // calendarTitle is guaranteed non-null by schema; empty string falls back to "Schedule"
-    const chunks = renderSchedule(currentMonthEvents, "live", channel.calendarTitle || "Schedule", now);
+    const chunks = renderSchedule(currentMonthEvents, "live", channel.displayTitle, year, month, now);
     await this.syncDiscordMessages(channel, year, month, chunks);
   }
 
@@ -371,8 +370,7 @@ export class SchedulePollService {
       return;
     }
 
-    const now = new Date();
-    const archiveChunks = renderSchedule(prevEvents, "archive", channel.calendarTitle || "Schedule", now);
+    const archiveChunks = renderSchedule(prevEvents, "archive", channel.displayTitle, year, month, new Date());
 
     const discordChannel = await this.fetchTextChannel(channel.channelId.toString(), "archivePreviousMonth");
 
@@ -507,8 +505,16 @@ export class SchedulePollService {
     const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendEventChangeNotifications");
     if (!logChannel) return;
 
+    const container = new ContainerBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(lines.join("\n"))
+      );
+
     try {
-      await logChannel.send({ content: lines.join("\n") });
+      await logChannel.send({
+        components: [container],
+        flags: MessageFlags.IsComponentsV2,
+      });
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },

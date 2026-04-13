@@ -1,3 +1,4 @@
+import { ContainerBuilder, TextDisplayBuilder, MessageFlags } from "discord.js";
 import type { Client } from "discord.js";
 import type { Logger } from "pino";
 import { Ok, Err } from "ts-results";
@@ -58,7 +59,8 @@ export class ScheduleChannelService {
       throw err;
     }
 
-    const calendarTitle = input.title ?? metadata.summary;
+    const calendarTitle = metadata.summary;          // always the Google Calendar name
+    const displayTitle = input.title?.trim() || null; // user-provided override, null = month/year only
 
     const channel = await this.repo.upsert({
       guildId: input.guildId,
@@ -67,6 +69,7 @@ export class ScheduleChannelService {
       configuredByUserId: input.configuredByUserId,
       calendarId,
       calendarTitle,
+      displayTitle,
       nextPollAt: new Date(),
     });
 
@@ -82,8 +85,15 @@ export class ScheduleChannelService {
       const intervalDisplay = intervalMin >= 1
         ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
         : `every ${channel.pollIntervalSec} seconds`;
+      const titleDisplay = displayTitle ? `**${displayTitle}**` : "month/year only";
+      const container = new ContainerBuilder().addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `✅ Schedule channel configured: <#${input.channelId}> will now sync ${intervalDisplay}. Schedule title: ${titleDisplay}.`,
+        ),
+      );
       await logChannel.send({
-        content: `✅ Schedule channel configured: <#${input.channelId}> will now sync **${calendarTitle}** ${intervalDisplay}.`,
+        components: [container],
+        flags: MessageFlags.IsComponentsV2,
       });
     } catch (err) {
       this.logger.warn(

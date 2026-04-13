@@ -934,6 +934,7 @@ export const scheduleChannelsInAppPublic = appPublic.table(
     }).notNull(),
     calendarId: text("calendar_id").notNull(),
     calendarTitle: text("calendar_title").notNull().default(""),
+    displayTitle: text("display_title"),
     syncToken: text("sync_token"),
     pollIntervalSec: integer("poll_interval_sec").notNull().default(120),
     nextPollAt: timestamp("next_poll_at", {

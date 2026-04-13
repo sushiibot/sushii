@@ -18,7 +18,8 @@ type RenderSegment =
   | { type: "separator" };
 
 const MAX_TEXT_DISPLAY_CHARS = 3800;
-const FOOTER_TEXT = "-# All times are shown in your local timezone";
+const FOOTER_TEXT_LIVE = "-# All times are shown in your local timezone";
+const FOOTER_TEXT_ARCHIVE = "-# All times are shown in your local timezone · archived";
 
 function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string {
   let summaryText: string;
@@ -97,16 +98,20 @@ function buildSegments(
 
   const segments: RenderSegment[] = [];
 
+  const hasBoth = past.length > 0 && upcoming.length > 0;
+
   if (past.length > 0) {
-    segments.push({ type: "text", content: past.map((e) => formatEventLine(e, false)).join("\n") });
+    const pastContent = past.map((e) => formatEventLine(e, false)).join("\n");
+    segments.push({ type: "text", content: hasBoth ? `-# Past\n${pastContent}` : pastContent });
   }
 
-  if (past.length > 0 && upcoming.length > 0) {
+  if (hasBoth) {
     segments.push({ type: "separator" });
   }
 
   if (upcoming.length > 0) {
-    segments.push({ type: "text", content: upcoming.map((e, i) => formatEventLine(e, i === 0)).join("\n") });
+    const upcomingContent = upcoming.map((e, i) => formatEventLine(e, i === 0)).join("\n");
+    segments.push({ type: "text", content: hasBoth ? `-# Upcoming\n${upcomingContent}` : upcomingContent });
   }
 
   return segments;
@@ -118,15 +123,27 @@ function buildSegments(
 export function renderSchedule(
   events: ScheduleEvent[],
   mode: "live" | "archive",
-  title: string,
+  title: string | null,
+  year: number,
+  month: number,
   now: Date,
 ): MessageChunk[] {
-  const safeTitle = title.replace(/\*/g, '\\*');
-  const header = `**${safeTitle} 🗓️**`;
+  const monthYearStr = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, month - 1));
+
+  let header: string;
+  if (title !== null) {
+    const safeTitle = title.replace(/\*/g, '\\*');
+    header = `**${safeTitle}** 🗓️\n-# ${monthYearStr}`;
+  } else {
+    header = `**${monthYearStr}** 🗓️`;
+  }
+
+  const footerText = mode === "archive" ? FOOTER_TEXT_ARCHIVE : FOOTER_TEXT_LIVE;
+
   const segments = buildSegments(events, mode, now);
 
   if (segments.length === 0) {
-    const content = `${header}\n\n*No events this month.*\n\n${FOOTER_TEXT}`;
+    const content = `${header}\n\n*No events this month.*\n\n${footerText}`;
     const container = new ContainerBuilder();
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
     const hash = Bun.hash.xxHash64(content).toString(16);
@@ -142,7 +159,7 @@ export function renderSchedule(
 
     let content = seg.content;
     if (i === firstTextIdx) content = `${header}\n${content}`;
-    if (i === lastTextIdx) content = `${content}\n\n${FOOTER_TEXT}`;
+    if (i === lastTextIdx) content = `${content}\n\n${footerText}`;
     return { type: "text", content };
   });
 

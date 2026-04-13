@@ -5,6 +5,8 @@ import { renderSchedule } from "./ScheduleRenderService";
 import type { MessageChunk } from "./ScheduleRenderService";
 
 const NOW = new Date("2024-06-15T12:00:00Z");
+const YEAR = 2024;
+const MONTH = 6;
 
 function makeEvent(
   id: string,
@@ -67,7 +69,7 @@ describe("renderSchedule", () => {
       const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
       const upcomingEvent = makeEvent("2", "Upcoming Event", new Date("2024-06-20T10:00:00Z"));
 
-      const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
 
       expect(countSeparators(chunks[0])).toBe(1);
     });
@@ -77,7 +79,7 @@ describe("renderSchedule", () => {
       const upcoming1 = makeEvent("2", "First Upcoming", new Date("2024-06-20T10:00:00Z"));
       const upcoming2 = makeEvent("3", "Second Upcoming", new Date("2024-06-25T10:00:00Z"));
 
-      const chunks = renderSchedule([pastEvent, upcoming1, upcoming2], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([pastEvent, upcoming1, upcoming2], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
       expect(allText).toContain("➡️");
@@ -89,7 +91,7 @@ describe("renderSchedule", () => {
       const past1 = makeEvent("1", "Past 1", new Date("2024-06-01T10:00:00Z"));
       const past2 = makeEvent("2", "Past 2", new Date("2024-06-05T10:00:00Z"));
 
-      const chunks = renderSchedule([past1, past2], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([past1, past2], "live", "Test Calendar", YEAR, MONTH, NOW);
 
       expect(countSeparators(chunks[0])).toBe(0);
     });
@@ -98,9 +100,42 @@ describe("renderSchedule", () => {
       const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
       const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
 
-      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
 
       expect(countSeparators(chunks[0])).toBe(0);
+    });
+
+    it("shows -# Past and -# Upcoming labels when both sections exist", () => {
+      const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
+      const upcomingEvent = makeEvent("2", "Upcoming Event", new Date("2024-06-20T10:00:00Z"));
+
+      const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("-# Past");
+      expect(allText).toContain("-# Upcoming");
+    });
+
+    it("shows no section labels when all events are upcoming only", () => {
+      const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
+      const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
+
+      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).not.toContain("-# Past");
+      expect(allText).not.toContain("-# Upcoming");
+    });
+
+    it("shows no section labels when all events are past only", () => {
+      const past1 = makeEvent("1", "Past 1", new Date("2024-06-01T10:00:00Z"));
+      const past2 = makeEvent("2", "Past 2", new Date("2024-06-05T10:00:00Z"));
+
+      const chunks = renderSchedule([past1, past2], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).not.toContain("-# Past");
+      expect(allText).not.toContain("-# Upcoming");
     });
   });
 
@@ -109,7 +144,7 @@ describe("renderSchedule", () => {
       const past = makeEvent("1", "Past Event", new Date("2024-05-10T10:00:00Z"));
       const upcoming = makeEvent("2", "Future Event", new Date("2024-07-20T10:00:00Z"));
 
-      const chunks = renderSchedule([past, upcoming], "archive", "Test Calendar", NOW);
+      const chunks = renderSchedule([past, upcoming], "archive", "Test Calendar", YEAR, MONTH, NOW);
 
       expect(countSeparators(chunks[0])).toBe(0);
       expect(getTextContent(chunks)).not.toContain("➡️");
@@ -119,11 +154,19 @@ describe("renderSchedule", () => {
       const confirmed = makeEvent("1", "Confirmed", new Date("2024-06-20T10:00:00Z"));
       const cancelled = makeEvent("2", "Cancelled", new Date("2024-06-22T10:00:00Z"), { status: "cancelled" });
 
-      const chunks = renderSchedule([confirmed, cancelled], "archive", "Test Calendar", NOW);
+      const chunks = renderSchedule([confirmed, cancelled], "archive", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
       expect(allText).toContain("Confirmed");
       expect(allText).not.toContain("Cancelled");
+    });
+
+    it("footer contains '· archived' in archive mode", () => {
+      const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"));
+      const chunks = renderSchedule([event], "archive", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("· archived");
     });
   });
 
@@ -138,7 +181,7 @@ describe("renderSchedule", () => {
         ),
       );
 
-      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      const chunks = renderSchedule(events, "archive", "Test Calendar", YEAR, MONTH, NOW);
       expect(chunks.length).toBeGreaterThan(1);
     });
 
@@ -148,8 +191,8 @@ describe("renderSchedule", () => {
         makeEvent("2", "Event B", new Date("2024-06-25T10:00:00Z")),
       ];
 
-      const chunks1 = renderSchedule(events, "live", "Test Calendar", NOW);
-      const chunks2 = renderSchedule(events, "live", "Test Calendar", NOW);
+      const chunks1 = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW);
+      const chunks2 = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW);
 
       for (let i = 0; i < chunks1.length; i++) {
         expect(chunks1[i].hash).toBe(chunks2[i].hash);
@@ -162,7 +205,7 @@ describe("renderSchedule", () => {
       // NOW is 2024-06-15T12:00:00Z — midnight UTC of 2024-06-15 is before NOW,
       // but the event is happening today so it must NOT be classified as past.
       const todayAllDay = makeAllDayEvent("1", "Today Event", "2024-06-15");
-      const chunks = renderSchedule([todayAllDay], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([todayAllDay], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
       // Should appear as first upcoming (marked with ➡️) and no separator
       expect(allText).toContain("➡️");
@@ -172,20 +215,20 @@ describe("renderSchedule", () => {
     it("all-day event in the past is classified as past", () => {
       const pastAllDay = makeAllDayEvent("1", "Past All Day", "2024-06-14");
       const futureAllDay = makeAllDayEvent("2", "Future All Day", "2024-06-20");
-      const chunks = renderSchedule([pastAllDay, futureAllDay], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([pastAllDay, futureAllDay], "live", "Test Calendar", YEAR, MONTH, NOW);
       // Separator separates past from upcoming
       expect(countSeparators(chunks[0])).toBe(1);
     });
 
     it("uses D timestamp style for all-day events", () => {
       const allDay = makeAllDayEvent("1", "All Day Event", "2024-06-20");
-      const chunks = renderSchedule([allDay], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([allDay], "live", "Test Calendar", YEAR, MONTH, NOW);
       expect(getTextContent(chunks)).toMatch(/<t:\d+:D>/);
     });
 
     it("uses f timestamp style for timed events", () => {
       const timed = makeEvent("1", "Timed Event", new Date("2024-06-20T10:00:00Z"));
-      const chunks = renderSchedule([timed], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([timed], "live", "Test Calendar", YEAR, MONTH, NOW);
       expect(getTextContent(chunks)).toMatch(/<t:\d+:f>/);
     });
 
@@ -193,7 +236,7 @@ describe("renderSchedule", () => {
       const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
         location: "https://example.com/stream",
       });
-      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
       expect(getTextContent(chunks)).toContain("[Event](https://example.com/stream)");
     });
 
@@ -201,7 +244,7 @@ describe("renderSchedule", () => {
       const event = makeEvent("1", "Event [Special]", new Date("2024-06-20T10:00:00Z"), {
         location: "https://example.com/stream",
       });
-      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
       expect(allText).toContain("[Event \\[Special\\]](https://example.com/stream)");
     });
@@ -210,7 +253,7 @@ describe("renderSchedule", () => {
       const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
         location: "https://x.com/watch?v=abc123)",
       });
-      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
       // The ) should be encoded as %29 so it does not terminate the markdown link early
       expect(allText).toContain("[Event](https://x.com/watch?v=abc123%29)");
@@ -221,7 +264,7 @@ describe("renderSchedule", () => {
       const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
         location: "Madison Square Garden, New York",
       });
-      const chunks = renderSchedule([event], "live", "Test Calendar", NOW);
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
       expect(allText).toContain("Event");
       expect(allText).not.toContain("Madison Square Garden");
@@ -236,7 +279,7 @@ describe("renderSchedule", () => {
         makeEvent(String(i), `${longSummary} ${i}`, new Date(`2024-06-${(i % 20) + 1}T10:00:00Z`)),
       );
 
-      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      const chunks = renderSchedule(events, "archive", "Test Calendar", YEAR, MONTH, NOW);
       expect(chunks.length).toBeGreaterThan(1);
 
       const firstText = getComponents(chunks[0])
@@ -246,7 +289,7 @@ describe("renderSchedule", () => {
         .map((c: any) => c.content as string)
         .join("\n");
 
-      expect(firstText).toContain("**Test Calendar 🗓️**");
+      expect(firstText).toContain("**Test Calendar** 🗓️");
 
       for (let i = 1; i < chunks.length; i++) {
         const text = getComponents(chunks[i])
@@ -255,7 +298,7 @@ describe("renderSchedule", () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((c: any) => c.content as string)
           .join("\n");
-        expect(text).not.toContain("**Test Calendar 🗓️**");
+        expect(text).not.toContain("**Test Calendar** 🗓️");
       }
     });
 
@@ -265,7 +308,7 @@ describe("renderSchedule", () => {
         makeEvent(String(i), `${longSummary} ${i}`, new Date(`2024-06-${(i % 20) + 1}T10:00:00Z`)),
       );
 
-      const chunks = renderSchedule(events, "archive", "Test Calendar", NOW);
+      const chunks = renderSchedule(events, "archive", "Test Calendar", YEAR, MONTH, NOW);
       expect(chunks.length).toBeGreaterThan(1);
 
       const lastText = getComponents(chunks.at(-1)!)
@@ -276,6 +319,42 @@ describe("renderSchedule", () => {
         .join("\n");
 
       expect(lastText).toContain("All times are shown in your local timezone");
+    });
+
+    it("header with title contains bold title and month/year subheading", () => {
+      const event = makeEvent("1", "Event", new Date("2024-01-20T10:00:00Z"));
+      const chunks = renderSchedule([event], "live", "Title", 2024, 1, new Date("2024-01-10T12:00:00Z"));
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("**Title** 🗓️");
+      expect(allText).toContain("-# January 2024");
+    });
+
+    it("header without title (null) shows bold month/year only", () => {
+      const event = makeEvent("1", "Event", new Date("2024-01-20T10:00:00Z"));
+      const chunks = renderSchedule([event], "live", null, 2024, 1, new Date("2024-01-10T12:00:00Z"));
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("**January 2024** 🗓️");
+    });
+
+    it("header without title (null) and no events shows bold month/year with empty-state message", () => {
+      const chunks = renderSchedule([], "live", null, YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(chunks.length).toBe(1);
+      expect(allText).toContain(`**June ${YEAR}** 🗓️`);
+      expect(allText).toContain("*No events this month.*");
+      expect(allText).not.toContain("-# June");
+    });
+
+    it("live mode footer does not contain '· archived'", () => {
+      const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"));
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).toContain("All times are shown in your local timezone");
+      expect(allText).not.toContain("· archived");
     });
   });
 });
