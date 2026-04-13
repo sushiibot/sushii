@@ -184,11 +184,10 @@ export class Config {
     );
     this.sentry = {
       dsn: env.SENTRY_DSN,
-      // Prioritize custom environment variable, then fall back toNODE_ENV
+      // Prioritize custom environment variable, then fall back to NODE_ENV
       environment:
-        env.SENTRY_ENVIRONMENT || process.env.NODE_ENV === "production"
-          ? "production"
-          : "development",
+        env.SENTRY_ENVIRONMENT ??
+        (process.env.NODE_ENV === "production" ? "production" : "development"),
     };
 
     this.posthogAPIKey = env.POSTHOG_API_KEY;
