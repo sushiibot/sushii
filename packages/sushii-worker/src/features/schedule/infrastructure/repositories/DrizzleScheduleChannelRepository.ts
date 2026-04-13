@@ -168,14 +168,15 @@ export class DrizzleScheduleChannelRepository
     reason: string,
     nextPollAt: Date,
   ): Promise<void> {
+    const now = new Date();
     await this.db
       .update(schema.scheduleChannelsInAppPublic)
       .set({
         consecutiveFailures: sql`${schema.scheduleChannelsInAppPublic.consecutiveFailures} + 1`,
-        lastErrorAt: new Date(),
+        lastErrorAt: now,
         lastErrorReason: reason,
         nextPollAt,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
       .where(
         and(

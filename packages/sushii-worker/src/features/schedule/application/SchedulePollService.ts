@@ -152,9 +152,9 @@ export class SchedulePollService {
 
     const key = this.cacheKey(channel);
 
-    // Snapshot previous event IDs before any cache mutation
-    const previousEventIds = new Set(
-      (this.cache.get(key) ?? []).map((e) => e.id),
+    // Snapshot previous events before any cache mutation
+    const previousEvents = new Map(
+      (this.cache.get(key) ?? []).map((e) => [e.id, e]),
     );
 
     // Archive check: detect messages from previous month that aren't archived yet
@@ -284,15 +284,16 @@ export class SchedulePollService {
     const currentMonthChanges = changedItems.filter((item) => {
       const startStr = item.start?.dateTime ?? item.start?.date;
       if (!startStr) {
-        // Cancelled items may omit start — use cache membership as proxy for current month
-        return item.status === "cancelled" && previousEventIds.has(item.id);
+          // If the cancelled event was never in our cache (e.g., after a 410 rebuild),
+        // we silently skip it — we can't determine month or show event details.
+        return item.status === "cancelled" && previousEvents.has(item.id);
       }
       const d = new Date(startStr);
       return isSameMonth(d, year, month);
     });
 
     if (currentMonthChanges.length > 0) {
-      await this.sendEventChangeNotifications(channel, currentMonthChanges, previousEventIds);
+      await this.sendEventChangeNotifications(channel, currentMonthChanges, previousEvents);
     }
 
     // Re-render current month and sync Discord messages.
@@ -452,7 +453,7 @@ export class SchedulePollService {
   private async sendEventChangeNotifications(
     channel: ScheduleChannel,
     changedItems: CalendarEventItem[],
-    previousEventIds: Set<string>,
+    previousEvents: Map<string, ScheduleEvent>,
   ): Promise<void> {
     const lines: string[] = [];
 
@@ -466,10 +467,19 @@ export class SchedulePollService {
 
       const label = timePart ? `${timePart} ${event.summary}` : event.summary;
 
-      const wasInCache = previousEventIds.has(item.id);
+      const wasInCache = previousEvents.has(item.id);
 
       if (item.status === "cancelled") {
-        lines.push(`🗑️ Event removed: ${label}`);
+        const prevEvent = previousEvents.get(item.id);
+        const prevTimePart = prevEvent?.isAllDay && prevEvent?.startDate
+          ? `<t:${Math.floor(new Date(`${prevEvent.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
+          : prevEvent?.startUtc
+          ? `<t:${Math.floor(prevEvent.startUtc.getTime() / 1000)}:f>`
+          : "";
+        const prevSummary = prevEvent?.summary ?? event.summary;
+        const cancelLabel = prevTimePart ? `${prevTimePart} ${prevSummary}` : prevSummary;
+        lines.push(`🗑️ Event removed: ${cancelLabel}`);
+        continue; // skip the rest of the loop body
       } else if (wasInCache) {
         lines.push(`✏️ Event updated: ${label}`);
       } else {
@@ -566,8 +576,8 @@ export class SchedulePollService {
       month,
     );
 
-    const discordChannel = await this.discordSemaphore.run(() =>
-      this.fetchTextChannel(channel.channelId.toString(), "syncDiscordMessages"),
+    const discordChannel = await this.fetchTextChannel(
+      channel.channelId.toString(), "syncDiscordMessages",
     );
 
     if (!discordChannel) return;

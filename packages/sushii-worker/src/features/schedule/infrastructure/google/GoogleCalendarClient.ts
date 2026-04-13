@@ -28,12 +28,10 @@ export interface ListEventsResponse {
   nextPageToken?: string;
 }
 
-export interface ListEventsOptions {
-  timeMin?: string;
-  timeMax?: string;
-  syncToken?: string;
-  pageToken?: string;
-}
+export type ListEventsOptions = (
+  | { syncToken: string; timeMin?: never; timeMax?: never }
+  | { syncToken?: never; timeMin?: string; timeMax?: string }
+) & { pageToken?: string };
 
 export class GoogleCalendarError extends Error {
   constructor(
