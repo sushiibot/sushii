@@ -1,4 +1,4 @@
-import type { Client, TextChannel } from "discord.js";
+import type { Client, GuildTextBasedChannel } from "discord.js";
 import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
@@ -42,6 +42,8 @@ function computeBackoffNextPollAt(
   consecutiveFailures: number,
 ): Date {
   const cappedFailures = Math.min(consecutiveFailures, 10);
+  // Backoff is capped at 1 hour regardless of intervalSec.
+  // If intervalSec >= 3600, there is no escalation — this is intentional.
   const backoffSec = Math.min(
     intervalSec * Math.pow(2, cappedFailures),
     3600,
@@ -66,8 +68,8 @@ function getEventDate(event: ScheduleEvent): Date | null {
 
 function sortEvents(events: ScheduleEvent[]): ScheduleEvent[] {
   return [...events].sort((a, b) => {
-    const aTime = a.startUtc?.getTime() ?? (a.startDate ? new Date(`${a.startDate}T00:00:00Z`).getTime() : 0);
-    const bTime = b.startUtc?.getTime() ?? (b.startDate ? new Date(`${b.startDate}T00:00:00Z`).getTime() : 0);
+    const aTime = getEventDate(a)?.getTime() ?? 0;
+    const bTime = getEventDate(b)?.getTime() ?? 0;
     return aTime - bTime;
   });
 }
@@ -281,7 +283,10 @@ export class SchedulePollService {
     // Log channel notifications for changed events in current month
     const currentMonthChanges = changedItems.filter((item) => {
       const startStr = item.start?.dateTime ?? item.start?.date;
-      if (!startStr) return false;
+      if (!startStr) {
+        // Cancelled items may omit start — use cache membership as proxy for current month
+        return item.status === "cancelled" && previousEventIds.has(item.id);
+      }
       const d = new Date(startStr);
       return isSameMonth(d, year, month);
     });
@@ -302,6 +307,7 @@ export class SchedulePollService {
       return d ? isSameMonth(d, year, month) : false;
     });
 
+    // calendarTitle is guaranteed non-null by schema; empty string falls back to "Schedule"
     const chunks = renderSchedule(currentMonthEvents, "live", channel.calendarTitle || "Schedule", now);
     await this.syncDiscordMessages(channel, year, month, chunks);
   }
@@ -361,26 +367,83 @@ export class SchedulePollService {
     const now = new Date();
     const archiveChunks = renderSchedule(prevEvents, "archive", channel.calendarTitle || "Schedule", now);
 
-    for (const msg of unarchivedMessages) {
-      const chunk = archiveChunks[msg.messageIndex];
-      if (!chunk) continue;
+    const discordChannel = await this.fetchTextChannel(channel.channelId.toString(), "archivePreviousMonth");
+
+    // Sync each archive chunk: edit existing messages, post new ones where missing
+    for (let i = 0; i < archiveChunks.length; i++) {
+      const chunk = archiveChunks[i];
+      const existing = unarchivedMessages.find((m) => m.messageIndex === i);
 
       await this.discordSemaphore.run(async () => {
-        try {
-          const discordChannel = await this.fetchTextChannel(channel.channelId.toString(), "archivePreviousMonth");
+        if (existing) {
           if (!discordChannel) return;
-          const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
-          await discordMsg.edit({
-            components: [chunk.container],
-            flags: MessageFlags.IsComponentsV2,
-          });
-        } catch (err) {
-          this.logger.warn(
-            { err, messageId: msg.messageId.toString() },
-            "Failed to edit archived message",
-          );
+          try {
+            const discordMsg = await discordChannel.messages.fetch(existing.messageId.toString());
+            await discordMsg.edit({
+              components: [chunk.container],
+              flags: MessageFlags.IsComponentsV2,
+            });
+          } catch (err) {
+            this.logger.warn(
+              { err, messageId: existing.messageId.toString() },
+              "Failed to edit archived message",
+            );
+          }
+        } else {
+          // No existing DB message for this chunk — post a new one
+          if (!discordChannel) return;
+          try {
+            const newMsg = await discordChannel.send({
+              components: [chunk.container],
+              flags: MessageFlags.IsComponentsV2,
+            });
+            await this.repo.upsertMessage(
+              channel.guildId,
+              channel.channelId,
+              year,
+              month,
+              i,
+              BigInt(newMsg.id),
+              chunk.hash,
+            );
+          } catch (err) {
+            this.logger.warn(
+              { err, chunkIndex: i },
+              "Failed to post new archive message",
+            );
+          }
         }
       });
+    }
+
+    // Delete Discord messages and DB rows for indices beyond archiveChunks.length
+    const excessMessages = unarchivedMessages.filter(
+      (m) => m.messageIndex >= archiveChunks.length,
+    );
+    for (const msg of excessMessages) {
+      await this.discordSemaphore.run(async () => {
+        if (!discordChannel) return;
+        try {
+          const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
+          await discordMsg.delete();
+        } catch (err) {
+          if (!isDiscordUnknownMessageError(err)) {
+            this.logger.warn(
+              { err, messageId: msg.messageId.toString() },
+              "Failed to delete excess archive message",
+            );
+          }
+        }
+      });
+    }
+    if (excessMessages.length > 0) {
+      await this.repo.deleteMessagesAboveIndex(
+        channel.guildId,
+        channel.channelId,
+        year,
+        month,
+        archiveChunks.length - 1,
+      );
     }
 
     await this.repo.markArchived(channel.guildId, channel.channelId, year, month);
@@ -476,14 +539,14 @@ export class SchedulePollService {
     }
   }
 
-  private async fetchTextChannel(channelId: string, context: string): Promise<TextChannel | null> {
+  private async fetchTextChannel(channelId: string, context: string): Promise<GuildTextBasedChannel | null> {
     try {
       const ch = await this.client.channels.fetch(channelId);
       if (!ch?.isTextBased() || ch.isDMBased()) {
         this.logger.warn({ channelId, context }, "Channel is not a guild text channel");
         return null;
       }
-      return ch as TextChannel;
+      return ch as GuildTextBasedChannel;
     } catch (err) {
       this.logger.warn({ err, channelId, context }, "Failed to fetch channel");
       return null;

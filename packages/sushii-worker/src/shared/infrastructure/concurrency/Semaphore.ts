@@ -18,6 +18,9 @@ export class Semaphore {
   }
 
   release(): void {
+    if (this.running <= 0) {
+      throw new Error("Semaphore.release() called more times than acquire()");
+    }
     this.running--;
     const next = this.queue.shift();
     if (next) next();
