@@ -5,6 +5,8 @@ import type { Logger } from "pino";
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { AutomodAlertCache } from "../../application/AutomodAlertCache";
+import type { InviteInfoService } from "../../application/InviteInfoService";
+import { buildInviteInfoReply } from "../views/InviteInfoView";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
@@ -13,6 +15,9 @@ const tracer = opentelemetry.trace.getTracer("automod");
  * and tracks them in the AutomodAlertCache so mods can see reactions when
  * actions are taken. Using messageCreate avoids the ManageGuild permission
  * requirement of the AutoModerationActionExecution gateway event.
+ *
+ * Also detects Discord invite links in the flagged content and replies with
+ * server info for each invite found.
  */
 export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCreate> {
   readonly eventType = Events.MessageCreate;
@@ -25,6 +30,7 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
 
   constructor(
     private readonly cache: AutomodAlertCache,
+    private readonly inviteInfoService: InviteInfoService,
     private readonly logger: Logger,
   ) {
     super();
@@ -73,6 +79,16 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
           },
           "Tracked native AutoMod alert message",
         );
+
+        // Fire-and-forget: detect invite links and reply with server info
+        if (message.content) {
+          this.replyWithInviteInfo(message).catch((err: unknown) => {
+            this.logger.warn(
+              { err, messageId: message.id, guildId: message.guildId },
+              "Failed to send invite info reply",
+            );
+          });
+        }
       } catch (error) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
@@ -83,5 +99,27 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
         span.end();
       }
     });
+  }
+
+  private async replyWithInviteInfo(message: Message): Promise<void> {
+    const codes = this.inviteInfoService.extractInviteCodes(message.content);
+    if (codes.length === 0) return;
+
+    const allInvites = await this.inviteInfoService.fetchInviteInfos(codes);
+
+    // Skip invites pointing back to this server — mods don't need info on their own server
+    const invites = allInvites.filter((i) => i.guildId !== message.guildId);
+    if (invites.length === 0) return;
+
+    await message.reply(buildInviteInfoReply(invites));
+
+    this.logger.debug(
+      {
+        messageId: message.id,
+        guildId: message.guildId,
+        inviteCodes: invites.map((i) => i.code),
+      },
+      "Replied to AutoMod alert with invite info",
+    );
   }
 }

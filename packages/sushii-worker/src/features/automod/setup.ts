@@ -8,6 +8,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 
 import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
+import { InviteInfoService } from "./application/InviteInfoService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
@@ -59,8 +60,14 @@ export function setupAutomodFeature(
     logger.child({ component: "AutomodMessageHandler" }),
   );
 
+  const inviteInfoService = new InviteInfoService(
+    client,
+    logger.child({ component: "InviteInfoService" }),
+  );
+
   const automodAlertExecutionHandler = new AutomodAlertExecutionHandler(
     automodAlertCache,
+    inviteInfoService,
     logger.child({ component: "AutomodAlertExecutionHandler" }),
   );
 
