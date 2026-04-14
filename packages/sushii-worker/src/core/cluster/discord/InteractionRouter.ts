@@ -784,6 +784,12 @@ export default class InteractionRouter {
       );
     }
 
+    await Sentry.withScope(async (scope) => {
+      scope.setUser({
+        id: interaction.user.id,
+        username: interaction.user.username,
+      });
+
     await tracer.startActiveSpan(getInteractionSpanName(interaction.type), async (span) => {
       span.setAttributes({
         "discord.interaction.id": interaction.id,
@@ -868,5 +874,6 @@ export default class InteractionRouter {
         span.end();
       }
     });
+    }); // Sentry.withScope
   }
 }

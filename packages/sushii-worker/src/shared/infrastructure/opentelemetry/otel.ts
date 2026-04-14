@@ -56,6 +56,14 @@ export function initializeOtel(logger: Logger, clusterId: number) {
     release: config.build.gitHash,
     skipOpenTelemetrySetup: true,
     tracesSampleRate: sentryTracesSampleRate,
+    beforeSendTransaction(event) {
+      // Strip user when no Discord user was explicitly set — prevents server IP
+      // geolocation from leaking onto background transactions (schedule, notifications, etc.)
+      if (event.user && !event.user.id) {
+        delete event.user;
+      }
+      return event;
+    },
   });
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
