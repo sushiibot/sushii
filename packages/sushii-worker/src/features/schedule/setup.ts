@@ -5,7 +5,7 @@ import type { Logger } from "pino";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
-import { env } from "@/shared/infrastructure/config/env";
+import { config } from "@/shared/infrastructure/config/config";
 
 import { ScheduleChannelService } from "./application/ScheduleChannelService";
 import { SchedulePollService } from "./application/SchedulePollService";
@@ -26,7 +26,7 @@ export function setupScheduleFeature(
 ): FeatureSetupWithTasks {
   const { db, client, deploymentService, logger } = deps;
 
-  const apiKey = env.GOOGLE_CALENDAR_API_KEY;
+  const apiKey = config.googleCalendarApiKey;
   if (!apiKey) {
     deps.logger.warn(
       "GOOGLE_CALENDAR_API_KEY is not set — schedule channel feature will not function. Set the env var and restart.",
@@ -51,7 +51,6 @@ export function setupScheduleFeature(
     calendarClient,
     schedulePollService,
     !!apiKey,   // isConfigured
-    client,
     logger.child({ component: "ScheduleChannelService" }),
   );
 

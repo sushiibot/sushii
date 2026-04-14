@@ -7,31 +7,18 @@ import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
 import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
 import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
 import type { ScheduleChannelRepository } from "../domain/repositories/ScheduleChannelRepository";
+import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import { renderSchedule } from "../domain/services/ScheduleRenderService";
 import type {
   GoogleCalendarClient,
   CalendarEventItem,
 } from "../infrastructure/google/GoogleCalendarClient";
 import { GoogleCalendarError } from "../infrastructure/google/GoogleCalendarClient";
+import { calendarItemIssues } from "../domain/value-objects/CalendarEventIssue";
+import { classifyChanges } from "../domain/value-objects/CalendarEventChange";
+import { toScheduleEvent } from "../infrastructure/google/CalendarEventMapper";
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-function mapCalendarItemToEvent(item: CalendarEventItem): ScheduleEvent {
-  const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
-  const startUtc = item.start?.dateTime ? new Date(item.start.dateTime) : null;
-  const startDate = item.start?.date ?? null;
-
-  return {
-    id: item.id,
-    summary: item.summary ?? "(no title)",
-    startUtc,
-    startDate,
-    isAllDay,
-    url: item.htmlLink ?? null,
-    location: item.location ?? null,
-    status: item.status,
-  };
-}
 
 function computeNextPollAt(intervalSec: number): Date {
   return new Date(Date.now() + intervalSec * 1000);
@@ -55,21 +42,10 @@ function isSameMonth(date: Date, year: number, month: number): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
 }
 
-/**
- * Returns the effective Date for a ScheduleEvent, normalising all-day events
- * (which carry a date-only string) to midnight UTC.
- */
-function getEventDate(event: ScheduleEvent): Date | null {
-  if (event.isAllDay && event.startDate) {
-    return new Date(`${event.startDate}T00:00:00Z`);
-  }
-  return event.startUtc;
-}
-
 function sortEvents(events: ScheduleEvent[]): ScheduleEvent[] {
   return [...events].sort((a, b) => {
-    const aTime = getEventDate(a)?.getTime() ?? 0;
-    const bTime = getEventDate(b)?.getTime() ?? 0;
+    const aTime = a.getDate()?.getTime() ?? 0;
+    const bTime = b.getDate()?.getTime() ?? 0;
     return aTime - bTime;
   });
 }
@@ -82,7 +58,7 @@ export class SchedulePollService {
   private readonly discordSemaphore = new Semaphore(5);
 
   constructor(
-    private readonly repo: ScheduleChannelRepository,
+    private readonly repo: ScheduleChannelRepository & ScheduleMessageRepository,
     private readonly calendarClient: GoogleCalendarClient,
     private readonly client: Client,
     private readonly logger: Logger,
@@ -105,7 +81,7 @@ export class SchedulePollService {
       if (item.status === "cancelled") {
         eventMap.delete(item.id);
       } else {
-        eventMap.set(item.id, mapCalendarItemToEvent(item));
+        eventMap.set(item.id, toScheduleEvent(item));
       }
     }
 
@@ -195,7 +171,7 @@ export class SchedulePollService {
         // Trim cache to current month only
         const cached = this.cache.get(key) ?? [];
         this.cache.set(key, cached.filter((e) => {
-          const d = getEventDate(e);
+          const d = e.getDate();
           return d ? isSameMonth(d, year, month) : false;
         }));
       } else {
@@ -289,12 +265,22 @@ export class SchedulePollService {
         // (also verify by date in case the snapshot includes cross-month events)
         const prevEvent = previousEvents.get(item.id);
         if (!prevEvent) return false;
-        const prevDate = getEventDate(prevEvent);
+        const prevDate = prevEvent.getDate();
         return prevDate ? isSameMonth(prevDate, year, month) : false;
       }
       const d = new Date(startStr);
       return isSameMonth(d, year, month);
     });
+
+    // On full fetch, alert about any problematic events in the current month.
+    if (wasFullFetch) {
+      const problemItems = changedItems.filter(
+        (item) => item.status !== "cancelled" && calendarItemIssues(item).length > 0,
+      );
+      if (problemItems.length > 0) {
+        await this.sendEventIssuesAlert(channel, problemItems);
+      }
+    }
 
     // Only send notifications for incremental changes, not full fetches.
     // Full fetches would spuriously report every event as "added".
@@ -310,7 +296,7 @@ export class SchedulePollService {
     // last month).
     const events = this.cache.get(key) ?? [];
     const currentMonthEvents = events.filter((e) => {
-      const d = getEventDate(e);
+      const d = e.getDate();
       return d ? isSameMonth(d, year, month) : false;
     });
 
@@ -334,7 +320,7 @@ export class SchedulePollService {
       sortEvents(
         result.items
           .filter((i) => i.status !== "cancelled")
-          .map(mapCalendarItemToEvent),
+          .map(toScheduleEvent),
       ),
     );
     return result;
@@ -360,7 +346,7 @@ export class SchedulePollService {
       prevEvents = sortEvents(
         result.items
           .filter((i) => i.status !== "cancelled")
-          .map(mapCalendarItemToEvent),
+          .map(toScheduleEvent),
       );
     } catch (err) {
       this.logger.warn(
@@ -470,21 +456,12 @@ export class SchedulePollService {
     previousEvents: Map<string, ScheduleEvent>,
   ): Promise<void> {
     const lines: string[] = [];
+    const changes = classifyChanges(changedItems, previousEvents);
 
-    for (const item of changedItems) {
-      const event = mapCalendarItemToEvent(item);
-      const timePart = event.isAllDay && event.startDate
-        ? `<t:${Math.floor(new Date(`${event.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
-        : event.startUtc
-        ? `<t:${Math.floor(event.startUtc.getTime() / 1000)}:f>`
-        : "";
-
-      const label = timePart ? `${timePart} ${event.summary}` : event.summary;
-
-      const wasInCache = previousEvents.has(item.id);
-
-      if (item.status === "cancelled") {
-        const prevEvent = previousEvents.get(item.id);
+    for (const change of changes) {
+      if (change.kind === "removed") {
+        const prevEvent = change.previousEvent;
+        const event = toScheduleEvent(change.item);
         const prevTimePart = prevEvent?.isAllDay && prevEvent?.startDate
           ? `<t:${Math.floor(new Date(`${prevEvent.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
           : prevEvent?.startUtc
@@ -494,11 +471,28 @@ export class SchedulePollService {
         const cancelLabel = prevTimePart ? `${prevTimePart} ${prevSummary}` : prevSummary;
         // TODO: use emojis.trash once emoji service is available in SchedulePollService
         lines.push(`🗑️ Event removed: ${cancelLabel}`);
-        continue; // skip the rest of the loop body
-      } else if (wasInCache) {
-        lines.push(`✏️ Event updated: ${label}`);
       } else {
-        lines.push(`✅ Event added: ${label}`);
+        const event = toScheduleEvent(change.item);
+        const timePart = event.isAllDay && event.startDate
+          ? `<t:${Math.floor(new Date(`${event.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
+          : event.startUtc
+          ? `<t:${Math.floor(event.startUtc.getTime() / 1000)}:f>`
+          : "";
+
+        const issues = calendarItemIssues(change.item);
+        const hasIssues = issues.length > 0;
+        const titleDisplay = hasIssues ? `*(${issues[0].kind.replace("_", " ")})*` : event.summary;
+        const label = timePart ? `${timePart} ${titleDisplay}` : titleDisplay;
+
+        if (hasIssues) {
+          for (const issue of issues) {
+            lines.push(`⚠️ Event ${change.kind} — ${issue.label}: ${label} — ${issue.actionMessage}`);
+          }
+        } else if (change.kind === "updated") {
+          lines.push(`✏️ Event updated: ${label}`);
+        } else {
+          lines.push(`✅ Event added: ${label}`);
+        }
       }
     }
 
@@ -524,6 +518,42 @@ export class SchedulePollService {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },
         "Failed to send event change notifications to log channel",
+      );
+    }
+  }
+
+  private async sendEventIssuesAlert(
+    channel: ScheduleChannel,
+    items: CalendarEventItem[],
+  ): Promise<void> {
+    const lines = items.flatMap((item) => {
+      const timePart = item.start?.dateTime
+        ? `<t:${Math.floor(new Date(item.start.dateTime).getTime() / 1000)}:f>`
+        : item.start?.date
+        ? `<t:${Math.floor(new Date(`${item.start.date}T00:00:00Z`).getTime() / 1000)}:D>`
+        : "unknown time";
+
+      return calendarItemIssues(item).map(
+        (issue) => `⚠️ ${issue.label}: ${timePart} — ${issue.actionMessage}`,
+      );
+    });
+
+    const logChannel = await this.fetchTextChannel(channel.logChannelId.toString(), "sendUntiledEventsAlert");
+    if (!logChannel) return;
+
+    const container = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(lines.join("\n")),
+    );
+
+    try {
+      await logChannel.send({
+        components: [container],
+        flags: MessageFlags.IsComponentsV2,
+      });
+    } catch (err) {
+      this.logger.warn(
+        { err, logChannelId: channel.logChannelId.toString() },
+        "Failed to send event issues alert to log channel",
       );
     }
   }

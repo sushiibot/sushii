@@ -1,11 +1,10 @@
-import { ContainerBuilder, TextDisplayBuilder, MessageFlags } from "discord.js";
-import type { Client } from "discord.js";
 import type { Logger } from "pino";
 import { Ok, Err } from "ts-results";
 import type { Result } from "ts-results";
 
 import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
 import type { ScheduleChannelRepository } from "../domain/repositories/ScheduleChannelRepository";
+import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import { parseCalendarId } from "../infrastructure/google/CalendarIdParser";
 import {
   GoogleCalendarClient,
@@ -31,11 +30,10 @@ export interface ConfigureScheduleChannelInput {
 
 export class ScheduleChannelService {
   constructor(
-    private readonly repo: ScheduleChannelRepository,
+    private readonly repo: ScheduleChannelRepository & ScheduleMessageRepository,
     private readonly calendarClient: GoogleCalendarClient,
     private readonly schedulePollService: SchedulePollService,
     private readonly isConfigured: boolean,
-    private readonly client: Client,
     private readonly logger: Logger,
   ) {}
 
@@ -82,30 +80,6 @@ export class ScheduleChannelService {
     });
 
     this.schedulePollService.clearCache(channel);
-
-    // Post confirmation to log channel
-    try {
-      const logChannel = await this.client.channels.fetch(
-        input.logChannelId.toString(),
-      );
-      if (!logChannel?.isTextBased() || logChannel.isDMBased()) return Ok(channel);
-      const intervalDisplay = formatPollInterval(channel.pollIntervalSec);
-      const titleDisplay = channel.displayTitle ? `**${channel.displayTitle}**` : "month/year only";
-      const container = new ContainerBuilder().addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          `✅ Schedule channel configured: <#${input.channelId}> will now sync ${intervalDisplay}. Schedule title: ${titleDisplay}.`,
-        ),
-      );
-      await logChannel.send({
-        components: [container],
-        flags: MessageFlags.IsComponentsV2,
-      });
-    } catch (err) {
-      this.logger.warn(
-        { err, logChannelId: input.logChannelId.toString() },
-        "Failed to post configuration confirmation to log channel",
-      );
-    }
 
     return Ok(channel);
   }

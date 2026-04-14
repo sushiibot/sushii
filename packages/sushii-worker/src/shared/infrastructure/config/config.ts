@@ -132,6 +132,7 @@ export class Config {
     environment: string;
   };
   readonly posthogAPIKey?: string;
+  readonly googleCalendarApiKey?: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
@@ -191,6 +192,7 @@ export class Config {
     };
 
     this.posthogAPIKey = env.POSTHOG_API_KEY;
+    this.googleCalendarApiKey = env.GOOGLE_CALENDAR_API_KEY;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;

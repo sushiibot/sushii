@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { APIComponentInContainer, APITextDisplayComponent } from "discord-api-types/v10";
 import { ComponentType } from "discord-api-types/v10";
 
-import type { ScheduleEvent } from "../entities/ScheduleEvent";
+import { ScheduleEvent } from "../entities/ScheduleEvent";
 import { renderSchedule } from "./ScheduleRenderService";
 import type { MessageChunk } from "./ScheduleRenderService";
 
@@ -10,36 +10,34 @@ const NOW = new Date("2024-06-15T12:00:00Z");
 const YEAR = 2024;
 const MONTH = 6;
 
+type ScheduleEventOpts = {
+  startDate?: string | null;
+  isAllDay?: boolean;
+  url?: string | null;
+  location?: string | null;
+  status?: ScheduleEvent["status"];
+};
+
 function makeEvent(
   id: string,
   summary: string,
   startUtc: Date | null,
-  opts: Partial<ScheduleEvent> = {},
+  opts: ScheduleEventOpts = {},
 ): ScheduleEvent {
-  return {
+  return new ScheduleEvent(
     id,
     summary,
     startUtc,
-    startDate: null,
-    isAllDay: false,
-    url: null,
-    location: null,
-    status: "confirmed",
-    ...opts,
-  };
+    opts.startDate ?? null,
+    opts.isAllDay ?? false,
+    opts.url ?? null,
+    opts.location ?? null,
+    opts.status ?? "confirmed",
+  );
 }
 
 function makeAllDayEvent(id: string, summary: string, startDate: string): ScheduleEvent {
-  return {
-    id,
-    summary,
-    startUtc: null,
-    startDate,
-    isAllDay: true,
-    url: null,
-    location: null,
-    status: "confirmed",
-  };
+  return new ScheduleEvent(id, summary, null, startDate, true, null, null, "confirmed");
 }
 
 function getComponents(chunk: MessageChunk): APIComponentInContainer[] {

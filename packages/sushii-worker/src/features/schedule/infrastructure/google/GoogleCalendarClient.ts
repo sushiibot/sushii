@@ -9,6 +9,7 @@ export interface CalendarEventItem {
   id: string;
   summary?: string;
   status: "confirmed" | "tentative" | "cancelled";
+  visibility?: "public" | "private" | "default" | "confidential";
   start?: {
     dateTime?: string;
     date?: string;

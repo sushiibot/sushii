@@ -169,6 +169,28 @@ export class ScheduleCommand extends SlashCommandHandler {
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });
+
+    // Post confirmation to log channel (best-effort — never fail the command reply)
+    try {
+      const logChannel = await interaction.client.channels.fetch(sc.logChannelId.toString());
+      if (logChannel?.isTextBased() && !logChannel.isDMBased()) {
+        const titleDisplay = sc.displayTitle ? `**${sc.displayTitle}**` : "month/year only";
+        const logContainer = new ContainerBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `✅ Schedule channel configured: <#${sc.channelId}> will now sync ${intervalDisplay}. Schedule title: ${titleDisplay}.`,
+          ),
+        );
+        await logChannel.send({
+          components: [logContainer],
+          flags: MessageFlags.IsComponentsV2,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, logChannelId: sc.logChannelId.toString() },
+        "Failed to post configuration confirmation to log channel",
+      );
+    }
   }
 
   private async handleRemove(interaction: ChatInputCommandInteraction): Promise<void> {

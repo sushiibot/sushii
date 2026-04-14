@@ -9,6 +9,7 @@ import type {
   ScheduleChannelRepository,
   UpsertScheduleChannelData,
 } from "@/features/schedule/domain/repositories/ScheduleChannelRepository";
+import type { ScheduleMessageRepository } from "@/features/schedule/domain/repositories/ScheduleMessageRepository";
 
 type DbType = NodePgDatabase<typeof schema>;
 
@@ -51,7 +52,7 @@ function mapMessage(
 }
 
 export class DrizzleScheduleChannelRepository
-  implements ScheduleChannelRepository
+  implements ScheduleChannelRepository, ScheduleMessageRepository
 {
   constructor(
     private readonly db: DbType,
