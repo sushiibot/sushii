@@ -58,7 +58,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           ),
         new LabelBuilder()
           .setLabel("Schedule name")
-          .setDescription("Shown in the schedule channel headers")
+          .setDescription("Shown in schedule titles and alerts")
           .setTextInputComponent(
             new TextInputBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME)
