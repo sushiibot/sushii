@@ -18,6 +18,7 @@ import type { ScheduleEventRepository } from "../../domain/repositories/Schedule
 
 const UPCOMING_DAYS = 21;
 const MAX_DISPLAYED_EVENTS = 18;
+const RELATIVE_TIMESTAMP_DAYS = 3;
 
 export class ScheduleCommand extends SlashCommandHandler {
   serverOnly = true;
@@ -79,9 +80,15 @@ export class ScheduleCommand extends SlashCommandHandler {
         ? `**[${event.summary}](${event.url})**`
         : `**${event.summary}**`;
 
-      const timestampStr = event.isAllDay
+      const absTimestamp = event.isAllDay
         ? time(date, TimestampStyles.LongDate)
         : time(date, TimestampStyles.LongDateTime);
+
+      const msUntil = date.getTime() - now.getTime();
+      const isNear = msUntil >= 0 && msUntil < RELATIVE_TIMESTAMP_DAYS * 24 * 60 * 60 * 1000;
+      const timestampStr = isNear
+        ? `${absTimestamp} ${time(date, TimestampStyles.RelativeTime)}`
+        : absTimestamp;
 
       const lines: string[] = [titleLine, timestampStr];
 
