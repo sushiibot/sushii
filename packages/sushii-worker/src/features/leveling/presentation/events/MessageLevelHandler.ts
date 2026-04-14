@@ -1,4 +1,3 @@
-import type { Span } from "@opentelemetry/api";
 import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Message } from "discord.js";
 import { DiscordAPIError, Events, RESTJSONErrorCodes } from "discord.js";
@@ -32,24 +31,11 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
       return;
     }
 
-    const result = await tracer.startActiveSpan(
-      "leveling.xp.update",
-      async (span: Span) => {
-        try {
-          return await this.updateUserXpService.execute(
-            msg.guildId,
-            msg.channelId,
-            msg.author.id,
-            msg.member?.roles.cache.map((r) => r.id) || [],
-          );
-        } catch (err) {
-          span.recordException(err instanceof Error ? err : new Error(String(err)));
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw err;
-        } finally {
-          span.end();
-        }
-      },
+    const result = await this.updateUserXpService.execute(
+      msg.guildId,
+      msg.channelId,
+      msg.author.id,
+      msg.member?.roles.cache.map((r) => r.id) || [],
     );
 
     if (!result || result.oldLevel === null || result.newLevel === null) {
