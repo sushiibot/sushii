@@ -21,27 +21,14 @@ import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
-import { formatPollInterval } from "../../application/ScheduleChannelService";
 import {
+  makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
   SCHEDULE_CONFIG_OPTIONS,
   SCHEDULE_CONFIG_SETUP_EMOJI_NAMES,
   SCHEDULE_CONFIG_SUBCOMMANDS,
 } from "../ScheduleConfigConstants";
-
-function makeContainer(
-  message: string,
-  color = Color.Error,
-): { components: ContainerBuilder[]; flags: number } {
-  const container = new ContainerBuilder()
-    .setAccentColor(color)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(message));
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-  };
-}
 
 export class ScheduleConfigCommand extends SlashCommandHandler {
   serverOnly = true;

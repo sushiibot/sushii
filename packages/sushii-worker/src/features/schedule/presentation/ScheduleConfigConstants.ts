@@ -1,3 +1,7 @@
+import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+
+import Color from "@/utils/colors";
+
 export const SCHEDULE_CONFIG_SUBCOMMANDS = {
   NEW: "new",
   REMOVE: "remove",
@@ -20,3 +24,16 @@ export const SCHEDULE_CONFIG_CUSTOM_IDS = {
 
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;
 export const SCHEDULE_CONFIG_SETUP_EMOJI_NAMES = ["tip", "schedule"] as const;
+
+export function makeContainer(
+  message: string,
+  color = Color.Error,
+): { components: ContainerBuilder[]; flags: number } {
+  const container = new ContainerBuilder()
+    .setAccentColor(color)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(message));
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+  };
+}

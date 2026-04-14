@@ -20,22 +20,10 @@ import Color from "@/utils/colors";
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import { formatPollInterval } from "../../application/ScheduleChannelService";
 import {
+  makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
 } from "../ScheduleConfigConstants";
-
-function makeContainer(
-  message: string,
-  color = Color.Error,
-): { components: ContainerBuilder[]; flags: number } {
-  const container = new ContainerBuilder()
-    .setAccentColor(color)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(message));
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-  };
-}
 
 export class ScheduleConfigNewButtonHandler extends ButtonHandler {
   readonly customIDMatch = match(SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON);
@@ -100,7 +88,12 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
 
     let submit;
     try {
-      submit = await interaction.awaitModalSubmit({ time: 5 * 60 * 1000 });
+      submit = await interaction.awaitModalSubmit({
+        time: 5 * 60 * 1000,
+        filter: (i) =>
+          i.user.id === interaction.user.id &&
+          i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
+      });
     } catch {
       // User dismissed the modal or it timed out — nothing to do
       return;
@@ -123,7 +116,10 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     if (!channel || !logChannel) {
-      await submit.reply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`));
+      await submit.reply({
+        ...makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -137,7 +133,10 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     });
 
     if (result.err) {
-      await submit.reply(makeContainer(`${emojis.fail} ${result.val}`));
+      await submit.reply({
+        ...makeContainer(`${emojis.fail} ${result.val}`),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -159,7 +158,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
 
     await submit.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
 
     // Post confirmation to log channel (best-effort — never fail the command reply)
