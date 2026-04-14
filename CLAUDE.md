@@ -37,6 +37,7 @@ Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, Post
 
 **This project** (`.claude/docs/`):
 - **Architecture**: `.claude/docs/architecture.md` — layers, features, DB, migration guidelines
+- **Drizzle Migrations**: `.claude/docs/drizzle-migrations.md` — **always use `drizzle-kit generate`, never write SQL files manually**
 - **Testing**: `.claude/docs/testing.md` — test commands, strategy by layer
 - **Emoji Assets**: `.claude/docs/emoji-assets.md` — adding assets, encryption, pre-commit checks
 - **Discord Interactions**: `.claude/discord-interaction-guide.md` — reply/update/followUp patterns
