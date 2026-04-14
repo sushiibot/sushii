@@ -17,6 +17,7 @@ import Color from "@/utils/colors";
 import type { ScheduleEventRepository } from "../../domain/repositories/ScheduleEventRepository";
 
 const UPCOMING_DAYS = 21;
+const MAX_DISPLAYED_EVENTS = 18;
 
 export class ScheduleCommand extends SlashCommandHandler {
   serverOnly = true;
@@ -58,6 +59,9 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
+    const truncated = upcoming.length > MAX_DISPLAYED_EVENTS;
+    const displayed = truncated ? upcoming.slice(0, MAX_DISPLAYED_EVENTS) : upcoming;
+
     const multipleCalendars = new Set(upcoming.map((e) => e.calendarId)).size > 1;
 
     const container = new ContainerBuilder().setAccentColor(Color.Info);
@@ -66,9 +70,10 @@ export class ScheduleCommand extends SlashCommandHandler {
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
     );
 
-    for (let i = 0; i < upcoming.length; i++) {
-      const { event, calendarTitle } = upcoming[i];
-      const date = event.getDate()!;
+    for (let i = 0; i < displayed.length; i++) {
+      const { event, calendarTitle } = displayed[i];
+      const date = event.getDate();
+      if (!date) continue; // defensive — ensured non-null by SQL filter
 
       const titleLine = event.url
         ? `**[${event.summary}](${event.url})**`
@@ -95,11 +100,22 @@ export class ScheduleCommand extends SlashCommandHandler {
         new TextDisplayBuilder().setContent(lines.join("\n")),
       );
 
-      if (i < upcoming.length - 1) {
+      if (i < displayed.length - 1) {
         container.addSeparatorComponents(
           new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
         );
       }
+    }
+
+    if (truncated) {
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `-# …and ${upcoming.length - MAX_DISPLAYED_EVENTS} more events in the next ${UPCOMING_DAYS} days`,
+        ),
+      );
     }
 
     await interaction.reply({
