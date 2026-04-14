@@ -6,6 +6,8 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  SectionBuilder,
+  SeparatorBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -18,7 +20,7 @@ import ButtonHandler from "@/shared/presentation/handlers/ButtonHandler";
 import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
-import { formatPollInterval } from "../../domain/services/ScheduleFormatting";
+import { formatPollInterval } from "../views/ScheduleFormatting";
 import {
   makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
@@ -138,22 +140,43 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     const sc = result.val;
     const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
 
-    const content = [
-      `${emojis.success} **Schedule channel configured**`,
-      "",
-      `**Channel:** <#${sc.channelId}>`,
-      `**Log channel:** <#${sc.logChannelId}>`,
-      `**Name:** ${sc.displayTitle}`,
-      `-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`,
-    ].join("\n");
-
     const container = new ContainerBuilder()
       .setAccentColor(Color.Success)
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
+      )
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addSectionComponents(
+        new SectionBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `**Channel**\n<#${sc.channelId}>`,
+          ),
+        ),
+      )
+      .addSectionComponents(
+        new SectionBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `**Log channel**\n<#${sc.logChannelId}>`,
+          ),
+        ),
+      )
+      .addSectionComponents(
+        new SectionBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `**Name**\n${sc.displayTitle}`,
+          ),
+        ),
+      )
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`,
+        ),
+      );
 
     await submit.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
     });
 
     // Post confirmation to log channel (best-effort — never fail the command reply)
@@ -163,13 +186,26 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
         const logContainer = new ContainerBuilder()
           .setAccentColor(Color.Success)
           .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-              `${emojis.success} Schedule channel configured: <#${sc.channelId}> — ${sc.displayTitle} — will now sync ${intervalDisplay}.`,
+            new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addSectionComponents(
+            new SectionBuilder().addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(`**Channel**\n<#${sc.channelId}>`),
             ),
+          )
+          .addSectionComponents(
+            new SectionBuilder().addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(`**Name**\n${sc.displayTitle}`),
+            ),
+          )
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`),
           );
         await fetchedLogChannel.send({
           components: [logContainer],
           flags: MessageFlags.IsComponentsV2,
+          allowedMentions: { parse: [] },
         });
       }
     } catch (err) {
