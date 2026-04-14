@@ -1,4 +1,4 @@
-import opentelemetry from "@opentelemetry/api";
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import * as Sentry from "@sentry/bun";
 import type {
   AnySelectMenuInteraction,
@@ -785,8 +785,13 @@ export default class InteractionRouter {
     }
 
     await tracer.startActiveSpan(getInteractionSpanName(interaction.type), async (span) => {
-      span.setAttribute("interactionType", interaction.type);
-      span.setAttribute("interactionAgeMs", ageMs);
+      span.setAttributes({
+        "discord.interaction.id": interaction.id,
+        "discord.interaction.type": interaction.type,
+        "discord.interaction.age_ms": ageMs,
+        "user.id": interaction.user.id,
+        ...(interaction.guildId && { "guild.id": interaction.guildId }),
+      });
 
       try {
         let success = true;
@@ -795,13 +800,13 @@ export default class InteractionRouter {
           case InteractionType.ApplicationCommand: {
             switch (interaction.commandType) {
               case ApplicationCommandType.ChatInput: {
-                span.setAttribute("commandName", interaction.commandName);
+                span.setAttribute("discord.command.name", interaction.commandName);
                 success = await this.handleSlashCommandInteraction(interaction);
                 break;
               }
               case ApplicationCommandType.Message:
               case ApplicationCommandType.User: {
-                span.setAttribute("commandName", interaction.commandName);
+                span.setAttribute("discord.command.name", interaction.commandName);
                 success = await this.handleContextMenuInteraction(interaction);
                 break;
               }
@@ -810,7 +815,7 @@ export default class InteractionRouter {
             break;
           }
           case InteractionType.ApplicationCommandAutocomplete: {
-            span.setAttribute("commandName", interaction.commandName);
+            span.setAttribute("discord.command.name", interaction.commandName);
             success = await this.handleAutocompleteInteraction(interaction);
             break;
           }
@@ -818,7 +823,7 @@ export default class InteractionRouter {
           case InteractionType.MessageComponent: {
             switch (interaction.componentType) {
               case ComponentType.Button: {
-                span.setAttribute("customId", interaction.customId);
+                span.setAttribute("discord.component.custom_id", interaction.customId);
                 success = await this.handleButtonSubmit(interaction);
                 break;
               }
@@ -827,7 +832,7 @@ export default class InteractionRouter {
               case ComponentType.RoleSelect:
               case ComponentType.MentionableSelect:
               case ComponentType.ChannelSelect: {
-                span.setAttribute("customId", interaction.customId);
+                span.setAttribute("discord.component.custom_id", interaction.customId);
                 success = await this.handleSelectMenuSubmit(interaction);
                 break;
               }
@@ -837,10 +842,14 @@ export default class InteractionRouter {
           }
 
           case InteractionType.ModalSubmit: {
-            span.setAttribute("customId", interaction.customId);
+            span.setAttribute("discord.component.custom_id", interaction.customId);
             success = await this.handleModalSubmit(interaction);
             break;
           }
+        }
+
+        if (!success) {
+          span.setStatus({ code: SpanStatusCode.ERROR });
         }
 
         const status = success ? "success" : "error";
@@ -848,6 +857,8 @@ export default class InteractionRouter {
 
         return undefined;
       } catch (err) {
+        span.recordException(err as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
         log.error(
           err,
           "error handling interaction, should be caught %s",

@@ -30,11 +30,25 @@ export class MemberLeaveHandler extends EventHandler<Events.GuildMemberRemove> {
         "user.id": member.user?.id ?? "unknown",
       });
       try {
-        await Promise.allSettled([
+        const results = await Promise.allSettled([
           this.memberLogService.logMemberLeave(member),
           this.joinLeaveMessageService.sendLeaveMessage(member),
         ]);
+
+        const rejected = results.filter((r) => r.status === "rejected");
+        if (rejected.length > 0) {
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          for (const r of rejected) {
+            const err = (r as PromiseRejectedResult).reason;
+            span.recordException(err instanceof Error ? err : new Error(String(err)));
+            this.logger.error(
+              { err, guildId: member.guild.id, userId: member.user?.id },
+              "Error in member leave handler",
+            );
+          }
+        }
       } catch (error) {
+        span.recordException(error instanceof Error ? error : new Error(String(error)));
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : String(error),

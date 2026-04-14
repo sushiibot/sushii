@@ -1,5 +1,5 @@
 import type { Span } from "@opentelemetry/api";
-import opentelemetry from "@opentelemetry/api";
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Message } from "discord.js";
 import { DiscordAPIError, Events, RESTJSONErrorCodes } from "discord.js";
 
@@ -42,6 +42,10 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
             msg.author.id,
             msg.member?.roles.cache.map((r) => r.id) || [],
           );
+        } catch (err) {
+          span.recordException(err instanceof Error ? err : new Error(String(err)));
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
         } finally {
           span.end();
         }
@@ -94,6 +98,9 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
           `Level role ${result.newLevel}`,
         );
       } catch (err) {
+        span.recordException(err instanceof Error ? err : new Error(String(err)));
+        span.setStatus({ code: SpanStatusCode.ERROR });
+
         if (err instanceof DiscordAPIError) {
           if (err.code === RESTJSONErrorCodes.MissingPermissions) {
             log.warn(
