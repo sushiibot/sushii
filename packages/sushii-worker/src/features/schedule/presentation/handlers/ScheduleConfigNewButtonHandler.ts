@@ -99,6 +99,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       return;
     }
 
+    // Safety net — guild is guaranteed since the button was shown in a guild context
     if (!submit.guildId) {
       await submit.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
       return;
@@ -116,10 +117,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     if (!channel || !logChannel) {
-      await submit.reply({
-        ...makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-      });
+      await submit.reply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error, true));
       return;
     }
 
@@ -133,10 +131,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     });
 
     if (result.err) {
-      await submit.reply({
-        ...makeContainer(`${emojis.fail} ${result.val}`),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-      });
+      await submit.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
       return;
     }
 

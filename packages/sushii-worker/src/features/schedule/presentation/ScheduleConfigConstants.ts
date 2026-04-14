@@ -28,12 +28,13 @@ export const SCHEDULE_CONFIG_SETUP_EMOJI_NAMES = ["tip", "schedule"] as const;
 export function makeContainer(
   message: string,
   color = Color.Error,
+  ephemeral = false,
 ): { components: ContainerBuilder[]; flags: number } {
   const container = new ContainerBuilder()
     .setAccentColor(color)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(message));
   return {
     components: [container],
-    flags: MessageFlags.IsComponentsV2,
+    flags: MessageFlags.IsComponentsV2 | (ephemeral ? MessageFlags.Ephemeral : 0),
   };
 }

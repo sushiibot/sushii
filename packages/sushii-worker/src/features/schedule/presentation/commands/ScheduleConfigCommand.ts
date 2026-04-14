@@ -82,6 +82,11 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   }
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!interaction.guildId) {
+      await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
     const subcommand = interaction.options.getSubcommand();
 
     switch (subcommand) {
@@ -99,11 +104,6 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   }
 
   private async handleAdd(interaction: ChatInputCommandInteraction): Promise<void> {
-    if (!interaction.guildId) {
-      await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_SETUP_EMOJI_NAMES);
 
     const container = new ContainerBuilder()
@@ -145,22 +145,17 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   }
 
   private async handleRemove(interaction: ChatInputCommandInteraction): Promise<void> {
-    if (!interaction.guildId) {
-      await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
     const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
 
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.remove(
-      BigInt(interaction.guildId),
+      BigInt(interaction.guildId!),
       BigInt(channel.id),
     );
 
     if (result.err) {
-      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`));
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
       return;
     }
 
@@ -176,22 +171,17 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 
   private async handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-    if (!interaction.guildId) {
-      await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
-    const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId));
+    const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!));
 
     if (channels.length === 0) {
-      await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info));
+      await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info, true));
       return;
     }
 
@@ -229,27 +219,22 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 
   private async handleRefresh(interaction: ChatInputCommandInteraction): Promise<void> {
-    if (!interaction.guildId) {
-      await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
     const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
 
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.refresh(
-      BigInt(interaction.guildId),
+      BigInt(interaction.guildId!),
       BigInt(channel.id),
     );
 
     if (result.err) {
-      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`));
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
       return;
     }
 
@@ -265,7 +250,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 }
