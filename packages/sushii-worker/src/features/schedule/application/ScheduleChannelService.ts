@@ -25,7 +25,7 @@ export interface ConfigureScheduleChannelInput {
   logChannelId: bigint;
   configuredByUserId: bigint;
   calendarInput: string;
-  title?: string;
+  title: string;
 }
 
 const MAX_SCHEDULE_CHANNELS_PER_GUILD = 3;
@@ -75,8 +75,7 @@ export class ScheduleChannelService {
     }
 
     const calendarTitle = metadata.summary;          // always the Google Calendar name
-    // undefined = not provided by user (don't overwrite existing); string|null = explicit set
-    const displayTitle = input.title !== undefined ? (input.title.trim() || null) : undefined;
+    const displayTitle = input.title.trim() || null;
 
     const channel = await this.repo.upsert({
       guildId: input.guildId,

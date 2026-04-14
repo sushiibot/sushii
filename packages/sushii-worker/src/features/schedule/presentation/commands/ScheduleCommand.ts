@@ -2,6 +2,8 @@ import {
   ChatInputCommandInteraction,
   ContainerBuilder,
   MessageFlags,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
   SlashCommandBuilder,
   TextDisplayBuilder,
   time,
@@ -10,6 +12,7 @@ import {
 import type { Logger } from "pino";
 
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
+import Color from "@/utils/colors";
 
 import { toScheduleEvent } from "../../infrastructure/google/CalendarEventMapper";
 import type { GoogleCalendarClient } from "../../infrastructure/google/GoogleCalendarClient";
@@ -42,15 +45,15 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply();
-
     const channels = await this.repo.findAllByGuild(BigInt(interaction.guildId));
 
     if (channels.length === 0) {
-      const container = new ContainerBuilder().addTextDisplayComponents(
-        new TextDisplayBuilder().setContent("No schedule channels are configured in this server."),
-      );
-      await interaction.editReply({
+      const container = new ContainerBuilder()
+        .setAccentColor(Color.Info)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent("No schedule channels are configured in this server."),
+        );
+      await interaction.reply({
         components: [container],
         flags: MessageFlags.IsComponentsV2,
       });
@@ -98,45 +101,64 @@ export class ScheduleCommand extends SlashCommandHandler {
     const upcoming = allEvents.slice(0, UPCOMING_EVENT_COUNT);
 
     if (upcoming.length === 0) {
-      const container = new ContainerBuilder().addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`No upcoming events in the next ${LOOKAHEAD_DAYS} days.`),
-      );
-      await interaction.editReply({
+      const container = new ContainerBuilder()
+        .setAccentColor(Color.Info)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(`No upcoming events in the next ${LOOKAHEAD_DAYS} days.`),
+        );
+      await interaction.reply({
         components: [container],
         flags: MessageFlags.IsComponentsV2,
       });
       return;
     }
 
-    const lines: string[] = ["## Upcoming Events\n"];
     const multipleCalendars = channels.length > 1;
 
-    for (const { event, calendarTitle } of upcoming) {
+    const container = new ContainerBuilder().setAccentColor(Color.Info);
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Upcoming Events"));
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+    );
+
+    for (let i = 0; i < upcoming.length; i++) {
+      const { event, calendarTitle } = upcoming[i];
       const date = event.getDate()!;
-      const timestampStr = event.isAllDay
-        ? time(date, TimestampStyles.LongDate)
-        : time(date, TimestampStyles.LongDateTime);
 
       const titleLine = event.url
         ? `**[${event.summary}](${event.url})**`
         : `**${event.summary}**`;
 
-      lines.push(`${titleLine} — ${timestampStr}`);
+      const timestampStr = event.isAllDay
+        ? time(date, TimestampStyles.LongDate)
+        : time(date, TimestampStyles.LongDateTime);
+
+      const lines: string[] = [titleLine, timestampStr];
 
       const meta: string[] = [];
-      if (event.location) meta.push(`📍 ${event.location}`);
-      if (multipleCalendars) meta.push(`📅 ${calendarTitle}`);
-      if (meta.length > 0) lines.push(`-# ${meta.join(" · ")}`);
+      if (event.location) {
+        // Skip URL locations — they're already used as the event link
+        try {
+          new URL(event.location);
+        } catch {
+          meta.push(event.location);
+        }
+      }
+      if (multipleCalendars) meta.push(calendarTitle);
+      if (meta.length > 0) lines.push(`-# ${meta.join("  ·  ")}`);
 
-      lines.push("");
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(lines.join("\n")),
+      );
+
+      if (i < upcoming.length - 1) {
+        container.addSeparatorComponents(
+          new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+        );
+      }
     }
 
-    const content = lines.join("\n").trimEnd();
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
-    );
-
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });

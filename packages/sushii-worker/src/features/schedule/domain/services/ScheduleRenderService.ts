@@ -4,6 +4,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
+import Color from "@/utils/colors";
 import type { ScheduleEvent } from "../entities/ScheduleEvent";
 import { formatEventTimestamp } from "./ScheduleFormatting";
 
@@ -21,7 +22,7 @@ const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("en-US", { month: "long", year
 const FOOTER_TEXT_LIVE = "-# All times are shown in your local timezone";
 const FOOTER_TEXT_ARCHIVE = "-# All times are shown in your local timezone · archived";
 
-function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string {
+function formatEventLine(event: ScheduleEvent): string {
   let summaryText: string;
 
   if (event.location) {
@@ -41,10 +42,6 @@ function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string 
 
   let line = timePart ? `${timePart} ${summaryText}` : summaryText;
 
-  if (isNextUpcoming) {
-    line = `➡️ **${line}**`;
-  }
-
   const MAX_LINE_LENGTH = MAX_TEXT_DISPLAY_CHARS - 50;
   if (line.length > MAX_LINE_LENGTH) {
     line = line.slice(0, MAX_LINE_LENGTH) + "…";
@@ -62,7 +59,7 @@ function buildSegments(
 
   if (mode === "archive") {
     if (confirmed.length === 0) return [];
-    return [{ type: "text", content: confirmed.map((e) => formatEventLine(e, false)).join("\n") }];
+    return [{ type: "text", content: confirmed.map((e) => formatEventLine(e)).join("\n") }];
   }
 
   // Live mode: split into past and upcoming
@@ -89,20 +86,16 @@ function buildSegments(
 
   const segments: RenderSegment[] = [];
 
-  const hasBoth = past.length > 0 && upcoming.length > 0;
-
   if (past.length > 0) {
-    const pastContent = past.map((e) => formatEventLine(e, false)).join("\n");
-    segments.push({ type: "text", content: hasBoth ? `-# Past\n${pastContent}` : pastContent });
+    segments.push({ type: "text", content: past.map((e) => formatEventLine(e)).join("\n") });
   }
 
-  if (hasBoth) {
+  if (past.length > 0 && upcoming.length > 0) {
     segments.push({ type: "separator" });
   }
 
   if (upcoming.length > 0) {
-    const upcomingContent = upcoming.map((e, i) => formatEventLine(e, i === 0)).join("\n");
-    segments.push({ type: "text", content: hasBoth ? `-# Upcoming\n${upcomingContent}` : upcomingContent });
+    segments.push({ type: "text", content: upcoming.map((e) => formatEventLine(e)).join("\n") });
   }
 
   return segments;
@@ -121,13 +114,12 @@ export function renderSchedule(
 ): MessageChunk[] {
   const monthYearStr = MONTH_YEAR_FORMAT.format(new Date(year, month - 1));
 
-  // TODO: pass calendarEmoji param (bot emoji: "schedule") once emoji service is threaded through
   let header: string;
   if (title !== null) {
-    const safeTitle = title.replace(/[*_~`]/g, '\\$&');
-    header = `**${safeTitle}** 🗓️\n-# ${monthYearStr}`;
+    const safeTitle = title.replace(/[#*_~`]/g, '\\$&');
+    header = `## ${monthYearStr}\n-# ${safeTitle}`;
   } else {
-    header = `**${monthYearStr}** 🗓️`;
+    header = `## ${monthYearStr}`;
   }
 
   const footerText = mode === "archive" ? FOOTER_TEXT_ARCHIVE : FOOTER_TEXT_LIVE;
@@ -136,7 +128,7 @@ export function renderSchedule(
 
   if (segments.length === 0) {
     const content = `${header}\n\n*No events this month.*\n\n${footerText}`;
-    const container = new ContainerBuilder();
+    const container = new ContainerBuilder().setAccentColor(Color.Info);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
     const hash = Bun.hash.xxHash64(content).toString(16);
     return [{ container, hash }];
@@ -157,7 +149,7 @@ export function renderSchedule(
 
   // Pack segments into chunks
   const chunks: MessageChunk[] = [];
-  let currentContainer = new ContainerBuilder();
+  let currentContainer = new ContainerBuilder().setAccentColor(Color.Info);
   let currentLines: string[] = [];
   let currentLen = 0;
   let rawParts: string[] = [];
@@ -178,7 +170,7 @@ export function renderSchedule(
     const raw = rawParts.join("\n");
     const hash = Bun.hash.xxHash64(raw).toString(16);
     chunks.push({ container: currentContainer, hash });
-    currentContainer = new ContainerBuilder();
+    currentContainer = new ContainerBuilder().setAccentColor(Color.Info);
     rawParts = [];
   }
 

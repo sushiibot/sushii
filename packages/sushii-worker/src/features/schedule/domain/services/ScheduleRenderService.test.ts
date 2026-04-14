@@ -76,7 +76,7 @@ describe("renderSchedule", () => {
       expect(countSeparators(chunks[0])).toBe(1);
     });
 
-    it("marks first upcoming event with ➡️", () => {
+    it("renders all upcoming events without any special marker", () => {
       const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
       const upcoming1 = makeEvent("2", "First Upcoming", new Date("2024-06-20T10:00:00Z"));
       const upcoming2 = makeEvent("3", "Second Upcoming", new Date("2024-06-25T10:00:00Z"));
@@ -84,9 +84,9 @@ describe("renderSchedule", () => {
       const chunks = renderSchedule([pastEvent, upcoming1, upcoming2], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
-      expect(allText).toContain("➡️");
-      expect(allText).toMatch(/➡️ \*\*.*First Upcoming/);
-      expect(allText).not.toMatch(/➡️ \*\*.*Second Upcoming/);
+      expect(allText).toContain("First Upcoming");
+      expect(allText).toContain("Second Upcoming");
+      expect(allText).not.toContain("➡️");
     });
 
     it("shows no separator when all events are past", () => {
@@ -107,33 +107,11 @@ describe("renderSchedule", () => {
       expect(countSeparators(chunks[0])).toBe(0);
     });
 
-    it("shows -# Past and -# Upcoming labels when both sections exist", () => {
+    it("does not show -# Past or -# Upcoming labels", () => {
       const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
       const upcomingEvent = makeEvent("2", "Upcoming Event", new Date("2024-06-20T10:00:00Z"));
 
       const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
-      const allText = getTextContent(chunks);
-
-      expect(allText).toMatch(/^-# Past$/m);
-      expect(allText).toMatch(/^-# Upcoming$/m);
-    });
-
-    it("shows no section labels when all events are upcoming only", () => {
-      const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
-      const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
-
-      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
-      const allText = getTextContent(chunks);
-
-      expect(allText).not.toMatch(/^-# Past$/m);
-      expect(allText).not.toMatch(/^-# Upcoming$/m);
-    });
-
-    it("shows no section labels when all events are past only", () => {
-      const past1 = makeEvent("1", "Past 1", new Date("2024-06-01T10:00:00Z"));
-      const past2 = makeEvent("2", "Past 2", new Date("2024-06-05T10:00:00Z"));
-
-      const chunks = renderSchedule([past1, past2], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
       expect(allText).not.toMatch(/^-# Past$/m);
@@ -142,7 +120,7 @@ describe("renderSchedule", () => {
   });
 
   describe("archive mode", () => {
-    it("renders a flat plain list with no separator and no ➡️", () => {
+    it("renders a flat plain list with no separator", () => {
       const past = makeEvent("1", "Past Event", new Date("2024-05-10T10:00:00Z"));
       const upcoming = makeEvent("2", "Future Event", new Date("2024-07-20T10:00:00Z"));
 
@@ -209,8 +187,8 @@ describe("renderSchedule", () => {
       const todayAllDay = makeAllDayEvent("1", "Today Event", "2024-06-15");
       const chunks = renderSchedule([todayAllDay], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
-      // Should appear as first upcoming (marked with ➡️) and no separator
-      expect(allText).toContain("➡️");
+      // Should appear as upcoming with no separator (no past events)
+      expect(allText).toContain("Today Event");
       expect(countSeparators(chunks[0])).toBe(0);
     });
 
@@ -222,16 +200,18 @@ describe("renderSchedule", () => {
       expect(countSeparators(chunks[0])).toBe(1);
     });
 
-    it("uses D timestamp style for all-day events", () => {
+    it("uses d timestamp style for all-day events", () => {
       const allDay = makeAllDayEvent("1", "All Day Event", "2024-06-20");
       const chunks = renderSchedule([allDay], "live", "Test Calendar", YEAR, MONTH, NOW);
-      expect(getTextContent(chunks)).toMatch(/<t:\d+:D>/);
+      expect(getTextContent(chunks)).toMatch(/<t:\d+:d>/);
     });
 
-    it("uses f timestamp style for timed events", () => {
+    it("uses d and t timestamp styles for timed events", () => {
       const timed = makeEvent("1", "Timed Event", new Date("2024-06-20T10:00:00Z"));
       const chunks = renderSchedule([timed], "live", "Test Calendar", YEAR, MONTH, NOW);
-      expect(getTextContent(chunks)).toMatch(/<t:\d+:f>/);
+      const text = getTextContent(chunks);
+      expect(text).toMatch(/<t:\d+:d>/);
+      expect(text).toMatch(/<t:\d+:t>/);
     });
 
     it("renders URL location as hyperlink", () => {
@@ -286,11 +266,11 @@ describe("renderSchedule", () => {
 
       const firstText = getChunkTextContent(chunks[0]);
 
-      expect(firstText).toContain("**Test Calendar** 🗓️");
+      expect(firstText).toContain("## June 2024");
 
       for (let i = 1; i < chunks.length; i++) {
         const text = getChunkTextContent(chunks[i]);
-        expect(text).not.toContain("**Test Calendar** 🗓️");
+        expect(text).not.toContain("## June 2024");
       }
     });
 
@@ -308,31 +288,31 @@ describe("renderSchedule", () => {
       expect(lastText).toContain("All times are shown in your local timezone");
     });
 
-    it("header with title contains bold title and month/year subheading", () => {
+    it("header with title uses ## month/year heading and title as subheading", () => {
       const event = makeEvent("1", "Event", new Date("2024-01-20T10:00:00Z"));
       const chunks = renderSchedule([event], "live", "Title", 2024, 1, new Date("2024-01-10T12:00:00Z"));
       const allText = getTextContent(chunks);
 
-      expect(allText).toContain("**Title** 🗓️");
-      expect(allText).toContain("-# January 2024");
+      expect(allText).toContain("## January 2024");
+      expect(allText).toContain("-# Title");
     });
 
-    it("header without title (null) shows bold month/year only", () => {
+    it("header without title (null) shows ## month/year only", () => {
       const event = makeEvent("1", "Event", new Date("2024-01-20T10:00:00Z"));
       const chunks = renderSchedule([event], "live", null, 2024, 1, new Date("2024-01-10T12:00:00Z"));
       const allText = getTextContent(chunks);
 
-      expect(allText).toContain("**January 2024** 🗓️");
+      expect(allText).toContain("## January 2024");
+      expect(allText).not.toContain("-# January 2024");
     });
 
-    it("header without title (null) and no events shows bold month/year with empty-state message", () => {
+    it("header without title (null) and no events shows ## month/year with empty-state message", () => {
       const chunks = renderSchedule([], "live", null, YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
       expect(chunks.length).toBe(1);
-      expect(allText).toContain(`**June ${YEAR}** 🗓️`);
+      expect(allText).toContain(`## June ${YEAR}`);
       expect(allText).toContain("*No events this month.*");
-      expect(allText).not.toContain("-# June");
     });
 
     it("live mode footer does not contain '· archived'", () => {

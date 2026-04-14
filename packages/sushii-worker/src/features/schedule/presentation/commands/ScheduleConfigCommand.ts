@@ -4,6 +4,8 @@ import {
   ContainerBuilder,
   MessageFlags,
   PermissionFlagsBits,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
   SlashCommandBuilder,
   TextDisplayBuilder,
   time,
@@ -11,18 +13,25 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
+import Color from "@/utils/colors";
 
 import { formatPollInterval } from "../../application/ScheduleChannelService";
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 
-function errorContainer(message: string): { components: ContainerBuilder[]; flags: number } {
-  const container = new ContainerBuilder().addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(message),
-  );
+const CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;
+
+function makeContainer(
+  message: string,
+  color = Color.Error,
+): { components: ContainerBuilder[]; flags: number } {
+  const container = new ContainerBuilder()
+    .setAccentColor(color)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(message));
   return {
     components: [container],
-    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
+    flags: MessageFlags.IsComponentsV2,
   };
 }
 
@@ -59,9 +68,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         )
         .addStringOption((o) =>
           o
-            .setName("title")
-            .setDescription("Display title shown above the schedule. If omitted, only the month and year are shown.")
-            .setRequired(false),
+            .setName("name")
+            .setDescription("Schedule name shown in the Discord channel (e.g. 'BLACKPINK Schedule').")
+            .setRequired(true),
         ),
     )
     .addSubcommand((c) =>
@@ -98,6 +107,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   constructor(
     private readonly scheduleChannelService: ScheduleChannelService,
     private readonly logger: Logger,
+    private readonly emojiRepo: BotEmojiRepository,
   ) {
     super();
   }
@@ -125,12 +135,10 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const channel = interaction.options.getChannel("channel", true);
     const logChannel = interaction.options.getChannel("log-channel", true);
     const calendarInput = interaction.options.getString("calendar", true);
-    const title = interaction.options.getString("title") ?? undefined;
+    const title = interaction.options.getString("name", true);
 
     const result = await this.scheduleChannelService.configure({
       guildId: BigInt(interaction.guildId),
@@ -141,31 +149,30 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       title,
     });
 
+    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
+
     if (result.err) {
-      await interaction.editReply(errorContainer(`❌ ${result.val}`));
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`));
       return;
     }
 
     const sc = result.val;
-    const displayTitleText = sc.displayTitle ?? "(month/year only)";
     const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
 
     const content = [
-      "✅ **Schedule channel configured!**",
+      `${emojis.success} **Schedule channel configured**`,
       "",
       `**Channel:** <#${sc.channelId}>`,
       `**Log channel:** <#${sc.logChannelId}>`,
-      `**Calendar:** ${sc.calendarTitle}`,
-      `**Schedule title:** ${displayTitleText}`,
-      "",
-      `-# Syncing ${intervalDisplay}`,
+      `**Name:** ${sc.displayTitle}`,
+      `-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`,
     ].join("\n");
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
-    );
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Success)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });
@@ -174,12 +181,13 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     try {
       const logChannel = await interaction.client.channels.fetch(sc.logChannelId.toString());
       if (logChannel?.isTextBased() && !logChannel.isDMBased()) {
-        const titleDisplay = sc.displayTitle ? `**${sc.displayTitle}**` : "month/year only";
-        const logContainer = new ContainerBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `✅ Schedule channel configured: <#${sc.channelId}> will now sync ${intervalDisplay}. Schedule title: ${titleDisplay}.`,
-          ),
-        );
+        const logContainer = new ContainerBuilder()
+          .setAccentColor(Color.Success)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              `${emojis.success} Schedule channel configured: <#${sc.channelId}> — ${sc.displayTitle} — will now sync ${intervalDisplay}.`,
+            ),
+          );
         await logChannel.send({
           components: [logContainer],
           flags: MessageFlags.IsComponentsV2,
@@ -199,9 +207,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const channel = interaction.options.getChannel("channel", true);
+
+    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.remove(
       BigInt(interaction.guildId),
@@ -209,21 +217,21 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     );
 
     if (result.err) {
-      await interaction.editReply(errorContainer(`❌ ${result.val}`));
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`));
       return;
     }
 
     const content = [
-      "✅ **Schedule channel removed**",
+      `${emojis.success} **Schedule channel removed**`,
       "",
       `Configuration for <#${channel.id}> has been deleted. Existing messages in the channel have been left intact.`,
     ].join("\n");
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
-    );
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Success)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });
@@ -235,51 +243,48 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
 
     const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId));
 
     if (channels.length === 0) {
-      const emptyContainer = new ContainerBuilder().addTextDisplayComponents(
-        new TextDisplayBuilder().setContent("No schedule channels are configured in this server."),
-      );
-      await interaction.editReply({
-        components: [emptyContainer],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info));
       return;
     }
 
-    const container = new ContainerBuilder();
-    const lines: string[] = ["**Configured Schedule Channels**\n"];
-
-    for (const sc of channels) {
-      lines.push(`**<#${sc.channelId}>**`);
-      if (sc.displayTitle) {
-        lines.push(`🏷️ Title: ${sc.displayTitle}`);
-      }
-      lines.push(`📅 ${sc.calendarTitle}`);
-      lines.push(`-# Calendar ID: ${sc.calendarId}`);
-      lines.push(`🔔 Log channel: <#${sc.logChannelId}>`);
-      lines.push(`🔄 Next sync: ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`);
-      if (sc.consecutiveFailures > 0) {
-        const failureLine = sc.lastErrorReason
-          ? `⚠️ Failing (${sc.consecutiveFailures} consecutive failures) — last error: ${sc.lastErrorReason}`
-          : `⚠️ Failing (${sc.consecutiveFailures} consecutive failures)`;
-        lines.push(failureLine);
-      }
-      lines.push("");
-    }
-
-    const content = lines.join("\n").trimEnd();
-    const truncated = content.length > 4000
-      ? content.slice(0, 4000) + "\n…(truncated)"
-      : content;
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(truncated),
+    const container = new ContainerBuilder().setAccentColor(Color.Info);
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Schedule Channels"));
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
     );
 
-    await interaction.editReply({
+    for (let i = 0; i < channels.length; i++) {
+      const sc = channels[i];
+
+      const lines: string[] = [
+        `${emojis.schedule} **<#${sc.channelId}>**${sc.displayTitle ? ` — ${sc.displayTitle}` : ""}`,
+        `-# ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  Syncs ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`,
+      ];
+
+      if (sc.consecutiveFailures > 0) {
+        const failureLine = sc.lastErrorReason
+          ? `${emojis.warning} ${sc.consecutiveFailures} consecutive failures — ${sc.lastErrorReason}`
+          : `${emojis.warning} ${sc.consecutiveFailures} consecutive failures`;
+        lines.push(failureLine);
+      }
+
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(lines.join("\n")),
+      );
+
+      if (i < channels.length - 1) {
+        container.addSeparatorComponents(
+          new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+        );
+      }
+    }
+
+    await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });
@@ -291,9 +296,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const channel = interaction.options.getChannel("channel", true);
+
+    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.refresh(
       BigInt(interaction.guildId),
@@ -301,21 +306,21 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     );
 
     if (result.err) {
-      await interaction.editReply(errorContainer(`❌ ${result.val}`));
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`));
       return;
     }
 
     const content = [
-      `✅ **Resync queued for <#${channel.id}>**`,
+      `${emojis.success} **Refresh queued for <#${channel.id}>**`,
       "",
-      "-# The schedule channel will update at the next poll.",
+      "-# The channel will update within a minute.",
     ].join("\n");
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
-    );
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Success)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
     });
