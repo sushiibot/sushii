@@ -2,11 +2,10 @@ import {
   ContainerBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
-  time,
-  TimestampStyles,
 } from "discord.js";
 
 import type { ScheduleEvent } from "../entities/ScheduleEvent";
+import { formatEventTimestamp } from "./ScheduleFormatting";
 
 export interface MessageChunk {
   container: ContainerBuilder;
@@ -38,16 +37,7 @@ function formatEventLine(event: ScheduleEvent, isNextUpcoming: boolean): string 
     summaryText = event.summary;
   }
 
-  let timePart: string;
-  if (event.isAllDay && event.startDate) {
-    // Parse YYYY-MM-DD at midnight UTC
-    const d = new Date(`${event.startDate}T00:00:00Z`);
-    timePart = time(d, TimestampStyles.LongDate);
-  } else if (event.startUtc) {
-    timePart = time(event.startUtc, TimestampStyles.ShortDateTime);
-  } else {
-    timePart = "";
-  }
+  const timePart = formatEventTimestamp(event);
 
   let line = timePart ? `${timePart} ${summaryText}` : summaryText;
 

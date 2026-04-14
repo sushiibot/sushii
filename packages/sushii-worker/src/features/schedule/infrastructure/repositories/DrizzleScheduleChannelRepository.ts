@@ -212,6 +212,31 @@ export class DrizzleScheduleChannelRepository
       );
   }
 
+  async resetFailuresAndUpdateToken(
+    guildId: bigint,
+    channelId: bigint,
+    syncToken: string | null,
+    nextPollAt: Date,
+  ): Promise<void> {
+    const now = new Date();
+    await this.db
+      .update(schema.scheduleChannelsInAppPublic)
+      .set({
+        consecutiveFailures: 0,
+        lastErrorAt: null,
+        lastErrorReason: null,
+        syncToken,
+        nextPollAt,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.scheduleChannelsInAppPublic.guildId, guildId),
+          eq(schema.scheduleChannelsInAppPublic.channelId, channelId),
+        ),
+      );
+  }
+
   async getMessages(
     guildId: bigint,
     channelId: bigint,

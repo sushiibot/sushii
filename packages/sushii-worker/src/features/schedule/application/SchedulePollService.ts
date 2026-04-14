@@ -38,7 +38,8 @@ export class SchedulePollService {
   private readonly httpSemaphore = new Semaphore(10);
 
   constructor(
-    private readonly repo: ScheduleChannelRepository & ScheduleMessageRepository,
+    private readonly channelRepo: ScheduleChannelRepository,
+    private readonly messageRepo: ScheduleMessageRepository,
     private readonly calendarSync: CalendarSyncService,
     private readonly discordPublisher: DiscordSchedulePublisher,
     private readonly logger: Logger,
@@ -51,7 +52,7 @@ export class SchedulePollService {
 
   async pollAll(): Promise<void> {
     const now = new Date();
-    const dueChannels = await this.repo.findAllDue(now);
+    const dueChannels = await this.channelRepo.findAllDue(now);
 
     if (dueChannels.length === 0) return;
 
@@ -95,7 +96,7 @@ export class SchedulePollService {
     // Archive check: detect messages from previous month that aren't archived yet
     const prevMonthYear = month === 1 ? year - 1 : year;
     const prevMonth = month === 1 ? 12 : month - 1;
-    const prevMessages = await this.repo.getMessages(
+    const prevMessages = await this.messageRepo.getMessages(
       channel.guildId,
       channel.channelId,
       prevMonthYear,
@@ -114,7 +115,7 @@ export class SchedulePollService {
     let newSyncToken: string | undefined;
 
     try {
-      if (cacheEmpty || !channel.syncToken) {
+      if (wasFullFetch) {
         // Full fetch
         const result = await this.calendarSync.fullFetch(channel, year, month);
         changedItems = result.items;
@@ -133,7 +134,7 @@ export class SchedulePollService {
             { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
             "Sync token expired (410), performing full fetch",
           );
-          await this.repo.updateSyncToken(
+          await this.channelRepo.updateSyncToken(
             channel.guildId,
             channel.channelId,
             null,
@@ -148,7 +149,7 @@ export class SchedulePollService {
             channel.pollIntervalSec,
             channel.consecutiveFailures,
           );
-          await this.repo.recordFailure(
+          await this.channelRepo.recordFailure(
             channel.guildId,
             channel.channelId,
             err.message,
@@ -165,7 +166,7 @@ export class SchedulePollService {
         channel.consecutiveFailures,
       );
       const reason = err instanceof Error ? err.message : String(err);
-      await this.repo.recordFailure(
+      await this.channelRepo.recordFailure(
         channel.guildId,
         channel.channelId,
         reason,
@@ -182,19 +183,14 @@ export class SchedulePollService {
     const nextPollAt = computeNextPollAt(channel.pollIntervalSec);
     if (channel.consecutiveFailures > 0) {
       await this.discordPublisher.sendRecoveryNotification(channel);
-      await this.repo.resetFailures(
-        channel.guildId,
-        channel.channelId,
-        nextPollAt,
-      );
-      await this.repo.updateSyncToken(
+      await this.channelRepo.resetFailuresAndUpdateToken(
         channel.guildId,
         channel.channelId,
         newSyncToken ?? null,
         nextPollAt,
       );
     } else {
-      await this.repo.updateSyncToken(
+      await this.channelRepo.updateSyncToken(
         channel.guildId,
         channel.channelId,
         newSyncToken ?? null,
@@ -267,7 +263,7 @@ export class SchedulePollService {
         { err, guildId: channel.guildId.toString(), channelId: channel.channelId.toString() },
         "Failed to fetch previous month events for archiving, skipping archive render",
       );
-      await this.repo.markArchived(channel.guildId, channel.channelId, year, month);
+      await this.messageRepo.markArchived(channel.guildId, channel.channelId, year, month);
       return;
     }
 

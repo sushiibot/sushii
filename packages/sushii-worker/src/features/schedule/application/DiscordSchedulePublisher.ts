@@ -7,6 +7,7 @@ import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
 import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import { renderSchedule } from "../domain/services/ScheduleRenderService";
+import { formatEventTimestamp } from "../domain/services/ScheduleFormatting";
 import { classifyChanges } from "../domain/value-objects/CalendarEventChange";
 import { calendarItemIssues } from "../domain/value-objects/CalendarEventIssue";
 import type { CalendarEventItem } from "../infrastructure/google/GoogleCalendarClient";
@@ -184,89 +185,88 @@ export class DiscordSchedulePublisher {
       "archiveMonth",
     );
 
-    for (let i = 0; i < archiveChunks.length; i++) {
-      const chunk = archiveChunks[i];
-      const existing = unarchivedMessages.find((m) => m.messageIndex === i);
+    if (discordChannel) {
+      for (let i = 0; i < archiveChunks.length; i++) {
+        const chunk = archiveChunks[i];
+        const existing = unarchivedMessages.find((m) => m.messageIndex === i);
 
-      await this.discordSemaphore.run(async () => {
-        if (existing) {
-          if (!discordChannel) return;
-          try {
-            const discordMsg = await discordChannel.messages.fetch(existing.messageId.toString());
-            await discordMsg.edit({
-              components: [chunk.container],
-              flags: MessageFlags.IsComponentsV2,
-            });
-            await this.repo.upsertMessage(
-              channel.guildId,
-              channel.channelId,
-              year,
-              month,
-              i,
-              existing.messageId,
-              chunk.hash,
-            );
-          } catch (err) {
-            this.logger.warn(
-              { err, messageId: existing.messageId.toString() },
-              "Failed to edit archived message",
-            );
+        await this.discordSemaphore.run(async () => {
+          if (existing) {
+            try {
+              const discordMsg = await discordChannel.messages.fetch(existing.messageId.toString());
+              await discordMsg.edit({
+                components: [chunk.container],
+                flags: MessageFlags.IsComponentsV2,
+              });
+              await this.repo.upsertMessage(
+                channel.guildId,
+                channel.channelId,
+                year,
+                month,
+                i,
+                existing.messageId,
+                chunk.hash,
+              );
+            } catch (err) {
+              this.logger.warn(
+                { err, messageId: existing.messageId.toString() },
+                "Failed to edit archived message",
+              );
+            }
+          } else {
+            try {
+              const newMsg = await discordChannel.send({
+                components: [chunk.container],
+                flags: MessageFlags.IsComponentsV2,
+              });
+              await this.repo.upsertMessage(
+                channel.guildId,
+                channel.channelId,
+                year,
+                month,
+                i,
+                BigInt(newMsg.id),
+                chunk.hash,
+              );
+            } catch (err) {
+              this.logger.warn(
+                { err, chunkIndex: i },
+                "Failed to post new archive message",
+              );
+            }
           }
-        } else {
-          if (!discordChannel) return;
-          try {
-            const newMsg = await discordChannel.send({
-              components: [chunk.container],
-              flags: MessageFlags.IsComponentsV2,
-            });
-            await this.repo.upsertMessage(
-              channel.guildId,
-              channel.channelId,
-              year,
-              month,
-              i,
-              BigInt(newMsg.id),
-              chunk.hash,
-            );
-          } catch (err) {
-            this.logger.warn(
-              { err, chunkIndex: i },
-              "Failed to post new archive message",
-            );
-          }
-        }
-      });
-    }
+        });
+      }
 
-    // Delete Discord messages and DB rows for indices beyond archiveChunks.length
-    const excessMessages = unarchivedMessages.filter(
-      (m) => m.messageIndex >= archiveChunks.length,
-    );
-    for (const msg of excessMessages) {
-      await this.discordSemaphore.run(async () => {
-        if (!discordChannel) return;
-        try {
-          const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
-          await discordMsg.delete();
-        } catch (err) {
-          if (!isDiscordUnknownMessageError(err)) {
-            this.logger.warn(
-              { err, messageId: msg.messageId.toString() },
-              "Failed to delete excess archive message",
-            );
-          }
-        }
-      });
-    }
-
-    if (excessMessages.length > 0) {
-      await this.repo.deleteMessagesAboveIndex(
-        channel.guildId,
-        channel.channelId,
-        year,
-        month,
-        archiveChunks.length - 1,
+      // Delete Discord messages and DB rows for indices beyond archiveChunks.length
+      const excessMessages = unarchivedMessages.filter(
+        (m) => m.messageIndex >= archiveChunks.length,
       );
+      for (const msg of excessMessages) {
+        await this.discordSemaphore.run(async () => {
+          try {
+            const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
+            await discordMsg.delete();
+          } catch (err) {
+            if (!isDiscordUnknownMessageError(err)) {
+              this.logger.warn(
+                { err, messageId: msg.messageId.toString() },
+                "Failed to delete excess archive message",
+              );
+            }
+          }
+        });
+      }
+
+      if (excessMessages.length > 0) {
+        await this.repo.deleteMessagesAboveIndex(
+          channel.guildId,
+          channel.channelId,
+          year,
+          month,
+          archiveChunks.length - 1,
+        );
+      }
     }
 
     await this.repo.markArchived(channel.guildId, channel.channelId, year, month);
@@ -283,25 +283,14 @@ export class DiscordSchedulePublisher {
     for (const change of changes) {
       if (change.kind === "removed") {
         const prevEvent = change.previousEvent;
-        const event = toScheduleEvent(change.item);
-        const prevTimePart =
-          prevEvent?.isAllDay && prevEvent?.startDate
-            ? `<t:${Math.floor(new Date(`${prevEvent.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
-            : prevEvent?.startUtc
-            ? `<t:${Math.floor(prevEvent.startUtc.getTime() / 1000)}:f>`
-            : "";
-        const prevSummary = prevEvent?.summary ?? event.summary;
-        const cancelLabel = prevTimePart ? `${prevTimePart} ${prevSummary}` : prevSummary;
+        const prevTimePart = prevEvent ? formatEventTimestamp(prevEvent) : "";
+        const summary = prevEvent?.summary ?? change.item.summary ?? "(unknown event)";
+        const cancelLabel = prevTimePart ? `${prevTimePart} ${summary}` : summary;
         // TODO: use emojis.trash once emoji service is available
         lines.push(`🗑️ Event removed: ${cancelLabel}`);
       } else {
         const event = toScheduleEvent(change.item);
-        const timePart =
-          event.isAllDay && event.startDate
-            ? `<t:${Math.floor(new Date(`${event.startDate}T00:00:00Z`).getTime() / 1000)}:D>`
-            : event.startUtc
-            ? `<t:${Math.floor(event.startUtc.getTime() / 1000)}:f>`
-            : "";
+        const timePart = formatEventTimestamp(event);
 
         const issues = calendarItemIssues(change.item);
         const hasIssues = issues.length > 0;
@@ -357,11 +346,8 @@ export class DiscordSchedulePublisher {
     items: CalendarEventItem[],
   ): Promise<void> {
     const lines = items.flatMap((item) => {
-      const timePart = item.start?.dateTime
-        ? `<t:${Math.floor(new Date(item.start.dateTime).getTime() / 1000)}:f>`
-        : item.start?.date
-        ? `<t:${Math.floor(new Date(`${item.start.date}T00:00:00Z`).getTime() / 1000)}:D>`
-        : "unknown time";
+      const event = toScheduleEvent(item);
+      const timePart = formatEventTimestamp(event) || "unknown time";
 
       return calendarItemIssues(item).map(
         (issue) => `⚠️ ${issue.label}: ${timePart} — ${issue.actionMessage}`,

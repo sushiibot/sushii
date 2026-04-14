@@ -45,4 +45,11 @@ export interface ScheduleChannelRepository {
     channelId: bigint,
     nextPollAt: Date,
   ): Promise<void>;
+
+  resetFailuresAndUpdateToken(
+    guildId: bigint,
+    channelId: bigint,
+    syncToken: string | null,
+    nextPollAt: Date,
+  ): Promise<void>;
 }

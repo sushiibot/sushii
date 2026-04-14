@@ -53,7 +53,8 @@ export function setupScheduleFeature(
   );
 
   const schedulePollService = new SchedulePollService(
-    scheduleChannelRepository,
+    scheduleChannelRepository,  // ScheduleChannelRepository
+    scheduleChannelRepository,  // ScheduleMessageRepository
     calendarSyncService,
     discordSchedulePublisher,
     logger.child({ component: "SchedulePollService" }),
