@@ -15,6 +15,7 @@ import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClie
 import { DrizzleScheduleChannelRepository } from "./infrastructure/repositories/DrizzleScheduleChannelRepository";
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
+import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
 
 interface SetupScheduleFeatureDeps {
   db: NodePgDatabase<typeof schema>;
@@ -76,14 +77,20 @@ export function setupScheduleFeature(
   );
 
   const scheduleCommand = new ScheduleCommand(
-    scheduleChannelService,
+    scheduleChannelRepository,
+    calendarClient,
     logger.child({ component: "ScheduleCommand" }),
+  );
+
+  const scheduleConfigCommand = new ScheduleConfigCommand(
+    scheduleChannelService,
+    logger.child({ component: "ScheduleConfigCommand" }),
   );
 
   const tasks = apiKey ? [schedulePollTask] : [];
 
   return {
-    commands: [scheduleCommand],
+    commands: [scheduleCommand, scheduleConfigCommand],
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],

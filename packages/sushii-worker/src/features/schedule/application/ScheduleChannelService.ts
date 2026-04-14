@@ -28,6 +28,8 @@ export interface ConfigureScheduleChannelInput {
   title?: string;
 }
 
+const MAX_SCHEDULE_CHANNELS_PER_GUILD = 3;
+
 export class ScheduleChannelService {
   constructor(
     private readonly repo: ScheduleChannelRepository & ScheduleMessageRepository,
@@ -40,6 +42,14 @@ export class ScheduleChannelService {
   async configure(input: ConfigureScheduleChannelInput): Promise<Result<ScheduleChannel, string>> {
     if (!this.isConfigured) {
       return Err("Schedule sync is not configured on this bot. The `GOOGLE_CALENDAR_API_KEY` environment variable is not set.");
+    }
+
+    const existing = await this.repo.findAllByGuild(input.guildId);
+    const isUpdate = existing.some((c) => c.channelId === input.channelId);
+    if (!isUpdate && existing.length >= MAX_SCHEDULE_CHANNELS_PER_GUILD) {
+      return Err(
+        `This server has reached the maximum of ${MAX_SCHEDULE_CHANNELS_PER_GUILD} schedule channels. Remove one before adding another.`,
+      );
     }
 
     const calendarId = parseCalendarId(input.calendarInput);

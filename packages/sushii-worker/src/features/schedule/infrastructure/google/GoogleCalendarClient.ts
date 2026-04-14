@@ -32,7 +32,7 @@ export interface ListEventsResponse {
 export type ListEventsOptions = (
   | { syncToken: string; timeMin?: never; timeMax?: never }
   | { syncToken?: never; timeMin?: string; timeMax?: string }
-) & { pageToken?: string };
+) & { pageToken?: string; orderBy?: "startTime" | "updated"; maxResults?: number };
 
 export class GoogleCalendarError extends Error {
   constructor(
@@ -94,6 +94,8 @@ export class GoogleCalendarClient {
         url.searchParams.set("singleEvents", "true");
         if (options.timeMin) url.searchParams.set("timeMin", options.timeMin);
         if (options.timeMax) url.searchParams.set("timeMax", options.timeMax);
+        if (options.orderBy) url.searchParams.set("orderBy", options.orderBy);
+        if (options.maxResults) url.searchParams.set("maxResults", String(options.maxResults));
       }
 
       if (pageToken) {
