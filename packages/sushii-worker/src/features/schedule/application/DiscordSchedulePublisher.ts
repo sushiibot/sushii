@@ -448,7 +448,9 @@ export class DiscordSchedulePublisher {
     const message =
       statusCode === 403
         ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`
-        : `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`;
+        : statusCode === 404
+          ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`
+          : `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> encountered an error (${statusCode}). Please check your calendar configuration.`;
 
     const logChannel = await this.fetchTextChannel(
       channel.logChannelId.toString(),
