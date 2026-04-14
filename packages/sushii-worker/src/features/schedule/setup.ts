@@ -7,6 +7,8 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
 import { config } from "@/shared/infrastructure/config/config";
 
+import { CalendarSyncService } from "./application/CalendarSyncService";
+import { DiscordSchedulePublisher } from "./application/DiscordSchedulePublisher";
 import { ScheduleChannelService } from "./application/ScheduleChannelService";
 import { SchedulePollService } from "./application/SchedulePollService";
 import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClient";
@@ -39,10 +41,21 @@ export function setupScheduleFeature(
     logger.child({ component: "DrizzleScheduleChannelRepository" }),
   );
 
+  const calendarSyncService = new CalendarSyncService(
+    calendarClient,
+    logger.child({ component: "CalendarSyncService" }),
+  );
+
+  const discordSchedulePublisher = new DiscordSchedulePublisher(
+    scheduleChannelRepository,
+    client,
+    logger.child({ component: "DiscordSchedulePublisher" }),
+  );
+
   const schedulePollService = new SchedulePollService(
     scheduleChannelRepository,
-    calendarClient,
-    client,
+    calendarSyncService,
+    discordSchedulePublisher,
     logger.child({ component: "SchedulePollService" }),
   );
 
