@@ -17,6 +17,7 @@ import { DrizzleScheduleChannelRepository } from "./infrastructure/repositories/
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
 import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
+import { ScheduleConfigNewButtonHandler } from "./presentation/handlers/ScheduleConfigNewButtonHandler";
 
 interface SetupScheduleFeatureDeps {
   db: NodePgDatabase<typeof schema>;
@@ -91,13 +92,19 @@ export function setupScheduleFeature(
     emojiRepository,
   );
 
+  const scheduleConfigNewButtonHandler = new ScheduleConfigNewButtonHandler(
+    scheduleChannelService,
+    logger.child({ component: "ScheduleConfigNewButtonHandler" }),
+    emojiRepository,
+  );
+
   const tasks = apiKey ? [schedulePollTask] : [];
 
   return {
     commands: [scheduleCommand, scheduleConfigCommand],
     autocompletes: [],
     contextMenuHandlers: [],
-    buttonHandlers: [],
+    buttonHandlers: [scheduleConfigNewButtonHandler],
     eventHandlers: [],
     tasks,
   };

@@ -1,18 +1,16 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   ChatInputCommandInteraction,
   ContainerBuilder,
-  LabelBuilder,
-  ChannelSelectMenuBuilder,
   MessageFlags,
-  ModalBuilder,
   PermissionFlagsBits,
   SeparatorBuilder,
   SeparatorSpacingSize,
   SlashCommandBuilder,
   TextDisplayBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   time,
   TimestampStyles,
 } from "discord.js";
@@ -22,12 +20,15 @@ import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
-import { formatPollInterval } from "../../application/ScheduleChannelService";
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
-
-const CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;
-
-const MODAL_CUSTOM_ID = "schedule-config/new";
+import { formatPollInterval } from "../../application/ScheduleChannelService";
+import {
+  SCHEDULE_CONFIG_CUSTOM_IDS,
+  SCHEDULE_CONFIG_EMOJI_NAMES,
+  SCHEDULE_CONFIG_OPTIONS,
+  SCHEDULE_CONFIG_SETUP_EMOJI_NAMES,
+  SCHEDULE_CONFIG_SUBCOMMANDS,
+} from "../ScheduleConfigConstants";
 
 function makeContainer(
   message: string,
@@ -51,16 +52,16 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((c) =>
       c
-        .setName("new")
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.NEW)
         .setDescription("Configure a schedule channel to sync a Google Calendar."),
     )
     .addSubcommand((c) =>
       c
-        .setName("remove")
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE)
         .setDescription("Remove a schedule channel configuration.")
         .addChannelOption((o) =>
           o
-            .setName("channel")
+            .setName(SCHEDULE_CONFIG_OPTIONS.CHANNEL)
             .setDescription("The schedule channel to remove.")
             .addChannelTypes(ChannelType.GuildText)
             .setRequired(true),
@@ -68,16 +69,16 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     )
     .addSubcommand((c) =>
       c
-        .setName("list")
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.LIST)
         .setDescription("List all configured schedule channels in this server."),
     )
     .addSubcommand((c) =>
       c
-        .setName("refresh")
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH)
         .setDescription("Force an immediate full resync of a schedule channel.")
         .addChannelOption((o) =>
           o
-            .setName("channel")
+            .setName(SCHEDULE_CONFIG_OPTIONS.CHANNEL)
             .setDescription("The schedule channel to refresh.")
             .addChannelTypes(ChannelType.GuildText)
             .setRequired(true),
@@ -97,13 +98,13 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     const subcommand = interaction.options.getSubcommand();
 
     switch (subcommand) {
-      case "new":
+      case SCHEDULE_CONFIG_SUBCOMMANDS.NEW:
         return this.handleAdd(interaction);
-      case "remove":
+      case SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE:
         return this.handleRemove(interaction);
-      case "list":
+      case SCHEDULE_CONFIG_SUBCOMMANDS.LIST:
         return this.handleList(interaction);
-      case "refresh":
+      case SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH:
         return this.handleRefresh(interaction);
       default:
         throw new Error(`Unknown subcommand: ${subcommand}`);
@@ -116,136 +117,44 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    const modal = new ModalBuilder()
-      .setCustomId(MODAL_CUSTOM_ID)
-      .setTitle("Add Schedule Channel")
-      .addComponents(
-        new LabelBuilder()
-          .setLabel("Schedule name")
-          .setDescription("Shown in the channel header (e.g. 'BLACKPINK Schedule')")
-          .setTextInputComponent(
-            new TextInputBuilder()
-              .setCustomId("name")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-              .setPlaceholder("e.g. BLACKPINK Schedule"),
-          ),
-        new LabelBuilder()
-          .setLabel("Google Calendar URL or ID")
-          .setTextInputComponent(
-            new TextInputBuilder()
-              .setCustomId("calendar")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-              .setPlaceholder("https://calendar.google.com/calendar/embed?src=..."),
-          ),
-        new LabelBuilder()
-          .setLabel("Schedule channel")
-          .setDescription("The channel to post the schedule in")
-          .setChannelSelectMenuComponent(
-            new ChannelSelectMenuBuilder()
-              .setCustomId("channel")
-              .addChannelTypes(ChannelType.GuildText),
-          ),
-        new LabelBuilder()
-          .setLabel("Log channel")
-          .setDescription("Channel for event change notifications and error alerts")
-          .setChannelSelectMenuComponent(
-            new ChannelSelectMenuBuilder()
-              .setCustomId("log-channel")
-              .addChannelTypes(ChannelType.GuildText),
-          ),
-      );
-
-    await interaction.showModal(modal);
-
-    let submit;
-    try {
-      submit = await interaction.awaitModalSubmit({ time: 5 * 60 * 1000 });
-    } catch {
-      // User dismissed the modal or it timed out — nothing to do
-      return;
-    }
-
-    if (!submit.guildId) {
-      await submit.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    const title = submit.fields.getTextInputValue("name");
-    const calendarInput = submit.fields.getTextInputValue("calendar");
-
-    const channels = submit.fields.getSelectedChannels("channel", true, [ChannelType.GuildText]);
-    const logChannels = submit.fields.getSelectedChannels("log-channel", true, [ChannelType.GuildText]);
-
-    const channel = channels?.first();
-    const logChannel = logChannels?.first();
-
-    if (!channel || !logChannel) {
-      const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
-      await submit.reply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`));
-      return;
-    }
-
-    const result = await this.scheduleChannelService.configure({
-      guildId: BigInt(submit.guildId),
-      channelId: BigInt(channel.id),
-      logChannelId: BigInt(logChannel.id),
-      configuredByUserId: BigInt(submit.user.id),
-      calendarInput,
-      title,
-    });
-
-    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
-
-    if (result.err) {
-      await submit.reply(makeContainer(`${emojis.fail} ${result.val}`));
-      return;
-    }
-
-    const sc = result.val;
-    const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
-
-    const content = [
-      `${emojis.success} **Schedule channel configured**`,
-      "",
-      `**Channel:** <#${sc.channelId}>`,
-      `**Log channel:** <#${sc.logChannelId}>`,
-      `**Name:** ${sc.displayTitle}`,
-      `-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`,
-    ].join("\n");
+    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_SETUP_EMOJI_NAMES);
 
     const container = new ContainerBuilder()
-      .setAccentColor(Color.Success)
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
-
-    await submit.reply({
-      components: [container],
-      flags: MessageFlags.IsComponentsV2,
-    });
-
-    // Post confirmation to log channel (best-effort — never fail the command reply)
-    try {
-      const fetchedLogChannel = await submit.client.channels.fetch(sc.logChannelId.toString());
-      if (fetchedLogChannel?.isTextBased() && !fetchedLogChannel.isDMBased()) {
-        const logContainer = new ContainerBuilder()
-          .setAccentColor(Color.Success)
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-              `${emojis.success} Schedule channel configured: <#${sc.channelId}> — ${sc.displayTitle} — will now sync ${intervalDisplay}.`,
-            ),
-          );
-        await fetchedLogChannel.send({
-          components: [logContainer],
-          flags: MessageFlags.IsComponentsV2,
-        });
-      }
-    } catch (err) {
-      this.logger.warn(
-        { err, logChannelId: sc.logChannelId.toString() },
-        "Failed to post configuration confirmation to log channel",
+      .setAccentColor(Color.Info)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          [
+            `## ${emojis.schedule} Setting Up a Schedule Channel`,
+            "",
+            "Your Google Calendar must be **public** before the bot can read it.",
+            "",
+            `${emojis.tip} **Step 1 — Make the calendar public**`,
+            "Open [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)",
+            "and select your calendar. Under **Access permissions for events**:",
+            "- Check **Make available to public**",
+            '- Set to **See all event details** (not "See only free/busy")',
+            "",
+            `${emojis.tip} **Step 2 — Copy the Calendar ID**`,
+            "In that same page, scroll to **Integrate calendar** and copy the **Calendar ID**",
+            "(e.g. `abc123@group.calendar.google.com`). You can also copy the **Public URL to this calendar**.",
+            "",
+            "-# When ready, click the button below to continue.",
+          ].join("\n"),
+        ),
+      )
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON)
+            .setLabel("Set Up Schedule Channel")
+            .setStyle(ButtonStyle.Primary),
+        ),
       );
-    }
+
+    await interaction.reply({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    });
   }
 
   private async handleRemove(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -254,9 +163,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    const channel = interaction.options.getChannel("channel", true);
+    const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
 
-    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
+    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.remove(
       BigInt(interaction.guildId),
@@ -290,7 +199,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
+    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId));
 
@@ -343,9 +252,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       return;
     }
 
-    const channel = interaction.options.getChannel("channel", true);
+    const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
 
-    const emojis = await this.emojiRepo.getEmojis(CONFIG_EMOJI_NAMES);
+    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.refresh(
       BigInt(interaction.guildId),

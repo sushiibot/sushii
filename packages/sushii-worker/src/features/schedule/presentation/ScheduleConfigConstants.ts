@@ -1,0 +1,22 @@
+export const SCHEDULE_CONFIG_SUBCOMMANDS = {
+  NEW: "new",
+  REMOVE: "remove",
+  LIST: "list",
+  REFRESH: "refresh",
+} as const;
+
+export const SCHEDULE_CONFIG_OPTIONS = {
+  CHANNEL: "channel",
+} as const;
+
+export const SCHEDULE_CONFIG_CUSTOM_IDS = {
+  OPEN_MODAL_BUTTON: "schedule-config/open-modal",
+  MODAL: "schedule-config/new",
+  MODAL_FIELD_CALENDAR: "calendar",
+  MODAL_FIELD_NAME: "name",
+  MODAL_FIELD_CHANNEL: "channel",
+  MODAL_FIELD_LOG_CHANNEL: "log-channel",
+} as const;
+
+export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;
+export const SCHEDULE_CONFIG_SETUP_EMOJI_NAMES = ["tip", "schedule"] as const;
