@@ -73,7 +73,8 @@ describe("renderSchedule", () => {
 
       const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
 
-      expect(countSeparators(chunks[0])).toBe(1);
+      // 1 separator between past/upcoming + 1 footer separator
+      expect(countSeparators(chunks[0])).toBe(2);
     });
 
     it("renders all upcoming events without any special marker", () => {
@@ -89,22 +90,24 @@ describe("renderSchedule", () => {
       expect(allText).not.toContain("➡️");
     });
 
-    it("shows no separator when all events are past", () => {
+    it("shows no past/upcoming separator when all events are past", () => {
       const past1 = makeEvent("1", "Past 1", new Date("2024-06-01T10:00:00Z"));
       const past2 = makeEvent("2", "Past 2", new Date("2024-06-05T10:00:00Z"));
 
       const chunks = renderSchedule([past1, past2], "live", "Test Calendar", YEAR, MONTH, NOW);
 
-      expect(countSeparators(chunks[0])).toBe(0);
+      // Only footer separator
+      expect(countSeparators(chunks[0])).toBe(1);
     });
 
-    it("shows no separator when all events are upcoming", () => {
+    it("shows no past/upcoming separator when all events are upcoming", () => {
       const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
       const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
 
       const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
 
-      expect(countSeparators(chunks[0])).toBe(0);
+      // Only footer separator
+      expect(countSeparators(chunks[0])).toBe(1);
     });
 
     it("does not show -# Past or -# Upcoming labels", () => {
@@ -120,13 +123,13 @@ describe("renderSchedule", () => {
   });
 
   describe("archive mode", () => {
-    it("renders a flat plain list with no separator", () => {
+    it("renders a flat plain list with only the footer separator", () => {
       const past = makeEvent("1", "Past Event", new Date("2024-05-10T10:00:00Z"));
       const upcoming = makeEvent("2", "Future Event", new Date("2024-07-20T10:00:00Z"));
 
       const chunks = renderSchedule([past, upcoming], "archive", "Test Calendar", YEAR, MONTH, NOW);
 
-      expect(countSeparators(chunks[0])).toBe(0);
+      expect(countSeparators(chunks[0])).toBe(1);
       expect(getTextContent(chunks)).not.toContain("➡️");
     });
 
@@ -187,17 +190,17 @@ describe("renderSchedule", () => {
       const todayAllDay = makeAllDayEvent("1", "Today Event", "2024-06-15");
       const chunks = renderSchedule([todayAllDay], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
-      // Should appear as upcoming with no separator (no past events)
+      // Should appear as upcoming with only footer separator (no past/upcoming separator)
       expect(allText).toContain("Today Event");
-      expect(countSeparators(chunks[0])).toBe(0);
+      expect(countSeparators(chunks[0])).toBe(1);
     });
 
     it("all-day event in the past is classified as past", () => {
       const pastAllDay = makeAllDayEvent("1", "Past All Day", "2024-06-14");
       const futureAllDay = makeAllDayEvent("2", "Future All Day", "2024-06-20");
       const chunks = renderSchedule([pastAllDay, futureAllDay], "live", "Test Calendar", YEAR, MONTH, NOW);
-      // Separator separates past from upcoming
-      expect(countSeparators(chunks[0])).toBe(1);
+      // 1 separator between past/upcoming + 1 footer separator
+      expect(countSeparators(chunks[0])).toBe(2);
     });
 
     it("uses d timestamp style for all-day events", () => {
@@ -206,12 +209,13 @@ describe("renderSchedule", () => {
       expect(getTextContent(chunks)).toMatch(/<t:\d+:d>/);
     });
 
-    it("uses d and t timestamp styles for timed events", () => {
+    it("uses f (ShortDateTime) timestamp style for timed events", () => {
       const timed = makeEvent("1", "Timed Event", new Date("2024-06-20T10:00:00Z"));
       const chunks = renderSchedule([timed], "live", "Test Calendar", YEAR, MONTH, NOW);
       const text = getTextContent(chunks);
-      expect(text).toMatch(/<t:\d+:d>/);
-      expect(text).toMatch(/<t:\d+:t>/);
+      expect(text).toMatch(/<t:\d+:f>/);
+      expect(text).not.toMatch(/<t:\d+:d>/);
+      expect(text).not.toMatch(/<t:\d+:t>/);
     });
 
     it("renders URL location as hyperlink", () => {

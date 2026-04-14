@@ -127,10 +127,12 @@ export function renderSchedule(
   const segments = buildSegments(events, mode, now);
 
   if (segments.length === 0) {
-    const content = `${header}\n\n*No events this month.*\n\n${footerText}`;
+    const content = `${header}\n\n*No events this month.*`;
     const container = new ContainerBuilder().setAccentColor(Color.Info);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
-    const hash = Bun.hash.xxHash64(content).toString(16);
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText));
+    const hash = Bun.hash.xxHash64(content + "---" + footerText).toString(16);
     return [{ container, hash }];
   }
 
@@ -143,9 +145,12 @@ export function renderSchedule(
 
     let content = seg.content;
     if (i === firstTextIdx) content = `${header}\n${content}`;
-    if (i === lastTextIdx) content = `${content}\n\n${footerText}`;
     return { type: "text", content };
   });
+
+  // Add separator + footer as the final segments
+  enrichedSegments.push({ type: "separator" });
+  enrichedSegments.push({ type: "text", content: footerText });
 
   // Pack segments into chunks
   const chunks: MessageChunk[] = [];

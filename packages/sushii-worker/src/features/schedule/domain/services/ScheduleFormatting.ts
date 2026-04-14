@@ -11,7 +11,7 @@ export function formatEventTimestamp(event: ScheduleEvent): string {
     return time(new Date(`${event.startDate}T00:00:00Z`), TimestampStyles.ShortDate);
   }
   if (event.startUtc) {
-    return `${time(event.startUtc, TimestampStyles.ShortDate)}, ${time(event.startUtc, TimestampStyles.ShortTime)}`;
+    return time(event.startUtc, TimestampStyles.ShortDateTime);
   }
   return "";
 }
