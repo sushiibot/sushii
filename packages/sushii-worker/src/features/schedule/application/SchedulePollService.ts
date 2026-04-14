@@ -7,7 +7,10 @@ import type { ScheduleRepository } from "../domain/repositories/ScheduleReposito
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import type { ScheduleEventRepository } from "../domain/repositories/ScheduleEventRepository";
 import { renderSchedule } from "../domain/services/ScheduleRenderService";
-import { GoogleCalendarError } from "../infrastructure/google/GoogleCalendarClient";
+import {
+  GoogleCalendarError,
+  type CalendarEventItem,
+} from "../infrastructure/google/GoogleCalendarClient";
 import { calendarItemIssues } from "../domain/value-objects/CalendarEventIssue";
 import type { CalendarSyncService } from "./CalendarSyncService";
 import type { DiscordSchedulePublisher } from "./DiscordSchedulePublisher";
@@ -108,7 +111,7 @@ export class SchedulePollService {
 
     // Fetch events
     const wasFullFetch = !schedule.syncToken;
-    let changedItems;
+    let changedItems: CalendarEventItem[];
     let newSyncToken: string | undefined;
 
     try {
@@ -116,10 +119,13 @@ export class SchedulePollService {
         const result = await this.calendarSync.fullFetch(schedule, year, month);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-      } else {
-        const result = await this.calendarSync.incrementalFetch(schedule);
+      } else if (schedule.syncToken) {
+        const result = await this.calendarSync.incrementalFetch(schedule, schedule.syncToken);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
+      } else {
+        // syncToken is null but wasFullFetch is false — should not happen, but guard anyway
+        changedItems = [];
       }
     } catch (err) {
       if (err instanceof GoogleCalendarError) {

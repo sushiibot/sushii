@@ -42,18 +42,12 @@ export class CalendarSyncService {
       timeMax,
     });
 
-    // Delete all existing events first so that Google-deleted events (absent from
-    // the response entirely) are also removed from the DB.
-    await this.eventRepo.deleteAllByCalendar(schedule.guildId, schedule.calendarId);
-
     const active = result.items.filter((i) => i.status !== "cancelled");
-    if (active.length > 0) {
-      await this.eventRepo.upsertMany(
-        schedule.guildId,
-        schedule.calendarId,
-        active.map(toScheduleEvent),
-      );
-    }
+    await this.eventRepo.replaceAllEvents(
+      schedule.guildId,
+      schedule.calendarId,
+      active.map(toScheduleEvent),
+    );
 
     return result;
   }
@@ -63,9 +57,10 @@ export class CalendarSyncService {
    */
   async incrementalFetch(
     schedule: Schedule,
+    syncToken: string,
   ): Promise<{ items: CalendarEventItem[]; nextSyncToken?: string }> {
     const result = await this.calendarClient.listEvents(schedule.calendarId, {
-      syncToken: schedule.syncToken!,
+      syncToken,
     });
 
     await this.applyChanges(schedule.guildId, schedule.calendarId, result.items);

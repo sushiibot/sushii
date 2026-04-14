@@ -211,28 +211,6 @@ export class DrizzleScheduleRepository
       );
   }
 
-  async resetFailures(
-    guildId: bigint,
-    calendarId: string,
-    nextPollAt: Date,
-  ): Promise<void> {
-    await this.db
-      .update(schema.schedulesInAppPublic)
-      .set({
-        consecutiveFailures: 0,
-        lastErrorAt: null,
-        lastErrorReason: null,
-        nextPollAt,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.schedulesInAppPublic.guildId, guildId),
-          eq(schema.schedulesInAppPublic.calendarId, calendarId),
-        ),
-      );
-  }
-
   async resetFailuresAndUpdateToken(
     guildId: bigint,
     calendarId: string,
@@ -435,15 +413,55 @@ export class DrizzleScheduleRepository
       );
   }
 
-  async deleteAllByCalendar(guildId: bigint, calendarId: string): Promise<void> {
-    await this.db
-      .delete(schema.scheduleEventsInAppPublic)
-      .where(
-        and(
-          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
-          eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
-        ),
-      );
+  async replaceAllEvents(
+    guildId: bigint,
+    calendarId: string,
+    events: ScheduleEvent[],
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(schema.scheduleEventsInAppPublic)
+        .where(
+          and(
+            eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+            eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
+          ),
+        );
+      if (events.length > 0) {
+        await tx
+          .insert(schema.scheduleEventsInAppPublic)
+          .values(
+            events.map((e) => ({
+              guildId,
+              calendarId,
+              eventId: e.id,
+              summary: e.summary,
+              startUtc: e.startUtc,
+              startDate: e.startDate,
+              isAllDay: e.isAllDay,
+              url: e.url,
+              location: e.location,
+              status: e.status,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: [
+              schema.scheduleEventsInAppPublic.guildId,
+              schema.scheduleEventsInAppPublic.calendarId,
+              schema.scheduleEventsInAppPublic.eventId,
+            ],
+            set: {
+              summary: sql`excluded.summary`,
+              startUtc: sql`excluded.start_utc`,
+              startDate: sql`excluded.start_date`,
+              isAllDay: sql`excluded.is_all_day`,
+              url: sql`excluded.url`,
+              location: sql`excluded.location`,
+              status: sql`excluded.status`,
+            },
+          });
+      }
+    });
   }
 
   async findEventsByCalendar(
@@ -481,19 +499,6 @@ export class DrizzleScheduleRepository
       .orderBy(
         asc(
           sql`COALESCE(${schema.scheduleEventsInAppPublic.startUtc}, (${schema.scheduleEventsInAppPublic.startDate} || 'T00:00:00Z')::timestamptz)`,
-        ),
-      );
-    return rows.map(mapEvent);
-  }
-
-  async findAllEventsByCalendar(guildId: bigint, calendarId: string): Promise<ScheduleEvent[]> {
-    const rows = await this.db
-      .select()
-      .from(schema.scheduleEventsInAppPublic)
-      .where(
-        and(
-          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
-          eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
         ),
       );
     return rows.map(mapEvent);

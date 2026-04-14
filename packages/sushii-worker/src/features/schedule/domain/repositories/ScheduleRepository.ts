@@ -39,12 +39,6 @@ export interface ScheduleRepository {
     nextPollAt: Date,
   ): Promise<void>;
 
-  resetFailures(
-    guildId: bigint,
-    calendarId: string,
-    nextPollAt: Date,
-  ): Promise<void>;
-
   resetFailuresAndUpdateToken(
     guildId: bigint,
     calendarId: string,

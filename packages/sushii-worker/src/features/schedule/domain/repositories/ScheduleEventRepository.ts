@@ -11,8 +11,8 @@ export interface ScheduleEventRepository {
 
   deleteByIds(guildId: bigint, calendarId: string, ids: string[]): Promise<void>;
 
-  /** Deletes all stored events for a calendar (used before a full re-fetch). */
-  deleteAllByCalendar(guildId: bigint, calendarId: string): Promise<void>;
+  /** Atomically replaces all stored events for a calendar (delete all + upsert active). */
+  replaceAllEvents(guildId: bigint, calendarId: string, events: ScheduleEvent[]): Promise<void>;
 
   /** Returns events for one calendar within [from, to). */
   findEventsByCalendar(
@@ -21,9 +21,6 @@ export interface ScheduleEventRepository {
     from: Date,
     to: Date,
   ): Promise<ScheduleEvent[]>;
-
-  /** Returns all stored events for one calendar (for change detection snapshots). */
-  findAllEventsByCalendar(guildId: bigint, calendarId: string): Promise<ScheduleEvent[]>;
 
   /** Returns upcoming events across all calendars in a guild, joined with schedule metadata. */
   findUpcomingByGuild(

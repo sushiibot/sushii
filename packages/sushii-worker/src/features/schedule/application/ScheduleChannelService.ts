@@ -76,6 +76,15 @@ export class ScheduleChannelService {
     const calendarTitle = metadata.summary;
     const displayTitle = input.title.trim() || null;
 
+    // If this channel previously had a different calendar, delete the old row first
+    // so the channel_id UNIQUE constraint doesn't fire on the new insert.
+    const conflictingByChannel = existing.find(
+      (s) => s.channelId === input.channelId && s.calendarId !== calendarId,
+    );
+    if (conflictingByChannel) {
+      await this.repo.delete(input.guildId, conflictingByChannel.calendarId);
+    }
+
     const schedule = await this.repo.upsert({
       guildId: input.guildId,
       calendarId,
