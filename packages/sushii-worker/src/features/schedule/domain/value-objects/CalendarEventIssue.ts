@@ -11,7 +11,7 @@ export function calendarItemIssues(item: CalendarEventItem): CalendarEventIssue[
         kind: "private",
         label: "Event is private",
         actionMessage:
-          'Open the event in Google Calendar and change "See only free/busy" to "See all event details".',
+          "- Open [Google Calendar Settings](https://calendar.google.com/calendar/r/settings) and select your calendar\n- Under **Access permissions for events**, check **Make available to public**\n- Set to **See all event details** (not \"See only free/busy\")",
       },
     ];
   }
@@ -21,7 +21,7 @@ export function calendarItemIssues(item: CalendarEventItem): CalendarEventIssue[
       {
         kind: "no_title",
         label: "Event has no title",
-        actionMessage: "Add a title to this event in Google Calendar.",
+        actionMessage: "Add a title to each of these events in Google Calendar.",
       },
     ];
   }
