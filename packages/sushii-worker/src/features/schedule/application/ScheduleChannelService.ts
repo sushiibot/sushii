@@ -43,10 +43,24 @@ export class ScheduleChannelService {
     }
 
     const existing = await this.repo.findAllByGuild(input.guildId);
-    const isUpdate = existing.some(
-      (s) => s.channelId === input.channelId || s.calendarId === calendarId,
-    );
-    if (!isUpdate && existing.length >= MAX_SCHEDULES_PER_GUILD) {
+
+    const channelConflict = existing.find((s) => s.channelId === input.channelId);
+    if (channelConflict) {
+      return Err(
+        `<#${input.channelId}> is already syncing **${channelConflict.displayTitle ?? channelConflict.calendarTitle}**. ` +
+          `Run \`/schedule-config remove\` on that channel first, then try again.`,
+      );
+    }
+
+    const calendarConflict = existing.find((s) => s.calendarId === calendarId);
+    if (calendarConflict) {
+      return Err(
+        `That calendar is already syncing to <#${calendarConflict.channelId}>. ` +
+          `Run \`/schedule-config remove\` on that channel first.`,
+      );
+    }
+
+    if (existing.length >= MAX_SCHEDULES_PER_GUILD) {
       return Err(
         `This server has reached the maximum of ${MAX_SCHEDULES_PER_GUILD} schedule channels. Remove one before adding another.`,
       );
@@ -68,15 +82,6 @@ export class ScheduleChannelService {
 
     const calendarTitle = metadata.summary;
     const displayTitle = input.title.trim() || null;
-
-    // If this channel previously had a different calendar, delete the old row first
-    // so the channel_id UNIQUE constraint doesn't fire on the new insert.
-    const conflictingByChannel = existing.find(
-      (s) => s.channelId === input.channelId && s.calendarId !== calendarId,
-    );
-    if (conflictingByChannel) {
-      await this.repo.delete(input.guildId, conflictingByChannel.calendarId);
-    }
 
     const schedule = await this.repo.upsert({
       guildId: input.guildId,
