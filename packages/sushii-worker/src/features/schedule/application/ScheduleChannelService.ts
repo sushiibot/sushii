@@ -11,13 +11,6 @@ import {
   GoogleCalendarError,
 } from "../infrastructure/google/GoogleCalendarClient";
 
-export function formatPollInterval(pollIntervalSec: number): string {
-  const intervalMin = Math.floor(pollIntervalSec / 60);
-  return intervalMin >= 1
-    ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
-    : `every ${pollIntervalSec} seconds`;
-}
-
 export interface ConfigureScheduleChannelInput {
   guildId: bigint;
   channelId: bigint;

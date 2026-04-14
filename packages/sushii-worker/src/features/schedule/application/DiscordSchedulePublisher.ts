@@ -34,6 +34,7 @@ function isDiscordUnknownMessageError(err: unknown): boolean {
  * Knows nothing about Google Calendar fetching or the in-memory cache.
  */
 export class DiscordSchedulePublisher {
+  // Limit concurrent Discord API calls to avoid rate limits
   private readonly discordSemaphore = new Semaphore(5);
 
   constructor(
@@ -436,7 +437,9 @@ export class DiscordSchedulePublisher {
     statusCode: number,
     reason: string,
   ): Promise<void> {
-    // Rate limit: don't post if we already posted in the last 24h
+    // Rate limit: don't post if we already posted in the last 24h.
+    // Relies on `channel` being freshly fetched from the DB (not a cached object)
+    // so that lastErrorAt reflects the value written by the preceding recordFailure call.
     if (
       channel.lastErrorAt &&
       Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS

@@ -444,22 +444,7 @@ export class DrizzleScheduleRepository
               status: e.status,
             })),
           )
-          .onConflictDoUpdate({
-            target: [
-              schema.scheduleEventsInAppPublic.guildId,
-              schema.scheduleEventsInAppPublic.calendarId,
-              schema.scheduleEventsInAppPublic.eventId,
-            ],
-            set: {
-              summary: sql`excluded.summary`,
-              startUtc: sql`excluded.start_utc`,
-              startDate: sql`excluded.start_date`,
-              isAllDay: sql`excluded.is_all_day`,
-              url: sql`excluded.url`,
-              location: sql`excluded.location`,
-              status: sql`excluded.status`,
-            },
-          });
+          .onConflictDoNothing();
       }
     });
   }

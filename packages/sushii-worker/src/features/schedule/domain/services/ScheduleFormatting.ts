@@ -15,3 +15,10 @@ export function formatEventTimestamp(event: ScheduleEvent): string {
   }
   return "";
 }
+
+export function formatPollInterval(pollIntervalSec: number): string {
+  const intervalMin = Math.floor(pollIntervalSec / 60);
+  return intervalMin >= 1
+    ? `every ${intervalMin} minute${intervalMin !== 1 ? "s" : ""}`
+    : `every ${pollIntervalSec} seconds`;
+}

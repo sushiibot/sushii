@@ -37,6 +37,7 @@ function isSameMonth(date: Date, year: number, month: number): boolean {
 
 export class SchedulePollService {
   private readonly inProgressSchedules = new Set<string>();
+  // Limit concurrent Google Calendar HTTP requests
   private readonly httpSemaphore = new Semaphore(10);
 
   constructor(
@@ -119,13 +120,10 @@ export class SchedulePollService {
         const result = await this.calendarSync.fullFetch(schedule, year, month);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-      } else if (schedule.syncToken) {
-        const result = await this.calendarSync.incrementalFetch(schedule, schedule.syncToken);
+      } else {
+        const result = await this.calendarSync.incrementalFetch(schedule, schedule.syncToken!);
         changedItems = result.items;
         newSyncToken = result.nextSyncToken;
-      } else {
-        // syncToken is null but wasFullFetch is false — should not happen, but guard anyway
-        changedItems = [];
       }
     } catch (err) {
       if (err instanceof GoogleCalendarError) {

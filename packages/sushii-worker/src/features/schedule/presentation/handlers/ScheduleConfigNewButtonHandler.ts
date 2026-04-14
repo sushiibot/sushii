@@ -18,7 +18,7 @@ import ButtonHandler from "@/shared/presentation/handlers/ButtonHandler";
 import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
-import { formatPollInterval } from "../../application/ScheduleChannelService";
+import { formatPollInterval } from "../../domain/services/ScheduleFormatting";
 import {
   makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
