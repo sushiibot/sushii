@@ -87,6 +87,8 @@ export class SchedulePollService {
     const previousEvents = await this.calendarSync.getPreviousEvents(
       schedule.guildId,
       schedule.calendarId,
+      year,
+      month,
     );
 
     // Archive check: detect messages from previous month that aren't archived yet

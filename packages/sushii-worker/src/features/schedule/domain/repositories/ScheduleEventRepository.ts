@@ -11,6 +11,9 @@ export interface ScheduleEventRepository {
 
   deleteByIds(guildId: bigint, calendarId: string, ids: string[]): Promise<void>;
 
+  /** Deletes all stored events for a calendar (used before a full re-fetch). */
+  deleteAllByCalendar(guildId: bigint, calendarId: string): Promise<void>;
+
   /** Returns events for one calendar within [from, to). */
   findEventsByCalendar(
     guildId: bigint,

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -64,13 +64,6 @@ function mapEvent(row: typeof schema.scheduleEventsInAppPublic.$inferSelect): Sc
     row.location ?? null,
     (row.status as "confirmed" | "tentative" | "cancelled") ?? "confirmed",
   );
-}
-
-/** Returns true if the event's effective date falls within [from, to). */
-function eventInRange(event: ScheduleEvent, from: Date, to: Date): boolean {
-  const d = event.getDate();
-  if (!d) return false;
-  return d >= from && d < to;
 }
 
 export class DrizzleScheduleRepository
@@ -442,16 +435,55 @@ export class DrizzleScheduleRepository
       );
   }
 
+  async deleteAllByCalendar(guildId: bigint, calendarId: string): Promise<void> {
+    await this.db
+      .delete(schema.scheduleEventsInAppPublic)
+      .where(
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
+        ),
+      );
+  }
+
   async findEventsByCalendar(
     guildId: bigint,
     calendarId: string,
     from: Date,
     to: Date,
   ): Promise<ScheduleEvent[]> {
-    // Fetch all events for the calendar and filter in JS so that all-day events
-    // (which store start_date as text, not start_utc) are included correctly.
-    const all = await this.findAllEventsByCalendar(guildId, calendarId);
-    return all.filter((e) => eventInRange(e, from, to));
+    const fromDateStr = from.toISOString().slice(0, 10);
+    const toDateStr = to.toISOString().slice(0, 10);
+    const rows = await this.db
+      .select()
+      .from(schema.scheduleEventsInAppPublic)
+      .where(
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
+          or(
+            // Timed events: filter by start_utc
+            and(
+              isNotNull(schema.scheduleEventsInAppPublic.startUtc),
+              gte(schema.scheduleEventsInAppPublic.startUtc, from),
+              lt(schema.scheduleEventsInAppPublic.startUtc, to),
+            ),
+            // All-day events: filter by start_date (text, YYYY-MM-DD)
+            and(
+              isNull(schema.scheduleEventsInAppPublic.startUtc),
+              isNotNull(schema.scheduleEventsInAppPublic.startDate),
+              gte(schema.scheduleEventsInAppPublic.startDate, fromDateStr),
+              lt(schema.scheduleEventsInAppPublic.startDate, toDateStr),
+            ),
+          ),
+        ),
+      )
+      .orderBy(
+        asc(
+          sql`COALESCE(${schema.scheduleEventsInAppPublic.startUtc}, (${schema.scheduleEventsInAppPublic.startDate} || 'T00:00:00Z')::timestamptz)`,
+        ),
+      );
+    return rows.map(mapEvent);
   }
 
   async findAllEventsByCalendar(guildId: bigint, calendarId: string): Promise<ScheduleEvent[]> {
@@ -472,6 +504,8 @@ export class DrizzleScheduleRepository
     from: Date,
     to: Date,
   ): Promise<ScheduleEventWithCalendar[]> {
+    const fromDateStr = from.toISOString().slice(0, 10);
+    const toDateStr = to.toISOString().slice(0, 10);
     const rows = await this.db
       .select({
         event: schema.scheduleEventsInAppPublic,
@@ -486,16 +520,36 @@ export class DrizzleScheduleRepository
           eq(schema.scheduleEventsInAppPublic.calendarId, schema.schedulesInAppPublic.calendarId),
         ),
       )
-      .where(eq(schema.scheduleEventsInAppPublic.guildId, guildId))
-      .orderBy(asc(schema.scheduleEventsInAppPublic.startUtc));
+      .where(
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          or(
+            // Timed events: filter by start_utc
+            and(
+              isNotNull(schema.scheduleEventsInAppPublic.startUtc),
+              gte(schema.scheduleEventsInAppPublic.startUtc, from),
+              lt(schema.scheduleEventsInAppPublic.startUtc, to),
+            ),
+            // All-day events: filter by start_date (text, YYYY-MM-DD)
+            and(
+              isNull(schema.scheduleEventsInAppPublic.startUtc),
+              isNotNull(schema.scheduleEventsInAppPublic.startDate),
+              gte(schema.scheduleEventsInAppPublic.startDate, fromDateStr),
+              lt(schema.scheduleEventsInAppPublic.startDate, toDateStr),
+            ),
+          ),
+        ),
+      )
+      .orderBy(
+        asc(
+          sql`COALESCE(${schema.scheduleEventsInAppPublic.startUtc}, (${schema.scheduleEventsInAppPublic.startDate} || 'T00:00:00Z')::timestamptz)`,
+        ),
+      );
 
-    // Filter in JS to correctly handle all-day events (start_date, not start_utc)
-    return rows
-      .map((row) => ({
-        event: mapEvent(row.event),
-        calendarId: row.calendarId,
-        calendarTitle: row.calendarTitle,
-      }))
-      .filter(({ event }) => eventInRange(event, from, to));
+    return rows.map((row) => ({
+      event: mapEvent(row.event),
+      calendarId: row.calendarId,
+      calendarTitle: row.calendarTitle,
+    }));
   }
 }

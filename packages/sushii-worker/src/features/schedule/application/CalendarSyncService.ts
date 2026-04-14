@@ -25,7 +25,7 @@ export class CalendarSyncService {
 
   /**
    * Full fetch from start of current month → FULL_FETCH_YEARS_AHEAD years ahead.
-   * Replaces all stored events for this calendar.
+   * Deletes all existing events for the calendar then upserts active ones.
    */
   async fullFetch(
     schedule: Schedule,
@@ -42,20 +42,16 @@ export class CalendarSyncService {
       timeMax,
     });
 
+    // Delete all existing events first so that Google-deleted events (absent from
+    // the response entirely) are also removed from the DB.
+    await this.eventRepo.deleteAllByCalendar(schedule.guildId, schedule.calendarId);
+
     const active = result.items.filter((i) => i.status !== "cancelled");
-    const cancelled = result.items.filter((i) => i.status === "cancelled");
-
-    await this.eventRepo.upsertMany(
-      schedule.guildId,
-      schedule.calendarId,
-      active.map(toScheduleEvent),
-    );
-
-    if (cancelled.length > 0) {
-      await this.eventRepo.deleteByIds(
+    if (active.length > 0) {
+      await this.eventRepo.upsertMany(
         schedule.guildId,
         schedule.calendarId,
-        cancelled.map((i) => i.id),
+        active.map(toScheduleEvent),
       );
     }
 
@@ -72,26 +68,27 @@ export class CalendarSyncService {
       syncToken: schedule.syncToken!,
     });
 
-    const active = result.items.filter((i) => i.status !== "cancelled");
-    const cancelled = result.items.filter((i) => i.status === "cancelled");
-
-    if (active.length > 0) {
-      await this.eventRepo.upsertMany(
-        schedule.guildId,
-        schedule.calendarId,
-        active.map(toScheduleEvent),
-      );
-    }
-
-    if (cancelled.length > 0) {
-      await this.eventRepo.deleteByIds(
-        schedule.guildId,
-        schedule.calendarId,
-        cancelled.map((i) => i.id),
-      );
-    }
+    await this.applyChanges(schedule.guildId, schedule.calendarId, result.items);
 
     return result;
+  }
+
+  /**
+   * Applies a list of calendar items to the DB: upserts active events, deletes cancelled ones.
+   */
+  private async applyChanges(
+    guildId: bigint,
+    calendarId: string,
+    items: CalendarEventItem[],
+  ): Promise<void> {
+    const active = items.filter((i) => i.status !== "cancelled");
+    const cancelled = items.filter((i) => i.status === "cancelled");
+    if (active.length > 0) {
+      await this.eventRepo.upsertMany(guildId, calendarId, active.map(toScheduleEvent));
+    }
+    if (cancelled.length > 0) {
+      await this.eventRepo.deleteByIds(guildId, calendarId, cancelled.map((i) => i.id));
+    }
   }
 
   /**
@@ -114,12 +111,16 @@ export class CalendarSyncService {
       .map(toScheduleEvent);
   }
 
-  /** Snapshot of all stored events for a calendar, used for change detection. */
+  /** Snapshot of stored events for a calendar month, used for change detection. */
   async getPreviousEvents(
     guildId: bigint,
     calendarId: string,
+    year: number,
+    month: number,
   ): Promise<Map<string, ScheduleEvent>> {
-    const events = await this.eventRepo.findAllEventsByCalendar(guildId, calendarId);
+    const from = new Date(Date.UTC(year, month - 1, 1));
+    const to = new Date(Date.UTC(year, month, 1));
+    const events = await this.eventRepo.findEventsByCalendar(guildId, calendarId, from, to);
     return new Map(events.map((e) => [e.id, e]));
   }
 }

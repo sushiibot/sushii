@@ -10,7 +10,6 @@ import {
   GoogleCalendarClient,
   GoogleCalendarError,
 } from "../infrastructure/google/GoogleCalendarClient";
-import type { SchedulePollService } from "./SchedulePollService";
 
 export function formatPollInterval(pollIntervalSec: number): string {
   const intervalMin = Math.floor(pollIntervalSec / 60);
@@ -34,7 +33,6 @@ export class ScheduleChannelService {
   constructor(
     private readonly repo: ScheduleRepository & ScheduleMessageRepository,
     private readonly calendarClient: GoogleCalendarClient,
-    private readonly schedulePollService: SchedulePollService,
     private readonly isConfigured: boolean,
     private readonly logger: Logger,
   ) {}
@@ -44,18 +42,20 @@ export class ScheduleChannelService {
       return Err("Schedule sync is not configured on this bot. The `GOOGLE_CALENDAR_API_KEY` environment variable is not set.");
     }
 
-    const existing = await this.repo.findAllByGuild(input.guildId);
-    const isUpdate = existing.some((s) => s.channelId === input.channelId);
-    if (!isUpdate && existing.length >= MAX_SCHEDULES_PER_GUILD) {
-      return Err(
-        `This server has reached the maximum of ${MAX_SCHEDULES_PER_GUILD} schedule channels. Remove one before adding another.`,
-      );
-    }
-
     const calendarId = parseCalendarId(input.calendarInput);
     if (!calendarId) {
       return Err(
         "Could not parse a Google Calendar ID from that input. Please provide a valid Google Calendar URL or raw calendar ID (e.g. `example@group.calendar.google.com`).",
+      );
+    }
+
+    const existing = await this.repo.findAllByGuild(input.guildId);
+    const isUpdate = existing.some(
+      (s) => s.channelId === input.channelId || s.calendarId === calendarId,
+    );
+    if (!isUpdate && existing.length >= MAX_SCHEDULES_PER_GUILD) {
+      return Err(
+        `This server has reached the maximum of ${MAX_SCHEDULES_PER_GUILD} schedule channels. Remove one before adding another.`,
       );
     }
 
