@@ -219,6 +219,7 @@ export function registerFeatures(
     client,
     deploymentService,
     logger: logger.child({ feature: "Schedule" }),
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
   const roleMenuFeature = setupRoleMenuFeature({
     db,

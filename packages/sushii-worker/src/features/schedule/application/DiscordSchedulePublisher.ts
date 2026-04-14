@@ -2,6 +2,7 @@ import type { Client, GuildTextBasedChannel } from "discord.js";
 import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { Semaphore } from "@/shared/infrastructure/concurrency/Semaphore";
 import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
 import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
@@ -15,6 +16,8 @@ import { toScheduleEvent } from "../infrastructure/google/CalendarEventMapper";
 import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+const PUBLISHER_EMOJI_NAMES = ["success", "warning", "trash", "message_edit"] as const;
 
 function isDiscordUnknownMessageError(err: unknown): boolean {
   return (
@@ -37,6 +40,7 @@ export class DiscordSchedulePublisher {
     private readonly repo: ScheduleMessageRepository,
     private readonly client: Client,
     private readonly logger: Logger,
+    private readonly emojiRepo: BotEmojiRepository,
   ) {}
 
   private async fetchTextChannel(
@@ -279,6 +283,7 @@ export class DiscordSchedulePublisher {
   ): Promise<void> {
     const lines: string[] = [];
     const changes = classifyChanges(changedItems, previousEvents);
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
 
     for (const change of changes) {
       if (change.kind === "removed") {
@@ -286,8 +291,7 @@ export class DiscordSchedulePublisher {
         const prevTimePart = prevEvent ? formatEventTimestamp(prevEvent) : "";
         const summary = prevEvent?.summary ?? change.item.summary ?? "(unknown event)";
         const cancelLabel = prevTimePart ? `${prevTimePart} ${summary}` : summary;
-        // TODO: use emojis.trash once emoji service is available
-        lines.push(`🗑️ Event removed: ${cancelLabel}`);
+        lines.push(`${emojis.trash} Event removed: ${cancelLabel}`);
       } else {
         const event = toScheduleEvent(change.item);
         const timePart = formatEventTimestamp(event);
@@ -302,13 +306,13 @@ export class DiscordSchedulePublisher {
         if (hasIssues) {
           for (const issue of issues) {
             lines.push(
-              `⚠️ Event ${change.kind} — ${issue.label}: ${label} — ${issue.actionMessage}`,
+              `${emojis.warning} Event ${change.kind} — ${issue.label}: ${label} — ${issue.actionMessage}`,
             );
           }
         } else if (change.kind === "updated") {
-          lines.push(`✏️ Event updated: ${label}`);
+          lines.push(`${emojis.message_edit} Event updated: ${label}`);
         } else {
-          lines.push(`✅ Event added: ${label}`);
+          lines.push(`${emojis.success} Event added: ${label}`);
         }
       }
     }
@@ -345,12 +349,13 @@ export class DiscordSchedulePublisher {
     channel: ScheduleChannel,
     items: CalendarEventItem[],
   ): Promise<void> {
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const lines = items.flatMap((item) => {
       const event = toScheduleEvent(item);
       const timePart = formatEventTimestamp(event) || "unknown time";
 
       return calendarItemIssues(item).map(
-        (issue) => `⚠️ ${issue.label}: ${timePart} — ${issue.actionMessage}`,
+        (issue) => `${emojis.warning} ${issue.label}: ${timePart} — ${issue.actionMessage}`,
       );
     });
 
@@ -390,10 +395,11 @@ export class DiscordSchedulePublisher {
       return;
     }
 
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const message =
       statusCode === 403
-        ? `⚠️ <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`
-        : `⚠️ <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`;
+        ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`
+        : `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`;
 
     const logChannel = await this.fetchTextChannel(
       channel.logChannelId.toString(),
@@ -425,9 +431,10 @@ export class DiscordSchedulePublisher {
     );
     if (!logChannel) return;
 
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const recoveryContainer = new ContainerBuilder().addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `✅ Schedule sync for <#${channel.channelId}> has recovered and is now working again.`,
+        `${emojis.success} Schedule sync for <#${channel.channelId}> is back online.`,
       ),
     );
 

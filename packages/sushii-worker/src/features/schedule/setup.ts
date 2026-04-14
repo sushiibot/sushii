@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
@@ -22,12 +23,13 @@ interface SetupScheduleFeatureDeps {
   client: Client;
   deploymentService: DeploymentService;
   logger: Logger;
+  emojiRepository: BotEmojiRepository;
 }
 
 export function setupScheduleFeature(
   deps: SetupScheduleFeatureDeps,
 ): FeatureSetupWithTasks {
-  const { db, client, deploymentService, logger } = deps;
+  const { db, client, deploymentService, logger, emojiRepository } = deps;
 
   const apiKey = config.googleCalendarApiKey;
   if (!apiKey) {
@@ -51,6 +53,7 @@ export function setupScheduleFeature(
     scheduleChannelRepository,
     client,
     logger.child({ component: "DiscordSchedulePublisher" }),
+    emojiRepository,
   );
 
   const schedulePollService = new SchedulePollService(
@@ -85,6 +88,7 @@ export function setupScheduleFeature(
   const scheduleConfigCommand = new ScheduleConfigCommand(
     scheduleChannelService,
     logger.child({ component: "ScheduleConfigCommand" }),
+    emojiRepository,
   );
 
   const tasks = apiKey ? [schedulePollTask] : [];
