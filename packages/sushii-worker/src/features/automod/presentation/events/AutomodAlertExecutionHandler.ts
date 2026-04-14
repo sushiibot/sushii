@@ -80,14 +80,27 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
           "Tracked native AutoMod alert message",
         );
 
-        // Fire-and-forget: detect invite links and reply with server info
-        if (message.content) {
-          this.replyWithInviteInfo(message).catch((err: unknown) => {
+        // AutoMod alert messages (type 24): the flagged content may be in the
+        // embed description rather than message.content depending on Discord's
+        // gateway behavior. Check both.
+        const flaggedContent =
+          message.content || message.embeds[0]?.description || "";
+
+        span.setAttributes({
+          "message.content.length": message.content?.length ?? 0,
+          "message.embed.description.length":
+            message.embeds[0]?.description?.length ?? 0,
+        });
+
+        if (flaggedContent) {
+          try {
+            await this.replyWithInviteInfo(flaggedContent, message);
+          } catch (err) {
             this.logger.warn(
               { err, messageId: message.id, guildId: message.guildId },
               "Failed to send invite info reply",
             );
-          });
+          }
         }
       } catch (error) {
         span.setStatus({
@@ -101,8 +114,11 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
     });
   }
 
-  private async replyWithInviteInfo(message: Message): Promise<void> {
-    const codes = this.inviteInfoService.extractInviteCodes(message.content);
+  private async replyWithInviteInfo(
+    flaggedContent: string,
+    message: Message,
+  ): Promise<void> {
+    const codes = this.inviteInfoService.extractInviteCodes(flaggedContent);
     if (codes.length === 0) return;
 
     const allInvites = await this.inviteInfoService.fetchInviteInfos(codes);
