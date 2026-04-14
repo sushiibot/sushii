@@ -120,7 +120,7 @@ export class DiscordSchedulePublisher {
                 i,
                 BigInt(newMsg.id),
                 chunk.hash,
-  );
+              );
             } else {
               throw err;
             }
