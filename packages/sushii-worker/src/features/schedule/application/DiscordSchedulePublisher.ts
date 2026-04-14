@@ -4,16 +4,16 @@ import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { Semaphore } from "@/shared/infrastructure/concurrency/Semaphore";
-import type { Schedule } from "../domain/entities/Schedule";
-import type { ScheduleMessage } from "../domain/entities/ScheduleMessage";
-import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
-import { renderSchedule } from "../domain/services/ScheduleRenderService";
-import { formatEventTimestamp } from "../domain/services/ScheduleFormatting";
-import { classifyChanges } from "../domain/value-objects/CalendarEventChange";
-import { calendarItemIssues, type CalendarEventIssue } from "../domain/value-objects/CalendarEventIssue";
-import type { CalendarEventItem } from "../infrastructure/google/GoogleCalendarClient";
-import { toScheduleEvent } from "../infrastructure/google/CalendarEventMapper";
-import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
+import type { Schedule } from "@/features/schedule/domain/entities/Schedule";
+import type { ScheduleMessage } from "@/features/schedule/domain/entities/ScheduleMessage";
+import type { ScheduleMessageRepository } from "@/features/schedule/domain/repositories/ScheduleMessageRepository";
+import { renderSchedule } from "@/features/schedule/presentation/views/ScheduleMessageBuilder";
+import { formatEventTimestamp } from "@/features/schedule/presentation/views/ScheduleFormatting";
+import { classifyChanges } from "@/features/schedule/domain/value-objects/CalendarEventChange";
+import { calendarItemIssues, type CalendarEventIssue } from "@/features/schedule/domain/value-objects/CalendarEventIssue";
+import type { CalendarEventItem } from "@/features/schedule/infrastructure/google/GoogleCalendarClient";
+import { toScheduleEvent } from "@/features/schedule/infrastructure/google/CalendarEventMapper";
+import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test";
 import type { APIComponentInContainer, APITextDisplayComponent } from "discord-api-types/v10";
 import { ComponentType } from "discord-api-types/v10";
 
-import { ScheduleEvent } from "../entities/ScheduleEvent";
-import { renderSchedule } from "./ScheduleRenderService";
-import type { MessageChunk } from "./ScheduleRenderService";
+import { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
+import { renderSchedule } from "./ScheduleMessageBuilder";
+import type { MessageChunk } from "./ScheduleMessageBuilder";
 
 const NOW = new Date("2024-06-15T12:00:00Z");
 const YEAR = 2024;
@@ -110,15 +110,26 @@ describe("renderSchedule", () => {
       expect(countSeparators(chunks[0])).toBe(1);
     });
 
-    it("does not show -# Past or -# Upcoming labels", () => {
+    it("shows -# Past Events and -# Upcoming Events labels around the separator", () => {
       const pastEvent = makeEvent("1", "Past Event", new Date("2024-06-10T10:00:00Z"));
       const upcomingEvent = makeEvent("2", "Upcoming Event", new Date("2024-06-20T10:00:00Z"));
 
       const chunks = renderSchedule([pastEvent, upcomingEvent], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
 
-      expect(allText).not.toMatch(/^-# Past$/m);
-      expect(allText).not.toMatch(/^-# Upcoming$/m);
+      expect(allText).toContain("-# Past Events");
+      expect(allText).toContain("-# Upcoming Events");
+    });
+
+    it("does not show section labels when all events are in the same section", () => {
+      const up1 = makeEvent("1", "Upcoming 1", new Date("2024-06-20T10:00:00Z"));
+      const up2 = makeEvent("2", "Upcoming 2", new Date("2024-06-25T10:00:00Z"));
+
+      const chunks = renderSchedule([up1, up2], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+
+      expect(allText).not.toContain("-# Past Events");
+      expect(allText).not.toContain("-# Upcoming Events");
     });
   });
 
@@ -209,11 +220,11 @@ describe("renderSchedule", () => {
       expect(getTextContent(chunks)).toMatch(/<t:\d+:d>/);
     });
 
-    it("uses f (ShortDateTime) timestamp style for timed events", () => {
+    it("uses s (ShortDateShortTime) timestamp style for timed events", () => {
       const timed = makeEvent("1", "Timed Event", new Date("2024-06-20T10:00:00Z"));
       const chunks = renderSchedule([timed], "live", "Test Calendar", YEAR, MONTH, NOW);
       const text = getTextContent(chunks);
-      expect(text).toMatch(/<t:\d+:f>/);
+      expect(text).toMatch(/<t:\d+:s>/);
       expect(text).not.toMatch(/<t:\d+:d>/);
       expect(text).not.toMatch(/<t:\d+:t>/);
     });
@@ -270,11 +281,11 @@ describe("renderSchedule", () => {
 
       const firstText = getChunkTextContent(chunks[0]);
 
-      expect(firstText).toContain("## June 2024");
+      expect(firstText).toContain("## Test Calendar - June 2024");
 
       for (let i = 1; i < chunks.length; i++) {
         const text = getChunkTextContent(chunks[i]);
-        expect(text).not.toContain("## June 2024");
+        expect(text).not.toContain("## Test Calendar - June 2024");
       }
     });
 
@@ -292,13 +303,12 @@ describe("renderSchedule", () => {
       expect(lastText).toContain("All times are shown in your local timezone");
     });
 
-    it("header with title uses ## month/year heading and title as subheading", () => {
+    it("header with title uses ## title - month/year format", () => {
       const event = makeEvent("1", "Event", new Date("2024-01-20T10:00:00Z"));
       const chunks = renderSchedule([event], "live", "Title", 2024, 1, new Date("2024-01-10T12:00:00Z"));
       const allText = getTextContent(chunks);
 
-      expect(allText).toContain("## January 2024");
-      expect(allText).toContain("-# Title");
+      expect(allText).toContain("## Title - January 2024");
     });
 
     it("header without title (null) shows ## month/year only", () => {

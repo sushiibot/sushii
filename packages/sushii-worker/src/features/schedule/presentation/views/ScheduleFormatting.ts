@@ -1,5 +1,5 @@
 import { time, TimestampStyles } from "discord.js";
-import type { ScheduleEvent } from "../entities/ScheduleEvent";
+import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 
 /**
  * Returns a Discord timestamp string for a schedule event.
@@ -11,7 +11,7 @@ export function formatEventTimestamp(event: ScheduleEvent): string {
     return time(new Date(`${event.startDate}T00:00:00Z`), TimestampStyles.ShortDate);
   }
   if (event.startUtc) {
-    return time(event.startUtc, TimestampStyles.ShortDateTime);
+    return time(event.startUtc, TimestampStyles.ShortDateShortTime);
   }
   return "";
 }

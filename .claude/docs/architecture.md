@@ -28,10 +28,18 @@ Each feature under `src/features/{feature}/` follows:
   application/      ← service orchestration, uses domain + infrastructure interfaces
   infrastructure/   ← repository implementations, external API adapters, tasks
   presentation/     ← Discord commands, event handlers, views, DTOs
+    commands/       ← slash command handlers
+    handlers/       ← button/select/modal interaction handlers
+    events/         ← Discord event handlers (MessageCreate, GuildMemberAdd, etc.)
+    views/          ← message builders and formatters (Components v2 containers, embeds)
   setup.ts          ← wires dependencies together, called from bootstrap
 ```
 
 **Dependency rule**: each layer only depends inward (presentation → application → domain). Infrastructure implements domain interfaces.
+
+**What goes where**:
+- `application/` — services that *do things*: orchestrate repos, send Discord messages, call external APIs. Discord-sending services (e.g. `DiscordSchedulePublisher`) live here even though they touch Discord.js — they are orchestration, not UI building.
+- `presentation/views/` — pure message builders and formatters: take domain data, return Discord `ContainerBuilder`/embed objects. No side effects, no API calls. Named `*MessageBuilder`, `*View`, or `*EmbedBuilder`.
 
 ## Features
 

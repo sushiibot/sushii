@@ -5,7 +5,7 @@ import {
 } from "discord.js";
 
 import Color from "@/utils/colors";
-import type { ScheduleEvent } from "../entities/ScheduleEvent";
+import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 import { formatEventTimestamp } from "./ScheduleFormatting";
 
 export interface MessageChunk {
@@ -40,7 +40,7 @@ function formatEventLine(event: ScheduleEvent): string {
 
   const timePart = formatEventTimestamp(event);
 
-  let line = timePart ? `${timePart} ${summaryText}` : summaryText;
+  let line = timePart ? `${timePart} — ${summaryText}` : summaryText;
 
   const MAX_LINE_LENGTH = MAX_TEXT_DISPLAY_CHARS - 50;
   if (line.length > MAX_LINE_LENGTH) {
@@ -86,16 +86,20 @@ function buildSegments(
 
   const segments: RenderSegment[] = [];
 
+  const hasBoth = past.length > 0 && upcoming.length > 0;
+
   if (past.length > 0) {
-    segments.push({ type: "text", content: past.map((e) => formatEventLine(e)).join("\n") });
+    const content = past.map((e) => formatEventLine(e)).join("\n") + (hasBoth ? "\n-# Past Events" : "");
+    segments.push({ type: "text", content });
   }
 
-  if (past.length > 0 && upcoming.length > 0) {
+  if (hasBoth) {
     segments.push({ type: "separator" });
   }
 
   if (upcoming.length > 0) {
-    segments.push({ type: "text", content: upcoming.map((e) => formatEventLine(e)).join("\n") });
+    const content = (hasBoth ? "-# Upcoming Events\n" : "") + upcoming.map((e) => formatEventLine(e)).join("\n");
+    segments.push({ type: "text", content });
   }
 
   return segments;
@@ -117,7 +121,7 @@ export function renderSchedule(
   let header: string;
   if (title !== null) {
     const safeTitle = title.replace(/[#*_~`]/g, '\\$&');
-    header = `## ${monthYearStr}\n-# ${safeTitle}`;
+    header = `## ${safeTitle} - ${monthYearStr}`;
   } else {
     header = `## ${monthYearStr}`;
   }

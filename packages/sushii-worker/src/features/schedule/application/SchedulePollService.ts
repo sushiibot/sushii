@@ -6,7 +6,7 @@ import type { ScheduleMessage } from "../domain/entities/ScheduleMessage";
 import type { ScheduleRepository } from "../domain/repositories/ScheduleRepository";
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import type { ScheduleEventRepository } from "../domain/repositories/ScheduleEventRepository";
-import { renderSchedule } from "../domain/services/ScheduleRenderService";
+import { renderSchedule } from "@/features/schedule/presentation/views/ScheduleMessageBuilder";
 import {
   GoogleCalendarError,
   type CalendarEventItem,
