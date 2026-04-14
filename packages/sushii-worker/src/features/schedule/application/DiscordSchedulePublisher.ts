@@ -302,19 +302,17 @@ export class DiscordSchedulePublisher {
         const event = toScheduleEvent(change.item);
         const timePart = formatEventTimestamp(event);
 
-        const issues = calendarItemIssues(change.item);
-        const hasIssues = issues.length > 0;
-        const titleDisplay = hasIssues
-          ? `*(${issues[0].kind.replace("_", " ")})*`
+        const issue = calendarItemIssues(change.item);
+        const hasIssues = issue !== null;
+        const titleDisplay = issue
+          ? `*(${issue.kind.replace("_", " ")})*`
           : event.summary;
         const label = timePart ? `${timePart} ${titleDisplay}` : titleDisplay;
 
-        if (hasIssues) {
-          for (const issue of issues) {
-            lines.push(
-              `${emojis.warning} Event ${change.kind} (${issue.label.toLowerCase()}): ${label}`,
-            );
-          }
+        if (issue) {
+          lines.push(
+            `${emojis.warning} Event ${change.kind} (${issue.label.toLowerCase()}): ${label}`,
+          );
         } else if (change.kind === "updated") {
           lines.push(`${emojis.message_edit} Event updated: ${label}`);
         } else {
@@ -361,7 +359,8 @@ export class DiscordSchedulePublisher {
     for (const item of items) {
       const event = toScheduleEvent(item);
       const timePart = formatEventTimestamp(event) || "unknown time";
-      for (const issue of calendarItemIssues(item)) {
+      const issue = calendarItemIssues(item);
+      if (issue) {
         const existing = groups.get(issue.kind);
         if (existing) {
           existing.timeParts.push(timePart);
@@ -438,8 +437,10 @@ export class DiscordSchedulePublisher {
     reason: string,
   ): Promise<void> {
     // Rate limit: don't post if we already posted in the last 24h.
-    // Relies on `channel` being freshly fetched from the DB (not a cached object)
-    // so that lastErrorAt reflects the value written by the preceding recordFailure call.
+    // `channel.lastErrorAt` reflects the DB state from the previous poll cycle's
+    // findAllDue fetch — not the recordFailure call that just ran. On the first
+    // failure lastErrorAt is null so the alert fires; on repeat failures the
+    // re-fetched schedule object from the next poll has the updated value.
     if (
       channel.lastErrorAt &&
       Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS

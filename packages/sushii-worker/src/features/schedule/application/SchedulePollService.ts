@@ -210,7 +210,7 @@ export class SchedulePollService {
     // On full fetch, alert about any problematic events in the current month
     if (wasFullFetch) {
       const problemItems = changedItems.filter(
-        (item) => item.status !== "cancelled" && calendarItemIssues(item).length > 0,
+        (item) => item.status !== "cancelled" && calendarItemIssues(item) !== null,
       );
       if (problemItems.length > 0) {
         await this.discordPublisher.sendEventIssuesAlert(schedule, problemItems);
