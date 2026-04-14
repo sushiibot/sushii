@@ -13,7 +13,7 @@ import { DiscordSchedulePublisher } from "./application/DiscordSchedulePublisher
 import { ScheduleChannelService } from "./application/ScheduleChannelService";
 import { SchedulePollService } from "./application/SchedulePollService";
 import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClient";
-import { DrizzleScheduleChannelRepository } from "./infrastructure/repositories/DrizzleScheduleChannelRepository";
+import { DrizzleScheduleRepository } from "./infrastructure/repositories/DrizzleScheduleRepository";
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
 import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
@@ -40,36 +40,38 @@ export function setupScheduleFeature(
   }
   const calendarClient = new GoogleCalendarClient(apiKey ?? "");
 
-  const scheduleChannelRepository = new DrizzleScheduleChannelRepository(
+  const scheduleRepository = new DrizzleScheduleRepository(
     db,
-    logger.child({ component: "DrizzleScheduleChannelRepository" }),
+    logger.child({ component: "DrizzleScheduleRepository" }),
   );
 
   const calendarSyncService = new CalendarSyncService(
     calendarClient,
+    scheduleRepository, // implements ScheduleEventRepository
     logger.child({ component: "CalendarSyncService" }),
   );
 
   const discordSchedulePublisher = new DiscordSchedulePublisher(
-    scheduleChannelRepository,
+    scheduleRepository, // implements ScheduleMessageRepository
     client,
     logger.child({ component: "DiscordSchedulePublisher" }),
     emojiRepository,
   );
 
   const schedulePollService = new SchedulePollService(
-    scheduleChannelRepository,  // ScheduleChannelRepository
-    scheduleChannelRepository,  // ScheduleMessageRepository
+    scheduleRepository, // ScheduleRepository
+    scheduleRepository, // ScheduleMessageRepository
+    scheduleRepository, // ScheduleEventRepository
     calendarSyncService,
     discordSchedulePublisher,
     logger.child({ component: "SchedulePollService" }),
   );
 
   const scheduleChannelService = new ScheduleChannelService(
-    scheduleChannelRepository,
+    scheduleRepository,
     calendarClient,
     schedulePollService,
-    !!apiKey,   // isConfigured
+    !!apiKey,
     logger.child({ component: "ScheduleChannelService" }),
   );
 
@@ -81,8 +83,7 @@ export function setupScheduleFeature(
   );
 
   const scheduleCommand = new ScheduleCommand(
-    scheduleChannelRepository,
-    calendarClient,
+    scheduleRepository, // implements ScheduleEventRepository
     logger.child({ component: "ScheduleCommand" }),
   );
 

@@ -1,5 +1,6 @@
-export interface ScheduleChannelMessage {
+export interface ScheduleMessage {
   guildId: bigint;
+  calendarId: string;
   channelId: bigint;
   year: number;
   month: number;

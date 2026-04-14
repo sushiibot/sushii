@@ -2,8 +2,8 @@ import type { Logger } from "pino";
 import { Ok, Err } from "ts-results";
 import type { Result } from "ts-results";
 
-import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
-import type { ScheduleChannelRepository } from "../domain/repositories/ScheduleChannelRepository";
+import type { Schedule } from "../domain/entities/Schedule";
+import type { ScheduleRepository } from "../domain/repositories/ScheduleRepository";
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import { parseCalendarId } from "../infrastructure/google/CalendarIdParser";
 import {
@@ -28,27 +28,27 @@ export interface ConfigureScheduleChannelInput {
   title: string;
 }
 
-const MAX_SCHEDULE_CHANNELS_PER_GUILD = 3;
+const MAX_SCHEDULES_PER_GUILD = 3;
 
 export class ScheduleChannelService {
   constructor(
-    private readonly repo: ScheduleChannelRepository & ScheduleMessageRepository,
+    private readonly repo: ScheduleRepository & ScheduleMessageRepository,
     private readonly calendarClient: GoogleCalendarClient,
     private readonly schedulePollService: SchedulePollService,
     private readonly isConfigured: boolean,
     private readonly logger: Logger,
   ) {}
 
-  async configure(input: ConfigureScheduleChannelInput): Promise<Result<ScheduleChannel, string>> {
+  async configure(input: ConfigureScheduleChannelInput): Promise<Result<Schedule, string>> {
     if (!this.isConfigured) {
       return Err("Schedule sync is not configured on this bot. The `GOOGLE_CALENDAR_API_KEY` environment variable is not set.");
     }
 
     const existing = await this.repo.findAllByGuild(input.guildId);
-    const isUpdate = existing.some((c) => c.channelId === input.channelId);
-    if (!isUpdate && existing.length >= MAX_SCHEDULE_CHANNELS_PER_GUILD) {
+    const isUpdate = existing.some((s) => s.channelId === input.channelId);
+    if (!isUpdate && existing.length >= MAX_SCHEDULES_PER_GUILD) {
       return Err(
-        `This server has reached the maximum of ${MAX_SCHEDULE_CHANNELS_PER_GUILD} schedule channels. Remove one before adding another.`,
+        `This server has reached the maximum of ${MAX_SCHEDULES_PER_GUILD} schedule channels. Remove one before adding another.`,
       );
     }
 
@@ -70,27 +70,24 @@ export class ScheduleChannelService {
           );
         }
       }
-      // Re-throw unexpected errors — let the presentation layer handle them
       throw err;
     }
 
-    const calendarTitle = metadata.summary;          // always the Google Calendar name
+    const calendarTitle = metadata.summary;
     const displayTitle = input.title.trim() || null;
 
-    const channel = await this.repo.upsert({
+    const schedule = await this.repo.upsert({
       guildId: input.guildId,
+      calendarId,
       channelId: input.channelId,
       logChannelId: input.logChannelId,
       configuredByUserId: input.configuredByUserId,
-      calendarId,
       calendarTitle,
       displayTitle,
       nextPollAt: new Date(),
     });
 
-    this.schedulePollService.clearCache(channel);
-
-    return Ok(channel);
+    return Ok(schedule);
   }
 
   async remove(guildId: bigint, channelId: bigint): Promise<Result<void, string>> {
@@ -99,8 +96,7 @@ export class ScheduleChannelService {
       return Err("No schedule channel is configured for that channel.");
     }
 
-    await this.repo.delete(guildId, channelId);
-    this.schedulePollService.clearCache(existing);
+    await this.repo.delete(guildId, existing.calendarId);
     return Ok(undefined);
   }
 
@@ -111,22 +107,19 @@ export class ScheduleChannelService {
     }
 
     const now = new Date();
-    await this.repo.updateSyncToken(guildId, channelId, null, now);
+    await this.repo.updateSyncToken(guildId, existing.calendarId, null, now);
 
-    // Clear content hashes for current month to force re-render
     await this.repo.clearContentHashes(
       guildId,
-      channelId,
+      existing.calendarId,
       now.getUTCFullYear(),
       now.getUTCMonth() + 1,
     );
 
-    this.schedulePollService.clearCache(existing);
-
     return Ok(undefined);
   }
 
-  async listForGuild(guildId: bigint): Promise<ScheduleChannel[]> {
+  async listForGuild(guildId: bigint): Promise<Schedule[]> {
     return this.repo.findAllByGuild(guildId);
   }
 }

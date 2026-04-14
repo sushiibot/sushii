@@ -1,16 +1,16 @@
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+import { ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { Semaphore } from "@/shared/infrastructure/concurrency/Semaphore";
-import type { ScheduleChannel } from "../domain/entities/ScheduleChannel";
-import type { ScheduleChannelMessage } from "../domain/entities/ScheduleChannelMessage";
+import type { Schedule } from "../domain/entities/Schedule";
+import type { ScheduleMessage } from "../domain/entities/ScheduleMessage";
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
 import { renderSchedule } from "../domain/services/ScheduleRenderService";
 import { formatEventTimestamp } from "../domain/services/ScheduleFormatting";
 import { classifyChanges } from "../domain/value-objects/CalendarEventChange";
-import { calendarItemIssues } from "../domain/value-objects/CalendarEventIssue";
+import { calendarItemIssues, type CalendarEventIssue } from "../domain/value-objects/CalendarEventIssue";
 import type { CalendarEventItem } from "../infrastructure/google/GoogleCalendarClient";
 import { toScheduleEvent } from "../infrastructure/google/CalendarEventMapper";
 import type { ScheduleEvent } from "../domain/entities/ScheduleEvent";
@@ -61,14 +61,14 @@ export class DiscordSchedulePublisher {
   }
 
   async syncMessages(
-    channel: ScheduleChannel,
+    channel: Schedule,
     year: number,
     month: number,
     chunks: ReturnType<typeof renderSchedule>,
   ): Promise<void> {
     const existingMessages = await this.repo.getMessages(
       channel.guildId,
-      channel.channelId,
+      channel.calendarId,
       year,
       month,
     );
@@ -96,6 +96,7 @@ export class DiscordSchedulePublisher {
             });
             await this.repo.upsertMessage(
               channel.guildId,
+              channel.calendarId,
               channel.channelId,
               year,
               month,
@@ -112,13 +113,14 @@ export class DiscordSchedulePublisher {
               });
               await this.repo.upsertMessage(
                 channel.guildId,
+                channel.calendarId,
                 channel.channelId,
                 year,
                 month,
                 i,
                 BigInt(newMsg.id),
                 chunk.hash,
-              );
+  );
             } else {
               throw err;
             }
@@ -131,6 +133,7 @@ export class DiscordSchedulePublisher {
           });
           await this.repo.upsertMessage(
             channel.guildId,
+            channel.calendarId,
             channel.channelId,
             year,
             month,
@@ -165,7 +168,7 @@ export class DiscordSchedulePublisher {
     if (excessMessages.length > 0) {
       await this.repo.deleteMessagesAboveIndex(
         channel.guildId,
-        channel.channelId,
+        channel.calendarId,
         year,
         month,
         chunks.length - 1,
@@ -178,10 +181,10 @@ export class DiscordSchedulePublisher {
    * Caller is responsible for fetching the events and rendering archiveChunks.
    */
   async archiveMonth(
-    channel: ScheduleChannel,
+    channel: Schedule,
     year: number,
     month: number,
-    unarchivedMessages: ScheduleChannelMessage[],
+    unarchivedMessages: ScheduleMessage[],
     archiveChunks: ReturnType<typeof renderSchedule>,
   ): Promise<void> {
     const discordChannel = await this.fetchTextChannel(
@@ -204,6 +207,7 @@ export class DiscordSchedulePublisher {
               });
               await this.repo.upsertMessage(
                 channel.guildId,
+                channel.calendarId,
                 channel.channelId,
                 year,
                 month,
@@ -225,6 +229,7 @@ export class DiscordSchedulePublisher {
               });
               await this.repo.upsertMessage(
                 channel.guildId,
+                channel.calendarId,
                 channel.channelId,
                 year,
                 month,
@@ -265,7 +270,7 @@ export class DiscordSchedulePublisher {
       if (excessMessages.length > 0) {
         await this.repo.deleteMessagesAboveIndex(
           channel.guildId,
-          channel.channelId,
+          channel.calendarId,
           year,
           month,
           archiveChunks.length - 1,
@@ -273,11 +278,11 @@ export class DiscordSchedulePublisher {
       }
     }
 
-    await this.repo.markArchived(channel.guildId, channel.channelId, year, month);
+    await this.repo.markArchived(channel.guildId, channel.calendarId, year, month);
   }
 
   async sendEventChangeNotifications(
-    channel: ScheduleChannel,
+    channel: Schedule,
     changedItems: CalendarEventItem[],
     previousEvents: Map<string, ScheduleEvent>,
   ): Promise<void> {
@@ -306,7 +311,7 @@ export class DiscordSchedulePublisher {
         if (hasIssues) {
           for (const issue of issues) {
             lines.push(
-              `${emojis.warning} Event ${change.kind} — ${issue.label}: ${label} — ${issue.actionMessage}`,
+              `${emojis.warning} Event ${change.kind} (${issue.label.toLowerCase()}): ${label}`,
             );
           }
         } else if (change.kind === "updated") {
@@ -346,18 +351,26 @@ export class DiscordSchedulePublisher {
   }
 
   async sendEventIssuesAlert(
-    channel: ScheduleChannel,
+    channel: Schedule,
     items: CalendarEventItem[],
   ): Promise<void> {
-    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
-    const lines = items.flatMap((item) => {
+    type IssueGroup = { issue: CalendarEventIssue; timeParts: string[] };
+    const groups = new Map<string, IssueGroup>();
+
+    for (const item of items) {
       const event = toScheduleEvent(item);
       const timePart = formatEventTimestamp(event) || "unknown time";
+      for (const issue of calendarItemIssues(item)) {
+        const existing = groups.get(issue.kind);
+        if (existing) {
+          existing.timeParts.push(timePart);
+        } else {
+          groups.set(issue.kind, { issue, timeParts: [timePart] });
+        }
+      }
+    }
 
-      return calendarItemIssues(item).map(
-        (issue) => `${emojis.warning} ${issue.label}: ${timePart} — ${issue.actionMessage}`,
-      );
-    });
+    if (groups.size === 0) return;
 
     const logChannel = await this.fetchTextChannel(
       channel.logChannelId.toString(),
@@ -365,9 +378,45 @@ export class DiscordSchedulePublisher {
     );
     if (!logChannel) return;
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(lines.join("\n")),
-    );
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
+    const container = new ContainerBuilder();
+    let first = true;
+
+    for (const { issue, timeParts } of groups.values()) {
+      if (!first) {
+        container.addSeparatorComponents(
+          new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+        );
+      }
+      first = false;
+
+      const count = timeParts.length;
+      const noun = count === 1 ? "event" : "events";
+      const verb = issue.kind === "private"
+        ? `${count === 1 ? "is" : "are"} private`
+        : `${count === 1 ? "has" : "have"} no title`;
+
+      // Alert header
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `${emojis.warning} ${count} ${noun} ${verb} — won't show in the schedule`,
+        ),
+      );
+
+      // Event list
+      const eventList = timeParts.map((t) => `• ${t}`).join("\n");
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(eventList),
+      );
+
+      // Divider + how to fix
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`**How to fix:**\n${issue.actionMessage}`),
+      );
+    }
 
     try {
       await logChannel.send({
@@ -383,7 +432,7 @@ export class DiscordSchedulePublisher {
   }
 
   async sendPermanentErrorAlert(
-    channel: ScheduleChannel,
+    channel: Schedule,
     statusCode: number,
     reason: string,
   ): Promise<void> {
@@ -424,7 +473,7 @@ export class DiscordSchedulePublisher {
     }
   }
 
-  async sendRecoveryNotification(channel: ScheduleChannel): Promise<void> {
+  async sendRecoveryNotification(channel: Schedule): Promise<void> {
     const logChannel = await this.fetchTextChannel(
       channel.logChannelId.toString(),
       "sendRecoveryNotification",

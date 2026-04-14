@@ -1,9 +1,9 @@
-export interface ScheduleChannel {
+export interface Schedule {
   guildId: bigint;
+  calendarId: string;
   channelId: bigint;
   logChannelId: bigint;
   configuredByUserId: bigint;
-  calendarId: string;
   calendarTitle: string;
   displayTitle: string | null;
   syncToken: string | null;

@@ -1,15 +1,16 @@
-import type { ScheduleChannelMessage } from "../entities/ScheduleChannelMessage";
+import type { ScheduleMessage } from "../entities/ScheduleMessage";
 
 export interface ScheduleMessageRepository {
   getMessages(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     year: number,
     month: number,
-  ): Promise<ScheduleChannelMessage[]>;
+  ): Promise<ScheduleMessage[]>;
 
   upsertMessage(
     guildId: bigint,
+    calendarId: string,
     channelId: bigint,
     year: number,
     month: number,
@@ -20,7 +21,7 @@ export interface ScheduleMessageRepository {
 
   deleteMessagesAboveIndex(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     year: number,
     month: number,
     maxIndex: number,
@@ -28,14 +29,14 @@ export interface ScheduleMessageRepository {
 
   markArchived(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     year: number,
     month: number,
   ): Promise<void>;
 
   clearContentHashes(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     year: number,
     month: number,
   ): Promise<void>;

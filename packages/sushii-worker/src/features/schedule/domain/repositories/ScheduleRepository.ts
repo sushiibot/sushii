@@ -1,54 +1,53 @@
-import type { ScheduleChannel } from "../entities/ScheduleChannel";
+import type { Schedule } from "../entities/Schedule";
 
-export interface UpsertScheduleChannelData {
+export interface UpsertScheduleData {
   guildId: bigint;
+  calendarId: string;
   channelId: bigint;
   logChannelId: bigint;
   configuredByUserId: bigint;
-  calendarId: string;
   calendarTitle: string;
   displayTitle?: string | null;
   pollIntervalSec?: number;
   nextPollAt: Date;
 }
 
-export interface ScheduleChannelRepository {
-  findAllDue(now: Date): Promise<ScheduleChannel[]>;
+export interface ScheduleRepository {
+  findAllDue(now: Date): Promise<Schedule[]>;
 
-  findByChannel(
-    guildId: bigint,
-    channelId: bigint,
-  ): Promise<ScheduleChannel | null>;
+  findByChannel(guildId: bigint, channelId: bigint): Promise<Schedule | null>;
 
-  findAllByGuild(guildId: bigint): Promise<ScheduleChannel[]>;
+  findByCalendar(guildId: bigint, calendarId: string): Promise<Schedule | null>;
 
-  upsert(data: UpsertScheduleChannelData): Promise<ScheduleChannel>;
+  findAllByGuild(guildId: bigint): Promise<Schedule[]>;
 
-  delete(guildId: bigint, channelId: bigint): Promise<void>;
+  upsert(data: UpsertScheduleData): Promise<Schedule>;
+
+  delete(guildId: bigint, calendarId: string): Promise<void>;
 
   updateSyncToken(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     syncToken: string | null,
     nextPollAt: Date,
   ): Promise<void>;
 
   recordFailure(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     reason: string,
     nextPollAt: Date,
   ): Promise<void>;
 
   resetFailures(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     nextPollAt: Date,
   ): Promise<void>;
 
   resetFailuresAndUpdateToken(
     guildId: bigint,
-    channelId: bigint,
+    calendarId: string,
     syncToken: string | null,
     nextPollAt: Date,
   ): Promise<void>;

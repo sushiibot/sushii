@@ -923,16 +923,16 @@ export const legacyCommandNotificationsInAppPublic = appPublic.table(
   ],
 );
 
-export const scheduleChannelsInAppPublic = appPublic.table(
-  "schedule_channels",
+export const schedulesInAppPublic = appPublic.table(
+  "schedules",
   {
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
-    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    calendarId: text("calendar_id").notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull().unique(),
     logChannelId: bigint("log_channel_id", { mode: "bigint" }).notNull(),
     configuredByUserId: bigint("configured_by_user_id", {
       mode: "bigint",
     }).notNull(),
-    calendarId: text("calendar_id").notNull(),
     calendarTitle: text("calendar_title").notNull().default(""),
     displayTitle: text("display_title"),
     syncToken: text("sync_token"),
@@ -956,17 +956,50 @@ export const scheduleChannelsInAppPublic = appPublic.table(
   },
   (table) => [
     primaryKey({
-      columns: [table.guildId, table.channelId],
-      name: "schedule_channels_pkey",
+      columns: [table.guildId, table.calendarId],
+      name: "schedules_pkey",
     }),
-    index("schedule_channels_next_poll_at_idx").on(table.nextPollAt),
+    index("schedules_next_poll_at_idx").on(table.nextPollAt),
   ],
 );
 
-export const scheduleChannelMessagesInAppPublic = appPublic.table(
-  "schedule_channel_messages",
+export const scheduleEventsInAppPublic = appPublic.table(
+  "schedule_events",
   {
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    calendarId: text("calendar_id").notNull(),
+    eventId: text("event_id").notNull(),
+    summary: text("summary").notNull(),
+    startUtc: timestamp("start_utc", { withTimezone: true, mode: "date" }),
+    startDate: text("start_date"),
+    isAllDay: boolean("is_all_day").notNull().default(false),
+    url: text("url"),
+    location: text("location"),
+    status: text("status").notNull().default("confirmed"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.calendarId, table.eventId],
+      name: "schedule_events_pkey",
+    }),
+    foreignKey({
+      columns: [table.guildId, table.calendarId],
+      foreignColumns: [schedulesInAppPublic.guildId, schedulesInAppPublic.calendarId],
+      name: "fk_schedule_events_schedule",
+    }).onDelete("cascade"),
+    index("schedule_events_calendar_start_idx").on(
+      table.guildId,
+      table.calendarId,
+      table.startUtc,
+    ),
+  ],
+);
+
+export const scheduleMessagesInAppPublic = appPublic.table(
+  "schedule_messages",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    calendarId: text("calendar_id").notNull(),
     channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
     year: smallint("year").notNull(),
     month: smallint("month").notNull(),
@@ -983,20 +1016,17 @@ export const scheduleChannelMessagesInAppPublic = appPublic.table(
   },
   (table) => [
     primaryKey({
-      columns: [table.guildId, table.channelId, table.year, table.month, table.messageIndex],
-      name: "schedule_channel_messages_pkey",
+      columns: [table.guildId, table.calendarId, table.year, table.month, table.messageIndex],
+      name: "schedule_messages_pkey",
     }),
     foreignKey({
-      columns: [table.guildId, table.channelId],
-      foreignColumns: [
-        scheduleChannelsInAppPublic.guildId,
-        scheduleChannelsInAppPublic.channelId,
-      ],
-      name: "fk_schedule_channel",
+      columns: [table.guildId, table.calendarId],
+      foreignColumns: [schedulesInAppPublic.guildId, schedulesInAppPublic.calendarId],
+      name: "fk_schedule_messages_schedule",
     }).onDelete("cascade"),
-    index("schedule_channel_messages_channel_idx").on(
+    index("schedule_messages_calendar_idx").on(
       table.guildId,
-      table.channelId,
+      table.calendarId,
     ),
   ],
 );
