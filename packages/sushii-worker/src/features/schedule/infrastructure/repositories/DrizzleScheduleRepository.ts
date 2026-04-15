@@ -8,6 +8,7 @@ import type { ScheduleMessage } from "@/features/schedule/domain/entities/Schedu
 import { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 import type {
   ScheduleRepository,
+  UpdateScheduleSettingsData,
   UpsertScheduleData,
 } from "@/features/schedule/domain/repositories/ScheduleRepository";
 import type { ScheduleMessageRepository } from "@/features/schedule/domain/repositories/ScheduleMessageRepository";
@@ -168,6 +169,27 @@ export class DrizzleScheduleRepository
           eq(schema.schedulesInAppPublic.calendarId, calendarId),
         ),
       );
+  }
+
+  async updateSettings(guildId: bigint, calendarId: string, data: UpdateScheduleSettingsData): Promise<Schedule> {
+    const now = new Date();
+    const set: Partial<typeof schema.schedulesInAppPublic.$inferInsert> & { updatedAt: Date } = { updatedAt: now };
+    if (data.displayTitle !== undefined) set.displayTitle = data.displayTitle;
+    if (data.channelId !== undefined) set.channelId = data.channelId;
+    if (data.logChannelId !== undefined) set.logChannelId = data.logChannelId;
+    if (data.nextPollAt !== undefined) set.nextPollAt = data.nextPollAt;
+
+    const rows = await this.db
+      .update(schema.schedulesInAppPublic)
+      .set(set)
+      .where(
+        and(
+          eq(schema.schedulesInAppPublic.guildId, guildId),
+          eq(schema.schedulesInAppPublic.calendarId, calendarId),
+        ),
+      )
+      .returning();
+    return mapSchedule(rows[0]);
   }
 
   async updateSyncToken(
@@ -350,6 +372,17 @@ export class DrizzleScheduleRepository
           eq(schema.scheduleMessagesInAppPublic.calendarId, calendarId),
           eq(schema.scheduleMessagesInAppPublic.year, year),
           eq(schema.scheduleMessagesInAppPublic.month, month),
+        ),
+      );
+  }
+
+  async deleteAllMessages(guildId: bigint, calendarId: string): Promise<void> {
+    await this.db
+      .delete(schema.scheduleMessagesInAppPublic)
+      .where(
+        and(
+          eq(schema.scheduleMessagesInAppPublic.guildId, guildId),
+          eq(schema.scheduleMessagesInAppPublic.calendarId, calendarId),
         ),
       );
   }

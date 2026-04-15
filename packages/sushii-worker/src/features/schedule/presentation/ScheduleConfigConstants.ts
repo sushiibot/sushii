@@ -4,6 +4,7 @@ import Color from "@/utils/colors";
 
 export const SCHEDULE_CONFIG_SUBCOMMANDS = {
   NEW: "new",
+  EDIT: "edit",
   REMOVE: "remove",
   LIST: "list",
   REFRESH: "refresh",
@@ -21,6 +22,11 @@ export const SCHEDULE_CONFIG_CUSTOM_IDS = {
   MODAL_FIELD_NAME: "name",
   MODAL_FIELD_CHANNEL: "channel",
   MODAL_FIELD_LOG_CHANNEL: "log-channel",
+  // Edit modal
+  MODAL_EDIT: "schedule-config/edit",
+  MODAL_EDIT_FIELD_NAME: "edit-name",
+  MODAL_EDIT_FIELD_CHANNEL: "edit-channel",
+  MODAL_EDIT_FIELD_LOG_CHANNEL: "edit-log-channel",
 } as const;
 
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;

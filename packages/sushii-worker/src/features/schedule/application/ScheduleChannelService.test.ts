@@ -61,12 +61,14 @@ function makeRepo(
     updateSyncToken: mock(async () => {}),
     recordFailure: mock(async () => {}),
     resetFailuresAndUpdateToken: mock(async () => {}),
+    updateSettings: mock(async () => upsertResult),
     // ScheduleMessageRepository
     getMessages: mock(async () => []),
     upsertMessage: mock(async () => {}),
     deleteMessagesAboveIndex: mock(async () => {}),
     markArchived: mock(async () => {}),
     clearContentHashes: mock(async () => {}),
+    deleteAllMessages: mock(async () => {}),
   };
 }
 

@@ -1,5 +1,12 @@
 import type { Schedule } from "../entities/Schedule";
 
+export interface UpdateScheduleSettingsData {
+  displayTitle?: string;
+  channelId?: bigint;
+  logChannelId?: bigint;
+  nextPollAt?: Date;
+}
+
 export interface UpsertScheduleData {
   guildId: bigint;
   calendarId: string;
@@ -24,6 +31,8 @@ export interface ScheduleRepository {
   upsert(data: UpsertScheduleData): Promise<Schedule>;
 
   delete(guildId: bigint, calendarId: string): Promise<void>;
+
+  updateSettings(guildId: bigint, calendarId: string, data: UpdateScheduleSettingsData): Promise<Schedule>;
 
   updateSyncToken(
     guildId: bigint,

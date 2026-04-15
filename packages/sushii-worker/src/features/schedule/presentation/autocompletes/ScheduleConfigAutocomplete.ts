@@ -14,6 +14,7 @@ import {
 
 export class ScheduleConfigAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = [
+    `schedule-config.${SCHEDULE_CONFIG_SUBCOMMANDS.EDIT}`,
     `schedule-config.${SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE}`,
     `schedule-config.${SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH}`,
   ];

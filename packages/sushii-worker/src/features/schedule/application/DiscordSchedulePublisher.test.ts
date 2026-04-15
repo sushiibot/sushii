@@ -70,6 +70,7 @@ function makeRepo(existingMessages: ScheduleMessage[] = []): ScheduleMessageRepo
     deleteMessagesAboveIndex: mock(async () => {}),
     markArchived: mock(async () => {}),
     clearContentHashes: mock(async () => {}),
+    deleteAllMessages: mock(async () => {}),
   };
 }
 

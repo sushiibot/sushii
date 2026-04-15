@@ -3,8 +3,25 @@ import { Ok, Err } from "ts-results";
 import type { Result } from "ts-results";
 
 import type { Schedule } from "../domain/entities/Schedule";
-import type { ScheduleRepository } from "../domain/repositories/ScheduleRepository";
+import type { ScheduleRepository, UpdateScheduleSettingsData } from "../domain/repositories/ScheduleRepository";
 import type { ScheduleMessageRepository } from "../domain/repositories/ScheduleMessageRepository";
+
+export interface EditScheduleChannelInput {
+  guildId: bigint;
+  /** Current channelId — used to identify which schedule to edit */
+  channelId: bigint;
+  editedByUserId: bigint;
+  newDisplayTitle: string;
+  newChannelId: bigint;
+  newLogChannelId: bigint;
+}
+
+export type EditScheduleChangedField = "displayTitle" | "channelId" | "logChannelId";
+
+export interface EditScheduleResult {
+  schedule: Schedule;
+  changedFields: EditScheduleChangedField[];
+}
 import { parseCalendarId } from "../infrastructure/google/CalendarIdParser";
 import {
   GoogleCalendarClient,
@@ -152,7 +169,73 @@ export class ScheduleChannelService {
     return Ok(undefined);
   }
 
+  async getByChannel(guildId: bigint, channelId: bigint): Promise<Schedule | null> {
+    return this.repo.findByChannel(guildId, channelId);
+  }
+
   async listForGuild(guildId: bigint): Promise<Schedule[]> {
     return this.repo.findAllByGuild(guildId);
+  }
+
+  async edit(input: EditScheduleChannelInput): Promise<Result<EditScheduleResult, string>> {
+    const existing = await this.repo.findByChannel(input.guildId, input.channelId);
+    if (!existing) {
+      return Err("No schedule channel is configured for that channel.");
+    }
+
+    const newTitle = input.newDisplayTitle.trim();
+    if (!newTitle) {
+      return Err("Schedule name cannot be blank.");
+    }
+
+    const changedFields: EditScheduleChangedField[] = [];
+    const patch: UpdateScheduleSettingsData = {};
+
+    if (newTitle !== existing.displayTitle) {
+      patch.displayTitle = newTitle;
+      changedFields.push("displayTitle");
+    }
+
+    const channelChanged = input.newChannelId !== existing.channelId;
+    if (channelChanged) {
+      const channelConflict = await this.repo.findByChannel(input.guildId, input.newChannelId);
+      if (channelConflict) {
+        return Err(
+          `<#${input.newChannelId}> is already syncing **${channelConflict.displayTitle}**. ` +
+            `Run \`/schedule-config remove\` on that channel first, then try again.`,
+        );
+      }
+      patch.channelId = input.newChannelId;
+      patch.nextPollAt = new Date();
+      changedFields.push("channelId");
+    }
+
+    if (input.newLogChannelId !== existing.logChannelId) {
+      patch.logChannelId = input.newLogChannelId;
+      changedFields.push("logChannelId");
+    }
+
+    if (changedFields.length === 0) {
+      return Err("No changes were made.");
+    }
+
+    if (channelChanged) {
+      await this.repo.deleteAllMessages(input.guildId, existing.calendarId);
+    }
+
+    const schedule = await this.repo.updateSettings(input.guildId, existing.calendarId, patch);
+
+    this.logger.info(
+      {
+        guildId: input.guildId.toString(),
+        calendarId: existing.calendarId,
+        oldChannelId: existing.channelId.toString(),
+        editedByUserId: input.editedByUserId.toString(),
+        changedFields,
+      },
+      "Schedule channel settings updated",
+    );
+
+    return Ok({ schedule, changedFields });
   }
 }

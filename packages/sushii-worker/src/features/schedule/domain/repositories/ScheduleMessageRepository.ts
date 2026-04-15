@@ -40,4 +40,6 @@ export interface ScheduleMessageRepository {
     year: number,
     month: number,
   ): Promise<void>;
+
+  deleteAllMessages(guildId: bigint, calendarId: string): Promise<void>;
 }
