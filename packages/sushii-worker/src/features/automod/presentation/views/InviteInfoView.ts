@@ -16,16 +16,22 @@ import type { InviteInfo } from "../../application/InviteInfoService";
 const MAX_DESCRIPTION_LENGTH = 120;
 const MAX_INVITES_DISPLAYED = 5;
 
-function formatInviteSection(invite: InviteInfo): string {
+function formatInviteMain(invite: InviteInfo): string {
   const lines: string[] = [];
 
   lines.push(`**${invite.guildName}**`);
 
-  const badges: string[] = [];
-  if (invite.isVerified) badges.push(`${SushiiEmoji.VerifiedIcon} Verified`);
-  if (invite.isPartnered) badges.push(`${SushiiEmoji.PartnerIcon} Partnered`);
-  if (badges.length > 0) {
-    lines.push(`-# ${badges.join("  ")}`);
+  const statsAndBadges: string[] = [];
+  if (invite.presenceCount !== null) {
+    statsAndBadges.push(`${invite.presenceCount.toLocaleString()} online`);
+  }
+  if (invite.memberCount !== null) {
+    statsAndBadges.push(`${invite.memberCount.toLocaleString()} members`);
+  }
+  if (invite.isVerified) statsAndBadges.push(`${SushiiEmoji.VerifiedIcon} Verified`);
+  if (invite.isPartnered) statsAndBadges.push(`${SushiiEmoji.PartnerIcon} Partnered`);
+  if (statsAndBadges.length > 0) {
+    lines.push(`-# ${statsAndBadges.join(" · ")}`);
   }
 
   if (invite.guildDescription) {
@@ -36,25 +42,14 @@ function formatInviteSection(invite: InviteInfo): string {
     lines.push(`> ${desc}`);
   }
 
-  const stats: string[] = [];
-  if (invite.memberCount !== null) {
-    stats.push(`${invite.memberCount.toLocaleString()} members`);
-  }
-  if (invite.presenceCount !== null) {
-    stats.push(`${invite.presenceCount.toLocaleString()} online`);
-  }
-  if (stats.length > 0) {
-    lines.push(stats.join(" · "));
-  }
-
-  const meta: string[] = [];
-  if (invite.channelName) meta.push(`#${invite.channelName}`);
-  if (invite.guildId) meta.push(`ID: ${invite.guildId}`);
-  if (meta.length > 0) {
-    lines.push(`-# ${meta.join(" · ")}`);
-  }
-
   return lines.join("\n");
+}
+
+function formatInviteMeta(invite: InviteInfo): string {
+  const meta: string[] = [`\`discord.gg/${invite.code}\``];
+  if (invite.channelName) meta.push(`\`#${invite.channelName}\``);
+  if (invite.guildId) meta.push(`Server ID: \`${invite.guildId}\``);
+  return `-# ${meta.join(" · ")}`;
 }
 
 export function buildInviteInfoReply(
@@ -66,9 +61,7 @@ export function buildInviteInfoReply(
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `-# Invite Server Info`,
-    ),
+    new TextDisplayBuilder().setContent(`-# Invite Server Info`),
   );
 
   for (const [i, invite] of displayInvites.entries()) {
@@ -76,21 +69,26 @@ export function buildInviteInfoReply(
       container.addSeparatorComponents(new SeparatorBuilder());
     }
 
-    const text = formatInviteSection(invite);
+    const mainText = formatInviteMain(invite);
 
     if (invite.guildIconURL) {
       container.addSectionComponents(
         new SectionBuilder()
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(text))
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(mainText))
           .setThumbnailAccessory(
             new ThumbnailBuilder().setURL(invite.guildIconURL),
           ),
       );
     } else {
       container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(text),
+        new TextDisplayBuilder().setContent(mainText),
       );
     }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(formatInviteMeta(invite)),
+    );
   }
 
   if (overflow > 0) {
