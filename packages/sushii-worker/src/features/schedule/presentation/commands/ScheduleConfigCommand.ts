@@ -192,7 +192,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 
@@ -202,7 +202,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!));
 
     if (channels.length === 0) {
-      await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info, true));
+      await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info));
       return;
     }
 
@@ -240,7 +240,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 
@@ -271,7 +271,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 }
