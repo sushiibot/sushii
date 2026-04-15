@@ -47,7 +47,7 @@ export class ScheduleChannelService {
     const channelConflict = existing.find((s) => s.channelId === input.channelId);
     if (channelConflict) {
       return Err(
-        `<#${input.channelId}> is already syncing **${channelConflict.displayTitle ?? channelConflict.calendarTitle}**. ` +
+        `<#${input.channelId}> is already syncing **${channelConflict.displayTitle}**. ` +
           `Run \`/schedule-config remove\` on that channel first, then try again.`,
       );
     }
@@ -81,7 +81,10 @@ export class ScheduleChannelService {
     }
 
     const calendarTitle = metadata.summary;
-    const displayTitle = input.title.trim() || null;
+    const displayTitle = input.title.trim();
+    if (!displayTitle) {
+      return Err("Schedule name cannot be blank.");
+    }
 
     const schedule = await this.repo.upsert({
       guildId: input.guildId,

@@ -5,7 +5,7 @@ export interface Schedule {
   logChannelId: bigint;
   configuredByUserId: bigint;
   calendarTitle: string;
-  displayTitle: string | null;
+  displayTitle: string;
   syncToken: string | null;
   pollIntervalSec: number;
   nextPollAt: Date;

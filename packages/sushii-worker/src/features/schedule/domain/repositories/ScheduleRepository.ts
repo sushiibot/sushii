@@ -7,7 +7,7 @@ export interface UpsertScheduleData {
   logChannelId: bigint;
   configuredByUserId: bigint;
   calendarTitle: string;
-  displayTitle?: string | null;
+  displayTitle: string;
   pollIntervalSec?: number;
   nextPollAt: Date;
 }
