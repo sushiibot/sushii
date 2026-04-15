@@ -37,6 +37,11 @@ export class CalendarSyncService {
       Date.UTC(year + FULL_FETCH_YEARS_AHEAD, month - 1, 1),
     ).toISOString();
 
+    this.logger.debug(
+      { guildId: schedule.guildId.toString(), calendarId: schedule.calendarId, year, month, timeMin, timeMax },
+      "Starting full calendar fetch",
+    );
+
     const result = await this.calendarClient.listEvents(schedule.calendarId, {
       timeMin,
       timeMax,
@@ -49,6 +54,17 @@ export class CalendarSyncService {
       active.map(toScheduleEvent),
     );
 
+    this.logger.debug(
+      {
+        guildId: schedule.guildId.toString(),
+        calendarId: schedule.calendarId,
+        totalItems: result.items.length,
+        activeItems: active.length,
+        cancelledItems: result.items.length - active.length,
+      },
+      "Full calendar fetch complete",
+    );
+
     return result;
   }
 
@@ -59,11 +75,21 @@ export class CalendarSyncService {
     schedule: Schedule,
     syncToken: string,
   ): Promise<{ items: CalendarEventItem[]; nextSyncToken?: string }> {
+    this.logger.debug(
+      { guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
+      "Starting incremental calendar fetch",
+    );
+
     const result = await this.calendarClient.listEvents(schedule.calendarId, {
       syncToken,
     });
 
     await this.applyChanges(schedule.guildId, schedule.calendarId, result.items);
+
+    this.logger.debug(
+      { guildId: schedule.guildId.toString(), calendarId: schedule.calendarId, changedItems: result.items.length },
+      "Incremental calendar fetch complete",
+    );
 
     return result;
   }
@@ -84,6 +110,13 @@ export class CalendarSyncService {
     if (cancelled.length > 0) {
       await this.eventRepo.deleteByIds(guildId, calendarId, cancelled.map((i) => i.id));
     }
+
+    if (active.length > 0 || cancelled.length > 0) {
+      this.logger.debug(
+        { guildId: guildId.toString(), calendarId, upserted: active.length, deleted: cancelled.length },
+        "Applied calendar event changes to DB",
+      );
+    }
   }
 
   /**
@@ -97,13 +130,25 @@ export class CalendarSyncService {
   ): Promise<ScheduleEvent[]> {
     const timeMin = new Date(Date.UTC(year, month - 1, 1)).toISOString();
     const timeMax = new Date(Date.UTC(year, month, 1)).toISOString();
+
+    this.logger.debug(
+      { calendarId, year, month },
+      "Fetching month events for archive",
+    );
+
     const result = await this.calendarClient.listEvents(calendarId, {
       timeMin,
       timeMax,
     });
-    return result.items
-      .filter((i) => i.status !== "cancelled")
-      .map(toScheduleEvent);
+
+    const active = result.items.filter((i) => i.status !== "cancelled");
+
+    this.logger.debug(
+      { calendarId, year, month, activeItems: active.length },
+      "Fetched month events for archive",
+    );
+
+    return active.map(toScheduleEvent);
   }
 
   /** Snapshot of stored events for a calendar month, used for change detection. */

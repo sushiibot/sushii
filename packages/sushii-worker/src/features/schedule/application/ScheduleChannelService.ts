@@ -97,6 +97,18 @@ export class ScheduleChannelService {
       nextPollAt: new Date(),
     });
 
+    this.logger.info(
+      {
+        guildId: input.guildId.toString(),
+        calendarId,
+        channelId: input.channelId.toString(),
+        logChannelId: input.logChannelId.toString(),
+        calendarTitle,
+        displayTitle,
+      },
+      "Schedule channel configured",
+    );
+
     return Ok(schedule);
   }
 
@@ -107,6 +119,12 @@ export class ScheduleChannelService {
     }
 
     await this.repo.delete(guildId, existing.calendarId);
+
+    this.logger.info(
+      { guildId: guildId.toString(), channelId: channelId.toString(), calendarId: existing.calendarId },
+      "Schedule channel removed",
+    );
+
     return Ok(undefined);
   }
 
@@ -124,6 +142,11 @@ export class ScheduleChannelService {
       existing.calendarId,
       now.getUTCFullYear(),
       now.getUTCMonth() + 1,
+    );
+
+    this.logger.info(
+      { guildId: guildId.toString(), channelId: channelId.toString(), calendarId: existing.calendarId },
+      "Schedule channel refresh queued (sync token and content hashes cleared)",
     );
 
     return Ok(undefined);

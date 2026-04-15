@@ -14,6 +14,7 @@ import {
 import { calendarItemIssues } from "../domain/value-objects/CalendarEventIssue";
 import type { CalendarSyncService } from "./CalendarSyncService";
 import type { DiscordSchedulePublisher } from "./DiscordSchedulePublisher";
+import type { ScheduleMetrics } from "../infrastructure/metrics/ScheduleMetrics";
 
 function computeNextPollAt(intervalSec: number): Date {
   return new Date(Date.now() + intervalSec * 1000);
@@ -47,6 +48,7 @@ export class SchedulePollService {
     private readonly calendarSync: CalendarSyncService,
     private readonly discordPublisher: DiscordSchedulePublisher,
     private readonly logger: Logger,
+    private readonly metrics: ScheduleMetrics,
   ) {}
 
   async pollAll(): Promise<void> {
@@ -132,6 +134,7 @@ export class SchedulePollService {
             { guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
             "Sync token expired (410), performing full fetch",
           );
+          this.metrics.pollCounter.add(1, { outcome: "expired_token" });
           await this.scheduleRepo.updateSyncToken(
             schedule.guildId,
             schedule.calendarId,
@@ -146,6 +149,7 @@ export class SchedulePollService {
             schedule.pollIntervalSec,
             schedule.consecutiveFailures,
           );
+          this.metrics.pollCounter.add(1, { outcome: err.statusCode === 403 ? "permanent_403" : "permanent_404" });
           await this.scheduleRepo.recordFailure(
             schedule.guildId,
             schedule.calendarId,
@@ -162,6 +166,7 @@ export class SchedulePollService {
         schedule.consecutiveFailures,
       );
       const reason = err instanceof Error ? err.message : String(err);
+      this.metrics.pollCounter.add(1, { outcome: "transient_error" });
       await this.scheduleRepo.recordFailure(
         schedule.guildId,
         schedule.calendarId,
@@ -193,6 +198,8 @@ export class SchedulePollService {
         nextPollAt,
       );
     }
+
+    this.metrics.pollCounter.add(1, { outcome: "success" });
 
     // Filter changed items to current month for notifications
     const currentMonthChanges = changedItems.filter((item) => {
@@ -244,6 +251,20 @@ export class SchedulePollService {
       month,
       now,
     );
+
+    this.logger.debug(
+      {
+        guildId: schedule.guildId.toString(),
+        calendarId: schedule.calendarId,
+        fetchType: wasFullFetch ? "full" : "incremental",
+        changedItems: changedItems.length,
+        currentMonthChanges: currentMonthChanges.length,
+        storedEvents: currentMonthEvents.length,
+        messageChunks: chunks.length,
+      },
+      "Schedule poll complete, syncing Discord messages",
+    );
+
     await this.discordPublisher.syncMessages(schedule, year, month, chunks);
   }
 

@@ -13,6 +13,7 @@ import { DiscordSchedulePublisher } from "./application/DiscordSchedulePublisher
 import { ScheduleChannelService } from "./application/ScheduleChannelService";
 import { SchedulePollService } from "./application/SchedulePollService";
 import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClient";
+import { ScheduleMetrics } from "./infrastructure/metrics/ScheduleMetrics";
 import { DrizzleScheduleRepository } from "./infrastructure/repositories/DrizzleScheduleRepository";
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
 import { ScheduleConfigAutocomplete } from "./presentation/autocompletes/ScheduleConfigAutocomplete";
@@ -39,7 +40,13 @@ export function setupScheduleFeature(
       "GOOGLE_CALENDAR_API_KEY is not set — schedule channel feature will not function. Set the env var and restart.",
     );
   }
-  const calendarClient = new GoogleCalendarClient(apiKey ?? "");
+
+  const scheduleMetrics = new ScheduleMetrics();
+
+  const calendarClient = new GoogleCalendarClient(
+    apiKey ?? "",
+    logger.child({ component: "GoogleCalendarClient" }),
+  );
 
   const scheduleRepository = new DrizzleScheduleRepository(
     db,
@@ -57,6 +64,7 @@ export function setupScheduleFeature(
     client,
     logger.child({ component: "DiscordSchedulePublisher" }),
     emojiRepository,
+    scheduleMetrics,
   );
 
   const schedulePollService = new SchedulePollService(
@@ -66,6 +74,7 @@ export function setupScheduleFeature(
     calendarSyncService,
     discordSchedulePublisher,
     logger.child({ component: "SchedulePollService" }),
+    scheduleMetrics,
   );
 
   const scheduleChannelService = new ScheduleChannelService(

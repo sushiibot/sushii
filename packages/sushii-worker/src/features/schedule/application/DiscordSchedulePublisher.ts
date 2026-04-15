@@ -14,6 +14,7 @@ import { calendarItemIssues, type CalendarEventIssue } from "@/features/schedule
 import type { CalendarEventItem } from "@/features/schedule/infrastructure/google/GoogleCalendarClient";
 import { toScheduleEvent } from "@/features/schedule/infrastructure/google/CalendarEventMapper";
 import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
+import type { ScheduleMetrics } from "@/features/schedule/infrastructure/metrics/ScheduleMetrics";
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -42,6 +43,7 @@ export class DiscordSchedulePublisher {
     private readonly client: Client,
     private readonly logger: Logger,
     private readonly emojiRepo: BotEmojiRepository,
+    private readonly metrics: ScheduleMetrics,
   ) {}
 
   private async fetchTextChannel(
@@ -81,13 +83,21 @@ export class DiscordSchedulePublisher {
 
     if (!discordChannel) return;
 
+    let edited = 0;
+    let posted = 0;
+    let reposted = 0;
+    let unchanged = 0;
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const existing = existingMessages.find((m) => m.messageIndex === i);
 
       await this.discordSemaphore.run(async () => {
         if (existing) {
-          if (existing.contentHash === chunk.hash) return; // No change
+          if (existing.contentHash === chunk.hash) {
+            unchanged++;
+            return;
+          }
 
           try {
             const msg = await discordChannel.messages.fetch(existing.messageId.toString());
@@ -105,6 +115,7 @@ export class DiscordSchedulePublisher {
               existing.messageId,
               chunk.hash,
             );
+            edited++;
           } catch (err: unknown) {
             // 10008 = Unknown Message — repost as new
             if (isDiscordUnknownMessageError(err)) {
@@ -122,6 +133,7 @@ export class DiscordSchedulePublisher {
                 BigInt(newMsg.id),
                 chunk.hash,
               );
+              reposted++;
             } else {
               throw err;
             }
@@ -142,6 +154,7 @@ export class DiscordSchedulePublisher {
             BigInt(newMsg.id),
             chunk.hash,
           );
+          posted++;
         }
       });
     }
@@ -150,11 +163,13 @@ export class DiscordSchedulePublisher {
     const excessMessages = existingMessages.filter(
       (m) => m.messageIndex >= chunks.length,
     );
+    let deleted = 0;
     for (const msg of excessMessages) {
       await this.discordSemaphore.run(async () => {
         try {
           const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
           await discordMsg.delete();
+          deleted++;
         } catch (err) {
           if (!isDiscordUnknownMessageError(err)) {
             this.logger.warn(
@@ -175,6 +190,25 @@ export class DiscordSchedulePublisher {
         chunks.length - 1,
       );
     }
+
+    this.logger.debug(
+      {
+        guildId: channel.guildId.toString(),
+        calendarId: channel.calendarId,
+        edited,
+        posted,
+        reposted,
+        deleted,
+        unchanged,
+      },
+      "Discord schedule messages synced",
+    );
+
+    if (edited > 0) this.metrics.messagesSyncedCounter.add(edited, { operation: "edited" });
+    if (posted > 0) this.metrics.messagesSyncedCounter.add(posted, { operation: "posted" });
+    if (reposted > 0) this.metrics.messagesSyncedCounter.add(reposted, { operation: "reposted" });
+    if (deleted > 0) this.metrics.messagesSyncedCounter.add(deleted, { operation: "deleted" });
+    if (unchanged > 0) this.metrics.messagesSyncedCounter.add(unchanged, { operation: "unchanged" });
   }
 
   /**
@@ -341,6 +375,10 @@ export class DiscordSchedulePublisher {
         components: [container],
         flags: MessageFlags.IsComponentsV2,
       });
+      // Count changes only after confirming they were delivered
+      for (const change of changes) {
+        this.metrics.eventsChangedCounter.add(1, { kind: change.kind });
+      }
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },
@@ -445,6 +483,15 @@ export class DiscordSchedulePublisher {
       channel.lastErrorAt &&
       Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS
     ) {
+      this.logger.debug(
+        {
+          guildId: channel.guildId.toString(),
+          calendarId: channel.calendarId,
+          statusCode,
+          lastErrorAt: channel.lastErrorAt,
+        },
+        "Skipping error alert — rate limited (already sent within 24h)",
+      );
       return;
     }
 
@@ -471,6 +518,14 @@ export class DiscordSchedulePublisher {
         components: [alertContainer],
         flags: MessageFlags.IsComponentsV2,
       });
+      this.logger.info(
+        {
+          guildId: channel.guildId.toString(),
+          calendarId: channel.calendarId,
+          statusCode,
+        },
+        "Schedule sync permanent error alert sent",
+      );
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },
@@ -498,6 +553,10 @@ export class DiscordSchedulePublisher {
         components: [recoveryContainer],
         flags: MessageFlags.IsComponentsV2,
       });
+      this.logger.info(
+        { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
+        "Schedule sync recovery notification sent",
+      );
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: channel.logChannelId.toString() },

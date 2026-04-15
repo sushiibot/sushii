@@ -202,25 +202,31 @@ describe("ScheduleChannelService.configure", () => {
     expect(repo.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it("stores the calendarTitle from Google metadata (not user input)", async () => {
+  it("returns error when title is blank", async () => {
+    const service = new ScheduleChannelService(makeRepo(), makeCalendarClient(), true, logger);
+    const result = await service.configure(makeInput({ title: "" }));
+    expect(result.ok).toBe(false);
+    expect(result.val).toMatch(/cannot be blank/);
+  });
+
+  it("returns error when title is whitespace only", async () => {
+    const service = new ScheduleChannelService(makeRepo(), makeCalendarClient(), true, logger);
+    const result = await service.configure(makeInput({ title: "   " }));
+    expect(result.ok).toBe(false);
+    expect(result.val).toMatch(/cannot be blank/);
+  });
+
+  it("stores the calendarTitle from Google metadata (not the user-supplied title)", async () => {
     const repo = makeRepo();
     const calendarClient = makeCalendarClient({
       getCalendarMetadata: mock(async () => ({ summary: "Title From Google", timeZone: "UTC" })),
     });
     const service = new ScheduleChannelService(repo, calendarClient, true, logger);
-    await service.configure(makeInput({ title: "" }));
+    await service.configure(makeInput({ title: "My Display Name" }));
 
-    const upsertCall = (repo.upsert as ReturnType<typeof mock>).mock.calls[0][0] as UpsertScheduleData;
-    expect(upsertCall.calendarTitle).toBe("Title From Google");
-  });
-
-  it("sets displayTitle to null when title is empty or whitespace", async () => {
-    const repo = makeRepo();
-    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
-    await service.configure(makeInput({ title: "   " }));
-
-    const upsertCall = (repo.upsert as ReturnType<typeof mock>).mock.calls[0][0] as UpsertScheduleData;
-    expect(upsertCall.displayTitle).toBeNull();
+    expect(repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ calendarTitle: "Title From Google" }),
+    );
   });
 
   it("sets displayTitle from trimmed title input when provided", async () => {
@@ -228,8 +234,9 @@ describe("ScheduleChannelService.configure", () => {
     const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
     await service.configure(makeInput({ title: "  My Events  " }));
 
-    const upsertCall = (repo.upsert as ReturnType<typeof mock>).mock.calls[0][0] as UpsertScheduleData;
-    expect(upsertCall.displayTitle).toBe("My Events");
+    expect(repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ displayTitle: "My Events" }),
+    );
   });
 });
 
