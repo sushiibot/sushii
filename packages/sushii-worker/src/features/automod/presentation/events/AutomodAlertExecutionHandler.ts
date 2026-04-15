@@ -80,17 +80,9 @@ export class AutomodAlertExecutionHandler extends EventHandler<Events.MessageCre
           "Tracked native AutoMod alert message",
         );
 
-        // AutoMod alert messages (type 24): the flagged content may be in the
-        // embed description rather than message.content depending on Discord's
-        // gateway behavior. Check both.
-        const flaggedContent =
-          message.content || message.embeds[0]?.description || "";
-
-        span.setAttributes({
-          "message.content.length": message.content?.length ?? 0,
-          "message.embed.description.length":
-            message.embeds[0]?.description?.length ?? 0,
-        });
+        // AutoMod alert messages (type 24) have empty message.content — the
+        // flagged content is in the embed description.
+        const flaggedContent = message.embeds[0]?.description ?? "";
 
         if (flaggedContent) {
           try {

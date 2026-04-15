@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 
 import Color from "@/utils/colors";
+import SushiiEmoji from "@/shared/presentation/SushiiEmoji";
 
 import type { InviteInfo } from "../../application/InviteInfoService";
 
@@ -21,10 +22,10 @@ function formatInviteSection(invite: InviteInfo): string {
   lines.push(`**${invite.guildName}**`);
 
   const badges: string[] = [];
-  if (invite.isVerified) badges.push("✅ Verified");
-  if (invite.isPartnered) badges.push("💎 Partnered");
+  if (invite.isVerified) badges.push(`${SushiiEmoji.VerifiedIcon} Verified`);
+  if (invite.isPartnered) badges.push(`${SushiiEmoji.PartnerIcon} Partnered`);
   if (badges.length > 0) {
-    lines.push(badges.join(" · "));
+    lines.push(`-# ${badges.join("  ")}`);
   }
 
   if (invite.guildDescription) {
@@ -32,24 +33,26 @@ function formatInviteSection(invite: InviteInfo): string {
       invite.guildDescription.length > MAX_DESCRIPTION_LENGTH
         ? `${invite.guildDescription.slice(0, MAX_DESCRIPTION_LENGTH - 3)}...`
         : invite.guildDescription;
-    lines.push(desc);
+    lines.push(`> ${desc}`);
   }
 
   const stats: string[] = [];
   if (invite.memberCount !== null) {
-    stats.push(`👥 ${invite.memberCount.toLocaleString()} members`);
+    stats.push(`${invite.memberCount.toLocaleString()} members`);
   }
   if (invite.presenceCount !== null) {
-    stats.push(`🟢 ${invite.presenceCount.toLocaleString()} online`);
+    stats.push(`${invite.presenceCount.toLocaleString()} online`);
   }
   if (stats.length > 0) {
     lines.push(stats.join(" · "));
   }
 
-  const meta: string[] = [`[discord.gg/${invite.code}](https://discord.gg/${invite.code})`];
+  const meta: string[] = [];
   if (invite.channelName) meta.push(`#${invite.channelName}`);
   if (invite.guildId) meta.push(`ID: ${invite.guildId}`);
-  lines.push(`-# ${meta.join(" · ")}`);
+  if (meta.length > 0) {
+    lines.push(`-# ${meta.join(" · ")}`);
+  }
 
   return lines.join("\n");
 }
