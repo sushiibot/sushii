@@ -167,9 +167,16 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           ),
         ),
       )
+      .addSectionComponents(
+        new SectionBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `**Google Calendar**\n${sc.calendarTitle}`,
+          ),
+        ),
+      )
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-          `-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`,
+          `-# Syncs ${intervalDisplay}`,
         ),
       );
 
@@ -199,8 +206,13 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               new TextDisplayBuilder().setContent(`**Name**\n${sc.displayTitle}`),
             ),
           )
+          .addSectionComponents(
+            new SectionBuilder().addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(`**Google Calendar**\n${sc.calendarTitle}`),
+            ),
+          )
           .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(`-# ${sc.calendarTitle}  ·  Syncs ${intervalDisplay}`),
+            new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
           );
         await fetchedLogChannel.send({
           components: [logContainer],

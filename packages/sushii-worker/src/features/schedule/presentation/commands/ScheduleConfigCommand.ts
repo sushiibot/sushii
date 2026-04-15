@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
   ChatInputCommandInteraction,
   ContainerBuilder,
   MessageFlags,
@@ -46,11 +45,11 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       c
         .setName(SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE)
         .setDescription("Remove a schedule channel configuration.")
-        .addChannelOption((o) =>
+        .addStringOption((o) =>
           o
-            .setName(SCHEDULE_CONFIG_OPTIONS.CHANNEL)
+            .setName(SCHEDULE_CONFIG_OPTIONS.SCHEDULE)
             .setDescription("The schedule channel to remove.")
-            .addChannelTypes(ChannelType.GuildText)
+            .setAutocomplete(true)
             .setRequired(true),
         ),
     )
@@ -63,11 +62,11 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       c
         .setName(SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH)
         .setDescription("Force an immediate full resync of a schedule channel.")
-        .addChannelOption((o) =>
+        .addStringOption((o) =>
           o
-            .setName(SCHEDULE_CONFIG_OPTIONS.CHANNEL)
+            .setName(SCHEDULE_CONFIG_OPTIONS.SCHEDULE)
             .setDescription("The schedule channel to refresh.")
-            .addChannelTypes(ChannelType.GuildText)
+            .setAutocomplete(true)
             .setRequired(true),
         ),
     )
@@ -149,13 +148,13 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   }
 
   private async handleRemove(interaction: ChatInputCommandInteraction): Promise<void> {
-    const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
+    const channelId = interaction.options.getString(SCHEDULE_CONFIG_OPTIONS.SCHEDULE, true);
 
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.remove(
       BigInt(interaction.guildId!),
-      BigInt(channel.id),
+      BigInt(channelId),
     );
 
     if (result.err) {
@@ -164,9 +163,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     }
 
     const content = [
-      `${emojis.success} **Schedule channel removed**`,
+      `${emojis.success} **Schedule removed**`,
       "",
-      `Configuration for <#${channel.id}> has been deleted. Existing messages in the channel have been left intact.`,
+      `<#${channelId}> will no longer sync with Google Calendar. Posts already in the channel were not deleted.`,
     ].join("\n");
 
     const container = new ContainerBuilder()
@@ -199,8 +198,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       const sc = channels[i];
 
       const lines: string[] = [
-        `${emojis.schedule} **<#${sc.channelId}>**${sc.displayTitle ? ` — ${sc.displayTitle}` : ""}`,
-        `-# ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  Syncs ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`,
+        `${emojis.schedule} **<#${sc.channelId}>** — ${sc.displayTitle}`,
+        `-# Google Calendar: ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  Syncs ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`,
       ];
 
       if (sc.consecutiveFailures > 0) {
@@ -228,13 +227,13 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   }
 
   private async handleRefresh(interaction: ChatInputCommandInteraction): Promise<void> {
-    const channel = interaction.options.getChannel(SCHEDULE_CONFIG_OPTIONS.CHANNEL, true);
+    const channelId = interaction.options.getString(SCHEDULE_CONFIG_OPTIONS.SCHEDULE, true);
 
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     const result = await this.scheduleChannelService.refresh(
       BigInt(interaction.guildId!),
-      BigInt(channel.id),
+      BigInt(channelId),
     );
 
     if (result.err) {
@@ -243,7 +242,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     }
 
     const content = [
-      `${emojis.success} **Refresh queued for <#${channel.id}>**`,
+      `${emojis.success} **Refresh queued for <#${channelId}>**`,
       "",
       "-# The channel will update within a minute.",
     ].join("\n");

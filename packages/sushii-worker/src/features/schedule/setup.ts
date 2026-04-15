@@ -15,6 +15,7 @@ import { SchedulePollService } from "./application/SchedulePollService";
 import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClient";
 import { DrizzleScheduleRepository } from "./infrastructure/repositories/DrizzleScheduleRepository";
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
+import { ScheduleConfigAutocomplete } from "./presentation/autocompletes/ScheduleConfigAutocomplete";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
 import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
 import { ScheduleConfigNewButtonHandler } from "./presentation/handlers/ScheduleConfigNewButtonHandler";
@@ -98,11 +99,16 @@ export function setupScheduleFeature(
     emojiRepository,
   );
 
+  const scheduleConfigAutocomplete = new ScheduleConfigAutocomplete(
+    scheduleChannelService,
+    logger.child({ component: "ScheduleConfigAutocomplete" }),
+  );
+
   const tasks = apiKey ? [schedulePollTask] : [];
 
   return {
     commands: [scheduleCommand, scheduleConfigCommand],
-    autocompletes: [],
+    autocompletes: [scheduleConfigAutocomplete],
     contextMenuHandlers: [],
     buttonHandlers: [scheduleConfigNewButtonHandler],
     eventHandlers: [],

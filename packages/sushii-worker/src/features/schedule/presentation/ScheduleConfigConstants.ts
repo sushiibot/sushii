@@ -11,6 +11,7 @@ export const SCHEDULE_CONFIG_SUBCOMMANDS = {
 
 export const SCHEDULE_CONFIG_OPTIONS = {
   CHANNEL: "channel",
+  SCHEDULE: "schedule",
 } as const;
 
 export const SCHEDULE_CONFIG_CUSTOM_IDS = {
