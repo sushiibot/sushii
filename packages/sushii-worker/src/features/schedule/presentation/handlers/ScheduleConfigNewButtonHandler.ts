@@ -66,6 +66,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
+              .setMinLength(1)
               .setPlaceholder("Group Schedule"),
           ),
         new LabelBuilder()
