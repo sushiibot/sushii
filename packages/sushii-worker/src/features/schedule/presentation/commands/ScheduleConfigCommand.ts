@@ -28,6 +28,7 @@ import {
   SCHEDULE_CONFIG_SETUP_EMOJI_NAMES,
   SCHEDULE_CONFIG_SUBCOMMANDS,
 } from "../ScheduleConfigConstants";
+import { ScheduleConfigEditHandler } from "../handlers/ScheduleConfigEditHandler";
 
 export class ScheduleConfigCommand extends SlashCommandHandler {
   serverOnly = true;
@@ -40,6 +41,18 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       c
         .setName(SCHEDULE_CONFIG_SUBCOMMANDS.NEW)
         .setDescription("Configure a schedule channel to sync a Google Calendar."),
+    )
+    .addSubcommand((c) =>
+      c
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.EDIT)
+        .setDescription("Edit the name or channels of an existing schedule.")
+        .addStringOption((o) =>
+          o
+            .setName(SCHEDULE_CONFIG_OPTIONS.SCHEDULE)
+            .setDescription("The schedule to edit.")
+            .setAutocomplete(true)
+            .setRequired(true),
+        ),
     )
     .addSubcommand((c) =>
       c
@@ -72,12 +85,15 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     )
     .toJSON();
 
+  private readonly editHandler: ScheduleConfigEditHandler;
+
   constructor(
     private readonly scheduleChannelService: ScheduleChannelService,
     private readonly logger: Logger,
     private readonly emojiRepo: BotEmojiRepository,
   ) {
     super();
+    this.editHandler = new ScheduleConfigEditHandler(scheduleChannelService, logger, emojiRepo);
   }
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -91,6 +107,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     switch (subcommand) {
       case SCHEDULE_CONFIG_SUBCOMMANDS.NEW:
         return this.handleAdd(interaction);
+      case SCHEDULE_CONFIG_SUBCOMMANDS.EDIT:
+        return this.editHandler.handle(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE:
         return this.handleRemove(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.LIST:
@@ -143,7 +161,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
     });
   }
 

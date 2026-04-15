@@ -6,7 +6,6 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
-  SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
@@ -108,6 +107,10 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       return;
     }
 
+    if (!submit.isFromMessage()) {
+      throw new Error("Modal should be from a button on a message");
+    }
+
     const calendarInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR);
     const title = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME);
 
@@ -120,7 +123,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
     if (!channel || !logChannel) {
-      await submit.reply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error, true));
+      await submit.update(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error));
       return;
     }
 
@@ -134,7 +137,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     });
 
     if (result.err) {
-      await submit.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
+      await submit.update(makeContainer(`${emojis.fail} ${result.val}`, Color.Error));
       return;
     }
 
@@ -147,41 +150,16 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
         new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
       )
       .addSeparatorComponents(new SeparatorBuilder())
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `**Channel**\n<#${sc.channelId}>`,
-          ),
-        ),
-      )
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `**Log channel**\n<#${sc.logChannelId}>`,
-          ),
-        ),
-      )
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `**Name**\n${sc.displayTitle}`,
-          ),
-        ),
-      )
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `**Google Calendar**\n${sc.calendarTitle}`,
-          ),
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `**Channel**\n<#${sc.channelId}>\n**Log channel**\n<#${sc.logChannelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
         ),
       )
       .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          `-# Syncs ${intervalDisplay}`,
-        ),
+        new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
       );
 
-    await submit.reply({
+    await submit.update({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
@@ -197,19 +175,9 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
           )
           .addSeparatorComponents(new SeparatorBuilder())
-          .addSectionComponents(
-            new SectionBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(`**Channel**\n<#${sc.channelId}>`),
-            ),
-          )
-          .addSectionComponents(
-            new SectionBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(`**Name**\n${sc.displayTitle}`),
-            ),
-          )
-          .addSectionComponents(
-            new SectionBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(`**Google Calendar**\n${sc.calendarTitle}`),
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              `**Channel**\n<#${sc.channelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
             ),
           )
           .addTextDisplayComponents(
@@ -224,7 +192,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     } catch (err) {
       this.logger.warn(
         { err, logChannelId: sc.logChannelId.toString() },
-        "Failed to post configuration confirmation to log channel",
+        "Failed to post configuration confirmation to log channel — check bot permissions",
       );
     }
   }
