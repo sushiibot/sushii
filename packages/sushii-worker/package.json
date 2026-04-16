@@ -13,7 +13,8 @@
     "test:integration": "TESTCONTAINERS_RYUK_DISABLED=true bun test --timeout 30000 ./tests/integration/",
     "assets:encrypt": "bun --env-file=.env scripts/encrypt-assets.ts",
     "assets:verify": "bun --env-file=.env scripts/verify-assets.ts",
-    "assets:preview": "bun --env-file=.env scripts/preview-asset-mapping.ts"
+    "assets:preview": "bun --env-file=.env scripts/preview-asset-mapping.ts",
+    "deploy-ctl": "bun scripts/deploy-ctl.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
