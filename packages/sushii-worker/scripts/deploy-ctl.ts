@@ -13,11 +13,14 @@ interface StatusResponse {
 }
 
 interface SwitchResponse {
-  success: boolean;
   no_op?: boolean;
   previous_deployment?: string;
   new_deployment?: string;
-  error?: string;
+}
+
+function fail(message: string, code = 1): never {
+  console.error(message);
+  process.exit(code);
 }
 
 function printUsage(): void {
@@ -57,19 +60,19 @@ export function parseArgs(args: string[]): {
     const arg = args[i];
     if (arg === "--endpoint") {
       i++;
-      if (i >= args.length) {
-        console.error("Error: --endpoint requires a URL argument");
-        process.exit(1);
+      if (i >= args.length || args[i].startsWith("--")) {
+        fail("Error: --endpoint requires a URL argument");
       }
-      endpoint = args[i];
+      endpoint = args[i].trim().replace(/\/+$/, "");
+    } else if (arg.startsWith("--")) {
+      printUsage();
+      fail(`Error: Unknown flag '${arg}'`);
     } else if (!command) {
       command = arg;
     } else if (!commandArg) {
       commandArg = arg;
-    } else if (arg.startsWith("--")) {
-      console.error(`Error: Unknown flag '${arg}'`);
-      printUsage();
-      process.exit(1);
+    } else {
+      fail(`Error: Unexpected argument '${arg}'`);
     }
     i++;
   }
@@ -77,29 +80,47 @@ export function parseArgs(args: string[]): {
   return { command, commandArg, endpoint };
 }
 
-async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void> {
+async function fetchJson<T>(
+  url: string,
+  endpoint: string,
+  fetchFn: typeof fetch,
+  init?: RequestInit,
+): Promise<T> {
   let res: Response;
   try {
-    res = await fetchFn(`${endpoint}/deployment/status`);
+    res = await fetchFn(url, init);
   } catch (err) {
-    console.error(`Error: Could not connect to ${endpoint} — ${(err as Error).message}`);
-    process.exit(1);
+    fail(`Error: Could not connect to ${endpoint} — ${(err as Error).message}`);
   }
 
+  const text = await res.text().catch(() => "");
   if (!res.ok) {
-    console.error(`Error: Status request failed (HTTP ${res.status})`);
+    console.error(`Error: Request failed (HTTP ${res.status})`);
+    if (text) {
+      try {
+        const errBody = JSON.parse(text) as { error?: string };
+        if (errBody.error) {
+          console.error(errBody.error);
+        } else {
+          console.error(text);
+        }
+      } catch {
+        console.error(text);
+      }
+    }
     process.exit(1);
+    return undefined as never;
   }
 
-  let body: StatusResponse;
   try {
-    body = (await res.json()) as StatusResponse;
+    return JSON.parse(text) as T;
   } catch (err) {
-    console.error(
-      `Error: Invalid JSON response from ${endpoint} — ${(err as Error).message}`,
-    );
-    process.exit(1);
+    fail(`Error: Invalid JSON response from ${endpoint} — ${(err as Error).message}`);
   }
+}
+
+async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void> {
+  const body = await fetchJson<StatusResponse>(`${endpoint}/deployment/status`, endpoint, fetchFn);
 
   console.log(`Active deployment : ${body.active_deployment}`);
   console.log(`This instance     : ${body.this_deployment}`);
@@ -107,9 +128,13 @@ async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void>
   console.log(`Ready to switch   : ${body.ready_to_switch}`);
   console.log(`Health            : ${body.health}`);
   console.log(`Total shards      : ${body.total_shards}`);
-  console.log("Clusters:");
-  for (const cluster of body.clusters) {
-    console.log(`  [${cluster.id}] ready=${cluster.ready} shards=${cluster.shards.join(",")}`);
+  if (Array.isArray(body.clusters) && body.clusters.length > 0) {
+    console.log("Clusters:");
+    for (const cluster of body.clusters) {
+      console.log(`  [${cluster.id}] ready=${cluster.ready} shards=${(cluster.shards ?? []).join(",")}`);
+    }
+  } else {
+    console.log("Clusters: (none)");
   }
 
   if (body.health !== "healthy") {
@@ -123,38 +148,15 @@ async function cmdSwitch(
   fetchFn: typeof fetch,
 ): Promise<void> {
   if (target !== "blue" && target !== "green") {
-    console.error(`Error: Invalid color '${target}'. Must be 'blue' or 'green'.`);
     printUsage();
-    process.exit(1);
+    fail(`Error: Invalid color '${target}'. Must be 'blue' or 'green'.`);
   }
 
-  let res: Response;
-  try {
-    res = await fetchFn(`${endpoint}/deployment/switch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target }),
-    });
-  } catch (err) {
-    console.error(`Error: Could not connect to ${endpoint} — ${(err as Error).message}`);
-    process.exit(1);
-  }
-
-  let body: SwitchResponse;
-  try {
-    body = (await res.json()) as SwitchResponse;
-  } catch (err) {
-    console.error(
-      `Error: Invalid JSON response from ${endpoint} — ${(err as Error).message}`,
-    );
-    process.exit(1);
-  }
-
-  if (!res.ok) {
-    console.error(`Error: Switch failed (HTTP ${res.status})`);
-    console.error(JSON.stringify(body, null, 2));
-    process.exit(1);
-  }
+  const body = await fetchJson<SwitchResponse>(`${endpoint}/deployment/switch`, endpoint, fetchFn, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target }),
+  });
 
   if (body.no_op) {
     console.log(`No-op: '${target}' is already the active deployment.`);
@@ -169,14 +171,9 @@ export async function main(
 ): Promise<void> {
   const { command, commandArg, endpoint } = parseArgs(args);
 
-  if (command === "--help" || command === "-h") {
-    printUsage();
-    process.exit(0);
-  }
-
   if (!command) {
     printUsage();
-    process.exit(1);
+    fail("Error: No command specified.");
   }
 
   switch (command) {
@@ -185,17 +182,17 @@ export async function main(
       break;
     case "switch":
       if (!commandArg) {
-        console.error("Error: 'switch' requires a color argument (blue or green).");
         printUsage();
-        process.exit(1);
+        fail("Error: 'switch' requires a color argument (blue or green).");
       }
       await cmdSwitch(commandArg, endpoint, fetchFn);
       break;
     default:
-      console.error(`Error: Unknown command '${command}'.`);
       printUsage();
-      process.exit(1);
+      fail(`Error: Unknown command '${command}'.`);
   }
+
+  process.exit(0);
 }
 
 if (import.meta.main) {

@@ -5,6 +5,12 @@ import { main } from "./deploy-ctl";
 // Helpers
 // ---------------------------------------------------------------------------
 
+class ExitCalled extends Error {
+  constructor(readonly code: number) {
+    super(`ExitCalled(${code})`);
+  }
+}
+
 type FetchImpl = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 function makeResponse(status: number, body: unknown): Response {
@@ -14,13 +20,20 @@ function makeResponse(status: number, body: unknown): Response {
   });
 }
 
+function makeTextResponse(status: number, body: string, contentType = "text/plain"): Response {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": contentType },
+  });
+}
+
 async function runCli(
   args: string[],
   fetchImpl: FetchImpl,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  let exitCode = 0;
+  let exitCode = -1;
 
   const origLog = console.log;
   const origError = console.error;
@@ -30,14 +43,14 @@ async function runCli(
   const origExit = process.exit;
   process.exit = ((code?: number) => {
     exitCode = code ?? 0;
-    throw new Error(`__EXIT__${code}`);
+    throw new ExitCalled(code ?? 0);
   }) as typeof process.exit;
 
   try {
     await main(args, fetchImpl as typeof fetch);
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith("__EXIT__")) {
-      // expected
+    if (err instanceof ExitCalled) {
+      exitCode = err.code;
     } else {
       throw err;
     }
@@ -49,6 +62,28 @@ async function runCli(
 
   return { exitCode, stdout: stdout.join("\n"), stderr: stderr.join("\n") };
 }
+
+// ---------------------------------------------------------------------------
+// argument parsing tests
+// ---------------------------------------------------------------------------
+
+describe("deploy-ctl argument parsing", () => {
+  const noFetch = async () => makeResponse(200, {});
+
+  test("no command → exit 1 and prints usage", async () => {
+    const { exitCode, stdout } = await runCli([], noFetch);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain("Usage:");
+  });
+
+  test("unknown command → exit 1 with 'Unknown command' in stderr", async () => {
+    const { exitCode, stderr } = await runCli(["deploy"], noFetch);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Unknown command");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // status command tests
@@ -107,6 +142,29 @@ describe("deploy-ctl status", () => {
 
     expect(seenUrls[0]).toBe("http://host:1234/deployment/status");
   });
+
+  test("prints cluster rows with id, ready, and shards", async () => {
+    const fetchImpl = async (_url: string | URL | Request) =>
+      makeResponse(200, healthyResponse);
+
+    const { stdout } = await runCli(["status"], fetchImpl);
+
+    expect(stdout).toContain("[0]");
+    expect(stdout).toContain("ready=true");
+    expect(stdout).toContain("shards=0,1");
+  });
+
+  test("handles missing cluster shards gracefully", async () => {
+    const fetchImpl = async (_url: string | URL | Request) =>
+      makeResponse(200, {
+        ...healthyResponse,
+        clusters: [{ id: 0, ready: true, shards: undefined }],
+      });
+
+    // Should not throw
+    const { exitCode } = await runCli(["status"], fetchImpl);
+    expect(exitCode).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -141,7 +199,17 @@ describe("deploy-ctl switch", () => {
     const { exitCode, stderr } = await runCli(["switch", "blue"], fetchImpl);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain("Switch failed");
+    expect(stderr).toContain("Request failed");
+  });
+
+  test("non-JSON error response (e.g. nginx 502 HTML) → exit 1 with HTTP status", async () => {
+    const fetchImpl = async (_url: string | URL | Request) =>
+      makeTextResponse(502, "<html><body>Bad Gateway</body></html>", "text/html");
+
+    const { exitCode, stderr } = await runCli(["switch", "blue"], fetchImpl);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Request failed (HTTP 502)");
   });
 
   test("unreachable endpoint → exit 1 with error message", async () => {
