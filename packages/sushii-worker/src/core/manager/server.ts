@@ -41,6 +41,13 @@ const pinoLoggerMiddleware: MiddlewareHandler = async (c, next) => {
   logger.debug(log, message);
 };
 
+function isManagerReady(manager: ClusterManager): boolean {
+  const allSpawned =
+    manager.totalClusters > 0 &&
+    manager.clusters.size >= manager.totalClusters;
+  return allSpawned && Array.from(manager.clusters.values()).every((c) => c.ready);
+}
+
 function createHealthServer(manager: ClusterManager): Server<unknown> {
   const app = new Hono();
 
@@ -50,12 +57,7 @@ function createHealthServer(manager: ClusterManager): Server<unknown> {
   // Routes
   app.get("/health", (c) => {
     // All clients are ready (1 client -> multiple shards)
-    const allSpawned =
-      manager.totalClusters > 0 &&
-      manager.clusters.size >= manager.totalClusters;
-    const allReady =
-      allSpawned &&
-      Array.from(manager.clusters.values()).every((s) => s.ready);
+    const allReady = isManagerReady(manager);
 
     const statusCode = allReady ? 200 : 503;
 
@@ -108,12 +110,7 @@ export function createMonitoringApp(
   // Routes
   app.get("/commands", (c) => c.json(commands));
   app.get("/status", (c) => {
-    const allSpawned =
-      manager.totalClusters > 0 &&
-      manager.clusters.size >= manager.totalClusters;
-    const allReady =
-      allSpawned &&
-      Array.from(manager.clusters.values()).every((s) => s.ready);
+    const allReady = isManagerReady(manager);
 
     return c.json({
       status: allReady ? "healthy" : "unhealthy",
@@ -142,12 +139,7 @@ export function createMonitoringApp(
   });
 
   app.get("/deployment/status", (c) => {
-    const allSpawned =
-      manager.totalClusters > 0 &&
-      manager.clusters.size >= manager.totalClusters;
-    const allReady =
-      allSpawned &&
-      Array.from(manager.clusters.values()).every((s) => s.ready);
+    const allReady = isManagerReady(manager);
 
     const thisDeployment = deploymentService.getProcessName();
     const activeDeployment = deploymentService.getCurrentDeployment();
@@ -199,89 +191,25 @@ export function createMonitoringApp(
 
     const target = body.target as "blue" | "green";
 
-    const thisDeployment = deploymentService.getProcessName();
-
-    // Validate target matches this instance
-    if (target !== thisDeployment) {
-      logger.warn(
-        { target, thisDeployment },
-        "Deployment switch rejected: target does not match this instance",
-      );
-
-      return c.json(
-        {
-          error: `Target deployment '${target}' does not match this instance '${thisDeployment}'`,
-        },
-        400,
-      );
-    }
-
-    // Check if all clusters have spawned and are ready
-    const allSpawned =
-      manager.totalClusters > 0 &&
-      manager.clusters.size >= manager.totalClusters;
-    const allReady =
-      allSpawned &&
-      Array.from(manager.clusters.values()).every((s) => s.ready);
-
-    if (!allReady) {
-      logger.warn(
-        { target, thisDeployment },
-        "Deployment switch rejected: not all clusters are ready",
-      );
-      return c.json(
-        {
-          error: "This deployment is not ready. Not all clusters are ready.",
-          clusters: Array.from(manager.clusters.values()).map((cluster) => ({
-            id: cluster.id,
-            ready: cluster.ready,
-            shards: cluster.shardList,
-          })),
-        },
-        503,
-      );
-    }
-
-    // Check if already active
-    const isActive = deploymentService.isCurrentDeploymentActive();
-    if (isActive) {
-      logger.info(
-        { target, thisDeployment },
-        "Deployment switch rejected: already active deployment",
-      );
-      return c.json(
-        {
-          error: `Deployment '${target}' is already the active deployment`,
-        },
-        409,
-      );
-    }
-
     // Perform the switch
     try {
       const result = await deploymentService.setActiveDeployment(target);
       logger.info(
-        { target, thisDeployment, changed: result.changed },
-        "Deployment switched successfully",
+        { target, changed: result.changed },
+        "Deployment switch handled",
       );
 
-      // This should never be false due to the isActive check above, but handle it anyway
-      const previousDeployment = result.changed
-        ? target === "blue"
-          ? "green"
-          : "blue"
-        : result.deployment; // If somehow no change occurred, previous = current
+      if (!result.changed) {
+        return c.json({ success: true, no_op: true });
+      }
 
       return c.json({
         success: true,
-        previous_deployment: previousDeployment,
+        previous_deployment: result.previousDeployment,
         new_deployment: result.deployment,
       });
     } catch (err) {
-      logger.error(
-        { err, target, thisDeployment },
-        "Failed to switch deployment",
-      );
+      logger.error({ err, target }, "Failed to switch deployment");
       return c.json(
         {
           error: "Failed to switch deployment",

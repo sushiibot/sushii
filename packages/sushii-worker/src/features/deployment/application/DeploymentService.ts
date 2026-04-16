@@ -128,7 +128,7 @@ export class DeploymentService {
 
   async setActiveDeployment(
     targetDeployment: DeploymentName,
-  ): Promise<{ changed: boolean; deployment: DeploymentName }> {
+  ): Promise<{ changed: boolean; deployment: DeploymentName; previousDeployment: DeploymentName }> {
     if (!this.currentDeployment) {
       throw new Error("Deployment service not initialized");
     }
@@ -141,7 +141,7 @@ export class DeploymentService {
         { deployment: targetDeployment },
         "Deployment already set to target, no change needed",
       );
-      return { changed: false, deployment: targetDeployment };
+      return { changed: false, deployment: targetDeployment, previousDeployment: targetDeployment };
     }
 
     const newDeployment = this.currentDeployment.setTo(targetDeployment);
@@ -160,7 +160,7 @@ export class DeploymentService {
         "Deployment set successfully",
       );
 
-      return { changed: true, deployment: newDeployment.name };
+      return { changed: true, deployment: newDeployment.name, previousDeployment: previousName };
     } catch (err) {
       this.logger.error({ err }, "Failed to set deployment");
       throw err;
