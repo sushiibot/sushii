@@ -27,9 +27,14 @@ function formatEventLine(event: ScheduleEvent): string {
   if (event.location) {
     try {
       new URL(event.location);
-      const escapedSummary = event.summary.replace(/[\[\]]/g, '\\$&');
+      // Emojis inside [...] break Discord markdown links, so extract any leading emoji
+      // and place them before the link brackets.
+      const emojiPrefixMatch = event.summary.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\u20E3]+\s*)/u);
+      const leadingEmoji = emojiPrefixMatch ? emojiPrefixMatch[1] : '';
+      const textPart = event.summary.slice(leadingEmoji.length);
+      const escapedText = textPart.replace(/[\[\]]/g, '\\$&');
       const safeLocation = event.location.replace(/\)/g, '%29');
-      summaryText = `[${escapedSummary}](${safeLocation})`;
+      summaryText = `${leadingEmoji}[${escapedText}](${safeLocation})`;
     } catch {
       summaryText = event.summary;
     }

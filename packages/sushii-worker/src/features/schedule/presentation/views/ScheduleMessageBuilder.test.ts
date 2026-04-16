@@ -278,6 +278,15 @@ describe("renderSchedule", () => {
       expect(allText).not.toContain("https://x.com/watch?v=abc123)");
     });
 
+    it("extracts leading emoji outside markdown link brackets", () => {
+      const event = makeEvent("1", "🌴 Lisa - Anyma Coachella", new Date("2024-06-20T10:00:00Z"), {
+        location: "https://www.youtube.com/live/xIiSaqq10Yw",
+      });
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+      expect(allText).toContain("🌴 [Lisa - Anyma Coachella](https://www.youtube.com/live/xIiSaqq10Yw)");
+    });
+
     it("ignores non-URL location", () => {
       const event = makeEvent("1", "Event", new Date("2024-06-20T10:00:00Z"), {
         location: "Madison Square Garden, New York",
