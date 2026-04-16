@@ -192,6 +192,27 @@ describe("renderSchedule", () => {
         expect(chunks1[i].hash).toBe(chunks2[i].hash);
       }
     });
+
+    it("different accentColor values produce different hashes for the same events", () => {
+      const events = [makeEvent("1", "Event A", new Date("2024-06-20T10:00:00Z"))];
+
+      const chunksBlue = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW, 0x96cdfb);
+      const chunksRed = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW, 0xff0000);
+      const chunksNone = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW, null);
+
+      expect(chunksBlue[0].hash).not.toBe(chunksRed[0].hash);
+      expect(chunksBlue[0].hash).not.toBe(chunksNone[0].hash);
+      expect(chunksRed[0].hash).not.toBe(chunksNone[0].hash);
+    });
+
+    it("accentColor hash is stable — same color always produces the same hash", () => {
+      const events = [makeEvent("1", "Event A", new Date("2024-06-20T10:00:00Z"))];
+
+      const chunks1 = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW, 0xff6b6b);
+      const chunks2 = renderSchedule(events, "live", "Test Calendar", YEAR, MONTH, NOW, 0xff6b6b);
+
+      expect(chunks1[0].hash).toBe(chunks2[0].hash);
+    });
   });
 
   describe("event formatting", () => {

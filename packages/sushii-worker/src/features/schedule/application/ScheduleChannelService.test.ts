@@ -5,7 +5,7 @@ import type { Schedule } from "@/features/schedule/domain/entities/Schedule";
 import type { ScheduleRepository, UpsertScheduleData } from "@/features/schedule/domain/repositories/ScheduleRepository";
 import type { ScheduleMessageRepository } from "@/features/schedule/domain/repositories/ScheduleMessageRepository";
 import { GoogleCalendarClient, GoogleCalendarError } from "@/features/schedule/infrastructure/google/GoogleCalendarClient";
-import { ScheduleChannelService, type ConfigureScheduleChannelInput } from "./ScheduleChannelService";
+import { ScheduleChannelService, type ConfigureScheduleChannelInput, type EditScheduleChannelInput } from "./ScheduleChannelService";
 
 const logger = pino({ level: "silent" });
 
@@ -298,5 +298,101 @@ describe("ScheduleChannelService.refresh", () => {
     const [guildId, calendarId] = (repo.clearContentHashes as ReturnType<typeof mock>).mock.calls[0];
     expect(guildId).toBe(1n);
     expect(calendarId).toBe(existing.calendarId);
+  });
+});
+
+describe("ScheduleChannelService.edit (accent color)", () => {
+  function makeEditInput(overrides: Partial<EditScheduleChannelInput> = {}): EditScheduleChannelInput {
+    return {
+      guildId: 1n,
+      channelId: 100n,
+      editedByUserId: 999n,
+      newDisplayTitle: "My Schedule",
+      newChannelId: 100n,
+      newLogChannelId: 200n,
+      ...overrides,
+    };
+  }
+
+  it("sets accent color when changed from null to a value", async () => {
+    const existing = makeSchedule({ accentColor: null });
+    const updated = makeSchedule({ accentColor: 0xff6b6b });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    repo.updateSettings = mock(async () => updated);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.edit(makeEditInput({ newAccentColor: 0xff6b6b }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected Ok");
+    expect(result.val.changedFields).toContain("accentColor");
+    expect(repo.updateSettings).toHaveBeenCalledWith(
+      1n, existing.calendarId,
+      expect.objectContaining({ accentColor: 0xff6b6b }),
+    );
+  });
+
+  it("clears accent color when changed from a value to null", async () => {
+    const existing = makeSchedule({ accentColor: 0xff6b6b });
+    const updated = makeSchedule({ accentColor: null });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    repo.updateSettings = mock(async () => updated);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.edit(makeEditInput({ newAccentColor: null }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected Ok");
+    expect(result.val.changedFields).toContain("accentColor");
+    expect(repo.updateSettings).toHaveBeenCalledWith(
+      1n, existing.calendarId,
+      expect.objectContaining({ accentColor: null }),
+    );
+  });
+
+  it("does not include accentColor in changedFields when value is unchanged", async () => {
+    const existing = makeSchedule({ accentColor: 0x96cdfb, displayTitle: "Old Name" });
+    const updated = makeSchedule({ accentColor: 0x96cdfb, displayTitle: "New Name" });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    repo.updateSettings = mock(async () => updated);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    // displayTitle changes, but accentColor stays the same
+    const result = await service.edit(makeEditInput({ newDisplayTitle: "New Name", newAccentColor: 0x96cdfb }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected Ok");
+    expect(result.val.changedFields).not.toContain("accentColor");
+  });
+
+  it("sets nextPollAt immediately when only accent color changes", async () => {
+    const before = new Date();
+    const existing = makeSchedule({ accentColor: null });
+    const updated = makeSchedule({ accentColor: 0xff0000 });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    repo.updateSettings = mock(async () => updated);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    await service.edit(makeEditInput({ newAccentColor: 0xff0000 }));
+
+    const patch = (repo.updateSettings as ReturnType<typeof mock>).mock.calls[0][2];
+    expect(patch.nextPollAt).toBeInstanceOf(Date);
+    expect((patch.nextPollAt as Date).getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+
+  it("returns error when no changes are made", async () => {
+    const existing = makeSchedule({ accentColor: null });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.edit(makeEditInput({ newAccentColor: null }));
+
+    expect(result.ok).toBe(false);
+    expect(result.val).toMatch(/No changes/);
   });
 });

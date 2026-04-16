@@ -227,6 +227,14 @@ export class ScheduleChannelService {
       return Err("No changes were made.");
     }
 
+    // Visual-only changes (title, color) need an immediate poll to re-render messages.
+    // Channel changes already set nextPollAt above.
+    const needsImmediateRerender =
+      (changedFields.includes("displayTitle") || changedFields.includes("accentColor")) && !channelChanged;
+    if (needsImmediateRerender) {
+      patch.nextPollAt = new Date();
+    }
+
     if (channelChanged) {
       await this.repo.deleteAllMessages(input.guildId, existing.calendarId);
     }
