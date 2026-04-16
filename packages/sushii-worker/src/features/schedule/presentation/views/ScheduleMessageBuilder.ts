@@ -137,13 +137,13 @@ export function renderSchedule(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText));
-    const hash = Bun.hash.xxHash64(content + "---" + footerText).toString(16);
+    const colorKey = accentColor != null ? `|c:${accentColor}` : "";
+    const hash = Bun.hash.xxHash64(content + "---" + footerText + colorKey).toString(16);
     return [{ container, hash }];
   }
 
-  // Inject header into first text segment and footer into last text segment
+  // Inject header into first text segment
   const firstTextIdx = segments.findIndex((s) => s.type === "text");
-  const lastTextIdx = segments.findLastIndex((s) => s.type === "text");
 
   const enrichedSegments: RenderSegment[] = segments.map((seg, i) => {
     if (seg.type !== "text") return seg;
@@ -181,10 +181,12 @@ export function renderSchedule(
     currentLen = 0;
   }
 
+  const colorKey = accentColor != null ? `|c:${accentColor}` : "";
+
   function finalizeChunk(): void {
     flushTextToContainer();
     const raw = rawParts.join("\n");
-    const hash = Bun.hash.xxHash64(raw).toString(16);
+    const hash = Bun.hash.xxHash64(raw + colorKey).toString(16);
     chunks.push({ container: currentContainer, hash });
     currentContainer = makeContainer();
     rawParts = [];
