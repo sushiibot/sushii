@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import pino from "pino";
 
 import { DeploymentConfig } from "@/shared/infrastructure/config/config";
@@ -143,11 +143,7 @@ describe("GET /deployment/status", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /deployment/switch", () => {
-  let readyManager: ReturnType<typeof makeManager>;
-
-  beforeEach(() => {
-    readyManager = makeManager([{ id: 0, ready: true, shardList: [0] }]);
-  });
+  const readyManager = makeManager([{ id: 0, ready: true, shardList: [0] }]);
 
   async function postSwitch(
     app: ReturnType<typeof createMonitoringApp>,
@@ -182,7 +178,7 @@ describe("POST /deployment/switch", () => {
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body.error).toInclude("Invalid JSON");
+    expect(body.error as string).toInclude("Invalid JSON");
   });
 
   test("returns 400 for missing target", async () => {
@@ -195,7 +191,7 @@ describe("POST /deployment/switch", () => {
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body.error).toInclude("Invalid target");
+    expect(body.error as string).toInclude("Invalid target");
   });
 
   test("returns 400 for invalid target value", async () => {
@@ -217,7 +213,7 @@ describe("POST /deployment/switch", () => {
   });
 
   test("green instance can switch to blue and returns 200", async () => {
-    // green process, blue is active in DB → target: blue still succeeds (no target-must-match guard)
+    // green process, green is active in DB → switch to blue changes active from green to blue
     const app = await makeApp("green", "green");
     const res = await postSwitch(app, "blue");
 
@@ -238,6 +234,22 @@ describe("POST /deployment/switch", () => {
     expect(body.success).toBe(true);
     expect(body.previous_deployment).toBe("green");
     expect(body.new_deployment).toBe("blue");
+  });
+
+  test("returns 500 when setActiveDeployment throws", async () => {
+    const { service, repo } = await makeService("blue", "green");
+    // Make the repo throw on next setActive call
+    repo.setActive = async () => {
+      throw new Error("DB connection lost");
+    };
+    await service.start();
+
+    const app = createMonitoringApp(readyManager, [], service);
+    const res = await postSwitch(app, "blue");
+
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.error as string).toInclude("Failed to switch");
   });
 
   test("after switch, is_active reflects new state", async () => {

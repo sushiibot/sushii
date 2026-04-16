@@ -9,18 +9,15 @@ import type { DeploymentRepository } from "../domain/repositories/DeploymentRepo
 
 export class DeploymentService {
   private currentDeployment: Deployment | null = null;
-  private readonly processName: DeploymentName;
   private isStarted = false;
   private lastInactiveLogTime = 0;
 
   constructor(
     private readonly repository: DeploymentRepository,
     private readonly logger: Logger,
-    processName: DeploymentName,
+    private readonly processName: DeploymentName,
     private readonly deploymentConfig: DeploymentConfig,
-  ) {
-    this.processName = processName;
-  }
+  ) {}
 
   async start(): Promise<void> {
     if (this.isStarted) {
@@ -141,7 +138,7 @@ export class DeploymentService {
         { deployment: targetDeployment },
         "Deployment already set to target, no change needed",
       );
-      return { changed: false, deployment: targetDeployment, previousDeployment: targetDeployment };
+      return { changed: false, deployment: previousName, previousDeployment: previousName };
     }
 
     const newDeployment = this.currentDeployment.setTo(targetDeployment);

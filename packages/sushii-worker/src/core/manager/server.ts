@@ -42,10 +42,40 @@ const pinoLoggerMiddleware: MiddlewareHandler = async (c, next) => {
 };
 
 function isManagerReady(manager: ClusterManager): boolean {
-  const allSpawned =
-    manager.totalClusters > 0 &&
-    manager.clusters.size >= manager.totalClusters;
-  return allSpawned && Array.from(manager.clusters.values()).every((c) => c.ready);
+  if (manager.totalClusters <= 0 || manager.clusters.size < manager.totalClusters) {
+    return false;
+  }
+  for (const c of manager.clusters.values()) {
+    if (!c.ready) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function serializeClusterSummary(cluster: {
+  id: number;
+  ready: boolean;
+  shardList: number[];
+}) {
+  return { id: cluster.id, ready: cluster.ready, shards: cluster.shardList };
+}
+
+function serializeClusterDetail(cluster: {
+  restarts: { current: number; max: number; interval: number };
+  thread: unknown;
+}) {
+  return {
+    restarts: {
+      current: cluster.restarts.current,
+      max: cluster.restarts.max,
+      interval: cluster.restarts.interval,
+    },
+    process: {
+      pid: (cluster.thread as Child)?.process?.pid,
+      connected: (cluster.thread as Child)?.process?.connected,
+    },
+  };
 }
 
 function createHealthServer(manager: ClusterManager): Server<unknown> {
@@ -65,18 +95,8 @@ function createHealthServer(manager: ClusterManager): Server<unknown> {
       {
         status: allReady ? "healthy" : "unhealthy",
         clusters: Array.from(manager.clusters.values()).map((cluster) => ({
-          id: cluster.id,
-          shards: cluster.shardList,
-          ready: cluster.ready,
-          restarts: {
-            current: cluster.restarts.current,
-            max: cluster.restarts.max,
-            interval: cluster.restarts.interval,
-          },
-          process: {
-            pid: (cluster.thread as Child)?.process?.pid,
-            connected: (cluster.thread as Child)?.process?.connected,
-          },
+          ...serializeClusterSummary(cluster),
+          ...serializeClusterDetail(cluster),
         })),
         shards: {
           total: manager.totalShards,
@@ -122,17 +142,8 @@ export function createMonitoringApp(
         tracingSamplePercentage: config.tracing.samplePercentage,
       },
       clusters: Array.from(manager.clusters.values()).map((cluster) => ({
-        id: cluster.id,
-        ready: cluster.ready,
-        restarts: {
-          current: cluster.restarts.current,
-          max: cluster.restarts.max,
-          interval: cluster.restarts.interval,
-        },
-        process: {
-          pid: (cluster.thread as Child)?.process?.pid,
-          connected: (cluster.thread as Child)?.process?.connected,
-        },
+        ...serializeClusterSummary(cluster),
+        ...serializeClusterDetail(cluster),
       })),
       totalShards: manager.totalShards,
     });
@@ -151,11 +162,7 @@ export function createMonitoringApp(
       is_active: isActive,
       ready_to_switch: allReady,
       health: allReady ? "healthy" : "unhealthy",
-      clusters: Array.from(manager.clusters.values()).map((cluster) => ({
-        id: cluster.id,
-        ready: cluster.ready,
-        shards: cluster.shardList,
-      })),
+      clusters: Array.from(manager.clusters.values()).map(serializeClusterSummary),
       total_shards: manager.totalShards,
     });
   });
