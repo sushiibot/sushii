@@ -947,6 +947,7 @@ export const schedulesInAppPublic = appPublic.table(
       mode: "date",
     }),
     lastErrorReason: text("last_error_reason"),
+    accentColor: integer("accent_color"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
