@@ -539,6 +539,7 @@ export class DrizzleScheduleRepository
         event: schema.scheduleEventsInAppPublic,
         calendarId: schema.schedulesInAppPublic.calendarId,
         calendarTitle: schema.schedulesInAppPublic.calendarTitle,
+        accentColor: schema.schedulesInAppPublic.accentColor,
       })
       .from(schema.scheduleEventsInAppPublic)
       .innerJoin(
@@ -578,6 +579,7 @@ export class DrizzleScheduleRepository
       event: mapEvent(row.event),
       calendarId: row.calendarId,
       calendarTitle: row.calendarTitle,
+      accentColor: row.accentColor ?? null,
     }));
   }
 }

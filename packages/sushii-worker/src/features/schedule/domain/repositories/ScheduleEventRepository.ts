@@ -4,6 +4,7 @@ export interface ScheduleEventWithCalendar {
   event: ScheduleEvent;
   calendarId: string;
   calendarTitle: string;
+  accentColor: number | null;
 }
 
 export interface ScheduleEventRepository {

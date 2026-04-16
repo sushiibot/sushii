@@ -63,9 +63,11 @@ export class ScheduleCommand extends SlashCommandHandler {
     const truncated = upcoming.length > MAX_DISPLAYED_EVENTS;
     const displayed = truncated ? upcoming.slice(0, MAX_DISPLAYED_EVENTS) : upcoming;
 
-    const multipleCalendars = new Set(upcoming.map((e) => e.calendarId)).size > 1;
+    const calendarIds = new Set(upcoming.map((e) => e.calendarId));
+    const multipleCalendars = calendarIds.size > 1;
+    const accentColor = calendarIds.size === 1 ? (upcoming[0].accentColor ?? Color.Info) : Color.Info;
 
-    const container = new ContainerBuilder().setAccentColor(Color.Info);
+    const container = new ContainerBuilder().setAccentColor(accentColor);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Upcoming Events"));
     container.addSeparatorComponents(
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
