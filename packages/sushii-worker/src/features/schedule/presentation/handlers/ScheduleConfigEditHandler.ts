@@ -6,7 +6,6 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
-  SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
@@ -180,10 +179,8 @@ export class ScheduleConfigEditHandler {
         new TextDisplayBuilder().setContent(`${emojis.success} **Schedule updated**`),
       )
       .addSeparatorComponents(new SeparatorBuilder())
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(changeSummaryLines.join("\n")),
-        ),
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(changeSummaryLines.join("\n")),
       );
 
     await submit.reply({
