@@ -222,8 +222,9 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         : `Next sync ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`;
 
       const lines: string[] = [
-        `${emojis.schedule} **<#${sc.channelId}>** — ${sc.displayTitle}`,
-        `-# Google Calendar: ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  ${nextSyncText}`,
+        `${emojis.schedule} **${sc.displayTitle}**`,
+        `-# Posts to <#${sc.channelId}>  ·  Alerts to <#${sc.logChannelId}>`,
+        `-# Google Calendar: ${sc.calendarTitle}  ·  ${nextSyncText}`,
       ];
 
       if (sc.consecutiveFailures > 0) {
