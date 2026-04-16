@@ -51,24 +51,24 @@ function buildUserHeaderSection(
   targetUser: User,
   member: GuildMember | null,
 ): SectionBuilder {
-  const displayName = targetUser.globalName ?? targetUser.username;
-  const showUsername =
+  const hasGlobalName =
     targetUser.globalName !== null &&
     targetUser.globalName !== targetUser.username;
 
-  const title = showUsername
-    ? `### ${displayName} (\`${targetUser.username}\`)`
-    : `### ${displayName}`;
+  // If user has a global display name, show: DisplayName (username) — id
+  // Otherwise: username — id
+  const title = hasGlobalName
+    ? `### ${targetUser.globalName} (\`${targetUser.username}\`) — \`${targetUser.id}\``
+    : `### ${targetUser.username} — \`${targetUser.id}\``;
 
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
   const parts: string[] = [
-    `\`${targetUser.id}\``,
-    `Created <t:${createdTimestamp}:R>`,
+    `Created <t:${createdTimestamp}:f> (<t:${createdTimestamp}:R>)`,
   ];
 
   if (member?.joinedTimestamp) {
     const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
-    parts.push(`Joined <t:${joinedTimestamp}:R>`);
+    parts.push(`Joined <t:${joinedTimestamp}:f> (<t:${joinedTimestamp}:R>)`);
   }
 
   if (member?.nickname) {
@@ -91,7 +91,7 @@ function buildUserHeaderSection(
     }
   }
 
-  const content = `${title}\n${parts.join(" • ")}`;
+  const content = `${title}\n${parts.join("\n")}`;
 
   return new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
