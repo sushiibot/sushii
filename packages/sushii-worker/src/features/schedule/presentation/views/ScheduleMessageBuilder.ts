@@ -4,7 +4,6 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import Color from "@/utils/colors";
 import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 import { formatEventTimestamp } from "./ScheduleFormatting";
 
@@ -89,7 +88,7 @@ function buildSegments(
   const hasBoth = past.length > 0 && upcoming.length > 0;
 
   if (past.length > 0) {
-    const content = past.map((e) => formatEventLine(e)).join("\n") + (hasBoth ? "\n-# Past Events" : "");
+    const content = (hasBoth ? "\n-# Past Events\n" : "") + past.map((e) => formatEventLine(e)).join("\n");
     segments.push({ type: "text", content });
   }
 
@@ -115,6 +114,7 @@ export function renderSchedule(
   year: number,
   month: number,
   now: Date,
+  accentColor?: number | null,
 ): MessageChunk[] {
   const monthYearStr = MONTH_YEAR_FORMAT.format(new Date(year, month - 1));
 
@@ -132,7 +132,8 @@ export function renderSchedule(
 
   if (segments.length === 0) {
     const content = `${header}\n\n*No events this month.*`;
-    const container = new ContainerBuilder().setAccentColor(Color.Info);
+    const container = new ContainerBuilder();
+    if (accentColor != null) container.setAccentColor(accentColor);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText));
@@ -157,8 +158,14 @@ export function renderSchedule(
   enrichedSegments.push({ type: "text", content: footerText });
 
   // Pack segments into chunks
+  function makeContainer(): ContainerBuilder {
+    const c = new ContainerBuilder();
+    if (accentColor != null) c.setAccentColor(accentColor);
+    return c;
+  }
+
   const chunks: MessageChunk[] = [];
-  let currentContainer = new ContainerBuilder().setAccentColor(Color.Info);
+  let currentContainer = makeContainer();
   let currentLines: string[] = [];
   let currentLen = 0;
   let rawParts: string[] = [];
@@ -179,7 +186,7 @@ export function renderSchedule(
     const raw = rawParts.join("\n");
     const hash = Bun.hash.xxHash64(raw).toString(16);
     chunks.push({ container: currentContainer, hash });
-    currentContainer = new ContainerBuilder().setAccentColor(Color.Info);
+    currentContainer = makeContainer();
     rawParts = [];
   }
 

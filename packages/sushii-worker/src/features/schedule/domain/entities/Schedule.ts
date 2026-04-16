@@ -12,6 +12,7 @@ export interface Schedule {
   consecutiveFailures: number;
   lastErrorAt: Date | null;
   lastErrorReason: string | null;
+  accentColor: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

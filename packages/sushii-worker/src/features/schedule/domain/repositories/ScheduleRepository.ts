@@ -5,6 +5,7 @@ export interface UpdateScheduleSettingsData {
   channelId?: bigint;
   logChannelId?: bigint;
   nextPollAt?: Date;
+  accentColor?: number | null;
 }
 
 export interface UpsertScheduleData {
@@ -17,6 +18,7 @@ export interface UpsertScheduleData {
   displayTitle: string;
   pollIntervalSec?: number;
   nextPollAt: Date;
+  accentColor?: number | null;
 }
 
 export interface ScheduleRepository {

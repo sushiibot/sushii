@@ -14,9 +14,10 @@ export interface EditScheduleChannelInput {
   newDisplayTitle: string;
   newChannelId: bigint;
   newLogChannelId: bigint;
+  newAccentColor?: number | null;
 }
 
-export type EditScheduleChangedField = "displayTitle" | "channelId" | "logChannelId";
+export type EditScheduleChangedField = "displayTitle" | "channelId" | "logChannelId" | "accentColor";
 
 export interface EditScheduleResult {
   schedule: Schedule;
@@ -35,6 +36,7 @@ export interface ConfigureScheduleChannelInput {
   configuredByUserId: bigint;
   calendarInput: string;
   title: string;
+  accentColor?: number | null;
 }
 
 const MAX_SCHEDULES_PER_GUILD = 3;
@@ -111,6 +113,7 @@ export class ScheduleChannelService {
       configuredByUserId: input.configuredByUserId,
       calendarTitle,
       displayTitle,
+      accentColor: input.accentColor ?? null,
       nextPollAt: new Date(),
     });
 
@@ -213,6 +216,11 @@ export class ScheduleChannelService {
     if (input.newLogChannelId !== existing.logChannelId) {
       patch.logChannelId = input.newLogChannelId;
       changedFields.push("logChannelId");
+    }
+
+    if ("newAccentColor" in input && input.newAccentColor !== existing.accentColor) {
+      patch.accentColor = input.newAccentColor ?? null;
+      changedFields.push("accentColor");
     }
 
     if (changedFields.length === 0) {

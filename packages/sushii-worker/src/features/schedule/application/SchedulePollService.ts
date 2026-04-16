@@ -250,6 +250,7 @@ export class SchedulePollService {
       year,
       month,
       now,
+      schedule.accentColor,
     );
 
     this.logger.debug(
@@ -294,6 +295,7 @@ export class SchedulePollService {
       year,
       month,
       now,
+      schedule.accentColor,
     );
     await this.discordPublisher.archiveMonth(schedule, year, month, unarchivedMessages, archiveChunks);
   }

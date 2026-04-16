@@ -34,6 +34,7 @@ function mapSchedule(row: typeof schema.schedulesInAppPublic.$inferSelect): Sche
     consecutiveFailures: row.consecutiveFailures,
     lastErrorAt: row.lastErrorAt,
     lastErrorReason: row.lastErrorReason,
+    accentColor: row.accentColor ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -135,6 +136,7 @@ export class DrizzleScheduleRepository
         displayTitle: data.displayTitle,
         pollIntervalSec: data.pollIntervalSec ?? 120,
         nextPollAt: data.nextPollAt,
+        accentColor: data.accentColor ?? null,
         consecutiveFailures: 0,
         createdAt: now,
         updatedAt: now,
@@ -149,6 +151,7 @@ export class DrizzleScheduleRepository
           displayTitle: data.displayTitle,
           pollIntervalSec: data.pollIntervalSec ?? 120,
           nextPollAt: data.nextPollAt,
+          accentColor: data.accentColor ?? null,
           syncToken: null,
           consecutiveFailures: 0,
           lastErrorAt: null,
@@ -178,6 +181,8 @@ export class DrizzleScheduleRepository
     if (data.channelId !== undefined) set.channelId = data.channelId;
     if (data.logChannelId !== undefined) set.logChannelId = data.logChannelId;
     if (data.nextPollAt !== undefined) set.nextPollAt = data.nextPollAt;
+    // Use `in` (not `!== undefined`) because accentColor can be explicitly null (clear color)
+    if ("accentColor" in data) set.accentColor = data.accentColor ?? null;
 
     const rows = await this.db
       .update(schema.schedulesInAppPublic)

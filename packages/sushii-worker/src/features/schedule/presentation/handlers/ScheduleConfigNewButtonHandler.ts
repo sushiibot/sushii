@@ -22,6 +22,7 @@ import type { ScheduleChannelService } from "../../application/ScheduleChannelSe
 import { formatPollInterval } from "../views/ScheduleFormatting";
 import {
   makeContainer,
+  parseHexColor,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
 } from "../ScheduleConfigConstants";
@@ -84,6 +85,18 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_LOG_CHANNEL)
               .addChannelTypes(ChannelType.GuildText),
           ),
+        new LabelBuilder()
+          .setLabel("Accent color (optional)")
+          .setDescription("Hex code for the schedule accent bar — leave blank for no accent color")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_COLOR)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMinLength(0)
+              .setMaxLength(7)
+              .setPlaceholder("#96cdfb"),
+          ),
       );
 
     await interaction.showModal(modal);
@@ -113,6 +126,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
 
     const calendarInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR);
     const title = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME);
+    const colorInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_COLOR);
 
     const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CHANNEL, true, [ChannelType.GuildText]);
     const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText]);
@@ -127,6 +141,12 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       return;
     }
 
+    const colorResult = parseHexColor(colorInput);
+    if (colorResult.err) {
+      await submit.update(makeContainer(`${emojis.fail} ${colorResult.val}`, Color.Error));
+      return;
+    }
+
     const result = await this.scheduleChannelService.configure({
       guildId: BigInt(submit.guildId),
       channelId: BigInt(channel.id),
@@ -134,6 +154,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       configuredByUserId: BigInt(submit.user.id),
       calendarInput,
       title,
+      accentColor: colorResult.val,
     });
 
     if (result.err) {

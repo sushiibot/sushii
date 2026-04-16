@@ -19,7 +19,9 @@ import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import {
+  formatHexColor,
   makeContainer,
+  parseHexColor,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
   SCHEDULE_CONFIG_OPTIONS,
@@ -84,6 +86,21 @@ export class ScheduleConfigEditHandler {
               .addChannelTypes(ChannelType.GuildText)
               .setDefaultChannels([existing.logChannelId.toString()]),
           ),
+        new LabelBuilder()
+          .setLabel("Accent color (optional)")
+          .setDescription("Hex code for the schedule accent bar — leave blank for no accent color")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_COLOR)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMinLength(0)
+              .setMaxLength(7)
+              .setPlaceholder("#96cdfb")
+              .setValue(
+                existing.accentColor != null ? formatHexColor(existing.accentColor) : "",
+              ),
+          ),
       );
 
     await interaction.showModal(modal);
@@ -107,6 +124,7 @@ export class ScheduleConfigEditHandler {
     }
 
     const newTitle = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_NAME);
+    const colorInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_COLOR);
     const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_CHANNEL, true, [ChannelType.GuildText]);
     const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText]);
 
@@ -118,6 +136,12 @@ export class ScheduleConfigEditHandler {
       return;
     }
 
+    const colorResult = parseHexColor(colorInput);
+    if (colorResult.err) {
+      await submit.reply(makeContainer(`${emojis.fail} ${colorResult.val}`, Color.Error, true));
+      return;
+    }
+
     const result = await this.scheduleChannelService.edit({
       guildId: BigInt(submit.guildId),
       channelId: BigInt(channelIdStr),
@@ -125,6 +149,7 @@ export class ScheduleConfigEditHandler {
       newDisplayTitle: newTitle,
       newChannelId: BigInt(channel.id),
       newLogChannelId: BigInt(logChannel.id),
+      newAccentColor: colorResult.val,
     });
 
     if (result.err) {
@@ -143,6 +168,10 @@ export class ScheduleConfigEditHandler {
     }
     if (changedFields.includes("logChannelId")) {
       changeSummaryLines.push(`**Log channel** → <#${schedule.logChannelId}>`);
+    }
+    if (changedFields.includes("accentColor")) {
+      const colorStr = schedule.accentColor != null ? formatHexColor(schedule.accentColor) : "none";
+      changeSummaryLines.push(`**Accent color** → ${colorStr}`);
     }
 
     const container = new ContainerBuilder()
