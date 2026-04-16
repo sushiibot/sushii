@@ -1,5 +1,5 @@
 import type { Client, GuildTextBasedChannel } from "discord.js";
-import { ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
+import { ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, time, TimestampStyles } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
@@ -19,6 +19,45 @@ import type { ScheduleMetrics } from "@/features/schedule/infrastructure/metrics
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const PUBLISHER_EMOJI_NAMES = ["success", "warning", "trash", "message_edit"] as const;
+
+function formatEventTs(event: ScheduleEvent): string {
+  const date = event.getDate();
+  if (!date) return "";
+  return event.isAllDay
+    ? time(date, TimestampStyles.ShortDate)
+    : time(date, TimestampStyles.ShortDateShortTime);
+}
+
+/**
+ * Returns diff lines for an updated event: strikethrough old values next to new ones.
+ * Only includes lines for fields that actually changed.
+ * The returned lines slot in after the action header line.
+ */
+function buildUpdateDiffLines(prev: ScheduleEvent, next: ScheduleEvent): string[] {
+  const lines: string[] = [];
+
+  const titleChanged = prev.summary !== next.summary;
+  if (titleChanged) {
+    lines.push(`-# ~~${prev.summary}~~`);
+  }
+
+  const prevDate = prev.getDate();
+  const nextDate = next.getDate();
+  const timeChanged =
+    prevDate?.getTime() !== nextDate?.getTime() || prev.isAllDay !== next.isAllDay;
+
+  if (timeChanged) {
+    const prevTs = prevDate ? formatEventTs(prev) : "unknown time";
+    const nextTs = nextDate ? formatEventTs(next) : "unknown time";
+    const relTs = nextDate ? `  (${time(nextDate, TimestampStyles.RelativeTime)})` : "";
+    lines.push(`~~${prevTs}~~ → ${nextTs}${relTs}`);
+  } else if (nextDate) {
+    const absTs = formatEventTs(next);
+    lines.push(`${absTs}  (${time(nextDate, TimestampStyles.RelativeTime)})`);
+  }
+
+  return lines;
+}
 
 function isDiscordUnknownMessageError(err: unknown): boolean {
   return (
@@ -321,41 +360,8 @@ export class DiscordSchedulePublisher {
     changedItems: CalendarEventItem[],
     previousEvents: Map<string, ScheduleEvent>,
   ): Promise<void> {
-    const lines: string[] = [];
     const changes = classifyChanges(changedItems, previousEvents);
-    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
-
-    for (const change of changes) {
-      if (change.kind === "removed") {
-        const prevEvent = change.previousEvent;
-        const prevTimePart = prevEvent ? formatEventTimestamp(prevEvent) : "";
-        const summary = prevEvent?.summary ?? change.item.summary ?? "(unknown event)";
-        const cancelLabel = prevTimePart ? `${prevTimePart} ${summary}` : summary;
-        lines.push(`${emojis.trash} Event removed: ${cancelLabel}`);
-      } else {
-        const event = toScheduleEvent(change.item);
-        const timePart = formatEventTimestamp(event);
-
-        const issue = calendarItemIssues(change.item);
-        const hasIssues = issue !== null;
-        const titleDisplay = issue
-          ? `*(${issue.kind.replace("_", " ")})*`
-          : event.summary;
-        const label = timePart ? `${timePart} ${titleDisplay}` : titleDisplay;
-
-        if (issue) {
-          lines.push(
-            `${emojis.warning} Event ${change.kind} (${issue.label.toLowerCase()}): ${label}`,
-          );
-        } else if (change.kind === "updated") {
-          lines.push(`${emojis.message_edit} Event updated: ${label}`);
-        } else {
-          lines.push(`${emojis.success} Event added: ${label}`);
-        }
-      }
-    }
-
-    if (lines.length === 0) return;
+    if (changes.length === 0) return;
 
     const logChannel = await this.fetchTextChannel(
       channel.logChannelId.toString(),
@@ -363,12 +369,119 @@ export class DiscordSchedulePublisher {
     );
     if (!logChannel) return;
 
-    const raw = lines.join("\n");
-    const content = raw.length > 4000 ? raw.slice(0, 4000) + "\n…(truncated)" : raw;
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
 
-    const container = new ContainerBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
+    const container = new ContainerBuilder();
+    if (channel.accentColor) {
+      container.setAccentColor(channel.accentColor);
+    }
+
+    // Header: schedule name + counts summary
+    const addedCount = changes.filter((c) => c.kind === "added").length;
+    const updatedCount = changes.filter((c) => c.kind === "updated").length;
+    const removedCount = changes.filter((c) => c.kind === "removed").length;
+
+    const countParts: string[] = [];
+    if (addedCount > 0) countParts.push(`${addedCount} added`);
+    if (updatedCount > 0) countParts.push(`${updatedCount} updated`);
+    if (removedCount > 0) countParts.push(`${removedCount} removed`);
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `## ${channel.displayTitle}\n-# ${countParts.join("  ·  ")}`,
+      ),
     );
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+    );
+
+    // Per-event entries
+    for (const change of changes) {
+      const lines: string[] = [];
+
+      if (change.kind === "removed") {
+        const prevEvent = change.previousEvent;
+        const summary = prevEvent?.summary ?? change.item.summary ?? "(unknown event)";
+
+        let titleLine: string;
+        if (prevEvent?.location) {
+          try {
+            const safeUrl = prevEvent.location.replace(/\)/g, "%29");
+            new URL(prevEvent.location);
+            const escapedTitle = summary.replace(/[\[\]]/g, "\\$&");
+            titleLine = `[${escapedTitle}](${safeUrl})`;
+          } catch {
+            titleLine = summary;
+          }
+        } else {
+          titleLine = summary;
+        }
+
+        lines.push(`${emojis.trash} **Removed** — **${titleLine}**`);
+
+        if (prevEvent) {
+          const date = prevEvent.getDate();
+          if (date) {
+            const absTs = prevEvent.isAllDay
+              ? time(date, TimestampStyles.ShortDate)
+              : time(date, TimestampStyles.ShortDateShortTime);
+            lines.push(`-# ${absTs}`);
+          }
+        }
+      } else {
+        const event = toScheduleEvent(change.item);
+        const issue = calendarItemIssues(change.item);
+
+        // Build action label with emoji
+        let actionEmoji: string;
+        let actionLabel: string;
+        if (issue) {
+          actionEmoji = emojis.warning;
+          actionLabel = `${change.kind === "updated" ? "Updated" : "Added"} *(${issue.label.toLowerCase()})*`;
+        } else if (change.kind === "updated") {
+          actionEmoji = emojis.message_edit;
+          actionLabel = "Updated";
+        } else {
+          actionEmoji = emojis.success;
+          actionLabel = "Added";
+        }
+
+        // location is the event link (e.g. YouTube/stream URL) — use it for the title hyperlink.
+        // Skip link if there's an issue since the title may be missing.
+        let titleLine: string;
+        if (!issue && event.location) {
+          try {
+            const safeUrl = event.location.replace(/\)/g, "%29");
+            new URL(event.location);
+            const escapedTitle = event.summary.replace(/[\[\]]/g, "\\$&");
+            titleLine = `[${escapedTitle}](${safeUrl})`;
+          } catch {
+            titleLine = event.summary;
+          }
+        } else if (issue) {
+          titleLine = `*(${issue.kind.replace(/_/g, " ")})*`;
+        } else {
+          titleLine = event.summary;
+        }
+
+        lines.push(`${actionEmoji} **${actionLabel}** — **${titleLine}**`);
+
+        // For updates, show a before/after diff; for adds, just show the timestamp.
+        if (change.kind === "updated" && change.previousEvent) {
+          lines.push(...buildUpdateDiffLines(change.previousEvent, event));
+        } else {
+          const date = event.getDate();
+          if (date) {
+            const absTs = formatEventTs(event);
+            lines.push(`${absTs}  (${time(date, TimestampStyles.RelativeTime)})`);
+          }
+        }
+      }
+
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(lines.join("\n")),
+      );
+    }
 
     try {
       await logChannel.send({
