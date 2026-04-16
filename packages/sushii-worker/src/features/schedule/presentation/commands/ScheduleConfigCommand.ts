@@ -212,12 +212,18 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
     );
 
+    const now = Date.now();
+
     for (let i = 0; i < channels.length; i++) {
       const sc = channels[i];
 
+      const nextSyncText = sc.nextPollAt.getTime() <= now
+        ? "Syncing now"
+        : `Next sync ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`;
+
       const lines: string[] = [
         `${emojis.schedule} **<#${sc.channelId}>** — ${sc.displayTitle}`,
-        `-# Google Calendar: ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  Syncs ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`,
+        `-# Google Calendar: ${sc.calendarTitle}  ·  ${emojis.bell} <#${sc.logChannelId}>  ·  ${nextSyncText}`,
       ];
 
       if (sc.consecutiveFailures > 0) {
