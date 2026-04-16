@@ -18,7 +18,7 @@ import type { ScheduleEventRepository } from "../../domain/repositories/Schedule
 
 const UPCOMING_DAYS = 21;
 const MAX_DISPLAYED_EVENTS = 18;
-const RELATIVE_TIMESTAMP_DAYS = 3;
+const FOOTER_TEXT = "-# All times are shown in your local timezone";
 
 export class ScheduleCommand extends SlashCommandHandler {
   serverOnly = true;
@@ -76,19 +76,24 @@ export class ScheduleCommand extends SlashCommandHandler {
       const date = event.getDate();
       if (!date) continue; // defensive — ensured non-null by SQL filter
 
-      const titleLine = event.url
-        ? `**[${event.summary}](${event.url})**`
-        : `**${event.summary}**`;
+      let titleLine: string;
+      if (event.location) {
+        try {
+          const safeLocation = event.location.replace(/\)/g, "%29");
+          const escapedSummary = event.summary.replace(/[\[\]]/g, "\\$&");
+          new URL(event.location);
+          titleLine = `**[${escapedSummary}](${safeLocation})**`;
+        } catch {
+          titleLine = `**${event.summary}**`;
+        }
+      } else {
+        titleLine = `**${event.summary}**`;
+      }
 
       const absTimestamp = event.isAllDay
         ? time(date, TimestampStyles.LongDate)
         : time(date, TimestampStyles.LongDateTime);
-
-      const msUntil = date.getTime() - now.getTime();
-      const isNear = msUntil >= 0 && msUntil < RELATIVE_TIMESTAMP_DAYS * 24 * 60 * 60 * 1000;
-      const timestampStr = isNear
-        ? `${absTimestamp} ${time(date, TimestampStyles.RelativeTime)}`
-        : absTimestamp;
+      const timestampStr = `${absTimestamp} (${time(date, TimestampStyles.RelativeTime)})`;
 
       const lines: string[] = [titleLine, timestampStr];
 
@@ -106,24 +111,19 @@ export class ScheduleCommand extends SlashCommandHandler {
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(lines.join("\n")),
       );
-
-      if (i < displayed.length - 1) {
-        container.addSeparatorComponents(
-          new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
-        );
-      }
     }
 
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+    );
+
+    const footerParts: string[] = [FOOTER_TEXT];
     if (truncated) {
-      container.addSeparatorComponents(
-        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
-      );
-      container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          `-# …and ${upcoming.length - MAX_DISPLAYED_EVENTS} more events in the next ${UPCOMING_DAYS} days`,
-        ),
-      );
+      footerParts.push(`-# …and ${upcoming.length - MAX_DISPLAYED_EVENTS} more events in the next ${UPCOMING_DAYS} days`);
     }
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(footerParts.join("\n")),
+    );
 
     await interaction.reply({
       components: [container],
