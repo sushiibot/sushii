@@ -1,3 +1,4 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import {
   ButtonInteraction,
   ChannelSelectMenuBuilder,
@@ -26,6 +27,18 @@ import {
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
 } from "../ScheduleConfigConstants";
+
+const tracer = opentelemetry.trace.getTracer("schedule");
+
+/** Run fn inside a named span, always ending it regardless of outcome. */
+const runSpan = <T>(name: string, fn: () => Promise<T>): Promise<T> =>
+  tracer.startActiveSpan(name, async (s) => {
+    try {
+      return await fn();
+    } finally {
+      s.end();
+    }
+  });
 
 export class ScheduleConfigNewButtonHandler extends ButtonHandler {
   readonly customIDMatch = match(SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON);
@@ -56,7 +69,8 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
-              .setPlaceholder("abc123@group.calendar.google.com"),
+              .setPlaceholder("abc123@group.calendar.google.com")
+              .setValue(""),
           ),
         new LabelBuilder()
           .setLabel("Schedule name")
@@ -67,7 +81,8 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
               .setMinLength(1)
-              .setPlaceholder("Group Schedule"),
+              .setPlaceholder("Group Schedule")
+              .setValue(""),
           ),
         new LabelBuilder()
           .setLabel("Public schedule channel")
@@ -95,22 +110,29 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setRequired(false)
               .setMinLength(0)
               .setMaxLength(7)
-              .setPlaceholder("#96cdfb"),
+              .setPlaceholder("#96cdfb")
+              .setValue(""),
           ),
       );
 
     await interaction.showModal(modal);
 
-    let submit;
-    try {
-      submit = await interaction.awaitModalSubmit({
-        time: 5 * 60 * 1000,
-        filter: (i) =>
-          i.user.id === interaction.user.id &&
-          i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
-      });
-    } catch {
-      // User dismissed the modal or it timed out — nothing to do
+    // Span covers the full wait so we can see how long users take to fill the form.
+    const submit = await runSpan("schedule.config.new.modal_await", async () => {
+      try {
+        return await interaction.awaitModalSubmit({
+          time: 5 * 60 * 1000,
+          filter: (i) =>
+            i.user.id === interaction.user.id &&
+            i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
+        });
+      } catch {
+        // User dismissed the modal or it timed out — nothing to do
+        return null;
+      }
+    });
+
+    if (!submit) {
       return;
     }
 
@@ -124,97 +146,127 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       throw new Error("Modal should be from a button on a message");
     }
 
-    const calendarInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR);
-    const title = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME);
-    const colorInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_COLOR);
+    // Extract guildId as a const so TypeScript retains the non-null narrowing inside async closures.
+    const guildId = submit.guildId;
 
-    const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CHANNEL, true, [ChannelType.GuildText]);
-    const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText]);
-
-    const channel = channels?.first();
-    const logChannel = logChannels?.first();
-
-    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
-
-    if (!channel || !logChannel) {
-      await submit.update(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error));
-      return;
-    }
-
-    const colorResult = parseHexColor(colorInput);
-    if (colorResult.err) {
-      await submit.update(makeContainer(`${emojis.fail} ${colorResult.val}`, Color.Error));
-      return;
-    }
-
-    const result = await this.scheduleChannelService.configure({
-      guildId: BigInt(submit.guildId),
-      channelId: BigInt(channel.id),
-      logChannelId: BigInt(logChannel.id),
-      configuredByUserId: BigInt(submit.user.id),
-      calendarInput,
-      title,
-      accentColor: colorResult.val,
-    });
-
-    if (result.err) {
-      await submit.update(makeContainer(`${emojis.fail} ${result.val}`, Color.Error));
-      return;
-    }
-
-    const sc = result.val;
-    const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
-
-    const container = new ContainerBuilder()
-      .setAccentColor(Color.Success)
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
-      )
-      .addSeparatorComponents(new SeparatorBuilder())
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          `**Channel**\n<#${sc.channelId}>\n**Log channel**\n<#${sc.logChannelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
-        ),
-      )
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
-      );
-
-    await submit.update({
-      components: [container],
-      flags: MessageFlags.IsComponentsV2,
-      allowedMentions: { parse: [] },
-    });
-
-    // Post confirmation to log channel (best-effort — never fail the command reply)
-    try {
-      const fetchedLogChannel = await submit.client.channels.fetch(sc.logChannelId.toString());
-      if (fetchedLogChannel?.isTextBased() && !fetchedLogChannel.isDMBased()) {
-        const logContainer = new ContainerBuilder()
-          .setAccentColor(Color.Success)
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
-          )
-          .addSeparatorComponents(new SeparatorBuilder())
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-              `**Channel**\n<#${sc.channelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
-            ),
-          )
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
-          );
-        await fetchedLogChannel.send({
-          components: [logContainer],
-          flags: MessageFlags.IsComponentsV2,
-          allowedMentions: { parse: [] },
+    await tracer.startActiveSpan(
+      "schedule.config.new.modal_submit",
+      async (submitSpan) => {
+        submitSpan.setAttributes({
+          "discord.interaction.id": submit.id,
+          "user.id": submit.user.id,
+          "guild.id": guildId,
         });
-      }
-    } catch (err) {
-      this.logger.warn(
-        { err, logChannelId: sc.logChannelId.toString() },
-        "Failed to post configuration confirmation to log channel — check bot permissions",
-      );
-    }
+
+        try {
+          // deferUpdate() + editReply() instead of update(): the button lives on an IsComponentsV2
+          // message and Discord returns 10062 for type-7 UPDATE_MESSAGE responses in that context.
+          // deferUpdate() (type 6) acknowledges immediately; editReply() PATCHes the message via
+          // the webhook endpoint which handles IsComponentsV2 correctly.
+          await runSpan("schedule.config.new.defer_update", () => submit.deferUpdate());
+
+          const calendarInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR);
+          const title = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME);
+          const colorInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_COLOR);
+
+          const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CHANNEL, true, [ChannelType.GuildText]);
+          const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText]);
+
+          const channel = channels?.first();
+          const logChannel = logChannels?.first();
+
+          const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
+
+          if (!channel || !logChannel) {
+            await submit.editReply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error));
+            return;
+          }
+
+          const colorResult = parseHexColor(colorInput);
+          if (colorResult.err) {
+            await submit.editReply(makeContainer(`${emojis.fail} ${colorResult.val}`, Color.Error));
+            return;
+          }
+
+          const result = await this.scheduleChannelService.configure({
+            guildId: BigInt(guildId),
+            channelId: BigInt(channel.id),
+            logChannelId: BigInt(logChannel.id),
+            configuredByUserId: BigInt(submit.user.id),
+            calendarInput,
+            title,
+            accentColor: colorResult.val,
+          });
+
+          if (result.err) {
+            await submit.editReply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error));
+            return;
+          }
+
+          const sc = result.val;
+          const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
+
+          const container = new ContainerBuilder()
+            .setAccentColor(Color.Success)
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
+            )
+            .addSeparatorComponents(new SeparatorBuilder())
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(
+                `**Channel**\n<#${sc.channelId}>\n**Log channel**\n<#${sc.logChannelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
+              ),
+            )
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
+            );
+
+          await runSpan("schedule.config.new.edit_reply", () =>
+            submit.editReply({
+              components: [container],
+              flags: MessageFlags.IsComponentsV2,
+              allowedMentions: { parse: [] },
+            }),
+          );
+
+          // Post confirmation to log channel (best-effort — never fail the command reply)
+          try {
+            const fetchedLogChannel = await submit.client.channels.fetch(sc.logChannelId.toString());
+            if (fetchedLogChannel?.isTextBased() && !fetchedLogChannel.isDMBased()) {
+              const logContainer = new ContainerBuilder()
+                .setAccentColor(Color.Success)
+                .addTextDisplayComponents(
+                  new TextDisplayBuilder().setContent(`${emojis.success} **Schedule channel configured**`),
+                )
+                .addSeparatorComponents(new SeparatorBuilder())
+                .addTextDisplayComponents(
+                  new TextDisplayBuilder().setContent(
+                    `**Channel**\n<#${sc.channelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
+                  ),
+                )
+                .addTextDisplayComponents(
+                  new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
+                );
+              await fetchedLogChannel.send({
+                components: [logContainer],
+                flags: MessageFlags.IsComponentsV2,
+                allowedMentions: { parse: [] },
+              });
+            }
+          } catch (err) {
+            this.logger.warn(
+              { err, logChannelId: sc.logChannelId.toString() },
+              "Failed to post configuration confirmation to log channel — check bot permissions",
+            );
+          }
+        } catch (err) {
+          submitSpan.recordException(err as Error);
+          submitSpan.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        } finally {
+          submitSpan.end();
+        }
+      },
+    );
   }
 }
