@@ -50,12 +50,6 @@ export class SpamActionService {
       deletedMessageCount += ids.length;
     }
 
-    // Start bulk deletes immediately while member fetch is in flight
-    const deletePromises = Array.from(spamMessages.entries()).map(
-      ([channelId, messageIds]) =>
-        this.bulkDeleteSpamMessages(guild, channelId, messageIds),
-    );
-
     // Let API errors throw — only treat a missing member as a soft failure
     const member = await guild.members.fetch(userId).catch((err: unknown) => {
       if (
@@ -69,28 +63,40 @@ export class SpamActionService {
 
     const reason = `[AutoMod] Spam: same message sent to ${channelCount} channels within ${SpamDetectionService.SPAM_WINDOW_MS / 1000} seconds`;
 
-    // Best-effort: run all actions concurrently; log any that fail without blocking others
-    const results = await Promise.allSettled([
-      ...deletePromises,
-      this.applySpamTimeout(
-        member,
-        guildId,
-        userId,
-        username,
-        channelCount,
-        deletedMessageCount,
-        reason,
-      ),
-    ]);
+    await this.applySpamTimeout(
+      member,
+      guildId,
+      userId,
+      username,
+      channelCount,
+      deletedMessageCount,
+      reason,
+    );
 
-    for (const result of results) {
+    const deleteResults = await Promise.allSettled(
+      Array.from(spamMessages.entries()).map(([channelId, messageIds]) =>
+        this.bulkDeleteSpamMessages(guild, channelId, messageIds),
+      ),
+    );
+
+    for (const result of deleteResults) {
       if (result.status === "rejected") {
         this.logger.warn(
           { err: result.reason, guildId, userId },
-          "Spam action partially failed",
+          "Failed to delete spam messages",
         );
       }
     }
+
+    // After timeout lands, sweep the same channels for any matching messages
+    // from this user that arrived during the timeout window
+    deletedMessageCount += await this.sweepRemainingSpamMessages(
+      guild,
+      guildId,
+      userId,
+      spamMessages,
+      spamContent,
+    );
 
     if (alertsChannelId) {
       // Fire-and-forget: log on failure but don't interrupt the action
@@ -207,6 +213,79 @@ export class SpamActionService {
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
     });
+  }
+
+  private async sweepRemainingSpamMessages(
+    guild: Guild,
+    guildId: string,
+    userId: string,
+    spamMessages: Map<string, string[]>,
+    spamContent: string | null,
+  ): Promise<number> {
+    const sweepResults = await Promise.allSettled(
+      Array.from(spamMessages.entries()).map(([channelId, knownIds]) =>
+        this.sweepChannel(guild, channelId, userId, knownIds, spamContent),
+      ),
+    );
+
+    let additionalCount = 0;
+    for (const result of sweepResults) {
+      if (result.status === "fulfilled") {
+        additionalCount += result.value;
+      } else {
+        this.logger.warn(
+          { err: result.reason, guildId, userId },
+          "Failed to sweep remaining spam messages",
+        );
+      }
+    }
+
+    if (additionalCount > 0) {
+      this.logger.info(
+        { guildId, userId, additionalCount },
+        "Deleted additional spam messages found after timeout",
+      );
+    }
+
+    return additionalCount;
+  }
+
+  private async sweepChannel(
+    guild: Guild,
+    channelId: string,
+    userId: string,
+    knownIds: string[],
+    spamContent: string | null,
+  ): Promise<number> {
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+      return 0;
+    }
+
+    const knownSet = new Set(knownIds);
+    const recent = await channel.messages.fetch({ limit: 20 });
+
+    const toDelete = recent
+      .filter((msg) => {
+        if (msg.author.id !== userId) {
+          return false;
+        }
+        if (knownSet.has(msg.id)) {
+          return false;
+        }
+        if (spamContent !== null) {
+          return msg.content === spamContent;
+        }
+        return true;
+      })
+      .map((msg) => msg.id);
+
+    if (toDelete.length === 0) {
+      return 0;
+    }
+
+    await this.bulkDeleteSpamMessages(guild, channelId, toDelete);
+    return toDelete.length;
   }
 
   private async bulkDeleteSpamMessages(
