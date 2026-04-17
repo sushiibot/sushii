@@ -201,8 +201,8 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             return;
           }
 
-          const sc = result.val;
-          const intervalDisplay = formatPollInterval(sc.pollIntervalSec);
+          const schedule = result.val;
+          const intervalDisplay = formatPollInterval(schedule.pollIntervalSec);
 
           const container = new ContainerBuilder()
             .setAccentColor(Color.Success)
@@ -212,7 +212,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             .addSeparatorComponents(new SeparatorBuilder())
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent(
-                `**Channel**\n<#${sc.channelId}>\n**Log channel**\n<#${sc.logChannelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
+                `**Channel**\n<#${schedule.channelId}>\n**Log channel**\n<#${schedule.logChannelId}>\n**Name**\n${schedule.displayTitle}\n**Google Calendar**\n${schedule.calendarTitle}`,
               ),
             )
             .addTextDisplayComponents(
@@ -228,7 +228,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
 
           // Post confirmation to log channel (best-effort — never fail the command reply)
           try {
-            const fetchedLogChannel = await submit.client.channels.fetch(sc.logChannelId.toString());
+            const fetchedLogChannel = await submit.client.channels.fetch(schedule.logChannelId.toString());
             if (fetchedLogChannel?.isTextBased() && !fetchedLogChannel.isDMBased()) {
               const logContainer = new ContainerBuilder()
                 .setAccentColor(Color.Success)
@@ -238,7 +238,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
                 .addSeparatorComponents(new SeparatorBuilder())
                 .addTextDisplayComponents(
                   new TextDisplayBuilder().setContent(
-                    `**Channel**\n<#${sc.channelId}>\n**Name**\n${sc.displayTitle}\n**Google Calendar**\n${sc.calendarTitle}`,
+                    `**Channel**\n<#${schedule.channelId}>\n**Name**\n${schedule.displayTitle}\n**Google Calendar**\n${schedule.calendarTitle}`,
                   ),
                 )
                 .addTextDisplayComponents(
@@ -252,7 +252,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             }
           } catch (err) {
             this.logger.warn(
-              { err, logChannelId: sc.logChannelId.toString() },
+              { err, logChannelId: schedule.logChannelId.toString() },
               "Failed to post configuration confirmation to log channel — check bot permissions",
             );
           }
