@@ -48,8 +48,11 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       return;
     }
 
+    // Unique per open so Discord never serves a cached version of this modal.
+    const modalCustomId = `${SCHEDULE_CONFIG_CUSTOM_IDS.MODAL}:${Date.now().toString(36)}`;
+
     const modal = new ModalBuilder()
-      .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL)
+      .setCustomId(modalCustomId)
       .setTitle("Add Schedule Channel")
       .addComponents(
         new LabelBuilder()
@@ -60,8 +63,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
-              .setPlaceholder("abc123@group.calendar.google.com")
-              .setValue(""),
+              .setPlaceholder("abc123@group.calendar.google.com"),
           ),
         new LabelBuilder()
           .setLabel("Schedule name")
@@ -72,8 +74,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
               .setMinLength(1)
-              .setPlaceholder("Group Schedule")
-              .setValue(""),
+              .setPlaceholder("Group Schedule"),
           ),
         new LabelBuilder()
           .setLabel("Public schedule channel")
@@ -101,8 +102,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               .setRequired(false)
               .setMinLength(0)
               .setMaxLength(7)
-              .setPlaceholder("#96cdfb")
-              .setValue(""),
+              .setPlaceholder("#96cdfb"),
           ),
       );
 
@@ -117,7 +117,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             time: MODAL_AWAIT_TIMEOUT_MS,
             filter: (i) =>
               i.user.id === interaction.user.id &&
-              i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
+              i.customId === modalCustomId,
           });
         } catch {
           // User dismissed the modal or it timed out — nothing to do
