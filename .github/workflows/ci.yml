@@ -146,6 +146,15 @@ jobs:
       environment: staging
     secrets: inherit
 
+  deploy-production:
+    needs: [docker-build, deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: sushiibot/sushii-workflows/.github/workflows/deploy-blue-green.yml@main
+    with:
+      image_version: ${{ needs.docker-build.outputs.sha_short }}
+      dry_run: true
+    secrets: inherit
+
   docker-cleanup:
     needs: docker-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
