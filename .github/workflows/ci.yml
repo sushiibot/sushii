@@ -152,6 +152,7 @@ jobs:
     uses: sushiibot/sushii-workflows/.github/workflows/deploy-blue-green.yml@main
     with:
       image_version: ${{ needs.docker-build.outputs.sha_short }}
+      environment: production
       dry_run: true
     secrets: inherit
 
