@@ -30,16 +30,6 @@ import {
 
 const tracer = opentelemetry.trace.getTracer("schedule");
 
-/** Run fn inside a named span, always ending it regardless of outcome. */
-const runSpan = <T>(name: string, fn: () => Promise<T>): Promise<T> =>
-  tracer.startActiveSpan(name, async (s) => {
-    try {
-      return await fn();
-    } finally {
-      s.end();
-    }
-  });
-
 export class ScheduleConfigNewButtonHandler extends ButtonHandler {
   readonly customIDMatch = match(SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON);
 
@@ -118,19 +108,24 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
     await interaction.showModal(modal);
 
     // Span covers the full wait so we can see how long users take to fill the form.
-    const submit = await runSpan("schedule.config.new.modal_await", async () => {
-      try {
-        return await interaction.awaitModalSubmit({
-          time: 5 * 60 * 1000,
-          filter: (i) =>
-            i.user.id === interaction.user.id &&
-            i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
-        });
-      } catch {
-        // User dismissed the modal or it timed out — nothing to do
-        return null;
-      }
-    });
+    const submit = await tracer.startActiveSpan(
+      "schedule.config.new.modal_await",
+      async (awaitSpan) => {
+        try {
+          return await interaction.awaitModalSubmit({
+            time: 5 * 60 * 1000,
+            filter: (i) =>
+              i.user.id === interaction.user.id &&
+              i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
+          });
+        } catch {
+          // User dismissed the modal or it timed out — nothing to do
+          return null;
+        } finally {
+          awaitSpan.end();
+        }
+      },
+    );
 
     if (!submit) {
       return;
@@ -163,7 +158,8 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           // message and Discord returns 10062 for type-7 UPDATE_MESSAGE responses in that context.
           // deferUpdate() (type 6) acknowledges immediately; editReply() PATCHes the message via
           // the webhook endpoint which handles IsComponentsV2 correctly.
-          await runSpan("schedule.config.new.defer_update", () => submit.deferUpdate());
+          await submit.deferUpdate();
+          submitSpan.addEvent("deferUpdate");
 
           const calendarInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CALENDAR);
           const title = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_NAME);
@@ -221,13 +217,12 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
             );
 
-          await runSpan("schedule.config.new.edit_reply", () =>
-            submit.editReply({
-              components: [container],
-              flags: MessageFlags.IsComponentsV2,
-              allowedMentions: { parse: [] },
-            }),
-          );
+          await submit.editReply({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+            allowedMentions: { parse: [] },
+          });
+          submitSpan.addEvent("editReply");
 
           // Post confirmation to log channel (best-effort — never fail the command reply)
           try {
