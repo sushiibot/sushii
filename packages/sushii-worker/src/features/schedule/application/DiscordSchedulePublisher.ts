@@ -179,16 +179,23 @@ export class DiscordSchedulePublisher {
                       components: [chunk.container],
                       flags: MessageFlags.IsComponentsV2,
                     });
-                    await this.repo.upsertMessage(
-                      channel.guildId,
-                      channel.calendarId,
-                      channel.channelId,
-                      year,
-                      month,
-                      i,
-                      BigInt(newMsg.id),
-                      chunk.hash,
-                    );
+                    try {
+                      await this.repo.upsertMessage(
+                        channel.guildId,
+                        channel.calendarId,
+                        channel.channelId,
+                        year,
+                        month,
+                        i,
+                        BigInt(newMsg.id),
+                        chunk.hash,
+                      );
+                    } catch (upsertErr) {
+                      this.logger.warn(
+                        { err: upsertErr, messageId: newMsg.id, chunkIndex: i },
+                        "Failed to record reposted schedule message in DB — will re-edit on next poll",
+                      );
+                    }
                     reposted++;
                   } else {
                     throw err;
@@ -200,16 +207,23 @@ export class DiscordSchedulePublisher {
                   components: [chunk.container],
                   flags: MessageFlags.IsComponentsV2,
                 });
-                await this.repo.upsertMessage(
-                  channel.guildId,
-                  channel.calendarId,
-                  channel.channelId,
-                  year,
-                  month,
-                  i,
-                  BigInt(newMsg.id),
-                  chunk.hash,
-                );
+                try {
+                  await this.repo.upsertMessage(
+                    channel.guildId,
+                    channel.calendarId,
+                    channel.channelId,
+                    year,
+                    month,
+                    i,
+                    BigInt(newMsg.id),
+                    chunk.hash,
+                  );
+                } catch (upsertErr) {
+                  this.logger.warn(
+                    { err: upsertErr, messageId: newMsg.id, chunkIndex: i },
+                    "Failed to record posted schedule message in DB — will repost on next poll",
+                  );
+                }
                 posted++;
               }
             });

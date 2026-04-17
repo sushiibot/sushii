@@ -204,13 +204,20 @@ export class SchedulePollService {
           // Update sync token / reset failures
           const nextPollAt = computeNextPollAt(schedule.pollIntervalSec);
           if (schedule.consecutiveFailures > 0) {
-            await this.discordPublisher.sendRecoveryNotification(schedule);
             await this.scheduleRepo.resetFailuresAndUpdateToken(
               schedule.guildId,
               schedule.calendarId,
               newSyncToken ?? null,
               nextPollAt,
             );
+            try {
+              await this.discordPublisher.sendRecoveryNotification(schedule);
+            } catch (err) {
+              this.logger.warn(
+                { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
+                "Failed to send recovery notification — sync state already persisted",
+              );
+            }
           } else {
             await this.scheduleRepo.updateSyncToken(
               schedule.guildId,
@@ -328,6 +335,13 @@ export class SchedulePollService {
       now,
       schedule.accentColor,
     );
-    await this.discordPublisher.archiveMonth(schedule, year, month, unarchivedMessages, archiveChunks);
+    try {
+      await this.discordPublisher.archiveMonth(schedule, year, month, unarchivedMessages, archiveChunks);
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId, year, month },
+        "Failed to archive previous month messages — continuing with live sync",
+      );
+    }
   }
 }
