@@ -73,7 +73,7 @@ export class ScheduleCommand extends SlashCommandHandler {
     const accentColor = calendarIds.size === 1 ? (displayed[0].accentColor ?? Color.Info) : Color.Info;
 
     const container = new ContainerBuilder().setAccentColor(accentColor);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Upcoming Events"));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Events"));
     container.addSeparatorComponents(
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
     );
