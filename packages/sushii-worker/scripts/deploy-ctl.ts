@@ -132,6 +132,7 @@ async function fetchJson<T>(
       }
     }
     process.exit(1);
+    // TypeScript: process.exit doesn't narrow to never in all contexts
     return undefined as never;
   }
 

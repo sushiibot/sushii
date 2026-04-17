@@ -4,14 +4,12 @@ import type { RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { routePath } from "hono/route";
-import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 
-import type { HealthCheckService } from "./HealthCheckService";
-import type { ShardInfo } from "./HealthCheckService";
+import type { HealthCheckService, ShardInfo } from "./HealthCheckService";
 
 const logger = log.child({ module: "http" });
 
@@ -76,6 +74,11 @@ interface HealthSnapshot {
   shardsCheck: "pass" | "fail";
   shardData: ShardInfo[] | null;
   healthy: boolean;
+  checks: {
+    clusters: "pass" | "fail";
+    database: "pass" | "fail";
+    shards: "pass" | "fail";
+  };
 }
 
 async function buildHealthSnapshot(
@@ -92,35 +95,47 @@ async function buildHealthSnapshot(
       ? "pass"
       : "fail";
   const healthy = clustersReady && dbCheck === "pass" && shardsCheck === "pass";
-  return { clustersReady, dbCheck, shardsCheck, shardData, healthy };
+
+  const checks = {
+    clusters: clustersReady ? "pass" : "fail",
+    database: dbCheck,
+    shards: shardsCheck,
+  } as const;
+
+  return { clustersReady, dbCheck, shardsCheck, shardData, healthy, checks };
 }
 
-function createHealthServer(
+export function createHealthApp(
   manager: ClusterManager,
   healthCheckService: HealthCheckService,
-): Server<unknown> {
+): Hono {
   const app = new Hono();
 
   app.use("*", pinoLoggerMiddleware);
 
   app.get("/health", async (c) => {
-    const { clustersReady, dbCheck, shardsCheck, healthy } = await buildHealthSnapshot(manager, healthCheckService);
+    const { checks, healthy } = await buildHealthSnapshot(manager, healthCheckService);
     const statusCode = healthy ? 200 : 503;
 
     return c.json(
       {
         status: healthy ? "healthy" : "unhealthy",
         uptime_seconds: Math.floor(healthCheckService.getUptimeSeconds()),
-        checks: {
-          clusters: clustersReady ? "pass" : "fail",
-          database: dbCheck,
-          shards: shardsCheck,
-        },
+        checks,
         memory: healthCheckService.getMemory(),
       },
       statusCode,
     );
   });
+
+  return app;
+}
+
+function createHealthServer(
+  manager: ClusterManager,
+  healthCheckService: HealthCheckService,
+): Server<unknown> {
+  const app = createHealthApp(manager, healthCheckService);
 
   return Bun.serve({
     port: config.metrics.healthPort,
@@ -128,25 +143,20 @@ function createHealthServer(
   });
 }
 
-interface MetricsBindings {
-  incoming: IncomingMessage;
-  outgoing: ServerResponse;
-}
-
 export function createMonitoringApp(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
   healthCheckService: HealthCheckService,
-): Hono<{ Bindings: MetricsBindings }> {
-  const app = new Hono<{ Bindings: MetricsBindings }>();
+): Hono {
+  const app = new Hono();
 
   app.use("*", pinoLoggerMiddleware);
 
   app.get("/commands", (c) => c.json(commands));
 
   app.get("/status", async (c) => {
-    const { clustersReady, dbCheck, shardsCheck, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
+    const { checks, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
 
     return c.json({
       status: healthy ? "healthy" : "unhealthy",
@@ -158,11 +168,7 @@ export function createMonitoringApp(
         tracing_sample_percentage: config.tracing.samplePercentage,
       },
       uptime_seconds: Math.floor(healthCheckService.getUptimeSeconds()),
-      checks: {
-        clusters: clustersReady ? "pass" : "fail",
-        database: dbCheck,
-        shards: shardsCheck,
-      },
+      checks,
       clusters: Array.from(manager.clusters.values()).map((cluster) => ({
         ...serializeClusterSummary(cluster),
         ...serializeClusterDetail(cluster),
@@ -174,7 +180,7 @@ export function createMonitoringApp(
   });
 
   app.get("/deployment/status", async (c) => {
-    const { clustersReady, dbCheck, shardsCheck, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
+    const { checks, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
 
     const uptimeSeconds = healthCheckService.getUptimeSeconds();
     const uptimeCheck = healthCheckService.isUptimeReady() ? "pass" : "fail";
@@ -194,9 +200,7 @@ export function createMonitoringApp(
       health: healthy ? "healthy" : "unhealthy",
       uptime_seconds: Math.floor(uptimeSeconds),
       checks: {
-        clusters: clustersReady ? "pass" : "fail",
-        database: dbCheck,
-        shards: shardsCheck,
+        ...checks,
         uptime: uptimeCheck,
       },
       clusters: Array.from(manager.clusters.values()).map(serializeClusterSummary),
