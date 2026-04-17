@@ -257,6 +257,11 @@ export class SpamActionService {
     knownIds: string[],
     spamContent: string | null,
   ): Promise<number> {
+    // Without content to match against, we can't reliably identify additional spam messages.
+    if (spamContent === null) {
+      return 0;
+    }
+
     const channel = guild.channels.cache.get(channelId);
     if (!channel || !channel.isTextBased() || channel.isDMBased()) {
       return 0;
@@ -273,10 +278,7 @@ export class SpamActionService {
         if (knownSet.has(msg.id)) {
           return false;
         }
-        if (spamContent !== null) {
-          return msg.content === spamContent;
-        }
-        return true;
+        return msg.content === spamContent;
       })
       .map((msg) => msg.id);
 

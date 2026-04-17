@@ -874,6 +874,7 @@ export default class InteractionRouter {
           "error handling interaction, should be caught %s",
           interaction.id,
         );
+        this.interactionMetrics.recordInteraction(interaction, "error");
       } finally {
         span.end();
       }

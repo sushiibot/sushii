@@ -7,6 +7,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 const logger = newModuleLogger("HealthCheckService");
 
 const SHARD_CACHE_TTL_MS = 10_000;
+const DB_CHECK_CACHE_TTL_MS = 5_000;
 const DB_CHECK_TIMEOUT_MS = 3_000;
 const UPTIME_READY_THRESHOLD_S = 300;
 
@@ -44,6 +45,7 @@ interface ShardCache {
 export class HealthCheckService {
   private readonly startedAt: number;
   private shardCache: ShardCache | null = null;
+  private dbCache: { result: CheckResult; fetchedAt: number } | null = null;
 
   constructor(
     private readonly manager: ClusterManager,
@@ -53,6 +55,10 @@ export class HealthCheckService {
   }
 
   async checkDatabase(): Promise<CheckResult> {
+    if (this.dbCache && Date.now() - this.dbCache.fetchedAt < DB_CHECK_CACHE_TTL_MS) {
+      return this.dbCache.result;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
@@ -64,9 +70,11 @@ export class HealthCheckService {
           );
         }),
       ]);
+      this.dbCache = { result: "pass", fetchedAt: Date.now() };
       return "pass";
     } catch (err) {
       logger.warn({ err }, "Database health check failed");
+      this.dbCache = { result: "fail", fetchedAt: Date.now() };
       return "fail";
     } finally {
       clearTimeout(timer);
