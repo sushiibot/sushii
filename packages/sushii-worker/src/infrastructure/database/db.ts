@@ -1,3 +1,4 @@
+import { instrumentDrizzle } from "@kubiks/otel-drizzle";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
@@ -17,6 +18,8 @@ export function initDatabase(url: string, maxConnections: number) {
   pool.on("error", (err) => {
     dbLogger.error(err, "pg pool error");
   });
+
+  instrumentDrizzle(pool, { dbSystem: "postgresql" });
 
   const db = drizzle({ client: pool, schema });
 
