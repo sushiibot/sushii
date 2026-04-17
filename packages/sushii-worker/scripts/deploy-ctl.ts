@@ -2,14 +2,37 @@
 
 const DEFAULT_ENDPOINT = "http://localhost:9090";
 
+interface ShardInfo {
+  id: number;
+  status: number;
+  status_name: string;
+  ping_ms: number;
+}
+
+interface Checks {
+  clusters: "pass" | "fail";
+  database: "pass" | "fail";
+  shards: "pass" | "fail";
+  uptime?: "pass" | "fail";
+}
+
+interface MemoryInfo {
+  heap_used_mb: number;
+  rss_mb: number;
+}
+
 interface StatusResponse {
   this_deployment: string;
   active_deployment: string;
   is_active: boolean;
   ready_to_switch: boolean;
   health: string;
+  uptime_seconds?: number;
+  checks?: Checks;
   clusters: { id: number; ready: boolean; shards: number[] }[];
+  shards?: ShardInfo[];
   total_shards: number;
+  memory?: MemoryInfo;
 }
 
 interface SwitchResponse {
@@ -127,7 +150,22 @@ async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void>
   console.log(`Is active         : ${body.is_active}`);
   console.log(`Ready to switch   : ${body.ready_to_switch}`);
   console.log(`Health            : ${body.health}`);
+  if (body.uptime_seconds !== undefined) {
+    console.log(`Uptime            : ${Math.floor(body.uptime_seconds)}s`);
+  }
+
+  if (body.checks) {
+    console.log("Checks:");
+    console.log(`  clusters : ${body.checks.clusters}`);
+    console.log(`  database : ${body.checks.database}`);
+    console.log(`  shards   : ${body.checks.shards}`);
+    if (body.checks.uptime !== undefined) {
+      console.log(`  uptime   : ${body.checks.uptime}`);
+    }
+  }
+
   console.log(`Total shards      : ${body.total_shards}`);
+
   if (Array.isArray(body.clusters) && body.clusters.length > 0) {
     console.log("Clusters:");
     for (const cluster of body.clusters) {
@@ -135,6 +173,17 @@ async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void>
     }
   } else {
     console.log("Clusters: (none)");
+  }
+
+  if (Array.isArray(body.shards) && body.shards.length > 0) {
+    console.log("Shards:");
+    for (const shard of body.shards) {
+      console.log(`  [${shard.id}] ${shard.status_name} ${shard.ping_ms}ms`);
+    }
+  }
+
+  if (body.memory) {
+    console.log(`Memory            : heap ${body.memory.heap_used_mb}MB  rss ${body.memory.rss_mb}MB`);
   }
 
   if (body.health !== "healthy") {

@@ -10,27 +10,19 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 
-// Reverse mapping of the Status enum to get the name
-export const ShardStatusToName = {
-  0: "Ready",
-  1: "Connecting",
-  2: "Reconnecting",
-  3: "Idle",
-  4: "Nearly",
-  5: "Disconnected",
-  6: "WaitingForGuilds",
-  7: "Identifying",
-  8: "Resuming",
-};
+import type { HealthCheckService } from "./HealthCheckService";
+import type { ShardInfo } from "./HealthCheckService";
 
 const logger = log.child({ module: "http" });
+
+const SHARD_STATUS_READY = 0;
 
 const pinoLoggerMiddleware: MiddlewareHandler = async (c, next) => {
   const start = Date.now();
   await next();
   const elapsedMs = Date.now() - start;
 
-  const log = {
+  const logEntry = {
     method: c.req.method,
     path: routePath(c),
     status: c.res.status,
@@ -38,7 +30,7 @@ const pinoLoggerMiddleware: MiddlewareHandler = async (c, next) => {
   };
 
   const message = `${c.req.method} ${c.req.path} ${c.res.status} ${elapsedMs} ms`;
-  logger.debug(log, message);
+  logger.debug(logEntry, message);
 };
 
 function isManagerReady(manager: ClusterManager): boolean {
@@ -78,29 +70,53 @@ function serializeClusterDetail(cluster: {
   };
 }
 
-function createHealthServer(manager: ClusterManager): Server<unknown> {
+interface HealthSnapshot {
+  clustersReady: boolean;
+  dbCheck: "pass" | "fail";
+  shardsCheck: "pass" | "fail";
+  shardData: ShardInfo[] | null;
+  healthy: boolean;
+}
+
+async function buildHealthSnapshot(
+  manager: ClusterManager,
+  healthCheckService: HealthCheckService,
+): Promise<HealthSnapshot> {
+  const clustersReady = isManagerReady(manager);
+  const [dbCheck, shardData] = await Promise.all([
+    healthCheckService.checkDatabase(),
+    healthCheckService.getShardData(),
+  ]);
+  const shardsCheck =
+    shardData !== null && shardData.every((s) => s.status === SHARD_STATUS_READY)
+      ? "pass"
+      : "fail";
+  const healthy = clustersReady && dbCheck === "pass" && shardsCheck === "pass";
+  return { clustersReady, dbCheck, shardsCheck, shardData, healthy };
+}
+
+function createHealthServer(
+  manager: ClusterManager,
+  healthCheckService: HealthCheckService,
+): Server<unknown> {
   const app = new Hono();
 
-  // Middleware
   app.use("*", pinoLoggerMiddleware);
 
-  // Routes
-  app.get("/health", (c) => {
-    // All clients are ready (1 client -> multiple shards)
-    const allReady = isManagerReady(manager);
-
-    const statusCode = allReady ? 200 : 503;
+  app.get("/health", async (c) => {
+    const { clustersReady, dbCheck, shardsCheck, healthy } = await buildHealthSnapshot(manager, healthCheckService);
+    const statusCode = healthy ? 200 : 503;
 
     return c.json(
       {
-        status: allReady ? "healthy" : "unhealthy",
-        clusters: Array.from(manager.clusters.values()).map((cluster) => ({
-          ...serializeClusterSummary(cluster),
-          ...serializeClusterDetail(cluster),
-        })),
-        shards: {
-          total: manager.totalShards,
+        status: healthy ? "healthy" : "unhealthy",
+        uptime_seconds: Math.floor(healthCheckService.getUptimeSeconds()),
+        checks: {
+          clusters: clustersReady ? "pass" : "fail",
+          database: dbCheck,
+          shards: shardsCheck,
         },
+        memory: healthCheckService.getMemory(),
       },
       statusCode,
     );
@@ -121,36 +137,50 @@ export function createMonitoringApp(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
+  healthCheckService: HealthCheckService,
 ): Hono<{ Bindings: MetricsBindings }> {
   const app = new Hono<{ Bindings: MetricsBindings }>();
 
-  // Middleware
   app.use("*", pinoLoggerMiddleware);
 
-  // Routes
   app.get("/commands", (c) => c.json(commands));
-  app.get("/status", (c) => {
-    const allReady = isManagerReady(manager);
+
+  app.get("/status", async (c) => {
+    const { clustersReady, dbCheck, shardsCheck, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
 
     return c.json({
-      status: allReady ? "healthy" : "unhealthy",
+      status: healthy ? "healthy" : "unhealthy",
       config: {
         deployment: config.deployment.name,
         owner: {
-          userID: config.deployment.ownerUserId,
+          user_id: config.deployment.ownerUserId,
         },
-        tracingSamplePercentage: config.tracing.samplePercentage,
+        tracing_sample_percentage: config.tracing.samplePercentage,
+      },
+      uptime_seconds: Math.floor(healthCheckService.getUptimeSeconds()),
+      checks: {
+        clusters: clustersReady ? "pass" : "fail",
+        database: dbCheck,
+        shards: shardsCheck,
       },
       clusters: Array.from(manager.clusters.values()).map((cluster) => ({
         ...serializeClusterSummary(cluster),
         ...serializeClusterDetail(cluster),
       })),
-      totalShards: manager.totalShards,
+      shards: shardData ?? [],
+      total_shards: manager.totalShards,
+      memory: healthCheckService.getMemory(),
     });
   });
 
-  app.get("/deployment/status", (c) => {
-    const allReady = isManagerReady(manager);
+  app.get("/deployment/status", async (c) => {
+    const { clustersReady, dbCheck, shardsCheck, shardData, healthy } = await buildHealthSnapshot(manager, healthCheckService);
+
+    const uptimeSeconds = healthCheckService.getUptimeSeconds();
+    const uptimeCheck = healthCheckService.isUptimeReady() ? "pass" : "fail";
+
+    const readyToSwitch =
+      healthy && uptimeCheck === "pass";
 
     const thisDeployment = deploymentService.getProcessName();
     const activeDeployment = deploymentService.getCurrentDeployment();
@@ -160,15 +190,23 @@ export function createMonitoringApp(
       this_deployment: thisDeployment,
       active_deployment: activeDeployment,
       is_active: isActive,
-      ready_to_switch: allReady,
-      health: allReady ? "healthy" : "unhealthy",
+      ready_to_switch: readyToSwitch,
+      health: healthy ? "healthy" : "unhealthy",
+      uptime_seconds: Math.floor(uptimeSeconds),
+      checks: {
+        clusters: clustersReady ? "pass" : "fail",
+        database: dbCheck,
+        shards: shardsCheck,
+        uptime: uptimeCheck,
+      },
       clusters: Array.from(manager.clusters.values()).map(serializeClusterSummary),
+      shards: shardData ?? [],
       total_shards: manager.totalShards,
+      memory: healthCheckService.getMemory(),
     });
   });
 
   app.post("/deployment/switch", async (c) => {
-    // Parse and validate request body
     let body: unknown;
     try {
       body = await c.req.json();
@@ -181,7 +219,6 @@ export function createMonitoringApp(
       );
     }
 
-    // Validate target is provided and valid
     if (
       !body ||
       typeof body !== "object" ||
@@ -198,7 +235,6 @@ export function createMonitoringApp(
 
     const target = body.target as "blue" | "green";
 
-    // Perform the switch
     try {
       const result = await deploymentService.setActiveDeployment(target);
       logger.info(
@@ -233,8 +269,9 @@ function createMonitoringServer(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
+  healthCheckService: HealthCheckService,
 ): Server<unknown> {
-  const app = createMonitoringApp(manager, commands, deploymentService);
+  const app = createMonitoringApp(manager, commands, deploymentService, healthCheckService);
 
   return Bun.serve({
     port: config.metrics.port,
@@ -246,12 +283,14 @@ export default function server(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
+  healthCheckService: HealthCheckService,
 ): Server<unknown>[] {
-  const healthServer = createHealthServer(manager);
+  const healthServer = createHealthServer(manager, healthCheckService);
   const monitoringServer = createMonitoringServer(
     manager,
     commands,
     deploymentService,
+    healthCheckService,
   );
 
   logger.info(

@@ -6,6 +6,7 @@ import { DeploymentService } from "@/features/deployment/application/DeploymentS
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import type { DeploymentRepository } from "@/features/deployment/domain/repositories/DeploymentRepository";
 
+import type { HealthCheckService } from "./HealthCheckService";
 import { createMonitoringApp } from "./server";
 
 const logger = pino({ level: "silent" });
@@ -58,6 +59,19 @@ async function makeService(
   return { service, repo };
 }
 
+function makeHealthCheckService(
+  overrides: Partial<HealthCheckService> = {},
+): HealthCheckService {
+  return Object.assign(Object.create(null), {
+    checkDatabase: async () => "pass" as const,
+    getShardData: async () => [],
+    getMemory: () => ({ heap_used_mb: 0, rss_mb: 0 }),
+    getUptimeSeconds: () => 9999,
+    isUptimeReady: () => true,
+    ...overrides,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // /deployment/status
 // ---------------------------------------------------------------------------
@@ -71,7 +85,7 @@ describe("GET /deployment/status", () => {
     const { service } = await makeService("blue", "blue");
     await service.start();
 
-    const app = createMonitoringApp(manager, [], service);
+    const app = createMonitoringApp(manager, [], service, makeHealthCheckService());
     const res = await app.request("/deployment/status");
 
     expect(res.status).toBe(200);
@@ -98,7 +112,7 @@ describe("GET /deployment/status", () => {
     const { service } = await makeService("blue", "blue");
     await service.start();
 
-    const app = createMonitoringApp(manager, [], service);
+    const app = createMonitoringApp(manager, [], service, makeHealthCheckService());
     const res = await app.request("/deployment/status");
     const body = (await res.json()) as Record<string, unknown>;
 
@@ -114,7 +128,7 @@ describe("GET /deployment/status", () => {
     const { service } = await makeService("blue", "blue");
     await service.start();
 
-    const app = createMonitoringApp(manager, [], service);
+    const app = createMonitoringApp(manager, [], service, makeHealthCheckService());
     const res = await app.request("/deployment/status");
     const body = (await res.json()) as Record<string, unknown>;
 
@@ -128,7 +142,7 @@ describe("GET /deployment/status", () => {
     const { service } = await makeService("green", "blue");
     await service.start();
 
-    const app = createMonitoringApp(manager, [], service);
+    const app = createMonitoringApp(manager, [], service, makeHealthCheckService());
     const res = await app.request("/deployment/status");
     const body = (await res.json()) as Record<string, unknown>;
 
@@ -162,14 +176,14 @@ describe("POST /deployment/switch", () => {
   ) {
     const { service } = await makeService(processName, activeDeployment);
     await service.start();
-    return createMonitoringApp(readyManager, [], service);
+    return createMonitoringApp(readyManager, [], service, makeHealthCheckService());
   }
 
   test("returns 400 for invalid JSON body", async () => {
     const { service } = await makeService("blue", "green");
     await service.start();
 
-    const app = createMonitoringApp(readyManager, [], service);
+    const app = createMonitoringApp(readyManager, [], service, makeHealthCheckService());
     const res = await app.request("/deployment/switch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -244,7 +258,7 @@ describe("POST /deployment/switch", () => {
     };
     await service.start();
 
-    const app = createMonitoringApp(readyManager, [], service);
+    const app = createMonitoringApp(readyManager, [], service, makeHealthCheckService());
     const res = await postSwitch(app, "blue");
 
     expect(res.status).toBe(500);
@@ -256,7 +270,7 @@ describe("POST /deployment/switch", () => {
     const { service } = await makeService("blue", "green");
     await service.start();
 
-    const app = createMonitoringApp(readyManager, [], service);
+    const app = createMonitoringApp(readyManager, [], service, makeHealthCheckService());
 
     // Before switch: blue is inactive
     const before = await app.request("/deployment/status");

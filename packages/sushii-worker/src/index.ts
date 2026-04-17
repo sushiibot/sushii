@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 // the file. If it's imported, it will cause process.send not defined errors as
 // it wasn't spawned by the ShardingManager
 import type {} from "@/core/cluster/cluster";
+import { HealthCheckService } from "@/core/manager/HealthCheckService";
 import server from "@/core/manager/server";
 import { registerShutdownSignals } from "@/core/manager/signals";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -31,17 +32,14 @@ async function main(): Promise<void> {
 
   log.info("Running migrations");
 
-  const db = initDatabase(config.database.url, 3);
+  // 1 connection is enough for migrations and ongoing health probes
+  const db = initDatabase(config.database.url, 1);
 
   // Initial migration skipped manually for graphile-migrate -> drizzle migration
   // Run database migrations
   await migrate(db, {
     migrationsFolder: "./drizzle",
   });
-
-  // Close the database connection, as we don't need it in the main process
-  // anymore (deployment service has its own connection)
-  await db.$client.end();
 
   // ---------------------------------------------------------------------------
   // Initialize main process core components
@@ -132,8 +130,10 @@ async function main(): Promise<void> {
     }),
   );
 
+  const healthCheckService = new HealthCheckService(manager, db);
+
   // Start metrics and healthcheck server (runs only in main process)
-  const servers = server(manager, [], deploymentService);
+  const servers = server(manager, [], deploymentService, healthCheckService);
 
   registerShutdownSignals(async () => {
     log.info("shutting down ShardingManager");
@@ -154,6 +154,9 @@ async function main(): Promise<void> {
 
       log.info("closing servers");
       servers.forEach((s) => s.stop());
+
+      log.info("closing database pool");
+      await db.$client.end();
 
       log.flush();
     } catch (err) {
