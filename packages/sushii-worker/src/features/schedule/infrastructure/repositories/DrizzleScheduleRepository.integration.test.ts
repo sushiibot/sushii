@@ -36,7 +36,7 @@ async function seedSchedule(
     logChannelId: LOG_CHANNEL,
     configuredByUserId: USER,
     calendarTitle: "Test Calendar",
-    displayTitle: null,
+    displayTitle: "Test Calendar",
     syncToken: null,
     pollIntervalSec: 120,
     nextPollAt: now,

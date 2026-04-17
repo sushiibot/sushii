@@ -64,12 +64,27 @@ function mapEvent(row: typeof schema.scheduleEventsInAppPublic.$inferSelect): Sc
     row.isAllDay,
     row.url ?? null,
     row.location ?? null,
-    (row.status as "confirmed" | "tentative" | "cancelled") ?? "confirmed",
+    (row.status ?? "confirmed") as "confirmed" | "tentative" | "cancelled",
   );
 }
 
 function eventSortExpr(table: typeof schema.scheduleEventsInAppPublic) {
   return sql`COALESCE(${table.startUtc}, (${table.startDate} || 'T00:00:00Z')::timestamptz)`;
+}
+
+function toEventRow(guildId: bigint, calendarId: string, e: ScheduleEvent) {
+  return {
+    guildId,
+    calendarId,
+    eventId: e.id,
+    summary: e.summary,
+    startUtc: e.startUtc,
+    startDate: e.startDate,
+    isAllDay: e.isAllDay,
+    url: e.url,
+    location: e.location,
+    status: e.status,
+  };
 }
 
 function mapEventWithCalendar(row: {
@@ -420,20 +435,7 @@ export class DrizzleScheduleRepository
     if (events.length === 0) return;
     await this.db
       .insert(schema.scheduleEventsInAppPublic)
-      .values(
-        events.map((e) => ({
-          guildId,
-          calendarId,
-          eventId: e.id,
-          summary: e.summary,
-          startUtc: e.startUtc,
-          startDate: e.startDate,
-          isAllDay: e.isAllDay,
-          url: e.url,
-          location: e.location,
-          status: e.status,
-        })),
-      )
+      .values(events.map((e) => toEventRow(guildId, calendarId, e)))
       .onConflictDoUpdate({
         target: [
           schema.scheduleEventsInAppPublic.guildId,
@@ -486,20 +488,7 @@ export class DrizzleScheduleRepository
       if (events.length > 0) {
         await tx
           .insert(schema.scheduleEventsInAppPublic)
-          .values(
-            events.map((e) => ({
-              guildId,
-              calendarId,
-              eventId: e.id,
-              summary: e.summary,
-              startUtc: e.startUtc,
-              startDate: e.startDate,
-              isAllDay: e.isAllDay,
-              url: e.url,
-              location: e.location,
-              status: e.status,
-            })),
-          )
+          .values(events.map((e) => toEventRow(guildId, calendarId, e)))
           .onConflictDoNothing();
       }
     });
