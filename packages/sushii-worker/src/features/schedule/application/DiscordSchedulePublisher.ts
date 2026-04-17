@@ -1,3 +1,4 @@
+import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
 import type { Client, GuildTextBasedChannel } from "discord.js";
 import { ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, time, TimestampStyles } from "discord.js";
 import type { Logger } from "pino";
@@ -15,6 +16,8 @@ import type { CalendarEventItem } from "@/features/schedule/infrastructure/googl
 import { toScheduleEvent } from "@/features/schedule/infrastructure/google/CalendarEventMapper";
 import type { ScheduleEvent } from "@/features/schedule/domain/entities/ScheduleEvent";
 import type { ScheduleMetrics } from "@/features/schedule/infrastructure/metrics/ScheduleMetrics";
+
+const tracer = opentelemetry.trace.getTracer("schedule");
 
 const ALERT_RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -108,146 +111,182 @@ export class DiscordSchedulePublisher {
     month: number,
     chunks: ReturnType<typeof renderSchedule>,
   ): Promise<void> {
-    const existingMessages = await this.repo.getMessages(
-      channel.guildId,
-      channel.calendarId,
-      year,
-      month,
-    );
+    await tracer.startActiveSpan(
+      "schedule.discord.sync_messages",
+      {
+        attributes: {
+          "guild.id": channel.guildId.toString(),
+          "calendar.id": channel.calendarId,
+          "channel.id": channel.channelId.toString(),
+        },
+      },
+      async (span) => {
+        try {
+          const existingMessages = await this.repo.getMessages(
+            channel.guildId,
+            channel.calendarId,
+            year,
+            month,
+          );
 
-    const discordChannel = await this.fetchTextChannel(
-      channel.channelId.toString(),
-      "syncMessages",
-    );
+          const discordChannel = await this.fetchTextChannel(
+            channel.channelId.toString(),
+            "syncMessages",
+          );
 
-    if (!discordChannel) return;
-
-    let edited = 0;
-    let posted = 0;
-    let reposted = 0;
-    let unchanged = 0;
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const existing = existingMessages.find((m) => m.messageIndex === i);
-
-      await this.discordSemaphore.run(async () => {
-        if (existing) {
-          if (existing.contentHash === chunk.hash) {
-            unchanged++;
+          if (!discordChannel) {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: "Discord channel not found or not a guild text channel" });
             return;
           }
 
-          try {
-            const msg = await discordChannel.messages.fetch(existing.messageId.toString());
-            await msg.edit({
-              components: [chunk.container],
-              flags: MessageFlags.IsComponentsV2,
+          let edited = 0;
+          let posted = 0;
+          let reposted = 0;
+          let unchanged = 0;
+
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const existing = existingMessages.find((m) => m.messageIndex === i);
+
+            await this.discordSemaphore.run(async () => {
+              if (existing) {
+                if (existing.contentHash === chunk.hash) {
+                  unchanged++;
+                  return;
+                }
+
+                try {
+                  const msg = await discordChannel.messages.fetch(existing.messageId.toString());
+                  await msg.edit({
+                    components: [chunk.container],
+                    flags: MessageFlags.IsComponentsV2,
+                  });
+                  await this.repo.upsertMessage(
+                    channel.guildId,
+                    channel.calendarId,
+                    channel.channelId,
+                    year,
+                    month,
+                    i,
+                    existing.messageId,
+                    chunk.hash,
+                  );
+                  edited++;
+                } catch (err: unknown) {
+                  // 10008 = Unknown Message — repost as new
+                  if (isDiscordUnknownMessageError(err)) {
+                    const newMsg = await discordChannel.send({
+                      components: [chunk.container],
+                      flags: MessageFlags.IsComponentsV2,
+                    });
+                    await this.repo.upsertMessage(
+                      channel.guildId,
+                      channel.calendarId,
+                      channel.channelId,
+                      year,
+                      month,
+                      i,
+                      BigInt(newMsg.id),
+                      chunk.hash,
+                    );
+                    reposted++;
+                  } else {
+                    throw err;
+                  }
+                }
+              } else {
+                // Post new message
+                const newMsg = await discordChannel.send({
+                  components: [chunk.container],
+                  flags: MessageFlags.IsComponentsV2,
+                });
+                await this.repo.upsertMessage(
+                  channel.guildId,
+                  channel.calendarId,
+                  channel.channelId,
+                  year,
+                  month,
+                  i,
+                  BigInt(newMsg.id),
+                  chunk.hash,
+                );
+                posted++;
+              }
             });
-            await this.repo.upsertMessage(
+          }
+
+          // Delete excess messages
+          const excessMessages = existingMessages.filter(
+            (m) => m.messageIndex >= chunks.length,
+          );
+          let deleted = 0;
+          for (const msg of excessMessages) {
+            await this.discordSemaphore.run(async () => {
+              try {
+                const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
+                await discordMsg.delete();
+                deleted++;
+              } catch (err) {
+                if (!isDiscordUnknownMessageError(err)) {
+                  this.logger.warn(
+                    { err, messageId: msg.messageId.toString() },
+                    "Failed to delete excess schedule message",
+                  );
+                }
+              }
+            });
+          }
+
+          if (excessMessages.length > 0) {
+            await this.repo.deleteMessagesAboveIndex(
               channel.guildId,
               channel.calendarId,
-              channel.channelId,
               year,
               month,
-              i,
-              existing.messageId,
-              chunk.hash,
+              chunks.length - 1,
             );
-            edited++;
-          } catch (err: unknown) {
-            // 10008 = Unknown Message — repost as new
-            if (isDiscordUnknownMessageError(err)) {
-              const newMsg = await discordChannel.send({
-                components: [chunk.container],
-                flags: MessageFlags.IsComponentsV2,
-              });
-              await this.repo.upsertMessage(
-                channel.guildId,
-                channel.calendarId,
-                channel.channelId,
-                year,
-                month,
-                i,
-                BigInt(newMsg.id),
-                chunk.hash,
-              );
-              reposted++;
-            } else {
-              throw err;
+          }
+
+          this.logger.debug(
+            {
+              guildId: channel.guildId.toString(),
+              calendarId: channel.calendarId,
+              edited,
+              posted,
+              reposted,
+              deleted,
+              unchanged,
+            },
+            "Discord schedule messages synced",
+          );
+
+          const opCounts: Record<string, number> = { edited, posted, reposted, deleted, unchanged };
+          for (const [operation, count] of Object.entries(opCounts)) {
+            if (count > 0) {
+              this.metrics.messagesSyncedCounter.add(count, { operation });
             }
           }
-        } else {
-          // Post new message
-          const newMsg = await discordChannel.send({
-            components: [chunk.container],
-            flags: MessageFlags.IsComponentsV2,
-          });
-          await this.repo.upsertMessage(
-            channel.guildId,
-            channel.calendarId,
-            channel.channelId,
-            year,
-            month,
-            i,
-            BigInt(newMsg.id),
-            chunk.hash,
-          );
-          posted++;
-        }
-      });
-    }
 
-    // Delete excess messages
-    const excessMessages = existingMessages.filter(
-      (m) => m.messageIndex >= chunks.length,
-    );
-    let deleted = 0;
-    for (const msg of excessMessages) {
-      await this.discordSemaphore.run(async () => {
-        try {
-          const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
-          await discordMsg.delete();
-          deleted++;
-        } catch (err) {
-          if (!isDiscordUnknownMessageError(err)) {
-            this.logger.warn(
-              { err, messageId: msg.messageId.toString() },
-              "Failed to delete excess schedule message",
-            );
+          // Only emit the span event when there's actual Discord API work — unchanged-only
+          // runs have no actionable signal.
+          if (edited + posted + reposted + deleted > 0) {
+            span.addEvent("messages_synced", {
+              "messages.edited": edited,
+              "messages.posted": posted,
+              "messages.reposted": reposted,
+              "messages.deleted": deleted,
+              "messages.unchanged": unchanged,
+            });
           }
+        } catch (err) {
+          span.recordException(err instanceof Error ? err : new Error(String(err)));
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        } finally {
+          span.end();
         }
-      });
-    }
-
-    if (excessMessages.length > 0) {
-      await this.repo.deleteMessagesAboveIndex(
-        channel.guildId,
-        channel.calendarId,
-        year,
-        month,
-        chunks.length - 1,
-      );
-    }
-
-    this.logger.debug(
-      {
-        guildId: channel.guildId.toString(),
-        calendarId: channel.calendarId,
-        edited,
-        posted,
-        reposted,
-        deleted,
-        unchanged,
       },
-      "Discord schedule messages synced",
     );
-
-    if (edited > 0) this.metrics.messagesSyncedCounter.add(edited, { operation: "edited" });
-    if (posted > 0) this.metrics.messagesSyncedCounter.add(posted, { operation: "posted" });
-    if (reposted > 0) this.metrics.messagesSyncedCounter.add(reposted, { operation: "reposted" });
-    if (deleted > 0) this.metrics.messagesSyncedCounter.add(deleted, { operation: "deleted" });
-    if (unchanged > 0) this.metrics.messagesSyncedCounter.add(unchanged, { operation: "unchanged" });
   }
 
   /**
