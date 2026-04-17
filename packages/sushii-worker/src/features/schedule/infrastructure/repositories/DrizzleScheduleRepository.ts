@@ -68,8 +68,9 @@ function mapEvent(row: typeof schema.scheduleEventsInAppPublic.$inferSelect): Sc
   );
 }
 
-const eventSortExpr = (table: typeof schema.scheduleEventsInAppPublic) =>
-  sql`COALESCE(${table.startUtc}, (${table.startDate} || 'T00:00:00Z')::timestamptz)`;
+function eventSortExpr(table: typeof schema.scheduleEventsInAppPublic) {
+  return sql`COALESCE(${table.startUtc}, (${table.startDate} || 'T00:00:00Z')::timestamptz)`;
+}
 
 function mapEventWithCalendar(row: {
   event: typeof schema.scheduleEventsInAppPublic.$inferSelect;
@@ -81,7 +82,7 @@ function mapEventWithCalendar(row: {
     event: mapEvent(row.event),
     calendarId: row.calendarId,
     calendarTitle: row.calendarTitle,
-    accentColor: row.accentColor ?? null,
+    accentColor: row.accentColor,
   };
 }
 
