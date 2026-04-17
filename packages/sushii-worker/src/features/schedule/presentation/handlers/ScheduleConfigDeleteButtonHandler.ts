@@ -114,7 +114,7 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
     lines.push(
       "",
       `-# Existing posts in <#${channelIdStr}> were not deleted — they stay as-is.`,
-      "-# No Google Calendar events were removed — your calendar is unchanged.",
+      `-# No Google Calendar events were removed — your calendar is unchanged.`,
       "",
       "To add a new calendar, use `/schedule-config new`.",
       `To view remaining schedules, use \`/schedule-config list\`.`,
