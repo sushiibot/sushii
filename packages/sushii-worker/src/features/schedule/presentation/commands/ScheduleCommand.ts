@@ -49,8 +49,10 @@ export class ScheduleCommand extends SlashCommandHandler {
     const pastEvents = (await this.eventRepo.findRecentPastByGuild(guildId, now, MAX_PAST_EVENTS)).reverse();
 
     // Fill remaining slots with future events; fetch one extra to detect truncation.
-    const futureLimit = MAX_DISPLAYED_EVENTS - pastEvents.length;
-    const futureEvents = await this.eventRepo.findUpcomingByGuild(guildId, now, futureLimit + 1);
+    const futureLimit = Math.max(0, MAX_DISPLAYED_EVENTS - pastEvents.length);
+    const futureEvents = futureLimit > 0
+      ? await this.eventRepo.findUpcomingByGuild(guildId, now, futureLimit + 1)
+      : [];
 
     const truncated = futureEvents.length > futureLimit;
     const displayed = [...pastEvents, ...futureEvents.slice(0, futureLimit)];
