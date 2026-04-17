@@ -25,6 +25,7 @@ import {
   makeContainer,
   parseHexColor,
   SCHEDULE_CONFIG_CUSTOM_IDS,
+  MODAL_AWAIT_TIMEOUT_MS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
 } from "../ScheduleConfigConstants";
 
@@ -113,7 +114,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       async (awaitSpan) => {
         try {
           return await interaction.awaitModalSubmit({
-            time: 5 * 60 * 1000,
+            time: MODAL_AWAIT_TIMEOUT_MS,
             filter: (i) =>
               i.user.id === interaction.user.id &&
               i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL,
@@ -174,6 +175,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
           if (!channel || !logChannel) {
+            // editReply inherits ephemerality from deferUpdate — no need to pass the ephemeral flag
             await submit.editReply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error));
             return;
           }
@@ -255,7 +257,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             );
           }
         } catch (err) {
-          submitSpan.recordException(err as Error);
+          submitSpan.recordException(err instanceof Error ? err : new Error(String(err)));
           submitSpan.setStatus({ code: SpanStatusCode.ERROR });
           throw err;
         } finally {

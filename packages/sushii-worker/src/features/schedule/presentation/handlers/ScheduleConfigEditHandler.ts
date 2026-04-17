@@ -23,6 +23,7 @@ import {
   makeContainer,
   parseHexColor,
   SCHEDULE_CONFIG_CUSTOM_IDS,
+  MODAL_AWAIT_TIMEOUT_MS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
   SCHEDULE_CONFIG_OPTIONS,
 } from "../ScheduleConfigConstants";
@@ -114,7 +115,7 @@ export class ScheduleConfigEditHandler {
     let submit;
     try {
       submit = await interaction.awaitModalSubmit({
-        time: 5 * 60 * 1000,
+        time: MODAL_AWAIT_TIMEOUT_MS,
         filter: (i) =>
           i.user.id === interaction.user.id &&
           i.customId === modalCustomId,

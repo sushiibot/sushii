@@ -36,6 +36,9 @@ export const SCHEDULE_CONFIG_CUSTOM_IDS = {
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;
 export const SCHEDULE_CONFIG_SETUP_EMOJI_NAMES = ["tip", "schedule"] as const;
 
+/** Timeout (ms) for awaiting modal submission — 5 minutes. */
+export const MODAL_AWAIT_TIMEOUT_MS = 5 * 60 * 1000;
+
 /**
  * Parses a hex color string (with or without leading `#`) into a 24-bit integer.
  * Returns null for blank input, Err for invalid input.
