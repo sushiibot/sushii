@@ -639,25 +639,25 @@ export default class InteractionRouter {
    */
   private async handleModalSubmit(
     interaction: ModalSubmitInteraction,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const modalHandler = this.modalHandlers.find(
       (handler) => handler.customIDMatch(interaction.customId) !== false,
     );
 
     if (!modalHandler) {
-      log.error(
-        "received unknown modal submit interaction: %s",
+      // May be handled by an inline awaitModalSubmit collector
+      log.debug(
+        "no registered modal handler for custom id: %s",
         interaction.customId,
       );
 
-      return false;
+      return;
     }
 
     log.info("received %s modal submit", interaction.customId);
 
     try {
       await modalHandler.handleModalSubmit(interaction);
-      return true;
     } catch (e) {
       Sentry.captureException(e, {
         tags: {
@@ -667,7 +667,7 @@ export default class InteractionRouter {
       });
 
       log.error(e, "error handling modal %s", interaction.id);
-      return false;
+      throw e;
     }
   }
 
@@ -678,7 +678,7 @@ export default class InteractionRouter {
    */
   private async handleButtonSubmit(
     interaction: ButtonInteraction,
-  ): Promise<boolean> {
+  ): Promise<void> {
     // TODO: button / select menu handlers don't really need to be a collection
     // as we are always iterating through all handlers
     const buttonHandler = this.buttonHandlers.find(
@@ -686,10 +686,10 @@ export default class InteractionRouter {
     );
 
     if (!buttonHandler) {
-      // This can happen if there's just an interaction collector
-      log.warn("received unknown button interaction: %s", interaction.customId);
+      // May be handled by an inline awaitMessageComponent collector
+      log.debug("no registered button handler for custom id: %s", interaction.customId);
 
-      return false;
+      return;
     }
 
     log.info("received %s button", interaction.customId);
@@ -714,10 +714,8 @@ export default class InteractionRouter {
         "error handling button",
       );
 
-      return false;
+      throw err;
     }
-
-    return true;
   }
 
   /**
@@ -727,29 +725,35 @@ export default class InteractionRouter {
    */
   private async handleSelectMenuSubmit(
     interaction: AnySelectMenuInteraction,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const selectMenuHandler = this.selectMenuHandlers.find(
       (handler) => handler.customIDMatch(interaction.customId) !== false,
     );
 
     if (!selectMenuHandler) {
-      log.error(
-        "received unknown select menu interaction: %s",
+      // May be handled by an inline awaitMessageComponent collector
+      log.debug(
+        "no registered select menu handler for custom id: %s",
         interaction.customId,
       );
 
-      return false;
+      return;
     }
 
     log.info("received %s select menu", interaction.customId);
 
     try {
       await selectMenuHandler.handleInteraction(interaction);
-      return true;
     } catch (e) {
-      Sentry.captureException(e);
+      Sentry.captureException(e, {
+        tags: {
+          type: "select_menu",
+          custom_id: interaction.customId,
+          handler: selectMenuHandler.constructor.name,
+        },
+      });
       log.error(e, "error handling select menu %s", interaction.id);
-      return false;
+      throw e;
     }
   }
 
@@ -830,7 +834,7 @@ export default class InteractionRouter {
             switch (interaction.componentType) {
               case ComponentType.Button: {
                 span.setAttribute("discord.component.custom_id", interaction.customId);
-                success = await this.handleButtonSubmit(interaction);
+                await this.handleButtonSubmit(interaction);
                 break;
               }
               case ComponentType.StringSelect:
@@ -839,7 +843,7 @@ export default class InteractionRouter {
               case ComponentType.MentionableSelect:
               case ComponentType.ChannelSelect: {
                 span.setAttribute("discord.component.custom_id", interaction.customId);
-                success = await this.handleSelectMenuSubmit(interaction);
+                await this.handleSelectMenuSubmit(interaction);
                 break;
               }
             }
@@ -849,7 +853,7 @@ export default class InteractionRouter {
 
           case InteractionType.ModalSubmit: {
             span.setAttribute("discord.component.custom_id", interaction.customId);
-            success = await this.handleModalSubmit(interaction);
+            await this.handleModalSubmit(interaction);
             break;
           }
         }
