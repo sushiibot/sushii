@@ -7,7 +7,7 @@ import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import type { DeploymentRepository } from "@/features/deployment/domain/repositories/DeploymentRepository";
 
 import type { HealthCheckService } from "./HealthCheckService";
-import { createMonitoringApp } from "./server";
+import { createHealthApp, createMonitoringApp } from "./server";
 
 const logger = pino({ level: "silent" });
 
@@ -71,6 +71,57 @@ function makeHealthCheckService(
     ...overrides,
   });
 }
+
+// ---------------------------------------------------------------------------
+// /health
+// ---------------------------------------------------------------------------
+
+describe("GET /health", () => {
+  test("returns 200 and healthy when all checks pass", async () => {
+    const manager = makeManager([{ id: 0, ready: true, shardList: [0] }]);
+    const app = createHealthApp(manager, makeHealthCheckService());
+    const res = await app.request("/health");
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.status).toBe("healthy");
+
+    const checks = body.checks as Record<string, unknown>;
+    expect(checks.clusters).toBe("pass");
+    expect(checks.database).toBe("pass");
+  });
+
+  test("returns 503 and unhealthy when cluster not ready", async () => {
+    const manager = makeManager([{ id: 0, ready: false, shardList: [0] }]);
+    const app = createHealthApp(manager, makeHealthCheckService());
+    const res = await app.request("/health");
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.status).toBe("unhealthy");
+
+    const checks = body.checks as Record<string, unknown>;
+    expect(checks.clusters).toBe("fail");
+  });
+
+  test("returns 503 when database check fails", async () => {
+    const manager = makeManager([{ id: 0, ready: true, shardList: [0] }]);
+    const app = createHealthApp(
+      manager,
+      makeHealthCheckService({
+        checkDatabase: async () => "fail" as const,
+      }),
+    );
+    const res = await app.request("/health");
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.status).toBe("unhealthy");
+
+    const checks = body.checks as Record<string, unknown>;
+    expect(checks.database).toBe("fail");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // /deployment/status

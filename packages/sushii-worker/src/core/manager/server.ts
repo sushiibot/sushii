@@ -69,9 +69,6 @@ function serializeClusterDetail(cluster: {
 }
 
 interface HealthSnapshot {
-  clustersReady: boolean;
-  dbCheck: "pass" | "fail";
-  shardsCheck: "pass" | "fail";
   shardData: ShardInfo[] | null;
   healthy: boolean;
   checks: {
@@ -102,7 +99,7 @@ async function buildHealthSnapshot(
     shards: shardsCheck,
   } as const;
 
-  return { clustersReady, dbCheck, shardsCheck, shardData, healthy, checks };
+  return { shardData, healthy, checks };
 }
 
 export function createHealthApp(
