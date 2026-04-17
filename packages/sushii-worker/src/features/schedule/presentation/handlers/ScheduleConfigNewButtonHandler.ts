@@ -48,6 +48,15 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
       return;
     }
 
+    const invokerId = interaction.message.interactionMetadata?.user.id;
+    if (invokerId && interaction.user.id !== invokerId) {
+      await interaction.reply({
+        content: "Only the user who ran this command can use this button.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     // Unique per open so Discord never serves a cached version of this modal.
     const modalCustomId = `${SCHEDULE_CONFIG_CUSTOM_IDS.MODAL}:${Date.now().toString(36)}`;
 
