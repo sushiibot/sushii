@@ -103,6 +103,7 @@ export class HealthCheckService {
       return data;
     } catch (err) {
       logger.warn({ err }, "Failed to collect shard data via broadcastEval");
+      this.shardCache = null;
       return null;
     }
   }
