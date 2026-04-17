@@ -34,7 +34,16 @@ export const SCHEDULE_CONFIG_CUSTOM_IDS = {
   // Delete confirmation buttons
   DELETE_CONFIRM_BUTTON: "schedule-config/delete/confirm",
   DELETE_CANCEL_BUTTON: "schedule-config/delete/cancel",
-  DELETE_MATCH_PATTERN: "schedule-config/delete/:action/:channelId?",
+  DELETE_MATCH_PATTERN: "schedule-config/delete/:action{/:channelId}",
+} as const;
+
+/**
+ * Custom ID values used as path-to-regexp match patterns.
+ * Add any new match patterns here so they are covered by smoke tests.
+ */
+export const SCHEDULE_CONFIG_MATCH_PATTERNS = {
+  OPEN_MODAL_BUTTON: SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON,
+  DELETE_MATCH_PATTERN: SCHEDULE_CONFIG_CUSTOM_IDS.DELETE_MATCH_PATTERN,
 } as const;
 
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;

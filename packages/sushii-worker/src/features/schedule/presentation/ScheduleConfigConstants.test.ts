@@ -1,6 +1,12 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
+import { match } from "path-to-regexp";
 
-import { formatHexColor, parseHexColor } from "./ScheduleConfigConstants";
+import {
+  SCHEDULE_CONFIG_CUSTOM_IDS,
+  SCHEDULE_CONFIG_MATCH_PATTERNS,
+  formatHexColor,
+  parseHexColor,
+} from "./ScheduleConfigConstants";
 
 describe("parseHexColor", () => {
   it("returns null for blank input", () => {
@@ -71,5 +77,34 @@ describe("formatHexColor", () => {
     const parsed = parseHexColor(formatted);
     expect(parsed.ok).toBe(true);
     expect(parsed.val).toBe(original);
+  });
+});
+
+describe("SCHEDULE_CONFIG_MATCH_PATTERNS", () => {
+  describe("all patterns parse without error", () => {
+    test.each(Object.entries(SCHEDULE_CONFIG_MATCH_PATTERNS))("%s", (_name, pattern) => {
+      expect(() => match(pattern)).not.toThrow();
+    });
+  });
+
+  describe("DELETE_MATCH_PATTERN", () => {
+    const deleteMatch = match(SCHEDULE_CONFIG_CUSTOM_IDS.DELETE_MATCH_PATTERN);
+
+    it("matches confirm button with channelId", () => {
+      const result = deleteMatch("schedule-config/delete/confirm/123456789");
+      expect(result).toMatchObject({
+        params: { action: "confirm", channelId: "123456789" },
+      });
+    });
+
+    it("matches cancel button without channelId", () => {
+      const result = deleteMatch(SCHEDULE_CONFIG_CUSTOM_IDS.DELETE_CANCEL_BUTTON);
+      expect(result).toMatchObject({ params: { action: "cancel" } });
+      expect((result as { params: { channelId?: string } }).params.channelId).toBeUndefined();
+    });
+
+    it("does not match unrelated custom ID", () => {
+      expect(deleteMatch("schedule-config/open-modal")).toBeFalse();
+    });
   });
 });

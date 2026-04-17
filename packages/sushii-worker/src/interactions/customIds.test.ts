@@ -1,9 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { match } from "path-to-regexp";
 import type { Match } from "path-to-regexp";
 
 import customIds from "./customIds";
 
 describe("customIds", () => {
+  describe("all paths parse without error", () => {
+    test.each(Object.entries(customIds))("%s", (_name, customId) => {
+      expect(() => match(customId.path)).not.toThrow();
+    });
+  });
+
   describe("roleMenuButton", () => {
     describe.each([
       {

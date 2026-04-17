@@ -45,6 +45,7 @@ function createCustomIdHelper(path: string) {
   const matchFn = match(path, { decode: decodeURIComponent });
 
   return {
+    path,
     compile: compileFn,
     match: matchFn,
     matchParams: (customId: string) => {
