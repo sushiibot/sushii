@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   ChannelSelectMenuBuilder,
   ChannelType,
@@ -52,8 +53,14 @@ export class ScheduleConfigEditHandler {
       return;
     }
 
+    const calendarHash = createHash("sha256")
+      .update(existing.calendarId)
+      .digest("hex")
+      .slice(0, 8);
+    const modalCustomId = `${SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT}:${calendarHash}`;
+
     const modal = new ModalBuilder()
-      .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT)
+      .setCustomId(modalCustomId)
       .setTitle("Edit Schedule Channel")
       .addComponents(
         new LabelBuilder()
@@ -110,7 +117,7 @@ export class ScheduleConfigEditHandler {
         time: 5 * 60 * 1000,
         filter: (i) =>
           i.user.id === interaction.user.id &&
-          i.customId === SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT,
+          i.customId === modalCustomId,
       });
     } catch {
       // User dismissed the modal or it timed out — nothing to do
