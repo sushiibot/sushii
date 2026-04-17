@@ -19,6 +19,7 @@ import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
 import { ScheduleConfigAutocomplete } from "./presentation/autocompletes/ScheduleConfigAutocomplete";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
 import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
+import { ScheduleConfigDeleteButtonHandler } from "./presentation/handlers/ScheduleConfigDeleteButtonHandler";
 import { ScheduleConfigNewButtonHandler } from "./presentation/handlers/ScheduleConfigNewButtonHandler";
 
 interface SetupScheduleFeatureDeps {
@@ -108,6 +109,12 @@ export function setupScheduleFeature(
     emojiRepository,
   );
 
+  const scheduleConfigDeleteButtonHandler = new ScheduleConfigDeleteButtonHandler(
+    scheduleChannelService,
+    logger.child({ component: "ScheduleConfigDeleteButtonHandler" }),
+    emojiRepository,
+  );
+
   const scheduleConfigAutocomplete = new ScheduleConfigAutocomplete(
     scheduleChannelService,
     logger.child({ component: "ScheduleConfigAutocomplete" }),
@@ -119,7 +126,7 @@ export function setupScheduleFeature(
     commands: [scheduleCommand, scheduleConfigCommand],
     autocompletes: [scheduleConfigAutocomplete],
     contextMenuHandlers: [],
-    buttonHandlers: [scheduleConfigNewButtonHandler],
+    buttonHandlers: [scheduleConfigNewButtonHandler, scheduleConfigDeleteButtonHandler],
     eventHandlers: [],
     tasks,
   };

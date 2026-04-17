@@ -7,7 +7,7 @@ import Color from "@/utils/colors";
 export const SCHEDULE_CONFIG_SUBCOMMANDS = {
   NEW: "new",
   EDIT: "edit",
-  REMOVE: "remove",
+  DELETE: "delete",
   LIST: "list",
   REFRESH: "refresh",
 } as const;
@@ -31,6 +31,10 @@ export const SCHEDULE_CONFIG_CUSTOM_IDS = {
   MODAL_EDIT_FIELD_CHANNEL: "edit-channel",
   MODAL_EDIT_FIELD_LOG_CHANNEL: "edit-log-channel",
   MODAL_EDIT_FIELD_COLOR: "edit-color",
+  // Delete confirmation buttons
+  DELETE_CONFIRM_BUTTON: "schedule-config/delete/confirm",
+  DELETE_CANCEL_BUTTON: "schedule-config/delete/cancel",
+  DELETE_MATCH_PATTERN: "schedule-config/delete/:action/:channelId?",
 } as const;
 
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell"] as const;

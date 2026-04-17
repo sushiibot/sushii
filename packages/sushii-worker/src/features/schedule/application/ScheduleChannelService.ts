@@ -67,7 +67,7 @@ export class ScheduleChannelService {
     if (channelConflict) {
       return Err(
         `<#${input.channelId}> is already syncing **${channelConflict.displayTitle}**. ` +
-          `Run \`/schedule-config remove\` on that channel first, then try again.`,
+          `Run \`/schedule-config delete\` on that channel first, then try again.`,
       );
     }
 
@@ -75,7 +75,7 @@ export class ScheduleChannelService {
     if (calendarConflict) {
       return Err(
         `That calendar is already syncing to <#${calendarConflict.channelId}>. ` +
-          `Run \`/schedule-config remove\` on that channel first.`,
+          `Run \`/schedule-config delete\` on that channel first.`,
       );
     }
 
@@ -205,7 +205,7 @@ export class ScheduleChannelService {
       if (channelConflict) {
         return Err(
           `<#${input.newChannelId}> is already syncing **${channelConflict.displayTitle}**. ` +
-            `Run \`/schedule-config remove\` on that channel first, then try again.`,
+            `Run \`/schedule-config delete\` on that channel first, then try again.`,
         );
       }
       patch.channelId = input.newChannelId;

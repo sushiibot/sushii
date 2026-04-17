@@ -56,12 +56,12 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     )
     .addSubcommand((c) =>
       c
-        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE)
-        .setDescription("Remove a schedule channel configuration.")
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.DELETE)
+        .setDescription("Delete a schedule channel configuration.")
         .addStringOption((o) =>
           o
             .setName(SCHEDULE_CONFIG_OPTIONS.SCHEDULE)
-            .setDescription("The schedule channel to remove.")
+            .setDescription("The schedule to delete.")
             .setAutocomplete(true)
             .setRequired(true),
         ),
@@ -109,8 +109,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         return this.handleAdd(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.EDIT:
         return this.editHandler.handle(interaction);
-      case SCHEDULE_CONFIG_SUBCOMMANDS.REMOVE:
-        return this.handleRemove(interaction);
+      case SCHEDULE_CONFIG_SUBCOMMANDS.DELETE:
+        return this.handleDelete(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.LIST:
         return this.handleList(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH:
@@ -165,34 +165,54 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     });
   }
 
-  private async handleRemove(interaction: ChatInputCommandInteraction): Promise<void> {
+  private async handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
     const channelId = interaction.options.getString(SCHEDULE_CONFIG_OPTIONS.SCHEDULE, true);
-
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
-    const result = await this.scheduleChannelService.remove(
+    const schedule = await this.scheduleChannelService.getByChannel(
       BigInt(interaction.guildId!),
       BigInt(channelId),
     );
 
-    if (result.err) {
-      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
+    if (!schedule) {
+      await interaction.reply(makeContainer(`${emojis.fail} No schedule is configured for that channel.`, Color.Error, true));
       return;
     }
 
     const content = [
-      `${emojis.success} **Schedule removed**`,
+      `## ${emojis.warning} Delete Schedule?`,
       "",
-      `<#${channelId}> will no longer sync with Google Calendar. Posts already in the channel were not deleted.`,
+      `**${schedule.displayTitle}** — posts to <#${channelId}>`,
+      `-# Google Calendar: ${schedule.calendarTitle}`,
+      "",
+      "**This will not:**",
+      `- Delete any posts already in <#${channelId}> — those stay as-is`,
+      "- Remove any events from Google Calendar — your calendar is unchanged",
+      "",
+      "**Want to change settings instead?** Use `/schedule-config edit` to update the channel, name, or color without deleting.",
+      "",
+      "You can always re-add the same calendar later with `/schedule-config new`.",
     ].join("\n");
 
     const container = new ContainerBuilder()
-      .setAccentColor(Color.Success)
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+      .setAccentColor(Color.Warning)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`${SCHEDULE_CONFIG_CUSTOM_IDS.DELETE_CONFIRM_BUTTON}/${channelId}`)
+            .setLabel("Delete")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.DELETE_CANCEL_BUTTON)
+            .setLabel("Cancel")
+            .setStyle(ButtonStyle.Secondary),
+        ),
+      );
 
     await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 
