@@ -127,7 +127,7 @@ export class SchedulePollService {
 
           // Fetch events
           const wasFullFetch = !schedule.syncToken;
-          span.setAttribute("fetch_type", wasFullFetch ? "full" : "incremental");
+          span.setAttribute("schedule.fetch_type", wasFullFetch ? "full" : "incremental");
           let changedItems: CalendarEventItem[];
           let newSyncToken: string | undefined;
 
@@ -172,6 +172,7 @@ export class SchedulePollService {
                   nextPollAt,
                 );
                 await this.discordPublisher.sendPermanentErrorAlert(schedule, err.statusCode, err.message);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
                 span.addEvent("calendar_access_error", { "http.response.status_code": err.statusCode });
                 return;
               }
@@ -193,11 +194,12 @@ export class SchedulePollService {
               { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
               "Transient error polling schedule, backing off",
             );
-            span.addEvent("transient_error");
+            span.setStatus({ code: SpanStatusCode.ERROR, message: reason });
+            span.addEvent("transient_error", { "error.message": reason });
             return;
           }
 
-          span.addEvent("calendar_fetched", { "changed_items": changedItems.length });
+          span.addEvent("calendar_fetched", { "calendar.changed_items": changedItems.length });
 
           // Update sync token / reset failures
           const nextPollAt = computeNextPollAt(schedule.pollIntervalSec);
