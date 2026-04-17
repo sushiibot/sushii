@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -66,6 +66,23 @@ function mapEvent(row: typeof schema.scheduleEventsInAppPublic.$inferSelect): Sc
     row.location ?? null,
     (row.status as "confirmed" | "tentative" | "cancelled") ?? "confirmed",
   );
+}
+
+const eventSortExpr = (table: typeof schema.scheduleEventsInAppPublic) =>
+  sql`COALESCE(${table.startUtc}, (${table.startDate} || 'T00:00:00Z')::timestamptz)`;
+
+function mapEventWithCalendar(row: {
+  event: typeof schema.scheduleEventsInAppPublic.$inferSelect;
+  calendarId: string;
+  calendarTitle: string;
+  accentColor: number | null;
+}): ScheduleEventWithCalendar {
+  return {
+    event: mapEvent(row.event),
+    calendarId: row.calendarId,
+    calendarTitle: row.calendarTitle,
+    accentColor: row.accentColor ?? null,
+  };
 }
 
 export class DrizzleScheduleRepository
@@ -521,19 +538,68 @@ export class DrizzleScheduleRepository
       )
       .orderBy(
         asc(
-          sql`COALESCE(${schema.scheduleEventsInAppPublic.startUtc}, (${schema.scheduleEventsInAppPublic.startDate} || 'T00:00:00Z')::timestamptz)`,
+          eventSortExpr(schema.scheduleEventsInAppPublic),
         ),
       );
     return rows.map(mapEvent);
   }
 
+  async findRecentPastByGuild(
+    guildId: bigint,
+    before: Date,
+    limit: number,
+  ): Promise<ScheduleEventWithCalendar[]> {
+    const beforeDateStr = before.toISOString().slice(0, 10);
+    const rows = await this.db
+      .select({
+        event: schema.scheduleEventsInAppPublic,
+        calendarId: schema.schedulesInAppPublic.calendarId,
+        calendarTitle: schema.schedulesInAppPublic.calendarTitle,
+        accentColor: schema.schedulesInAppPublic.accentColor,
+      })
+      .from(schema.scheduleEventsInAppPublic)
+      .innerJoin(
+        schema.schedulesInAppPublic,
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, schema.schedulesInAppPublic.guildId),
+          eq(schema.scheduleEventsInAppPublic.calendarId, schema.schedulesInAppPublic.calendarId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          or(
+            // Timed events
+            and(
+              isNotNull(schema.scheduleEventsInAppPublic.startUtc),
+              lt(schema.scheduleEventsInAppPublic.startUtc, before),
+            ),
+            // All-day events
+            and(
+              isNull(schema.scheduleEventsInAppPublic.startUtc),
+              isNotNull(schema.scheduleEventsInAppPublic.startDate),
+              lt(schema.scheduleEventsInAppPublic.startDate, beforeDateStr),
+            ),
+          ),
+        ),
+      )
+      .orderBy(
+        // Most recent first so LIMIT picks the N nearest past events
+        desc(
+          eventSortExpr(schema.scheduleEventsInAppPublic),
+        ),
+      )
+      .limit(limit);
+
+    return rows.map(mapEventWithCalendar);
+  }
+
   async findUpcomingByGuild(
     guildId: bigint,
     from: Date,
-    to: Date,
+    limit: number,
   ): Promise<ScheduleEventWithCalendar[]> {
     const fromDateStr = from.toISOString().slice(0, 10);
-    const toDateStr = to.toISOString().slice(0, 10);
     const rows = await this.db
       .select({
         event: schema.scheduleEventsInAppPublic,
@@ -557,29 +623,23 @@ export class DrizzleScheduleRepository
             and(
               isNotNull(schema.scheduleEventsInAppPublic.startUtc),
               gte(schema.scheduleEventsInAppPublic.startUtc, from),
-              lt(schema.scheduleEventsInAppPublic.startUtc, to),
             ),
             // All-day events: filter by start_date (text, YYYY-MM-DD)
             and(
               isNull(schema.scheduleEventsInAppPublic.startUtc),
               isNotNull(schema.scheduleEventsInAppPublic.startDate),
               gte(schema.scheduleEventsInAppPublic.startDate, fromDateStr),
-              lt(schema.scheduleEventsInAppPublic.startDate, toDateStr),
             ),
           ),
         ),
       )
       .orderBy(
         asc(
-          sql`COALESCE(${schema.scheduleEventsInAppPublic.startUtc}, (${schema.scheduleEventsInAppPublic.startDate} || 'T00:00:00Z')::timestamptz)`,
+          eventSortExpr(schema.scheduleEventsInAppPublic),
         ),
-      );
+      )
+      .limit(limit);
 
-    return rows.map((row) => ({
-      event: mapEvent(row.event),
-      calendarId: row.calendarId,
-      calendarTitle: row.calendarTitle,
-      accentColor: row.accentColor ?? null,
-    }));
+    return rows.map(mapEventWithCalendar);
   }
 }

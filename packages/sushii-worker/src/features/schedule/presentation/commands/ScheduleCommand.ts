@@ -16,8 +16,9 @@ import Color from "@/utils/colors";
 
 import type { ScheduleEventRepository } from "../../domain/repositories/ScheduleEventRepository";
 
-const UPCOMING_DAYS = 21;
-const MAX_DISPLAYED_EVENTS = 18;
+const MAX_PAST_EVENTS = 3;
+// TODO: add pagination so users can browse beyond the first page of events
+const MAX_DISPLAYED_EVENTS = 10;
 const FOOTER_TEXT = "-# All times are shown in your local timezone";
 
 export class ScheduleCommand extends SlashCommandHandler {
@@ -43,15 +44,22 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const guildId = BigInt(interaction.guildId);
     const now = new Date();
-    const to = new Date(now.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000);
 
-    const upcoming = await this.eventRepo.findUpcomingByGuild(guildId, now, to);
+    // Fetch recent past events (returned most-recent-first) and reverse for display.
+    const pastEvents = (await this.eventRepo.findRecentPastByGuild(guildId, now, MAX_PAST_EVENTS)).reverse();
 
-    if (upcoming.length === 0) {
+    // Fill remaining slots with future events; fetch one extra to detect truncation.
+    const futureLimit = MAX_DISPLAYED_EVENTS - pastEvents.length;
+    const futureEvents = await this.eventRepo.findUpcomingByGuild(guildId, now, futureLimit + 1);
+
+    const truncated = futureEvents.length > futureLimit;
+    const displayed = [...pastEvents, ...futureEvents.slice(0, futureLimit)];
+
+    if (displayed.length === 0) {
       const container = new ContainerBuilder()
         .setAccentColor(Color.Info)
         .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(`No upcoming events in the next ${UPCOMING_DAYS} days.`),
+          new TextDisplayBuilder().setContent("No events found."),
         );
       await interaction.reply({
         components: [container],
@@ -60,12 +68,9 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
-    const truncated = upcoming.length > MAX_DISPLAYED_EVENTS;
-    const displayed = truncated ? upcoming.slice(0, MAX_DISPLAYED_EVENTS) : upcoming;
-
-    const calendarIds = new Set(upcoming.map((e) => e.calendarId));
+    const calendarIds = new Set(displayed.map((e) => e.calendarId));
     const multipleCalendars = calendarIds.size > 1;
-    const accentColor = calendarIds.size === 1 ? (upcoming[0].accentColor ?? Color.Info) : Color.Info;
+    const accentColor = calendarIds.size === 1 ? (displayed[0].accentColor ?? Color.Info) : Color.Info;
 
     const container = new ContainerBuilder().setAccentColor(accentColor);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Upcoming Events"));
@@ -78,16 +83,13 @@ export class ScheduleCommand extends SlashCommandHandler {
       const date = event.getDate();
       if (!date) continue; // defensive — ensured non-null by SQL filter
 
+      const locationIsUrl = !!event.location && URL.canParse(event.location);
+
       let titleLine: string;
-      if (event.location) {
-        try {
-          const safeLocation = event.location.replace(/\)/g, "%29");
-          const escapedSummary = event.summary.replace(/[\[\]]/g, "\\$&");
-          new URL(event.location);
-          titleLine = `**[${escapedSummary}](${safeLocation})**`;
-        } catch {
-          titleLine = `**${event.summary}**`;
-        }
+      if (locationIsUrl) {
+        const safeLocation = event.location.replace(/\)/g, "%29");
+        const escapedSummary = event.summary.replace(/[\[\]]/g, "\\$&");
+        titleLine = `**[${escapedSummary}](${safeLocation})**`;
       } else {
         titleLine = `**${event.summary}**`;
       }
@@ -100,12 +102,8 @@ export class ScheduleCommand extends SlashCommandHandler {
       const lines: string[] = [titleLine, timestampStr];
 
       const meta: string[] = [];
-      if (event.location) {
-        try {
-          new URL(event.location);
-        } catch {
-          meta.push(event.location);
-        }
+      if (event.location && !locationIsUrl) {
+        meta.push(event.location);
       }
       if (multipleCalendars) meta.push(calendarTitle);
       if (meta.length > 0) lines.push(`-# ${meta.join("  ·  ")}`);
@@ -121,7 +119,7 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const footerParts: string[] = [FOOTER_TEXT];
     if (truncated) {
-      footerParts.push(`-# …and ${upcoming.length - MAX_DISPLAYED_EVENTS} more events in the next ${UPCOMING_DAYS} days`);
+      footerParts.push("-# …and more events — check the schedule channel for the full list");
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),

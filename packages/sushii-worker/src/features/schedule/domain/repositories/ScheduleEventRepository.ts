@@ -23,10 +23,24 @@ export interface ScheduleEventRepository {
     to: Date,
   ): Promise<ScheduleEvent[]>;
 
-  /** Returns upcoming events across all calendars in a guild, joined with schedule metadata. */
+  /**
+   * Returns up to `limit` past events across all calendars in a guild.
+   * Results are ordered most-recent-first.
+   */
+  findRecentPastByGuild(
+    guildId: bigint,
+    before: Date,
+    limit: number,
+  ): Promise<ScheduleEventWithCalendar[]>;
+
+  /**
+   * Returns the next `limit` upcoming events across all calendars in a guild,
+   * joined with schedule metadata. No upper date bound — uses LIMIT so it always
+   * returns something as long as future events exist.
+   */
   findUpcomingByGuild(
     guildId: bigint,
     from: Date,
-    to: Date,
+    limit: number,
   ): Promise<ScheduleEventWithCalendar[]>;
 }

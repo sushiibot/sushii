@@ -51,7 +51,7 @@ async function seedSchedule(
   return row;
 }
 
-function makeEvent(id: string, startUtc: Date, overrides: Partial<ScheduleEvent> = {}): ScheduleEvent {
+function makeEvent(id: string, startUtc: Date): ScheduleEvent {
   return new ScheduleEvent(
     id,
     "Event " + id,
@@ -449,6 +449,78 @@ describe("DrizzleScheduleRepository (Integration)", () => {
     });
   });
 
+  describe("findRecentPastByGuild", () => {
+    test("returns past events ordered most-recent-first", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeEvent("e1", new Date("2024-06-05T10:00:00Z")),
+        makeEvent("e2", new Date("2024-06-10T10:00:00Z")),
+        makeEvent("e3", new Date("2024-06-15T10:00:00Z")),
+      ]);
+
+      const before = new Date("2024-07-01T00:00:00Z");
+      const results = await repo.findRecentPastByGuild(GUILD, before, 10);
+
+      expect(results.map((r) => r.event.id)).toEqual(["e3", "e2", "e1"]);
+    });
+
+    test("respects the limit, returning the N most recent", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeEvent("e1", new Date("2024-06-05T10:00:00Z")),
+        makeEvent("e2", new Date("2024-06-10T10:00:00Z")),
+        makeEvent("e3", new Date("2024-06-15T10:00:00Z")),
+      ]);
+
+      const before = new Date("2024-07-01T00:00:00Z");
+      const results = await repo.findRecentPastByGuild(GUILD, before, 2);
+
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.event.id)).toEqual(["e3", "e2"]);
+    });
+
+    test("excludes future events", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeEvent("past", new Date("2024-06-05T10:00:00Z")),
+        makeEvent("future", new Date("2024-08-01T10:00:00Z")),
+      ]);
+
+      const before = new Date("2024-07-01T00:00:00Z");
+      const results = await repo.findRecentPastByGuild(GUILD, before, 10);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].event.id).toBe("past");
+    });
+
+    test("does not return events from other guilds", async () => {
+      await seedSchedule(db, { guildId: GUILD });
+      await seedSchedule(db, { guildId: GUILD_B, calendarId: CAL_B, channelId: 101n });
+      await repo.upsertMany(GUILD, CAL, [makeEvent("e1", new Date("2024-06-05T10:00:00Z"))]);
+      await repo.upsertMany(GUILD_B, CAL_B, [makeEvent("e2", new Date("2024-06-06T10:00:00Z"))]);
+
+      const before = new Date("2024-07-01T00:00:00Z");
+      const results = await repo.findRecentPastByGuild(GUILD, before, 10);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].event.id).toBe("e1");
+    });
+
+    test("returns all-day past events", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeAllDayEvent("past-allday", "2024-06-10"),
+        makeAllDayEvent("future-allday", "2024-08-01"),
+      ]);
+
+      const before = new Date("2024-07-01T00:00:00Z");
+      const results = await repo.findRecentPastByGuild(GUILD, before, 10);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].event.id).toBe("past-allday");
+    });
+  });
+
   describe("findUpcomingByGuild", () => {
     test("returns events from all calendars in the guild", async () => {
       await seedSchedule(db, { calendarId: CAL, channelId: CHANNEL });
@@ -457,8 +529,7 @@ describe("DrizzleScheduleRepository (Integration)", () => {
       await repo.upsertMany(GUILD, CAL_B, [makeEvent("e2", new Date("2024-06-16T10:00:00Z"))]);
 
       const from = new Date("2024-06-01T00:00:00Z");
-      const to = new Date("2024-07-01T00:00:00Z");
-      const results = await repo.findUpcomingByGuild(GUILD, from, to);
+      const results = await repo.findUpcomingByGuild(GUILD, from, 100);
 
       expect(results).toHaveLength(2);
     });
@@ -468,8 +539,7 @@ describe("DrizzleScheduleRepository (Integration)", () => {
       await repo.upsertMany(GUILD, CAL, [makeEvent("e1", new Date("2024-06-15T10:00:00Z"))]);
 
       const from = new Date("2024-06-01T00:00:00Z");
-      const to = new Date("2024-07-01T00:00:00Z");
-      const results = await repo.findUpcomingByGuild(GUILD, from, to);
+      const results = await repo.findUpcomingByGuild(GUILD, from, 100);
 
       expect(results[0].calendarTitle).toBe("My Calendar");
     });
@@ -481,11 +551,40 @@ describe("DrizzleScheduleRepository (Integration)", () => {
       await repo.upsertMany(GUILD_B, CAL_B, [makeEvent("e2", new Date("2024-06-16T10:00:00Z"))]);
 
       const from = new Date("2024-06-01T00:00:00Z");
-      const to = new Date("2024-07-01T00:00:00Z");
-      const results = await repo.findUpcomingByGuild(GUILD, from, to);
+      const results = await repo.findUpcomingByGuild(GUILD, from, 100);
 
       expect(results).toHaveLength(1);
       expect(results[0].event.id).toBe("e1");
+    });
+
+    test("respects the limit parameter", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeEvent("e1", new Date("2024-06-10T10:00:00Z")),
+        makeEvent("e2", new Date("2024-06-15T10:00:00Z")),
+        makeEvent("e3", new Date("2024-06-20T10:00:00Z")),
+      ]);
+
+      const from = new Date("2024-06-01T00:00:00Z");
+      const results = await repo.findUpcomingByGuild(GUILD, from, 2);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].event.id).toBe("e1");
+      expect(results[1].event.id).toBe("e2");
+    });
+
+    test("returns events far in the future with no upper date bound", async () => {
+      await seedSchedule(db);
+      await repo.upsertMany(GUILD, CAL, [
+        makeEvent("near", new Date("2024-06-10T10:00:00Z")),
+        makeEvent("far", new Date("2025-12-31T10:00:00Z")),
+      ]);
+
+      const from = new Date("2024-06-01T00:00:00Z");
+      const results = await repo.findUpcomingByGuild(GUILD, from, 100);
+
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.event.id)).toEqual(["near", "far"]);
     });
   });
 
