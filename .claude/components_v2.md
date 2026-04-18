@@ -233,7 +233,18 @@ const disabledMessage = createSettingsMessage({
    // Update page based on navigation buttons
    ```
 
-4. **Error Handling**: Wrap interactions in try-catch
+4. **Message Titles**: Use `##` headings for status/error message titles so they render at heading size and don't look oddly small next to body text. Pair with an emoji for visual context.
+   ```typescript
+   // ✓ error
+   `## ${emojis.fail} Missing bot permissions — fix these to continue`
+   // ✓ success
+   `## ${emojis.success} Schedule channel configured`
+   // ✗ too small
+   `${emojis.fail} **Missing bot permissions**`
+   ```
+   Do not add a blank line after a `##` heading — Discord renders headings with built-in spacing, so an extra blank line creates too much gap.
+
+5. **Error Handling**: Wrap interactions in try-catch
    ```typescript
    try {
      await handleInteraction(i);
