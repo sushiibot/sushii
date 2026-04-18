@@ -197,21 +197,22 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           const logChannelPerms = checkChannelPermissions(guild, logChannel.id);
 
           if (channelPerms.missingPermissions.length > 0 || logChannelPerms.missingPermissions.length > 0) {
-            const lines = [`${emojis.fail} **Missing bot permissions — fix these to continue**`, ""];
+            const lines = [`## ${emojis.fail} Missing bot permissions — fix these to continue`];
 
             if (channelPerms.missingPermissions.length > 0) {
               lines.push(`**Schedule channel** <#${channel.id}>`);
-              lines.push(`Missing: ${channelPerms.missingPermissions.join(", ")}`);
+              lines.push(`Bot needs permissions: ${channelPerms.missingPermissions.map((p) => `\`${p}\``).join(", ")}`);
               lines.push("");
             }
 
             if (logChannelPerms.missingPermissions.length > 0) {
               lines.push(`**Log channel** <#${logChannel.id}>`);
-              lines.push(`Missing: ${logChannelPerms.missingPermissions.join(", ")}`);
+              lines.push(`Bot needs permissions: ${logChannelPerms.missingPermissions.map((p) => `\`${p}\``).join(", ")}`);
               lines.push("");
             }
 
-            lines.push("-# Grant the missing permissions to the bot's role or channel overrides, then click the button below to try again.");
+            lines.push("1. Add the missing permissions to the bot's role or channel permission overrides");
+            lines.push("2. Click the setup schedule button to try again");
 
             // Send ephemeral followup — keeps the original setup message (and its button)
             // intact so the user can retry without re-running the command.

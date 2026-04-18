@@ -150,21 +150,22 @@ export class ScheduleConfigEditHandler {
     const logChannelPerms = checkChannelPermissions(guild, logChannel.id);
 
     if (channelPerms.missingPermissions.length > 0 || logChannelPerms.missingPermissions.length > 0) {
-      const lines = [`${emojis.fail} **Missing bot permissions**`, ""];
+      const lines = [`## ${emojis.fail} Missing bot permissions — fix these to continue`];
 
       if (channelPerms.missingPermissions.length > 0) {
         lines.push(`**Schedule channel** <#${channel.id}>`);
-        lines.push(`Missing: ${channelPerms.missingPermissions.join(", ")}`);
+        lines.push(`Bot needs permissions: ${channelPerms.missingPermissions.map((p) => `\`${p}\``).join(", ")}`);
         lines.push("");
       }
 
       if (logChannelPerms.missingPermissions.length > 0) {
         lines.push(`**Log channel** <#${logChannel.id}>`);
-        lines.push(`Missing: ${logChannelPerms.missingPermissions.join(", ")}`);
+        lines.push(`Bot needs permissions: ${logChannelPerms.missingPermissions.map((p) => `\`${p}\``).join(", ")}`);
         lines.push("");
       }
 
-      lines.push("-# Grant the missing permissions to the bot's role or channel overrides, then run `/schedule-config edit` again.");
+      lines.push("1. Add the missing permissions to the bot's role or channel permission overrides");
+      lines.push("2. Run `/schedule-config edit` again");
 
       await submit.reply(makeContainer(lines.join("\n").trimEnd(), Color.Error, true));
       return;
