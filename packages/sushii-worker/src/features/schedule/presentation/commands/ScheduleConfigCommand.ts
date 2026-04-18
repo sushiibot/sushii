@@ -21,6 +21,7 @@ import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import {
+  buildSetupInstructionsContainer,
   makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
@@ -122,42 +123,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
   private async handleAdd(interaction: ChatInputCommandInteraction): Promise<void> {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_SETUP_EMOJI_NAMES);
-
-    const container = new ContainerBuilder()
-      .setAccentColor(Color.Info)
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          [
-            `## ${emojis.schedule} Setting Up a Schedule Channel`,
-            "",
-            "Your Google Calendar must be **public** before the bot can read it.",
-            "We recommend creating a **new, dedicated calendar** so you don't accidentally publish personal events.",
-            "",
-            `${emojis.tip} **Step 1 — Create a new calendar**`,
-            "Open [Google Calendar Settings](https://calendar.google.com/calendar/r/settings) and click",
-            "**+ Add other → Create new calendar**. Give it a name like *Server Events*.",
-            "",
-            `${emojis.tip} **Step 2 — Make the calendar public**`,
-            "Select your new calendar in Settings. Under **Access permissions for events**:",
-            "- Check **Make available to public**",
-            '- Set to **See all event details** (not "See only free/busy")',
-            "",
-            `${emojis.tip} **Step 3 — Copy the Calendar ID**`,
-            "In that same page, scroll to **Integrate calendar** and copy the **Calendar ID**",
-            "(e.g. `abc123@group.calendar.google.com`). You can also copy the **Public URL to this calendar**.",
-            "",
-            "-# When ready, click the button below to continue.",
-          ].join("\n"),
-        ),
-      )
-      .addActionRowComponents(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.OPEN_MODAL_BUTTON)
-            .setLabel("Set Up Schedule Channel")
-            .setStyle(ButtonStyle.Primary),
-        ),
-      );
+    const container = buildSetupInstructionsContainer(emojis);
 
     await interaction.reply({
       components: [container],

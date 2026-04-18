@@ -15,6 +15,7 @@ import {
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
+import { checkChannelPermissions } from "@/features/guild-settings/presentation/utils/PermissionChecker";
 import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
@@ -140,6 +141,32 @@ export class ScheduleConfigEditHandler {
 
     if (!channel || !logChannel) {
       await submit.reply(makeContainer(`${emojis.fail} Please select both a schedule channel and a log channel.`, Color.Error, true));
+      return;
+    }
+
+    // Check bot permissions in the selected channels before saving changes
+    const guild = submit.guild!;
+    const channelPerms = checkChannelPermissions(guild, channel.id);
+    const logChannelPerms = checkChannelPermissions(guild, logChannel.id);
+
+    if (channelPerms.missingPermissions.length > 0 || logChannelPerms.missingPermissions.length > 0) {
+      const lines = [`${emojis.fail} **Missing bot permissions**`, ""];
+
+      if (channelPerms.missingPermissions.length > 0) {
+        lines.push(`**Schedule channel** <#${channel.id}>`);
+        lines.push(`Missing: ${channelPerms.missingPermissions.join(", ")}`);
+        lines.push("");
+      }
+
+      if (logChannelPerms.missingPermissions.length > 0) {
+        lines.push(`**Log channel** <#${logChannel.id}>`);
+        lines.push(`Missing: ${logChannelPerms.missingPermissions.join(", ")}`);
+        lines.push("");
+      }
+
+      lines.push("-# Grant the missing permissions to the bot's role or channel overrides, then run `/schedule-config edit` again.");
+
+      await submit.reply(makeContainer(lines.join("\n").trimEnd(), Color.Error, true));
       return;
     }
 

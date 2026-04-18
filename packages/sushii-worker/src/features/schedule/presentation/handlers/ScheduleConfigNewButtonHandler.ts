@@ -16,12 +16,14 @@ import { match } from "path-to-regexp";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
+import { checkChannelPermissions } from "@/features/guild-settings/presentation/utils/PermissionChecker";
 import ButtonHandler from "@/shared/presentation/handlers/ButtonHandler";
 import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import { formatPollInterval } from "../views/ScheduleFormatting";
 import {
+  buildPostSetupGuide,
   makeContainer,
   parseHexColor,
   SCHEDULE_CONFIG_CUSTOM_IDS,
@@ -189,6 +191,37 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
             return;
           }
 
+          // Check bot permissions in the selected channels before saving config
+          const guild = submit.guild!;
+          const channelPerms = checkChannelPermissions(guild, channel.id);
+          const logChannelPerms = checkChannelPermissions(guild, logChannel.id);
+
+          if (channelPerms.missingPermissions.length > 0 || logChannelPerms.missingPermissions.length > 0) {
+            const lines = [`${emojis.fail} **Missing bot permissions — fix these to continue**`, ""];
+
+            if (channelPerms.missingPermissions.length > 0) {
+              lines.push(`**Schedule channel** <#${channel.id}>`);
+              lines.push(`Missing: ${channelPerms.missingPermissions.join(", ")}`);
+              lines.push("");
+            }
+
+            if (logChannelPerms.missingPermissions.length > 0) {
+              lines.push(`**Log channel** <#${logChannel.id}>`);
+              lines.push(`Missing: ${logChannelPerms.missingPermissions.join(", ")}`);
+              lines.push("");
+            }
+
+            lines.push("-# Grant the missing permissions to the bot's role or channel overrides, then click the button below to try again.");
+
+            // Send ephemeral followup — keeps the original setup message (and its button)
+            // intact so the user can retry without re-running the command.
+            await submit.followUp({
+              ...makeContainer(lines.join("\n").trimEnd(), Color.Error, true),
+              allowedMentions: { parse: [] },
+            });
+            return;
+          }
+
           const colorResult = parseHexColor(colorInput);
           if (colorResult.err) {
             await submit.editReply(makeContainer(`${emojis.fail} ${colorResult.val}`, Color.Error));
@@ -223,9 +256,25 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
               new TextDisplayBuilder().setContent(
                 `**Channel**\n<#${schedule.channelId}>\n**Log channel**\n<#${schedule.logChannelId}>\n**Name**\n${schedule.displayTitle}\n**Google Calendar**\n${schedule.calendarTitle}`,
               ),
-            )
+            );
+
+          if (channel.id === logChannel.id) {
+            container.addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(
+                `${emojis.warning} Schedule and log channel are the same — event alerts will appear alongside schedule posts. To use a separate log channel, run \`/schedule-config edit\`.`,
+              ),
+            );
+          }
+
+          container
             .addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(`-# Syncs ${intervalDisplay}`),
+              new TextDisplayBuilder().setContent(
+                `-# Syncs ${intervalDisplay}  ·  To change settings later, use \`/schedule-config edit\``,
+              ),
+            )
+            .addSeparatorComponents(new SeparatorBuilder())
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(buildPostSetupGuide(emojis, intervalDisplay)),
             );
 
           await submit.editReply({
