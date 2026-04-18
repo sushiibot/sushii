@@ -58,4 +58,16 @@ export const ASSET_MAPPING: { src: string; name: BotEmojiNameType }[] = [
   // Schedule
   { src: "UI/Calendar 2/Calendar 2 Outline 256.png", name: "schedule" },
   { src: "UI/Trash/Trash Outline 256.png", name: "trash" },
+
+  // Numbers
+  { src: "UI/Numbers/0/0 Outline 256.png", name: "num_0" },
+  { src: "UI/Numbers/1/1 Outline 256.png", name: "num_1" },
+  { src: "UI/Numbers/2/2 Outline 256.png", name: "num_2" },
+  { src: "UI/Numbers/3/3 Outline 256.png", name: "num_3" },
+  { src: "UI/Numbers/4/4 Outline 256.png", name: "num_4" },
+  { src: "UI/Numbers/5/5 Outline 256.png", name: "num_5" },
+  { src: "UI/Numbers/6/6 Outline 256.png", name: "num_6" },
+  { src: "UI/Numbers/7/7 Outline 256.png", name: "num_7" },
+  { src: "UI/Numbers/8/8 Outline 256.png", name: "num_8" },
+  { src: "UI/Numbers/9/9 Outline 256.png", name: "num_9" },
 ];
