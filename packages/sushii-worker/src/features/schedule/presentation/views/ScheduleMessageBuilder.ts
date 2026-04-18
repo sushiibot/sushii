@@ -22,29 +22,35 @@ const FOOTER_TEXT_LIVE = "-# All times are shown in your local timezone";
 const FOOTER_TEXT_ARCHIVE = "-# All times are shown in your local timezone · archived";
 
 function formatEventLine(event: ScheduleEvent): string {
+  // Extract any leading emoji to place before the timestamp for a nicer visual grouping
+  const emojiPrefixMatch = event.summary.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\u20E3]+\s*)/u);
+  const leadingEmoji = emojiPrefixMatch ? emojiPrefixMatch[1] : '';
+  const textWithoutEmoji = event.summary.slice(leadingEmoji.length);
+
+  // Only strip the emoji if there is remaining text (avoid a blank summary)
+  const hasStrippedEmoji = leadingEmoji.length > 0 && textWithoutEmoji.length > 0;
+  const textPart = hasStrippedEmoji ? textWithoutEmoji : event.summary;
+
   let summaryText: string;
 
   if (event.location) {
     try {
       new URL(event.location);
-      // Emojis inside [...] break Discord markdown links, so extract any leading emoji
-      // and place them before the link brackets.
-      const emojiPrefixMatch = event.summary.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\u20E3]+\s*)/u);
-      const leadingEmoji = emojiPrefixMatch ? emojiPrefixMatch[1] : '';
-      const textPart = event.summary.slice(leadingEmoji.length);
+      // Emojis inside [...] break Discord markdown links, so keep them outside the brackets.
       const escapedText = textPart.replace(/[\[\]]/g, '\\$&');
       const safeLocation = event.location.replace(/\)/g, '%29');
-      summaryText = `${leadingEmoji}[${escapedText}](${safeLocation})`;
+      summaryText = `[${escapedText}](${safeLocation})`;
     } catch {
-      summaryText = event.summary;
+      summaryText = textPart;
     }
   } else {
-    summaryText = event.summary;
+    summaryText = textPart;
   }
 
   const timePart = formatEventTimestamp(event);
+  const prefix = hasStrippedEmoji ? leadingEmoji : '';
 
-  let line = timePart ? `${timePart} — ${summaryText}` : summaryText;
+  let line = timePart ? `${prefix}${timePart} — ${summaryText}` : `${prefix}${summaryText}`;
 
   const MAX_LINE_LENGTH = MAX_TEXT_DISPLAY_CHARS - 50;
   if (line.length > MAX_LINE_LENGTH) {

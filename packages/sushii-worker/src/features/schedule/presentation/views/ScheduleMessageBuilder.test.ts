@@ -278,13 +278,21 @@ describe("renderSchedule", () => {
       expect(allText).not.toContain("https://x.com/watch?v=abc123)");
     });
 
-    it("extracts leading emoji outside markdown link brackets", () => {
+    it("moves leading emoji before the timestamp for URL events", () => {
       const event = makeEvent("1", "🌴 Lisa - Anyma Coachella", new Date("2024-06-20T10:00:00Z"), {
         location: "https://www.youtube.com/live/xIiSaqq10Yw",
       });
       const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
       const allText = getTextContent(chunks);
-      expect(allText).toContain("🌴 [Lisa - Anyma Coachella](https://www.youtube.com/live/xIiSaqq10Yw)");
+      // Emoji should appear before the Discord timestamp, not inside the link brackets
+      expect(allText).toMatch(/🌴 <t:\d+:s> — \[Lisa - Anyma Coachella\]\(https:\/\/www\.youtube\.com\/live\/xIiSaqq10Yw\)/);
+    });
+
+    it("moves leading emoji before the timestamp for plain (non-URL) events", () => {
+      const event = makeEvent("1", "🌴 Lisa - Anyma Coachella", new Date("2024-06-20T10:00:00Z"));
+      const chunks = renderSchedule([event], "live", "Test Calendar", YEAR, MONTH, NOW);
+      const allText = getTextContent(chunks);
+      expect(allText).toMatch(/🌴 <t:\d+:s> — Lisa - Anyma Coachella/);
     });
 
     it("ignores non-URL location", () => {
