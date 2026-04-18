@@ -124,9 +124,15 @@ export default class InteractionRouter {
   private interactionMetrics: InteractionMetrics;
 
   /**
-   * Command handlers
+   * Global command handlers
    */
   private commands: Collection<string, SlashCommandHandler>;
+
+  /**
+   * Guild-specific command handlers, keyed by guild ID.
+   * Commands here are registered only to their respective guilds.
+   */
+  private guildCommands: Map<string, Collection<string, SlashCommandHandler>>;
 
   /**
    * Autocomplete handlers
@@ -164,6 +170,7 @@ export default class InteractionRouter {
     this.deploymentService = deploymentService;
     this.interactionMetrics = interactionMetrics;
     this.commands = new Collection();
+    this.guildCommands = new Map();
     this.autocompleteHandlers = new Collection();
     this.modalHandlers = [];
     this.buttonHandlers = [];
@@ -186,7 +193,17 @@ export default class InteractionRouter {
    * @param command SlashCommand to add
    */
   public addCommand(command: SlashCommandHandler): void {
-    this.commands.set(command.command.name, command);
+    if (command.registeredGuilds) {
+      for (const guildId of command.registeredGuilds) {
+        const guildHandlers =
+          this.guildCommands.get(guildId) ??
+          new Collection<string, SlashCommandHandler>();
+        this.guildCommands.set(guildId, guildHandlers);
+        guildHandlers.set(command.command.name, command);
+      }
+    } else {
+      this.commands.set(command.command.name, command);
+    }
   }
 
   /**
@@ -331,6 +348,21 @@ export default class InteractionRouter {
         { body: this.getCommandsArray() },
       );
 
+      for (const [guildId, handlers] of this.guildCommands) {
+        const body = [...handlers.values()].map((h) => h.command);
+        log.info(
+          { guildId, count: body.length },
+          "registering guild-specific commands",
+        );
+        await this.client.rest.put(
+          Routes.applicationGuildCommands(
+            config.discord.applicationId,
+            guildId,
+          ),
+          { body },
+        );
+      }
+
       log.info("commands registered!");
     } catch (err) {
       log.error(err, "error registering commands");
@@ -346,7 +378,11 @@ export default class InteractionRouter {
   private async handleSlashCommandInteraction(
     interaction: ChatInputCommandInteraction,
   ): Promise<boolean> {
-    const command = this.commands.get(interaction.commandName);
+    const command =
+      this.commands.get(interaction.commandName) ??
+      this.guildCommands
+        .get(interaction.guildId ?? "")
+        ?.get(interaction.commandName);
 
     if (!command) {
       log.error(`received unknown command: ${interaction.commandName}`);
