@@ -8,13 +8,38 @@ interface SushiiStats {
   mod_action_count: number;
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-fd-border bg-fd-card p-4 text-center">
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="mt-1 text-sm text-fd-muted-foreground">{label}</div>
-    </div>
-  );
+const OUTLINE = "var(--sushi-outline)";
+const ON_ACCENT = "#2e1f4a";
+
+const STAT_CONFIG = [
+  {
+    key: "guild_count" as const,
+    label: "Servers Protected",
+    accent: "var(--sushi-pink)",
+    rotate: -1.5,
+  },
+  {
+    key: "member_count" as const,
+    label: "Members Moderated",
+    accent: "var(--sushi-lilac)",
+    rotate: 1,
+  },
+  {
+    key: "mod_action_count" as const,
+    label: "Mod Actions Logged",
+    accent: "var(--sushi-blue)",
+    rotate: -0.5,
+  },
+];
+
+function formatStat(n: number): string {
+  if (n >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(1)}M+`;
+  }
+  if (n >= 1_000) {
+    return `${(n / 1_000).toFixed(0)}K+`;
+  }
+  return n.toLocaleString();
 }
 
 export function StatsSection() {
@@ -34,19 +59,50 @@ export function StatsSection() {
   }, []);
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-      <StatCard
-        label="Servers"
-        value={stats?.guild_count?.toLocaleString() ?? "—"}
-      />
-      <StatCard
-        label="Members"
-        value={stats?.member_count?.toLocaleString() ?? "—"}
-      />
-      <StatCard
-        label="Mod Actions"
-        value={stats?.mod_action_count?.toLocaleString() ?? "—"}
-      />
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 20,
+      }}
+    >
+      {STAT_CONFIG.map(({ key, label, accent, rotate }) => (
+        <div
+          key={key}
+          style={{
+            background: accent,
+            border: `3px solid ${OUTLINE}`,
+            borderRadius: 20,
+            padding: "22px 20px",
+            boxShadow: `5px 5px 0 ${OUTLINE}`,
+            transform: `rotate(${rotate}deg)`,
+            color: ON_ACCENT,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 32,
+              color: ON_ACCENT,
+              lineHeight: 1,
+            }}
+          >
+            {stats ? formatStat(stats[key]) : "—"}
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: ON_ACCENT,
+              marginTop: 8,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {label}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
