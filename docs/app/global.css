@@ -1,3 +1,97 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* ── Sushii color palette ────────────────────────────────────────── */
+  :root {
+    /* Lavender palette (default) */
+    --sushi-pink: #fbc4c9;
+    --sushi-lilac: #d8cbef;
+    --sushi-blue: #c9e2ee;
+    --sushi-gold: #fbe4c9;
+    --sushi-bg: #f4eefb;
+    --sushi-outline: #2e1f4a;
+    --sushi-ink: #2e1f4a;
+    --sushi-ink2: #6b5e8a;
+    --sushi-card: #ffffff;
+    --sushi-card2: #f6eeff;
+    --sushi-on-accent: #2e1f4a;
+  }
+
+  .dark {
+    /* Dark mode — lighter neutral cool-grey-purple, outline stays dark */
+    --sushi-bg: #1e2033;
+    --sushi-card: #2e2a4a;
+    --sushi-card2: #1a1a30;
+    --sushi-ink: #f6eeff;
+    --sushi-ink2: #c9b8ea;
+    /* --sushi-outline stays #2e1f4a — "black looked way better" */
+  }
+
+  /* ── Body background ─────────────────────────────────────────────── */
+  body {
+    background-color: var(--sushi-bg);
+  }
+
+  /* ── Fumadocs variable overrides (light) ─────────────────────────── */
+  :root {
+    --fd-background: 270 50% 95%;      /* ~#f4eefb lavender */
+    --fd-foreground: 260 40% 20%;      /* ~#2e1f4a dark ink */
+    --fd-muted: 270 60% 96%;           /* ~#f6eeff very soft lavender */
+    --fd-muted-foreground: 263 20% 45%;/* ~#6b5e8a muted purple */
+    --fd-border: 265 40% 88%;          /* ~#d8cbef lilac border */
+    --fd-card: 0 0% 100%;              /* white card */
+    --fd-card-foreground: 260 40% 20%;
+    --fd-primary: 260 40% 20%;         /* dark ink as primary */
+    --fd-primary-foreground: 0 0% 100%;
+    --fd-secondary: 270 60% 96%;
+    --fd-secondary-foreground: 260 40% 20%;
+    --fd-accent: 265 40% 88%;          /* lilac accent */
+    --fd-accent-foreground: 260 40% 20%;
+    --fd-popover: 0 0% 100%;
+    --fd-popover-foreground: 260 40% 20%;
+    --fd-ring: 265 40% 70%;
+  }
+
+  /* ── Fumadocs variable overrides (dark) ──────────────────────────── */
+  .dark {
+    --fd-background: 235 26% 16%;      /* ~#1e2033 */
+    --fd-foreground: 270 80% 95%;      /* ~#f6eeff */
+    --fd-muted: 252 25% 23%;           /* ~#2e2a4a */
+    --fd-muted-foreground: 266 50% 80%;/* ~#c9b8ea */
+    --fd-border: 252 25% 28%;          /* slightly lighter than muted */
+    --fd-card: 252 25% 23%;
+    --fd-card-foreground: 270 80% 95%;
+    --fd-primary: 270 80% 95%;
+    --fd-primary-foreground: 260 40% 20%;
+    --fd-secondary: 250 28% 20%;
+    --fd-secondary-foreground: 270 80% 95%;
+    --fd-accent: 252 25% 28%;
+    --fd-accent-foreground: 270 80% 95%;
+    --fd-popover: 252 25% 23%;
+    --fd-popover-foreground: 270 80% 95%;
+    --fd-ring: 266 50% 60%;
+  }
+}
+
+/* ── Landing page animations ─────────────────────────────────────── */
+@keyframes sparkleFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(10deg);
+  }
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
