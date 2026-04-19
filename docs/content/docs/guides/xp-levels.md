@@ -1,5 +1,6 @@
 ---
 title: XP and Levels
+description: How the XP and leveling system works in sushii
 ---
 
 sushii has a built-in XP and leveling system. When you send a message, you will

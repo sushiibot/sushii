@@ -1,7 +1,11 @@
 # build output
 dist/
+out/
+.next/
 # generated types
 .astro/
+# fumadocs generated source
+.source/
 
 # dependencies
 node_modules/

@@ -3,6 +3,8 @@ title: Slash Command Migration
 description: Migrating to slash commands.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 Hi! Here's what's happening:
 
 1. Text commands are being fully removed :(
@@ -16,7 +18,7 @@ be removed soon.
 **September 20, 2025**: Text commands will be fully removed and will stop
 responding. Note that this may not be an exact date, but will be around this time.
 
-:::note[Why?]
+<Callout title="Why?">
 For better or worse, slash commands are the standard for commands. While there
 are trade offs, they provide a better user experience in terms of
 discoverability of commands and consistency.
@@ -26,7 +28,7 @@ Unfortunately it's much more difficult to maintain both.
 
 Text commands are part of a very old version of sushii and will require
 double the work to re-implement and maintain both command versions.
-:::
+</Callout>
 
 ## What are the new commands?
 
@@ -48,7 +50,7 @@ Here are some notable larger changes:
   `/tag ...` for additional tag management commands  
   `/tag-admin` for server manager-only tag commands
 
-  More details can be found in the [tags guide](/guides/tags).
+  More details can be found in the [tags guide](/docs/guides/tags).
 
 ## Need help?
 
