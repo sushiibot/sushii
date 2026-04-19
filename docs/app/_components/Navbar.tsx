@@ -58,15 +58,6 @@ export function Navbar() {
             >
               Docs
             </Link>
-            <a
-              href="https://status.sushii.xyz"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="no-underline transition-opacity hover:opacity-70"
-              style={{ color: "var(--sushi-ink)" }}
-            >
-              Status
-            </a>
           </div>
 
           <a

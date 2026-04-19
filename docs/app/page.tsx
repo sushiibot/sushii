@@ -349,7 +349,7 @@ export default function HomePage() {
             }}
           >
             <Image
-              src="/sushii.png"
+              src="/sushii.svg"
               alt="sushii mascot"
               width={360}
               height={360}
@@ -856,7 +856,7 @@ export default function HomePage() {
           </div>
           <div style={{ width: 180, height: 180, transform: "rotate(8deg)" }}>
             <Image
-              src="/sushii.png"
+              src="/sushii.svg"
               alt=""
               width={180}
               height={180}
@@ -902,8 +902,7 @@ export default function HomePage() {
               ["Docs", "/docs"],
               ["GitHub", "https://github.com/drklee3/sushii-2"],
               ["Discord", "#"],
-              ["Status", "https://status.sushii.xyz"],
-              ["Privacy", "/privacy"],
+["Privacy", "/privacy"],
             ] as [string, string][]
           ).map(([label, href]) => (
             <a
