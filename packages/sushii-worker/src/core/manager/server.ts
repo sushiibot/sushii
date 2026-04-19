@@ -1,11 +1,19 @@
 import type { Server } from "bun";
 import type { Child, ClusterManager } from "discord-hybrid-sharding";
 import type { RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
+import { count, eq, sql } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { routePath } from "hono/route";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type * as schema from "@/infrastructure/database/schema";
+import {
+  botStatsInAppPublic,
+  modLogsInAppPublic,
+} from "@/infrastructure/database/schema";
+import { StatName } from "@/features/stats/domain/StatName";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 
@@ -280,11 +288,83 @@ function createMonitoringServer(
   });
 }
 
+const STATS_CACHE_TTL_MS = 60_000;
+
+interface StatsCache {
+  data: {
+    guild_count: number;
+    member_count: number;
+    mod_action_count: number;
+  };
+  cachedAt: number;
+}
+
+export function createPublicApp(
+  db: NodePgDatabase<typeof schema>,
+): Hono {
+  const app = new Hono();
+  let cache: StatsCache | null = null;
+
+  app.use("*", pinoLoggerMiddleware);
+
+  app.get("/v1/stats", async (c) => {
+    const now = Date.now();
+
+    if (cache && now - cache.cachedAt < STATS_CACHE_TTL_MS) {
+      c.header("Cache-Control", "public, max-age=60");
+      return c.json(cache.data);
+    }
+
+    const [botStats, modActionCount] = await Promise.all([
+      db
+        .select({ name: botStatsInAppPublic.name, count: botStatsInAppPublic.count })
+        .from(botStatsInAppPublic)
+        .where(
+          sql`${botStatsInAppPublic.name} IN (${StatName.GuildCount}, ${StatName.MemberCount})`,
+        ),
+      db
+        .select({ count: count() })
+        .from(modLogsInAppPublic)
+        .then((rows) => rows[0]?.count ?? 0),
+    ]);
+
+    const statsMap = Object.fromEntries(
+      botStats.map((s) => [s.name, Number(s.count)]),
+    );
+
+    cache = {
+      data: {
+        guild_count: statsMap[StatName.GuildCount] ?? 0,
+        member_count: statsMap[StatName.MemberCount] ?? 0,
+        mod_action_count: Number(modActionCount),
+      },
+      cachedAt: now,
+    };
+
+    c.header("Cache-Control", "public, max-age=60");
+    return c.json(cache.data);
+  });
+
+  return app;
+}
+
+function createPublicServer(
+  db: NodePgDatabase<typeof schema>,
+): Server<unknown> {
+  const app = createPublicApp(db);
+
+  return Bun.serve({
+    port: config.metrics.publicApiPort,
+    fetch: app.fetch,
+  });
+}
+
 export default function server(
   manager: ClusterManager,
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
   healthCheckService: HealthCheckService,
+  db: NodePgDatabase<typeof schema>,
 ): Server<unknown>[] {
   const healthServer = createHealthServer(manager, healthCheckService);
   const monitoringServer = createMonitoringServer(
@@ -293,6 +373,7 @@ export default function server(
     deploymentService,
     healthCheckService,
   );
+  const publicServer = createPublicServer(db);
 
   logger.info(
     `health endpoint listening on http://localhost:${config.metrics.healthPort}/health`,
@@ -303,6 +384,9 @@ export default function server(
   logger.info(
     `deployment endpoints listening on http://localhost:${config.metrics.port}/deployment/*`,
   );
+  logger.info(
+    `public API listening on http://localhost:${config.metrics.publicApiPort}/v1/stats`,
+  );
 
-  return [healthServer, monitoringServer];
+  return [healthServer, monitoringServer, publicServer];
 }

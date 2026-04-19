@@ -34,6 +34,7 @@ const envSchema = z.object({
   // Metrics and health check configuration
   METRICS_PORT: z.string().optional().default("9090"),
   HEALTH_PORT: z.string().optional().default("8080"),
+  PUBLIC_API_PORT: z.string().optional().default("8082"),
 
   // Example: 'https://discord.com/api'
   DISCORD_API_PROXY_URL: z.string().optional(),

@@ -40,6 +40,7 @@ export class MetricsConfig {
   constructor(
     readonly port: number,
     readonly healthPort: number,
+    readonly publicApiPort: number,
   ) {}
 }
 
@@ -148,6 +149,7 @@ export class Config {
     this.metrics = new MetricsConfig(
       parseInt(env.METRICS_PORT),
       parseInt(env.HEALTH_PORT),
+      parseInt(env.PUBLIC_API_PORT),
     );
     this.tracing = new TracingConfig(
       env.TRACING_EXPORTER_URL,
