@@ -210,6 +210,8 @@ interface GlyphItem {
   rotate: number;
   opacity: number;
   anim: string;
+  animDuration: number;
+  animDelay: number;
 }
 
 interface GlyphFieldProps {
@@ -266,6 +268,8 @@ export function GlyphField({
         rotate: Math.floor(rand() * 60 - 30),
         opacity: 0.25 + rand() * 0.25,
         anim: rand() > 0.5 ? "floaty" : "sparkleFloat",
+        animDuration: 4 + rand() * 8,
+        animDelay: rand() * 6,
       });
     }
 
@@ -291,7 +295,7 @@ export function GlyphField({
             left: g.left,
             transform: `rotate(${g.rotate}deg)`,
             opacity: g.opacity,
-            animation: `${g.anim} ${5 + (i % 5)}s ease-in-out ${((i * 0.4) % 3).toFixed(1)}s infinite`,
+            animation: `${g.anim} ${g.animDuration.toFixed(2)}s ease-in-out ${g.animDelay.toFixed(2)}s infinite`,
           }}
         >
           <Glyph
