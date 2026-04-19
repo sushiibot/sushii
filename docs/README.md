@@ -1,54 +1,39 @@
-# Starlight Starter Kit: Basics
+# sushii-docs
 
-[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
+Documentation site and landing page for [sushii bot](https://github.com/drklee3/sushii-2). Built with **Next.js 15 + Fumadocs**, exported as a fully static site.
+
+## Stack
+
+- [Next.js 15](https://nextjs.org/) — static export (`output: "export"`)
+- [Fumadocs](https://fumadocs.vercel.app/) — docs framework (MDX content pipeline + UI)
+- [Tailwind CSS](https://tailwindcss.com/) — utility classes for docs pages
+- [next/font](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) — Mochiy Pop One, Plus Jakarta Sans, JetBrains Mono
+
+## Commands
+
+| Command      | Action                                  |
+| :----------- | :-------------------------------------- |
+| `bun dev`    | Start local dev server at `localhost:3000` |
+| `bun build`  | Build static site to `./dist/`          |
+| `bun start`  | Preview the static build locally        |
+
+## Project Structure
 
 ```
-bun create astro@latest -- --template starlight
+app/
+  page.tsx          # Landing page (custom inline styles)
+  (docs)/           # Fumadocs-powered /docs section
+  privacy/          # Static legal pages
+  tos/
+  _components/      # Shared React components (Navbar, GlyphField, etc.)
+  global.css        # Sushii design tokens + Fumadocs variable overrides
+content/
+  docs/             # MDX source files (sidebar order via meta.json)
+lib/
+  source.ts         # Fumadocs loader
+source.config.ts    # Fumadocs MDX config
 ```
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/starlight/tree/main/examples/basics)
-[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/starlight/tree/main/examples/basics)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/withastro/starlight&create_from_path=examples/basics)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwithastro%2Fstarlight%2Ftree%2Fmain%2Fexamples%2Fbasics&project-name=my-starlight-docs&repository-name=my-starlight-docs)
+## Adding docs content
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro + Starlight project, you'll see the following folders and files:
-
-```
-.
-├── public/
-├── src/
-│   ├── assets/
-│   ├── content/
-│   │   ├── docs/
-│   └── content.config.ts
-├── astro.config.mjs
-├── package.json
-└── tsconfig.json
-```
-
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
-
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
-
-Static assets, like favicons, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
+Add `.md` or `.mdx` files under `content/docs/`. Each file becomes a route under `/docs` based on its path. Use `meta.json` in each directory to control sidebar title and page order.
