@@ -147,14 +147,14 @@ export default function HomePage() {
           <h1
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(48px, 6vw, 76px)",
+              fontSize: "clamp(44px, 5.5vw, 64px)",
               lineHeight: 1.05,
               letterSpacing: "-0.02em",
               margin: "0 0 24px",
               color: "var(--sushi-ink)",
             }}
           >
-            Moderation
+            Community management
             <br />
             {"that's actually"}
             <br />
@@ -183,9 +183,7 @@ export default function HomePage() {
               margin: "0 0 36px",
             }}
           >
-            sushii is a Discord bot for serious community care — case-tracked
-            moderation, airtight logs, XP, tags, giveaways — wrapped in
-            something nice to look at.
+            Everything your server needs. Without the usual jank.
           </p>
 
           {/* CTAs */}
