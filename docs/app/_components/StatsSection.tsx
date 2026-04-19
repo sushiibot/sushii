@@ -9,7 +9,7 @@ interface SushiiStats {
 }
 
 const OUTLINE = "var(--sushi-outline)";
-const ON_ACCENT = "#2e1f4a";
+const ON_ACCENT = "#1c1b2e";
 
 const STAT_CONFIG = [
   {

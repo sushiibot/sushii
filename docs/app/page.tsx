@@ -6,7 +6,7 @@ import { SparkleField } from "./_components/SparkleField";
 import { StatsSection } from "./_components/StatsSection";
 
 const OUTLINE = "var(--sushi-outline)";
-const ON_ACCENT = "#2e1f4a";
+const ON_ACCENT = "#1c1b2e";
 
 function hardShadow(x = 5, y = 5) {
   return `${x}px ${y}px 0 ${OUTLINE}`;
@@ -221,7 +221,7 @@ export default function HomePage() {
             <Link
               href="/docs"
               style={{
-                background: "transparent",
+                background: "var(--sushi-card)",
                 color: "var(--sushi-ink)",
                 border: `3px solid ${OUTLINE}`,
                 padding: "14px 24px",

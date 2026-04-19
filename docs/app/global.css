@@ -11,12 +11,12 @@
     --sushi-blue: #c9e2ee;
     --sushi-gold: #fbe4c9;
     --sushi-bg: #f4eefb;
-    --sushi-outline: #2e1f4a;
-    --sushi-ink: #2e1f4a;
+    --sushi-outline: #1c1b2e;
+    --sushi-ink: #2a2040;
     --sushi-ink2: #6b5e8a;
     --sushi-card: #ffffff;
     --sushi-card2: #f6eeff;
-    --sushi-on-accent: #2e1f4a;
+    --sushi-on-accent: #1c1b2e;
   }
 
   .dark {
@@ -37,7 +37,7 @@
   /* ── Fumadocs variable overrides (light) ─────────────────────────── */
   :root {
     --fd-background: 270 50% 95%;      /* ~#f4eefb lavender */
-    --fd-foreground: 260 40% 20%;      /* ~#2e1f4a dark ink */
+    --fd-foreground: 250 35% 18%;      /* ~#1c1b2e dark near-neutral ink */
     --fd-muted: 270 60% 96%;           /* ~#f6eeff very soft lavender */
     --fd-muted-foreground: 263 20% 45%;/* ~#6b5e8a muted purple */
     --fd-border: 265 40% 88%;          /* ~#d8cbef lilac border */
