@@ -15,7 +15,7 @@ jobs:
     name: Build Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -28,28 +28,32 @@ jobs:
       - name: Build Docs
         run: bun run build
         working-directory: ./docs
+        env:
+          NEXT_PUBLIC_SUSHII_STATS_URL: ${{ vars.NEXT_PUBLIC_SUSHII_STATS_URL }}
 
-      # actions/upload-artifact@v4 has error:
-      # https://github.com/actions/deploy-pages/issues/389
+      - name: Check critical legal pages
+        working-directory: ./docs
+        run: |
+          grep -q "Interpretation and Definitions" out/privacy.html \
+            || (echo "FAIL: /privacy is missing expected Privacy Policy content" && exit 1)
+          grep -q "Terms of Service" out/tos.html \
+            || (echo "FAIL: /tos is missing expected Terms of Service content" && exit 1)
+          echo "OK: /privacy and /tos verified"
+
       - uses: actions/upload-pages-artifact@v3
-        # Only on main push
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           name: github-pages
-          path: ./docs/dist/
+          path: ./docs/out/
 
   deploy:
     name: Deploy Docs
     needs: build
-    # Only on pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      # to deploy to Pages
       pages: write
-      # to verify the deployment originates from an appropriate source
       id-token: write
 
-    # Deploy to the github-pages environment
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
