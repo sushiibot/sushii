@@ -1,0 +1,183 @@
+---
+title: Features & Commands
+description: Everything sushii can do, organized by feature
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+A quick reference for everything sushii offers. Each section covers what the
+feature does and the commands to use it. For detailed setup walkthroughs, check
+the linked guides.
+
+## Moderation
+
+Track every action taken against members — whether you use sushii's commands or
+Discord's built-in moderation tools. Every ban, kick, and timeout gets logged
+with a case number you can reference later.
+
+See the [Moderation Guide](/docs/guides/moderation_guide) for the full
+workflow.
+
+| Command | What it does |
+|---|---|
+| `/warn` | Warn a user (sends a DM by default) |
+| `/timeout` | Time out a user |
+| `/untimeout` | Remove a timeout |
+| `/kick` | Kick a user |
+| `/ban` | Ban a user |
+| `/unban` | Unban a user |
+| `/tempban` | Ban a user for a set duration |
+| `/tempban-list` | List all active temporary bans |
+| `/prune` | Bulk delete messages, with optional filters |
+| `/slowmode` | Set slowmode on a channel |
+| `/reason` | Edit the reason on an existing case |
+| `/uncase` | Remove a case from a user's history |
+| `/note` | Add a private moderator note to a user |
+| `/history` | View a user's full moderation history |
+| `/lookup` | Search cross-server bans for a user |
+
+---
+
+## XP & Leveling
+
+Members earn XP by chatting, with automatic role rewards at configurable level
+milestones. See who's most active with the leaderboard.
+
+See the [XP & Levels Guide](/docs/guides/xp-levels) for setup.
+
+| Command | What it does |
+|---|---|
+| `/rank` | View your rank and XP (or another member's) |
+| `/leaderboard` | Server XP leaderboard, filterable by day / week / month / all time |
+| `/levelrole new` | Award a role automatically when a member reaches a level |
+| `/levelrole delete` | Remove a level role reward |
+| `/levelrole list` | List all configured level roles |
+| `/xp block` | Exclude a channel or role from earning XP |
+| `/xp unblock` | Re-enable XP earning for a channel or role |
+
+---
+
+## Tags (Custom Commands)
+
+Create quick-access text responses for FAQs, rules, links, or anything your
+server refers to often. Tags are server-specific and support text, images, or
+both.
+
+See the [Tags Guide](/docs/guides/tags) for full usage.
+
+| Command | What it does |
+|---|---|
+| `/t` | Use a tag |
+| `/tag-add` | Create a new tag |
+| `/tag-edit` | Edit or rename one of your tags, or delete it |
+| `/tag` | Browse, search, and get info on tags |
+| `/tag-admin` | Delete any tag or remove all tags from a specific user |
+
+---
+
+## Role Menus
+
+Let members self-assign roles using buttons or dropdowns — for colors,
+pronouns, notification opt-ins, or anything else. Role menus live in a channel
+and update without recreating them.
+
+| Command | What it does |
+|---|---|
+| `/rolemenu create` | Create a new role menu in a channel |
+| `/rolemenu edit` | Edit an existing role menu |
+| `/rolemenu delete` | Remove a role menu |
+| `/rolemenu list` | List all role menus in the server |
+
+---
+
+## Schedules with Google Calendar sync
+
+Display upcoming Discord scheduled events in a dedicated channel, kept
+automatically up to date. Great for communities that run regular streams,
+game nights, or events — members always know what's coming without anyone
+having to post announcements manually.
+
+| Command | What it does |
+|---|---|
+| `/schedule` | Preview upcoming scheduled events |
+| `/schedule-config` | Set up and manage auto-updating schedule channels |
+
+---
+
+## Giveaways
+
+Run giveaways with optional entry requirements like roles, minimum level, or
+booster status. Winners are picked automatically when the giveaway ends.
+
+| Command | What it does |
+|---|---|
+| `/giveaway create` | Start a new giveaway |
+| `/giveaway list` | List active giveaways |
+| `/giveaway end` | End a giveaway early |
+| `/giveaway reroll` | Pick new winners for a past giveaway |
+| `/giveaway delete` | Cancel and remove a giveaway |
+
+---
+
+## Notifications
+
+Get a ping whenever a keyword you care about is mentioned in the server —
+useful for keeping up with topics without watching every channel.
+
+| Command | What it does |
+|---|---|
+| `/notification add` | Add a keyword to watch for |
+| `/notification list` | View your active notifications |
+| `/notification delete` | Remove a keyword notification |
+| `/notification block` | Stop notifications from a specific channel |
+| `/notification unblock` | Re-enable notifications from a channel |
+
+---
+
+## Reminders
+
+Set a reminder for yourself — sushii will DM you when it's time.
+
+| Command | What it does |
+|---|---|
+| `/reminder add` | Create a reminder |
+| `/reminder list` | View your upcoming reminders |
+| `/reminder delete` | Cancel a reminder |
+
+---
+
+## Emoji Statistics
+
+See which emojis and stickers your server actually uses, with breakdowns by
+time period, channel, or user.
+
+| Command | What it does |
+|---|---|
+| `/emoji-stats` | View emoji and sticker usage stats |
+
+---
+
+## Social
+
+Reputation lets members vouch for each other. Fishies is a fun daily minigame.
+Both have server leaderboards.
+
+| Command | What it does |
+|---|---|
+| `/rep` | Give reputation to another member |
+| `/rep-leaderboard` | Server reputation leaderboard |
+| `/fishy` | Catch fish (once per day) |
+| `/fishy-leaderboard` | Server fishy leaderboard |
+
+---
+
+## User Info
+
+Quick lookups for any member's profile info.
+
+| Command | What it does |
+|---|---|
+| `/userinfo` | View account details, join dates, and roles |
+| `/avatar` | View someone's avatar at full size |
+| `/banner` | View someone's profile banner |
+

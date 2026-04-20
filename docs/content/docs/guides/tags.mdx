@@ -1,0 +1,100 @@
+---
+title: Tags
+description: Create custom commands for FAQs, rules, and anything your server refers to often
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+Tags are server-specific custom commands — a quick way to store and retrieve
+frequently used responses, links, rules, or any content your members ask about
+repeatedly. Any member can use them; who can create and manage them is up to
+you.
+
+## Creating a Tag
+
+```
+/tag-add name:rules content:Please read #rules before chatting!
+```
+
+Tag names are 1–32 characters, case-insensitive, and must be unique in your
+server. You can attach an image instead of (or alongside) text content. Mentions
+(`@everyone`, role mentions, etc.) are automatically disabled in tag responses.
+
+## Using a Tag
+
+```
+/t name:rules
+```
+
+`/t` is the short command members use to pull up a tag. It supports
+autocomplete, so members don't need to remember the exact name.
+
+## Editing a Tag
+
+```
+/tag-edit name:rules
+```
+
+This opens an interactive panel with buttons to edit the content, rename the
+tag, or delete it. You can only edit tags you own — unless you have the Manage
+Guild permission, which lets you edit any tag in the server.
+
+## Browsing & Searching
+
+If you're not sure whether a tag already exists, check before creating a new
+one:
+
+```
+/tag search name_contains:rule
+/tag search name_starts_with:faq
+/tag search owner:@username
+/tag list
+```
+
+You can filter by name or by who created it, but not by both name filters at
+once (`name_starts_with` and `name_contains` can't be combined). `/tag list`
+shows everything with pagination.
+
+To see stats on a specific tag — when it was created, who owns it, how many
+times it's been used:
+
+```
+/tag info name:rules
+```
+
+```
+/tag random
+```
+
+`/tag random` picks a random tag from your server, optionally filtered by name
+or owner. Useful for discovering tags you've forgotten about.
+
+## Permissions
+
+<Callout title="Permissions are configurable per command">
+By default, anyone can use `/t` and browse tags, anyone can create tags with
+`/tag-add`, and only members with Manage Guild can use `/tag-admin`. But you
+can restrict or open up any of these in Discord's integration settings.
+</Callout>
+
+To customize who can create, edit, or manage tags:
+
+```
+Server Settings → Integrations → sushii → Commands
+```
+
+A common setup is restricting `/tag-add` to a specific role (like a "Content
+Team" role) while keeping `/t` open to everyone.
+
+## Admin Commands
+
+Members with Manage Guild (or a role you've configured) can use `/tag-admin`
+to manage tags across the server:
+
+```
+/tag-admin delete name:outdated-tag
+/tag-admin delete_user_tags user:@username
+```
+
+`delete_user_tags` removes all tags owned by a specific user — useful when
+a member leaves or is removed from the server.

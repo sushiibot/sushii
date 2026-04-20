@@ -1,11 +1,72 @@
 ---
 title: Getting Started
-description: Start using sushii!
+description: Add sushii to your server and get set up
 ---
 
-First, make sure to [add sushii to your server](https://discord.com/api/oauth2/authorize?client_id=193163942502072320&permissions=268823622&scope=applications.commands%20bot).
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
 
-Run the `/settings` command to see an interactive menu of settings you can
-configure.
+<Steps>
 
-You can enable or disable features, set up channels for logs, and more.
+<Step>
+
+### Invite sushii
+
+[Add sushii to your server](https://discord.com/api/oauth2/authorize?client_id=193163942502072320&permissions=268823622&scope=applications.commands%20bot).
+Make sure to grant all requested permissions — sushii needs them to log
+messages, manage roles, and take moderation actions.
+
+</Step>
+
+<Step>
+
+### Open the settings panel
+
+Run `/settings` in any channel. This opens an interactive menu where you can
+enable features and configure channels for logs.
+
+Most features are disabled by default and need to be turned on here before
+they do anything.
+
+</Step>
+
+<Step>
+
+### Set up a mod log channel
+
+If you plan to use sushii for moderation, the most important first step is
+pointing it to a private moderation log channel:
+
+```
+/settings → Logging → Mod Log Channel
+```
+
+Once set, sushii will post every moderation case there — including actions
+taken with Discord's native timeout, kick, and ban, not just sushii commands.
+
+</Step>
+
+<Step>
+
+### Enable the features you want
+
+From `/settings` you can also configure:
+
+- **Message logging** — edits, deletes, and who reacted to what
+- **Join/leave logging** — member activity
+- **XP & Leveling** — enable earning XP and set up level role rewards
+- **Role menus** — self-assign channels
+
+You don't have to set everything up at once. Come back to `/settings` whenever
+you're ready to add more.
+
+</Step>
+
+</Steps>
+
+## Where to go next
+
+- [Moderation Guide](/docs/guides/moderation_guide) — cases, commands, and when to use sushii vs. native Discord moderation
+- [XP & Levels](/docs/guides/xp-levels) — setting up level roles and blocking XP in specific channels
+- [Tags](/docs/guides/tags) — creating custom commands for FAQs and server info
+- [All Features](/docs/user-reference/features) — a full list of everything sushii can do
