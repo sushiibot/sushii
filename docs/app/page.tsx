@@ -4,6 +4,7 @@ import { DISCORD_INVITE_URL } from "@/lib/config";
 import { GlyphField } from "./_components/GlyphField";
 import { Navbar } from "./_components/Navbar";
 import { SparkleField } from "./_components/SparkleField";
+import { Footer } from "./_components/Footer";
 import { StatsSection } from "./_components/StatsSection";
 
 const OUTLINE = "var(--sushi-outline)";
@@ -926,58 +927,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer
-        style={{
-          maxWidth: 1120,
-          margin: "0 auto",
-          padding: "32px 24px 60px",
-          position: "relative",
-          zIndex: 2,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderTop: `2px dashed ${OUTLINE}`,
-          fontSize: 13,
-          color: "var(--sushi-ink2)",
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Image src="/sushii.png" alt="" width={28} height={28} />
-          <span
-            style={{
-              fontFamily: "var(--font-display)",
-              color: "var(--sushi-ink)",
-            }}
-          >
-            sushii
-          </span>
-          <span>© 2026</span>
-        </div>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-          {(
-            [
-              ["Docs", "/docs"],
-              ["GitHub", "https://github.com/drklee3/sushii-2"],
-              ["Discord", "#"],
-["Privacy", "/privacy"],
-            ] as [string, string][]
-          ).map(([label, href]) => (
-            <a
-              key={label}
-              href={href}
-              style={{
-                color: "var(--sushi-ink2)",
-                textDecoration: "none",
-              }}
-            >
-              {label}
-            </a>
-          ))}
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }
