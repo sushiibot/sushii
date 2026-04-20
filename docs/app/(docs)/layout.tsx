@@ -2,6 +2,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { source } from "@/lib/source";
+import { DISCORD_INVITE_URL } from "@/lib/config";
 
 const logoTitle = (
   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -47,7 +48,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         title: logoTitle,
         children: (
           <a
-            href="#"
+            href={DISCORD_INVITE_URL}
             style={{
               marginLeft: "auto",
               background: "var(--sushi-ink)",
