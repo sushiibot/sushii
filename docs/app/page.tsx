@@ -21,7 +21,7 @@ const FEATURES = [
     title: "Scheduled Events",
     tag: "automation",
     isNew: true,
-    body: "Auto-post upcoming Discord events to a dedicated channel, kept up to date automatically. Your community always knows what's next — no manual announcements needed.",
+    body: "Sync your Google Calendar to a dedicated channel — new and updated events post automatically. Your community always knows what's next.",
     cmd: "/schedule-config",
   },
   {
@@ -33,19 +33,19 @@ const FEATURES = [
   {
     title: "Message & Member Logs",
     tag: "logging",
-    body: "Edits, deletes, first reactors, role changes, nickname history. All automatically posted to your configured log channels.",
+    body: "Edits, deletes, and first reactors. All automatically posted to your configured log channels.",
     cmd: "/settings",
   },
   {
     title: "XP & Levels",
     tag: "engagement",
-    body: "Activity-based progression with automatic role rewards. Leaderboards, per-channel multipliers, cooldowns.",
+    body: "Activity-based progression with automatic role rewards. Leaderboards, per-channel XP controls, cooldowns.",
     cmd: "/rank",
   },
   {
     title: "Custom Commands",
     tag: "tags",
-    body: "Tags for FAQs, rules, reminders. Rich embeds, variables, permission gates. Your community wiki as Discord commands.",
+    body: "Tags for FAQs, rules, reminders. Text responses with optional attachments. Your community wiki as Discord commands.",
     cmd: "/t rules",
   },
   {
@@ -57,13 +57,13 @@ const FEATURES = [
   {
     title: "Giveaways",
     tag: "events",
-    body: "Gate entries by role, level, or booster status. Auto-reroll, scheduled drops, and notifier pings built in.",
+    body: "Gate entries by role, level, or booster status. Set a start and end time — winners are selected automatically.",
     cmd: "/giveaway create",
   },
   {
     title: "Emoji & Sticker Stats",
     tag: "insights",
-    body: "See which emoji are loved, which are dust. Per-user, per-channel, per-time-range breakdowns.",
+    body: "See which emoji and stickers are loved, which are forgotten. Track usage totals across your whole server.",
     cmd: "/emoji-stats",
   },
 ];
@@ -252,18 +252,31 @@ export default function HomePage() {
             }}
           >
             <div style={{ display: "flex" }}>
-              {ACCENT_CYCLE.map((c, i) => (
+              {[
+                { src: "/servers/bp.jpg", alt: "BLACKPINK fan server" },
+                { src: "/servers/twice.jpg", alt: "TWICE fan server" },
+                { src: "/servers/lisa.jpg", alt: "Lisa official server" },
+              ].map((s, i) => (
                 <div
-                  key={i}
+                  key={s.src}
                   style={{
                     width: 32,
                     height: 32,
                     borderRadius: 999,
-                    background: c,
                     border: `3px solid ${OUTLINE}`,
                     marginLeft: i === 0 ? 0 : -10,
+                    overflow: "hidden",
+                    flexShrink: 0,
                   }}
-                />
+                >
+                  <Image
+                    src={s.src}
+                    alt={s.alt}
+                    width={32}
+                    height={32}
+                    style={{ objectFit: "cover", width: "100%", height: "100%" }}
+                  />
+                </div>
               ))}
             </div>
             Trusted by thousands of servers
