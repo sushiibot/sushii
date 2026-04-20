@@ -44,7 +44,7 @@
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.8.5",
-    "i18next": "^23.16.8",
+    "i18next": "^26.0.6",
     "i18next-fs-backend": "^2.6.0",
     "node-gyp": "^12.2.0",
     "parse-duration": "^2.1.4",
