@@ -90,14 +90,11 @@ export default function HomePage() {
 
       {/* ── HERO ── */}
       <section
+        className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1.1fr_0.9fr] md:gap-14"
         style={{
           maxWidth: 1120,
           margin: "0 auto",
           padding: "60px 24px 80px",
-          display: "grid",
-          gridTemplateColumns: "1.1fr 0.9fr",
-          gap: 56,
-          alignItems: "center",
           position: "relative",
           zIndex: 2,
         }}
@@ -271,74 +268,13 @@ export default function HomePage() {
 
         {/* Right — mascot card */}
         <div
+          className="order-first md:order-none"
           style={{ position: "relative", display: "flex", justifyContent: "center" }}
         >
-          {/* Floating badges */}
-          <div
-            style={{
-              position: "absolute",
-              top: "4%",
-              left: "-4%",
-              background: "var(--sushi-card)",
-              border: `3px solid ${OUTLINE}`,
-              borderRadius: 14,
-              padding: "10px 14px",
-              fontFamily: "var(--font-mono)",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--sushi-ink)",
-              boxShadow: hardShadow(4, 4),
-              transform: "rotate(-6deg)",
-              zIndex: 3,
-            }}
-          >
-            /ban @wawa 7d
-          </div>
-          <div
-            style={{
-              position: "absolute",
-              bottom: "8%",
-              left: "-4%",
-              background: "var(--sushi-pink)",
-              border: `3px solid ${OUTLINE}`,
-              borderRadius: 14,
-              padding: "10px 14px",
-              fontFamily: "var(--font-mono)",
-              fontSize: 13,
-              fontWeight: 600,
-              color: ON_ACCENT,
-              boxShadow: hardShadow(4, 4),
-              transform: "rotate(5deg)",
-              zIndex: 3,
-            }}
-          >
-            case #482 ✓
-          </div>
-          <div
-            style={{
-              position: "absolute",
-              top: "38%",
-              right: "-6%",
-              background: "var(--sushi-blue)",
-              border: `3px solid ${OUTLINE}`,
-              borderRadius: 14,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 700,
-              color: ON_ACCENT,
-              boxShadow: hardShadow(3, 3),
-              transform: "rotate(8deg)",
-              zIndex: 3,
-            }}
-          >
-            +150 XP
-          </div>
-
           {/* Main mascot sticker */}
           <div
+            className="w-[min(280px,80vw)] h-[min(280px,80vw)] md:w-[420px] md:h-[420px]"
             style={{
-              width: 420,
-              height: 420,
               background: "var(--sushi-lilac)",
               border: `4px solid ${OUTLINE}`,
               borderRadius: 32,
@@ -349,6 +285,66 @@ export default function HomePage() {
               transform: "rotate(-2deg)",
             }}
           >
+            {/* Floating badges */}
+            <div
+              style={{
+                position: "absolute",
+                top: "4%",
+                left: "-14%",
+                background: "var(--sushi-card)",
+                border: `3px solid ${OUTLINE}`,
+                borderRadius: 14,
+                padding: "10px 14px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--sushi-ink)",
+                boxShadow: hardShadow(4, 4),
+                transform: "rotate(-6deg)",
+                zIndex: 3,
+              }}
+            >
+              /ban @wawa 7d
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                bottom: "8%",
+                left: "-14%",
+                background: "var(--sushi-pink)",
+                border: `3px solid ${OUTLINE}`,
+                borderRadius: 14,
+                padding: "10px 14px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 13,
+                fontWeight: 600,
+                color: ON_ACCENT,
+                boxShadow: hardShadow(4, 4),
+                transform: "rotate(5deg)",
+                zIndex: 3,
+              }}
+            >
+              case #482 ✓
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                top: "38%",
+                right: "-14%",
+                background: "var(--sushi-blue)",
+                border: `3px solid ${OUTLINE}`,
+                borderRadius: 14,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                color: ON_ACCENT,
+                boxShadow: hardShadow(3, 3),
+                transform: "rotate(8deg)",
+                zIndex: 3,
+              }}
+            >
+              +150 XP
+            </div>
             <Image
               src="/sushii.svg"
               alt="sushii mascot"
@@ -439,13 +435,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 20,
-          }}
-        >
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f, i) => (
             <div
               key={f.title}
@@ -546,14 +536,7 @@ export default function HomePage() {
           zIndex: 2,
         }}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "0.9fr 1.1fr",
-            gap: 48,
-            alignItems: "center",
-          }}
-        >
+        <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12">
           {/* Left */}
           <div>
             <div
@@ -853,16 +836,13 @@ export default function HomePage() {
         }}
       >
         <div
+          className="grid grid-cols-1 items-center gap-6 md:grid-cols-[1fr_auto] md:gap-10"
           style={{
             background: "var(--sushi-lilac)",
             border: `3px solid ${OUTLINE}`,
             borderRadius: 28,
             padding: "48px",
             boxShadow: hardShadow(10, 10),
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            alignItems: "center",
-            gap: 40,
             position: "relative",
             overflow: "hidden",
             color: ON_ACCENT,
