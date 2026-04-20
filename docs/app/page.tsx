@@ -13,7 +13,15 @@ function hardShadow(x = 5, y = 5) {
   return `${x}px ${y}px 0 ${OUTLINE}`;
 }
 
+// Priority order — matches /docs/user-reference/features section order.
+// Update both when reprioritizing.
 const FEATURES = [
+  {
+    title: "Scheduled Events",
+    tag: "new",
+    body: "Auto-post upcoming Discord events to a dedicated channel, kept up to date automatically. Your community always knows what's next — no manual announcements needed.",
+    cmd: "/schedule-config",
+  },
   {
     title: "Case Management",
     tag: "moderation",
@@ -33,16 +41,16 @@ const FEATURES = [
     cmd: "/rank",
   },
   {
-    title: "Role Menus",
-    tag: "community",
-    body: "Self-serve buttons or dropdowns for colors, pronouns, notifications. Members customize themselves, you stop copy-pasting.",
-    cmd: "/rolemenu create",
-  },
-  {
     title: "Custom Commands",
     tag: "tags",
     body: "Tags for FAQs, rules, reminders. Rich embeds, variables, permission gates. Your community wiki as Discord commands.",
     cmd: "/t rules",
+  },
+  {
+    title: "Role Menus",
+    tag: "community",
+    body: "Self-serve buttons or dropdowns for colors, pronouns, notifications. Members customize themselves, you stop copy-pasting.",
+    cmd: "/rolemenu create",
   },
   {
     title: "Giveaways",
@@ -54,13 +62,7 @@ const FEATURES = [
     title: "Emoji & Sticker Stats",
     tag: "insights",
     body: "See which emoji are loved, which are dust. Per-user, per-channel, per-time-range breakdowns.",
-    cmd: "/emojistats",
-  },
-  {
-    title: "Utilities & Social",
-    tag: "extras",
-    body: "Reminders, keyword notifications, reputation, fishies. The friendly bits that make a server feel like home.",
-    cmd: "/reminder add",
+    cmd: "/emoji-stats",
   },
 ];
 
