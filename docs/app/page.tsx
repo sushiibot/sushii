@@ -19,7 +19,8 @@ function hardShadow(x = 5, y = 5) {
 const FEATURES = [
   {
     title: "Scheduled Events",
-    tag: "new",
+    tag: "automation",
+    isNew: true,
     body: "Auto-post upcoming Discord events to a dedicated channel, kept up to date automatically. Your community always knows what's next — no manual announcements needed.",
     cmd: "/schedule-config",
   },
@@ -124,7 +125,7 @@ export default function HomePage() {
                 width: 22,
                 height: 22,
                 borderRadius: 999,
-                background: "#6dd58c",
+                background: "var(--sushi-pink)",
                 border: `2px solid ${OUTLINE}`,
                 display: "inline-block",
                 flexShrink: 0,
@@ -198,6 +199,7 @@ export default function HomePage() {
           >
             <a
               href={DISCORD_INVITE_URL}
+              className="transition-transform duration-150 hover:-translate-y-1"
               style={{
                 background: "var(--sushi-lilac)",
                 color: ON_ACCENT,
@@ -219,6 +221,7 @@ export default function HomePage() {
             </a>
             <Link
               href="/docs"
+              className="transition-transform duration-150 hover:-translate-y-1"
               style={{
                 background: "var(--sushi-card)",
                 color: "var(--sushi-ink)",
@@ -440,6 +443,7 @@ export default function HomePage() {
           {FEATURES.map((f, i) => (
             <div
               key={f.title}
+              className="transition-transform duration-150 hover:-translate-y-1"
               style={{
                 background: "var(--sushi-card)",
                 border: `3px solid ${OUTLINE}`,
@@ -449,6 +453,29 @@ export default function HomePage() {
                 position: "relative",
               }}
             >
+              {/* NEW badge */}
+              {f.isNew && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    right: 14,
+                    background: "var(--sushi-pink)",
+                    border: `2px solid ${OUTLINE}`,
+                    borderRadius: 999,
+                    padding: "3px 10px",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: ON_ACCENT,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  ✦ NEW
+                </div>
+              )}
+
               {/* Icon box */}
               <div
                 style={{
@@ -469,7 +496,7 @@ export default function HomePage() {
                 {f.title.charAt(0)}
               </div>
 
-              {/* Tag */}
+              {/* Category */}
               <div
                 style={{
                   fontFamily: "var(--font-mono)",
