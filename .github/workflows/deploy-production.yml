@@ -73,5 +73,5 @@ jobs:
     with:
       image_version: ${{ needs.pre-deploy-summary.outputs.sha_short }}
       environment: production
-      dry_run: true
+      dry_run: false
     secrets: inherit
