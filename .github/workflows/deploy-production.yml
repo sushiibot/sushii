@@ -14,11 +14,6 @@ jobs:
       sha_short: ${{ steps.sha.outputs.sha_short }}
 
     steps:
-      - name: Checkout sushii
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # full history needed for git log CURRENT_SHA..NEW_SHA in summary
-
       - name: Get short SHA
         id: sha
         run: echo "sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
@@ -30,42 +25,19 @@ jobs:
           token: ${{ secrets.ANSIBLE_REPO_TOKEN }}
           path: sushii-ansible
 
-      - name: Write deployment summary
-        run: |
-          NEW_SHA="${{ steps.sha.outputs.sha_short }}"
-          CURRENT_SHA=$(grep '^latest_version:' sushii-ansible/services/sushii-bot/sushii-bot-production/vars.yml 2>/dev/null \
-            | awk '{print $2}' | tr -d '"')
-          if [ -z "$CURRENT_SHA" ]; then
-            CURRENT_SHA="unknown"
-          fi
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-          if [ "$CURRENT_SHA" = "unknown" ]; then
-            COMMIT_LOG="(current SHA unknown, cannot generate diff)"
-          elif git cat-file -e "${CURRENT_SHA}^{commit}" 2>/dev/null; then
-            COMMIT_LOG=$(git log --oneline "${CURRENT_SHA}..${NEW_SHA}" 2>/dev/null)
-            if [ -z "$COMMIT_LOG" ]; then
-              COMMIT_LOG="(no new commits — rollback or same version)"
-            fi
-          else
-            COMMIT_LOG="(current SHA ${CURRENT_SHA} not found in sushii history)"
-          fi
+      - name: Install script dependencies
+        working-directory: sushii-ansible/scripts
+        run: bun install --frozen-lockfile
 
-          {
-            echo "## Deployment Summary"
-            echo ""
-            echo "| | SHA |"
-            echo "|---|---|"
-            echo "| **New** | \`${NEW_SHA}\` |"
-            echo "| **Current** | \`${CURRENT_SHA}\` |"
-            echo ""
-            echo "### Commits"
-            echo '```'
-            echo "$COMMIT_LOG"
-            echo '```'
-            echo ""
-            echo "### CI Run"
-            echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Pre-deploy summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun run sushii-ansible/scripts/deploy-sushii-bot.ts --summary --sha ${{ steps.sha.outputs.sha_short }}
 
   deploy:
     needs: pre-deploy-summary
