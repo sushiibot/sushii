@@ -156,11 +156,15 @@ export class DMNotificationService {
       );
 
       if (error instanceof DiscordAPIError) {
-        if (error.code === RESTJSONErrorCodes.CannotSendMessagesToThisUser) {
+        if (
+          error.code === RESTJSONErrorCodes.CannotSendMessagesToThisUser ||
+          error.code ===
+            RESTJSONErrorCodes.CannotSendMessagesToThisUserDueToHavingNoMutualGuilds
+        ) {
           return Ok({
             channelId: null,
             messageId: null,
-            error: "User has DMs disabled or bot is blocked.",
+            error: "User has DMs disabled or has blocked the bot.",
           });
         }
       }
