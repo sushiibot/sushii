@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { DISCORD_INVITE_URL } from "@/lib/config";
 import { GlyphField } from "./_components/GlyphField";
 import { Navbar } from "./_components/Navbar";
 import { SparkleField } from "./_components/SparkleField";
@@ -16,14 +17,14 @@ const FEATURES = [
   {
     title: "Case Management",
     tag: "moderation",
-    body: "Every mod action — commands, bans, timeouts, even built-in Discord tools — tracked with searchable cases, reasons, and evidence.",
-    cmd: "/case view 482",
+    body: "Every mod action is tracked — even native Discord bans, kicks, and timeouts. No sushii commands required. Reasons are optional and can be set or updated any time after.",
+    cmd: "/history @wawa",
   },
   {
     title: "Message & Member Logs",
     tag: "logging",
-    body: "Edits, deletes, first reactors, role changes, nickname history. Full accountability, queryable after the fact.",
-    cmd: "/logs user @ren",
+    body: "Edits, deletes, first reactors, role changes, nickname history. All automatically posted to your configured log channels.",
+    cmd: "/settings",
   },
   {
     title: "XP & Levels",
@@ -41,25 +42,25 @@ const FEATURES = [
     title: "Custom Commands",
     tag: "tags",
     body: "Tags for FAQs, rules, reminders. Rich embeds, variables, permission gates. Your community wiki as Discord commands.",
-    cmd: "/tag rules",
+    cmd: "/t rules",
   },
   {
     title: "Giveaways",
     tag: "events",
     body: "Gate entries by role, level, or booster status. Auto-reroll, scheduled drops, and notifier pings built in.",
-    cmd: "/giveaway start",
+    cmd: "/giveaway create",
   },
   {
     title: "Emoji & Sticker Stats",
     tag: "insights",
     body: "See which emoji are loved, which are dust. Per-user, per-channel, per-time-range breakdowns.",
-    cmd: "/stats emoji",
+    cmd: "/emojistats",
   },
   {
     title: "Utilities & Social",
     tag: "extras",
     body: "Reminders, keyword notifications, reputation, fishies. The friendly bits that make a server feel like home.",
-    cmd: "/remind 2h",
+    cmd: "/reminder add",
   },
 ];
 
@@ -196,7 +197,7 @@ export default function HomePage() {
             }}
           >
             <a
-              href="#"
+              href={DISCORD_INVITE_URL}
               style={{
                 background: "var(--sushi-lilac)",
                 color: ON_ACCENT,
@@ -289,13 +290,13 @@ export default function HomePage() {
               zIndex: 3,
             }}
           >
-            /ban @troll 7d
+            /ban @wawa 7d
           </div>
           <div
             style={{
               position: "absolute",
               bottom: "8%",
-              right: "-2%",
+              left: "-4%",
               background: "var(--sushi-pink)",
               border: `3px solid ${OUTLINE}`,
               borderRadius: 14,
@@ -422,7 +423,7 @@ export default function HomePage() {
               marginBottom: 8,
             }}
           >
-            きのう · FEATURES
+            フィーチャー · FEATURES
           </div>
           <h2
             style={{
@@ -584,17 +585,18 @@ export default function HomePage() {
                 marginBottom: 24,
               }}
             >
-              Every mod action is a tracked case. Search, edit reasons, attach
-              evidence, appeal through the bot. Your team stops losing the
-              thread.
+              sushii watches the audit log — so even native Discord bans,
+              kicks, and timeouts are automatically tracked as cases. No sushii
+              commands required. Reasons are optional: set them in the original
+              action or fill them in later.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(
                 [
-                  ["/case view 482", "Pull up a case with full context"],
-                  ["/warn @user spam", "Log a warning, auto-case it"],
-                  ["/history @user", "Full mod history across channels"],
-                  ["/timeout @user 1h", "Native timeout, tracked for you"],
+                  ["Discord ban (native)", "Tracked automatically from audit log"],
+                  ["/reason 482 second offense", "Set or update a reason any time"],
+                  ["/history @wawa", "Full mod history in one view"],
+                  ["/warn @wawa spam", "Or use sushii commands — your choice"],
                 ] as [string, string][]
               ).map(([cmd, desc]) => (
                 <div
@@ -630,7 +632,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right — faux Discord card */}
+          {/* Right — faux Discord mod log embed */}
           <div
             style={{
               background: "var(--sushi-card)",
@@ -641,129 +643,197 @@ export default function HomePage() {
               transform: "rotate(1deg)",
             }}
           >
-            {/* Discord message header */}
-            <div
-              style={{
-                background: "var(--sushi-lilac)",
-                padding: "14px 18px",
-                borderBottom: `3px solid ${OUTLINE}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
+            {/* Bot message row */}
+            <div style={{ padding: "14px 18px 0" }}>
+              {/* Bot name row */}
               <div
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 999,
-                  background: "var(--sushi-card)",
-                  border: `2px solid ${OUTLINE}`,
-                  display: "grid",
-                  placeItems: "center",
-                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 6,
                 }}
               >
-                <Image
-                  src="/sushii.png"
-                  alt=""
-                  width={20}
-                  height={20}
-                  style={{ objectFit: "contain" }}
-                />
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 999,
+                    background: "var(--sushi-lilac)",
+                    border: `2px solid ${OUTLINE}`,
+                    display: "grid",
+                    placeItems: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Image
+                    src="/sushii.png"
+                    alt=""
+                    width={24}
+                    height={24}
+                    style={{ objectFit: "contain" }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 14,
+                      color: "var(--sushi-ink)",
+                    }}
+                  >
+                    sushii
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      background: "var(--sushi-blue)",
+                      color: ON_ACCENT,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      border: `1.5px solid ${OUTLINE}`,
+                    }}
+                  >
+                    APP
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--sushi-ink2)",
+                    }}
+                  >
+                    Today at 3:42 PM
+                  </span>
+                </div>
               </div>
-              <span
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 14,
-                  color: ON_ACCENT,
-                }}
-              >
-                sushii
-              </span>
-              <div
-                style={{
-                  marginLeft: "auto",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: "0.1em",
-                  background: OUTLINE,
-                  color: "#ffffff",
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                }}
-              >
-                APP
-              </div>
-            </div>
 
-            {/* Case body */}
-            <div style={{ padding: 20 }}>
+              {/* Embed */}
               <div
                 style={{
-                  borderLeft: `4px solid var(--sushi-pink)`,
-                  paddingLeft: 14,
+                  marginLeft: 44,
+                  marginBottom: 14,
+                  borderLeft: `4px solid #f28fad`,
+                  background: "var(--sushi-card2)",
+                  borderRadius: "0 10px 10px 0",
+                  padding: "10px 14px 12px",
                 }}
               >
+                {/* Embed author — executor */}
                 <div
                   style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 16,
-                    color: "var(--sushi-ink)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginBottom: 8,
                   }}
                 >
-                  Case #482 · Timeout
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 999,
+                      background: "var(--sushi-gold)",
+                      border: `1.5px solid ${OUTLINE}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "var(--sushi-ink)",
+                    }}
+                  >
+                    oreo
+                  </span>
                 </div>
+
+                {/* Field: User ban */}
+                <div style={{ marginBottom: 8 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--sushi-ink)",
+                      marginBottom: 2,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    User ban
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--sushi-ink2)",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    @wawa · 198765432198765432
+                  </div>
+                </div>
+
+                {/* Field: Reason */}
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--sushi-ink)",
+                      marginBottom: 2,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Reason
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--sushi-ink2)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No reason provided.
+                  </div>
+                </div>
+
+                {/* Footer: Case # */}
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 11,
                     color: "var(--sushi-ink2)",
-                    marginTop: 4,
+                    borderTop: `1px solid ${OUTLINE}`,
+                    paddingTop: 8,
                   }}
                 >
-                  <strong style={{ color: "var(--sushi-ink)" }}>user</strong>{" "}
-                  @ren ·{" "}
-                  <strong style={{ color: "var(--sushi-ink)" }}>mod</strong>{" "}
-                  @kai ·{" "}
-                  <strong style={{ color: "var(--sushi-ink)" }}>
-                    duration
-                  </strong>{" "}
-                  1h
+                  Case #482
                 </div>
-                <div
+              </div>
+
+              {/* Action button */}
+              <div style={{ marginLeft: 44, paddingBottom: 14 }}>
+                <button
                   style={{
-                    marginTop: 12,
-                    padding: "10px 12px",
                     background: "var(--sushi-card2)",
-                    borderRadius: 10,
+                    border: `2px solid ${OUTLINE}`,
+                    borderRadius: 6,
+                    padding: "6px 14px",
                     fontSize: 13,
+                    fontWeight: 600,
                     color: "var(--sushi-ink)",
-                    lineHeight: 1.5,
+                    fontFamily: "var(--font-body)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
-                  <strong>reason</strong> — spamming #general with link
-                  shorteners. second offense this week. escalation if repeated.
-                </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  {["edit reason", "appeal", "attach log"].map((b) => (
-                    <button
-                      key={b}
-                      style={{
-                        background: "var(--sushi-card)",
-                        border: `2px solid ${OUTLINE}`,
-                        borderRadius: 8,
-                        padding: "6px 12px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "var(--sushi-ink)",
-                        fontFamily: "var(--font-body)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {b}
-                    </button>
-                  ))}
-                </div>
+                  <span>📝</span> Set reason
+                </button>
               </div>
             </div>
           </div>
@@ -808,7 +878,7 @@ export default function HomePage() {
                 marginBottom: 8,
               }}
             >
-              はじめる
+              セットアップ · SETUP
             </div>
             <h2
               style={{
@@ -819,7 +889,7 @@ export default function HomePage() {
                 lineHeight: 1.05,
               }}
             >
-              Install in 30 seconds.
+              Add it. Configure it. Done.
             </h2>
             <p
               style={{
@@ -830,11 +900,21 @@ export default function HomePage() {
                 maxWidth: 460,
               }}
             >
-              One-click OAuth, sensible defaults, first case logged before your
-              coffee cools.
+              Add the bot, run{" "}
+              <code
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontWeight: 700,
+                  opacity: 1,
+                }}
+              >
+                /settings
+              </code>
+              , pick your channels. Native bans and kicks log themselves — no
+              extra commands needed.
             </p>
             <a
-              href="#"
+              href={DISCORD_INVITE_URL}
               style={{
                 display: "inline-block",
                 background: "var(--sushi-ink)",
