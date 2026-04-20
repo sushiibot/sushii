@@ -5,6 +5,9 @@ on:
 
 concurrency:
   group: deploy-production
+  # Safe to cancel: the approval gate is at the start of the deploy job, so a
+  # pending run hasn't touched anything yet. Cancelling lets the latest version
+  # deploy immediately instead of queueing behind an unapproved older run.
   cancel-in-progress: true
 
 jobs:
