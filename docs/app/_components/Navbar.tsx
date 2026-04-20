@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { DISCORD_INVITE_URL } from "@/lib/config";
 
 export function Navbar() {
   return (
@@ -61,7 +62,7 @@ export function Navbar() {
           </div>
 
           <a
-            href="#"
+            href={DISCORD_INVITE_URL}
             style={{
               background: "var(--sushi-ink)",
               color: "var(--sushi-card)",
