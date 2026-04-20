@@ -149,6 +149,9 @@ jobs:
   deploy-production:
     needs: [docker-build, deploy-staging]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     uses: sushiibot/sushii-workflows/.github/workflows/deploy-blue-green.yml@main
     with:
       image_version: ${{ needs.docker-build.outputs.sha_short }}
