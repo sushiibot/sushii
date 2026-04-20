@@ -18,22 +18,15 @@ function hardShadow(x = 5, y = 5) {
 // Update both when reprioritizing.
 const FEATURES = [
   {
-    title: "Scheduled Events",
-    tag: "automation",
-    isNew: true,
-    body: "Sync your Google Calendar to a dedicated channel — new and updated events post automatically. Your community always knows what's next.",
-    cmd: "/schedule-config",
-  },
-  {
     title: "Case Management",
     tag: "moderation",
     body: "Every mod action is tracked — even native Discord bans, kicks, and timeouts. No sushii commands required. Reasons are optional and can be set or updated any time after.",
     cmd: "/history @wawa",
   },
   {
-    title: "Message & Member Logs",
+    title: "Message & Reaction Logs",
     tag: "logging",
-    body: "Edits, deletes, and first reactors. All automatically posted to your configured log channels.",
+    body: "Track who started a reaction, not just who piled on. Plus the usual — edits, deletes, and member changes, all posted automatically to your log channels.",
     cmd: "/settings",
   },
   {
@@ -41,6 +34,19 @@ const FEATURES = [
     tag: "engagement",
     body: "Activity-based progression with automatic role rewards. Leaderboards, per-channel XP controls, cooldowns.",
     cmd: "/rank",
+  },
+  {
+    title: "Schedule Channel",
+    tag: "automation",
+    isNew: true,
+    body: "Sync your Google Calendar to a dedicated channel — new and updated events post automatically. Your community always knows what's next.",
+    cmd: "/schedule-config",
+  },
+  {
+    title: "Emoji & Sticker Stats",
+    tag: "insights",
+    body: "See which emoji and stickers are loved, which are forgotten. Track usage across your server — including emoji hosted in a separate emoji server.",
+    cmd: "/emoji-stats",
   },
   {
     title: "Custom Commands",
@@ -59,12 +65,6 @@ const FEATURES = [
     tag: "events",
     body: "Gate entries by role, level, or booster status. Set a start and end time — winners are selected automatically.",
     cmd: "/giveaway create",
-  },
-  {
-    title: "Emoji & Sticker Stats",
-    tag: "insights",
-    body: "See which emoji and stickers are loved, which are forgotten. Track usage totals across your whole server.",
-    cmd: "/emoji-stats",
   },
 ];
 
