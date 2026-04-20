@@ -5,6 +5,7 @@ import { count, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { routePath } from "hono/route";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -306,6 +307,8 @@ export function createPublicApp(
   let cache: StatsCache | null = null;
 
   app.use("*", pinoLoggerMiddleware);
+
+  app.use("/v1/stats", cors({ origin: "*" }));
 
   app.get("/v1/stats", async (c) => {
     const now = Date.now();
