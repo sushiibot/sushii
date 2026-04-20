@@ -30,7 +30,7 @@
     "@sapphire/shapeshift": "^3.9.7",
     "@sapphire/snowflake": "^3.5.5",
     "@sentry/bun": "^10.22.0",
-    "@sentry/cli": "^2.57.0",
+    "@sentry/cli": "^3.3.5",
     "@sentry/node-core": "^10.22.0",
     "@sentry/opentelemetry": "^10.7.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
