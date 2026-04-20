@@ -42,6 +42,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       tree={source.pageTree}
+      sidebar={{ defaultOpenLevel: 1 }}
       nav={{
         title: logoTitle,
         children: (

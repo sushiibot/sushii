@@ -37,7 +37,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable}`}
     >
       <body className="flex min-h-screen flex-col font-body">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider search={{ options: { type: "static" } }}>
+          {children}
+        </RootProvider>
       </body>
     </html>
   );
