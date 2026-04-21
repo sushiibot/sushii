@@ -164,7 +164,7 @@ export default function HomePage() {
               <span
                 style={{
                   position: "absolute",
-                  inset: "-4px -8px",
+                  inset: "-1px -8px -4px",
                   background: "var(--sushi-pink)",
                   borderRadius: 12,
                   border: `3px solid ${OUTLINE}`,
