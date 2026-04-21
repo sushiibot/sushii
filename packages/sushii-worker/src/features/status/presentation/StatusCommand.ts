@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 
+import { config } from "@/shared/infrastructure/config";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
@@ -36,11 +37,21 @@ export default class StatusCommand extends SlashCommandHandler {
     );
     const databaseMs = Number(databaseLatency / BigInt(1_000_000));
 
-    const content =
+    let content =
       `Server Shard ID: \`${currentShardId}\` (cluster \`${currentClusterId}\`)` +
       `\nShard Latency: \`${shardLatency}ms\`` +
       `\nDiscord REST Latency: \`${discordRestMs}ms\`` +
       `\nDatabase Latency: \`${databaseMs}ms\``;
+
+    if (config.build.gitHash || config.build.buildDate) {
+      const hash = config.build.gitHash
+        ? `\`${config.build.gitHash.slice(0, 7)}\``
+        : "unknown";
+      const date = config.build.buildDate
+        ? `<t:${Math.floor(config.build.buildDate.getTime() / 1000)}:f>`
+        : "unknown";
+      content += `\nVersion: ${hash} - ${date}`;
+    }
 
     const embed = new EmbedBuilder()
       .setTitle("Status")
