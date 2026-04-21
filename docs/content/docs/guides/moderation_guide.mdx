@@ -1,140 +1,124 @@
 ---
 title: Moderation Guide
-description: How to use sushii for moderation
+description: Cases, commands, and when to use sushii vs. native Discord moderation
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
 sushii keeps a running log of every moderation action in your server — whether
-you use sushii's commands or Discord's built-in tools. This guide covers the
-workflow, what's non-obvious, and when to use which approach.
+you use sushii's commands or Discord's built-in tools. Every ban, kick, and
+timeout gets logged as a numbered case you can reference, edit, and pull up in
+a member's history.
 
 ## Setup
 
-Before anything else, set up a moderation log channel so sushii knows where to
-post case records:
-
-```
-/settings → Logging → Mod Log Channel
-```
+Before anything else, point sushii at a private moderation log channel via
+**`/settings` → Logging → Mod Log Channel**. Once set, every case will be
+posted there automatically.
 
 <Callout title="Native Discord actions are also logged">
-You don't have to use sushii commands for everything. If you use Discord's
-built-in timeout, kick, or ban — and you added a reason in the audit log —
-sushii will pick up that reason automatically and log it as a case.
-
-This means your existing moderation workflow keeps working and still gets
-tracked.
+If you use Discord's built-in timeout, kick, or ban — and you added a reason
+in the audit log — sushii will pick up that reason automatically and log it as
+a case. Your existing moderation workflow keeps working and still gets tracked.
 </Callout>
 
-## Understanding Cases
+## How cases work
 
 Every action creates a **case** with a sequential number (e.g. "case #42"),
-which appears in your mod log channel. Cases let you:
+posted to your mod log channel. Cases give you a permanent, searchable record
+of what happened and why.
 
-- Reference past actions by number
-- Edit reasons after the fact with `/reason`
-- Pull up a member's full history with `/history`
+```
+/history user:@member
+/reason case:42 reason:Correct reason here
+/note user:@member note:Internal note text
+/uncase case:42
+```
 
-You can also add private moderator notes with `/note` — these only show up in
-`/history` and are never visible to the member.
+- `/history` — full moderation history for a member
+- `/reason` — edit a reason after the fact; you can also click **Edit Reason** directly in the mod log entry
+- `/note` — private mod note, never shown to the member or mentioned in any DM
+- `/uncase` — permanently removes a case from a member's history
 
-## Commands
+<Callout type="warn" title="Uncase is permanent">
+  `/uncase` cannot be undone. Use it only to remove cases that were created in
+  error, not to clean up a member's history before a ban appeal.
+</Callout>
 
-Most moderation commands accept multiple user IDs in the `users` field (up to
-25 at once), so you can take action on several members in a single command.
+## When to use native Discord vs. sushii commands
 
-### Warnings
+Both approaches log to the same place. Reach for sushii commands when:
+
+- You need to act on multiple members at once (up to 25 in a single command)
+- You want to DM the member a reason before kicking or banning them
+- You need a ban that lifts automatically (`/tempban`)
+- You're banning someone who's no longer in the server (`/ban` accepts user IDs)
+
+Otherwise, Discord's built-in tools work fine — sushii will pick up the action
+and log it as a case either way.
+
+## Taking action
+
+Most commands accept multiple users in the `users` field (up to 25 at once).
+
+### Warnings and timeouts
 
 ```
 /warn users:@member reason:Spamming in #general
-```
-
-By default, sushii will DM the member when you warn them. If the DM fails (the
-member has DMs closed), sushii will note it in the mod log.
-
-### Timeouts
-
-```
 /timeout users:@member duration:1h reason:Continued rule violations
 /untimeout users:@member reason:Resolved
 ```
 
-Prefer Discord's native timeout for single users — sushii will log it either
-way. Use `/timeout` when you want to act on multiple users at once.
+`/warn` DMs the member by default — if the DM fails because they have DMs
+closed, it's noted in the mod log. For single-user timeouts, Discord's native
+tool works just as well since sushii logs it either way; use `/timeout` when
+you need to act on multiple members at once.
 
-### Kicks and Bans
+### Kicks and bans
 
 ```
 /kick users:@member reason:Trolling
 /ban users:@member reason:Harassment dm_reason:true
+/unban users:@member reason:Appeal accepted
 /tempban users:@member duration:7d reason:Evading previous ban
+/tempban-list
 ```
 
-Unlike warnings, sushii does **not** DM members for kicks or bans by default.
-Add `dm_reason:true` if you want the member notified with the reason before the
-action.
+sushii doesn't DM members for kicks or bans by default — add `dm_reason:true`
+to notify the member with the reason before the action is taken. `/ban` accepts
+user IDs for members who are no longer in the server. Use `/tempban` when you
+want the ban to lift automatically; check active temporary bans with
+`/tempban-list`.
 
-Use `/tempban` when you want the ban to lift automatically. Check active
-temporary bans with `/tempban-list`.
-
-### Bulk Deleting Messages
-
-```
-/prune count:50
-/prune count:100 user:@member
-```
-
-`/prune` deletes recent messages in the channel. You can filter to a specific
-user's messages — useful for clearing out a raider or spammer.
-
-### Slowmode
-
-```
-/slowmode duration:30s
-/slowmode duration:0
-```
-
-Set slowmode directly from a command rather than digging through channel
-settings. Set to `0` to disable.
-
-## Managing Cases
-
-### Editing a Reason
-
-If you forgot to add a reason (or typed it wrong):
-
-```
-/reason case:42 reason:Correct reason here
-```
-
-You can also click the **Edit Reason** button directly in the mod log entry if
-no reason was set at the time.
-
-### Deleting a Case
-
-```
-/uncase case:42
-```
-
-This removes the case from the user's history and the mod log. Use sparingly —
-it's permanent.
-
-## Cross-Server Lookup
+### Cross-server ban lookup
 
 ```
 /lookup user:123456789
 ```
 
-Check whether a user ID appears in cross-server ban lists. Useful when vetting
-new members or investigating suspected alt accounts.
+Checks whether a user ID appears in ban lists shared by other servers using
+sushii. Useful when vetting new members or checking if someone has been
+actioned elsewhere.
 
-## When to Use Native Discord vs. sushii Commands
+The command is available to servers that are Discord-discoverable with 1,000+
+members, or that are Discord-partnered or verified.
 
-Both approaches log to the same place. The main reasons to reach for sushii
-commands instead:
+<Callout type="info" title="Sharing is opt-in">
+  By default, your server's name and ban reasons are hidden when other servers
+  run `/lookup`. To share them, enable **`/settings` → Lookup → Lookup Data
+  Sharing**. Both servers need to have this enabled before either can see the
+  other's details — if one hasn't, the entry shows as anonymous.
+</Callout>
 
-- You have user IDs ready and want to act on several members at once
-- You want to DM the member a reason (`dm_reason:true` on kicks/bans)
-- You need a ban that lifts automatically (`/tempban`)
-- You're banning someone not currently in the server (`/ban` accepts IDs of non-members)
+### Cleanup
+
+```
+/prune count:100 user:@member
+/slowmode duration:30s
+/slowmode duration:0
+```
+
+`/prune` deletes recent messages in the current channel — filter to a specific
+user to clear a raider or spammer without removing everyone else's messages.
+`/slowmode` sets or clears channel slowmode without going into channel
+settings; pass `0` to disable.
