@@ -49,7 +49,7 @@ jobs:
   deploy:
     name: Deploy Docs
     needs: build
-    if: false # paused until sushii bot + API is ready
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       pages: write
       id-token: write
