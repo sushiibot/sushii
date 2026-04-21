@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import styles from "./StatsSection.module.css";
 
 interface SushiiStats {
   guild_count: number;
@@ -20,7 +21,7 @@ const STAT_CONFIG = [
   },
   {
     key: "member_count" as const,
-    label: "Members Moderated",
+    label: "Members",
     accent: "var(--sushi-lilac)",
     rotate: 1,
   },
@@ -59,13 +60,7 @@ export function StatsSection() {
   }, []);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, 1fr)",
-        gap: 20,
-      }}
-    >
+    <div className={styles.grid}>
       {STAT_CONFIG.map(({ key, label, accent, rotate }) => (
         <div
           key={key}
