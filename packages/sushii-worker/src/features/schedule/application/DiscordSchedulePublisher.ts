@@ -83,6 +83,14 @@ function isAlertRateLimited(lastErrorAt: Date | null): boolean {
   return !!lastErrorAt && Date.now() - lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS;
 }
 
+function parseMessageId(resp: unknown): bigint {
+  const id = (resp as { id?: string })?.id;
+  if (typeof id !== "string") {
+    throw new Error(`Unexpected REST response shape: missing id field`);
+  }
+  return BigInt(id);
+}
+
 function formatMaybeLinkedTitle(title: string, location: string | undefined | null): string {
   if (!location) return title;
   try {
@@ -173,10 +181,11 @@ export class DiscordSchedulePublisher {
                 } catch (err: unknown) {
                   // 10008 = Unknown Message — repost as new
                   if (isDiscordUnknownMessageError(err)) {
-                    const newMsg = await this.client.rest.post(
+                    const newMsgResp = await this.client.rest.post(
                       Routes.channelMessages(channelId),
                       { body: componentsV2Body(chunk.container) },
-                    ) as { id: string };
+                    );
+                    const newMessageId = parseMessageId(newMsgResp);
                     try {
                       await this.repo.upsertMessage(
                         channel.guildId,
@@ -185,12 +194,12 @@ export class DiscordSchedulePublisher {
                         year,
                         month,
                         i,
-                        BigInt(newMsg.id),
+                        newMessageId,
                         chunk.hash,
                       );
                     } catch (upsertErr) {
                       this.logger.warn(
-                        { err: upsertErr, messageId: newMsg.id, chunkIndex: i },
+                        { err: upsertErr, messageId: newMessageId.toString(), chunkIndex: i },
                         "Failed to record reposted schedule message in DB — will re-edit on next poll",
                       );
                     }
@@ -201,10 +210,11 @@ export class DiscordSchedulePublisher {
                 }
               } else {
                 // Post new message
-                const newMsg = await this.client.rest.post(
+                const newMsgResp = await this.client.rest.post(
                   Routes.channelMessages(channelId),
                   { body: componentsV2Body(chunk.container) },
-                ) as { id: string };
+                );
+                const newMessageId = parseMessageId(newMsgResp);
                 try {
                   await this.repo.upsertMessage(
                     channel.guildId,
@@ -213,12 +223,12 @@ export class DiscordSchedulePublisher {
                     year,
                     month,
                     i,
-                    BigInt(newMsg.id),
+                    newMessageId,
                     chunk.hash,
                   );
                 } catch (upsertErr) {
                   this.logger.warn(
-                    { err: upsertErr, messageId: newMsg.id, chunkIndex: i },
+                    { err: upsertErr, messageId: newMessageId.toString(), chunkIndex: i },
                     "Failed to record posted schedule message in DB — will repost on next poll",
                   );
                 }
@@ -276,12 +286,11 @@ export class DiscordSchedulePublisher {
             "Discord schedule messages synced",
           );
 
-          const opCounts: Record<string, number> = { edited, posted, reposted, deleted, unchanged };
-          for (const [operation, count] of Object.entries(opCounts)) {
-            if (count > 0) {
-              this.metrics.messagesSyncedCounter.add(count, { operation });
-            }
-          }
+          if (edited > 0) this.metrics.messagesSyncedCounter.add(edited, { operation: "edited" });
+          if (posted > 0) this.metrics.messagesSyncedCounter.add(posted, { operation: "posted" });
+          if (reposted > 0) this.metrics.messagesSyncedCounter.add(reposted, { operation: "reposted" });
+          if (deleted > 0) this.metrics.messagesSyncedCounter.add(deleted, { operation: "deleted" });
+          if (unchanged > 0) this.metrics.messagesSyncedCounter.add(unchanged, { operation: "unchanged" });
 
           // Only emit the span event when there's actual Discord API work — unchanged-only
           // runs have no actionable signal.
@@ -362,10 +371,10 @@ export class DiscordSchedulePublisher {
           }
         } else {
           try {
-            const newMsg = await this.client.rest.post(
+            const newMsgResp = await this.client.rest.post(
               Routes.channelMessages(channelId),
               { body: componentsV2Body(chunk.container) },
-            ) as { id: string };
+            );
             await this.repo.upsertMessage(
               channel.guildId,
               channel.calendarId,
@@ -373,7 +382,7 @@ export class DiscordSchedulePublisher {
               year,
               month,
               i,
-              BigInt(newMsg.id),
+              parseMessageId(newMsgResp),
               chunk.hash,
             );
           } catch (err) {
@@ -399,6 +408,7 @@ export class DiscordSchedulePublisher {
       const excessMessages = unarchivedMessages.filter(
         (m) => m.messageIndex >= archiveChunks.length,
       );
+      let excessDeleteAccessible = true;
       for (const msg of excessMessages) {
         await this.discordSemaphore.run(async () => {
           try {
@@ -406,7 +416,9 @@ export class DiscordSchedulePublisher {
               Routes.channelMessage(channelId, msg.messageId.toString()),
             );
           } catch (err) {
-            if (!isDiscordUnknownMessageError(err)) {
+            if (isChannelInaccessibleError(err)) {
+              excessDeleteAccessible = false;
+            } else if (!isDiscordUnknownMessageError(err)) {
               this.logger.warn(
                 { err, messageId: msg.messageId.toString() },
                 "Failed to delete excess archive message",
@@ -414,9 +426,12 @@ export class DiscordSchedulePublisher {
             }
           }
         });
+        if (!excessDeleteAccessible) {
+          break;
+        }
       }
 
-      if (excessMessages.length > 0) {
+      if (excessMessages.length > 0 && excessDeleteAccessible) {
         await this.repo.deleteMessagesAboveIndex(
           channel.guildId,
           channel.calendarId,
@@ -571,15 +586,13 @@ export class DiscordSchedulePublisher {
 
     const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const container = new ContainerBuilder();
-    let first = true;
 
-    for (const { issue, timeParts } of groups.values()) {
-      if (!first) {
+    for (const [index, { issue, timeParts }] of [...groups.values()].entries()) {
+      if (index > 0) {
         container.addSeparatorComponents(
           new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
         );
       }
-      first = false;
 
       const count = timeParts.length;
       const noun = count === 1 ? "event" : "events";
