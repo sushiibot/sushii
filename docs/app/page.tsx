@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import Image from "next/image";
+
+export const metadata: Metadata = {
+  title: "sushii",
+  description: "Complete Discord community management bot.",
+  openGraph: {
+    title: "sushii",
+    description: "Complete Discord community management bot.",
+    url: "https://sushii.bot",
+    images: [{ url: "/sushii.png", width: 512, height: 512, alt: "sushii" }],
+  },
+};
 import Link from "next/link";
 import { DISCORD_INVITE_URL } from "@/lib/config";
 import { GlyphField } from "./_components/GlyphField";

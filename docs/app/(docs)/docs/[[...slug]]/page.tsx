@@ -49,5 +49,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: page.data.title,
     description: page.data.description,
+    openGraph: {
+      title: page.data.title,
+      description: page.data.description,
+      images: [{ url: "/sushii.png", width: 512, height: 512, alt: "sushii" }],
+    },
   };
 }

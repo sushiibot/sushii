@@ -6,6 +6,11 @@ import { Navbar } from "@/app/_components/Navbar";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "Privacy Policy for sushii bot",
+  openGraph: {
+    title: "Privacy Policy",
+    description: "Privacy Policy for sushii bot",
+    images: [{ url: "/sushii.png", width: 512, height: 512, alt: "sushii" }],
+  },
 };
 
 export default function PrivacyPage() {

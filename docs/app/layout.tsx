@@ -4,9 +4,31 @@ import {
   Plus_Jakarta_Sans,
   JetBrains_Mono,
 } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "fumadocs-ui/style.css";
 import "./global.css";
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://sushii.bot"),
+  title: {
+    default: "sushii",
+    template: "%s | sushii",
+  },
+  description: "Complete Discord community management bot.",
+  openGraph: {
+    siteName: "sushii",
+    type: "website",
+    images: [{ url: "/sushii.png", width: 512, height: 512, alt: "sushii" }],
+  },
+  twitter: {
+    card: "summary",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#fbc4c9",
+};
 
 const fontDisplay = Mochiy_Pop_One({
   weight: "400",
