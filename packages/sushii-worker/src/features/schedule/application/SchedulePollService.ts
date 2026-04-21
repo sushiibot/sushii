@@ -201,31 +201,14 @@ export class SchedulePollService {
 
           span.addEvent("calendar_fetched", { "calendar.changed_items": changedItems.length });
 
-          // Update sync token / reset failures
+          // Persist the new sync token regardless of what happens next
           const nextPollAt = computeNextPollAt(schedule.pollIntervalSec);
-          if (schedule.consecutiveFailures > 0) {
-            await this.scheduleRepo.resetFailuresAndUpdateToken(
-              schedule.guildId,
-              schedule.calendarId,
-              newSyncToken ?? null,
-              nextPollAt,
-            );
-            try {
-              await this.discordPublisher.sendRecoveryNotification(schedule);
-            } catch (err) {
-              this.logger.warn(
-                { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
-                "Failed to send recovery notification — sync state already persisted",
-              );
-            }
-          } else {
-            await this.scheduleRepo.updateSyncToken(
-              schedule.guildId,
-              schedule.calendarId,
-              newSyncToken ?? null,
-              nextPollAt,
-            );
-          }
+          await this.scheduleRepo.updateSyncToken(
+            schedule.guildId,
+            schedule.calendarId,
+            newSyncToken ?? null,
+            nextPollAt,
+          );
 
           // Filter changed items to current month for notifications
           const currentMonthChanges = changedItems.filter((item) => {
@@ -294,13 +277,10 @@ export class SchedulePollService {
 
           const posted = await this.discordPublisher.syncMessages(schedule, year, month, chunks);
           if (!posted) {
-            const nextPollAt = computeBackoffNextPollAt(schedule.pollIntervalSec, schedule.consecutiveFailures);
             this.metrics.pollCounter.add(1, { outcome: "discord_channel_error" });
-            await this.scheduleRepo.recordFailure(
+            await this.scheduleRepo.recordDiscordChannelError(
               schedule.guildId,
               schedule.calendarId,
-              "Discord channel inaccessible",
-              nextPollAt,
             );
             await this.discordPublisher.sendDiscordChannelErrorAlert(schedule);
             return;
@@ -308,6 +288,22 @@ export class SchedulePollService {
 
           this.metrics.pollCounter.add(1, { outcome: "success" });
           span.addEvent("discord_sync_complete");
+
+          // Clear all error state now that both calendar and Discord succeeded
+          const hadCalendarFailure = schedule.consecutiveFailures > 0;
+          if (hadCalendarFailure || schedule.discordChannelFailedAt) {
+            await this.scheduleRepo.resetFailures(schedule.guildId, schedule.calendarId);
+            if (hadCalendarFailure) {
+              try {
+                await this.discordPublisher.sendRecoveryNotification(schedule);
+              } catch (err) {
+                this.logger.warn(
+                  { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
+                  "Failed to send recovery notification — sync state already persisted",
+                );
+              }
+            }
+          }
         } catch (err) {
           span.recordException(err instanceof Error ? err : new Error(String(err)));
           span.setStatus({ code: SpanStatusCode.ERROR });

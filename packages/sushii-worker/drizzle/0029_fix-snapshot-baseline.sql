@@ -1,0 +1,1 @@
+-- baseline snapshot sync (no-op: aligns drizzle snapshot with current prod schema)

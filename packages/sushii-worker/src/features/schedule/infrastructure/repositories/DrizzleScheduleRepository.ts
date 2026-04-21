@@ -34,6 +34,7 @@ function mapSchedule(row: typeof schema.schedulesInAppPublic.$inferSelect): Sche
     consecutiveFailures: row.consecutiveFailures,
     lastErrorAt: row.lastErrorAt,
     lastErrorReason: row.lastErrorReason,
+    discordChannelFailedAt: row.discordChannelFailedAt,
     accentColor: row.accentColor ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -271,23 +272,29 @@ export class DrizzleScheduleRepository
       );
   }
 
-  async resetFailuresAndUpdateToken(
-    guildId: bigint,
-    calendarId: string,
-    syncToken: string | null,
-    nextPollAt: Date,
-  ): Promise<void> {
-    const now = new Date();
+  async resetFailures(guildId: bigint, calendarId: string): Promise<void> {
     await this.db
       .update(schema.schedulesInAppPublic)
       .set({
         consecutiveFailures: 0,
         lastErrorAt: null,
         lastErrorReason: null,
-        syncToken,
-        nextPollAt,
-        updatedAt: now,
+        discordChannelFailedAt: null,
+        updatedAt: new Date(),
       })
+      .where(
+        and(
+          eq(schema.schedulesInAppPublic.guildId, guildId),
+          eq(schema.schedulesInAppPublic.calendarId, calendarId),
+        ),
+      );
+  }
+
+  async recordDiscordChannelError(guildId: bigint, calendarId: string): Promise<void> {
+    const now = new Date();
+    await this.db
+      .update(schema.schedulesInAppPublic)
+      .set({ discordChannelFailedAt: now, updatedAt: now })
       .where(
         and(
           eq(schema.schedulesInAppPublic.guildId, guildId),

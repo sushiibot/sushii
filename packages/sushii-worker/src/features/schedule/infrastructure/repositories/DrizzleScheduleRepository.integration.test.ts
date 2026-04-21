@@ -278,30 +278,44 @@ describe("DrizzleScheduleRepository (Integration)", () => {
     });
   });
 
-  describe("resetFailuresAndUpdateToken", () => {
+  describe("resetFailures", () => {
     test("resets consecutiveFailures to 0", async () => {
       await seedSchedule(db, { consecutiveFailures: 5 });
-      await repo.resetFailuresAndUpdateToken(GUILD, CAL, "new-token", new Date());
+      await repo.resetFailures(GUILD, CAL);
 
       const updated = await repo.findByChannel(GUILD, CHANNEL);
       expect(updated?.consecutiveFailures).toBe(0);
     });
 
-    test("clears lastErrorAt and lastErrorReason", async () => {
+    test("clears lastErrorAt, lastErrorReason, and discordChannelFailedAt", async () => {
       await seedSchedule(db, { lastErrorReason: "old error", consecutiveFailures: 3 });
-      await repo.resetFailuresAndUpdateToken(GUILD, CAL, null, new Date());
+      await repo.resetFailures(GUILD, CAL);
 
       const updated = await repo.findByChannel(GUILD, CHANNEL);
       expect(updated?.lastErrorAt).toBeNull();
       expect(updated?.lastErrorReason).toBeNull();
+      expect(updated?.discordChannelFailedAt).toBeNull();
     });
+  });
 
-    test("updates the syncToken", async () => {
+  describe("recordDiscordChannelError", () => {
+    test("sets discordChannelFailedAt to a recent timestamp", async () => {
+      const before = new Date();
       await seedSchedule(db);
-      await repo.resetFailuresAndUpdateToken(GUILD, CAL, "recovered-token", new Date());
+      await repo.recordDiscordChannelError(GUILD, CAL);
 
       const updated = await repo.findByChannel(GUILD, CHANNEL);
-      expect(updated?.syncToken).toBe("recovered-token");
+      expect(updated?.discordChannelFailedAt).toBeDefined();
+      expect(updated!.discordChannelFailedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    });
+
+    test("does not affect consecutiveFailures or lastErrorAt", async () => {
+      await seedSchedule(db, { consecutiveFailures: 3, lastErrorReason: "calendar error" });
+      await repo.recordDiscordChannelError(GUILD, CAL);
+
+      const updated = await repo.findByChannel(GUILD, CHANNEL);
+      expect(updated?.consecutiveFailures).toBe(3);
+      expect(updated?.lastErrorReason).toBe("calendar error");
     });
   });
 

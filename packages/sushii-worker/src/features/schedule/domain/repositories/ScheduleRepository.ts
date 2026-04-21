@@ -50,10 +50,9 @@ export interface ScheduleRepository {
     nextPollAt: Date,
   ): Promise<void>;
 
-  resetFailuresAndUpdateToken(
-    guildId: bigint,
-    calendarId: string,
-    syncToken: string | null,
-    nextPollAt: Date,
-  ): Promise<void>;
+  /** Clears all error state (calendar + Discord) after a fully successful sync. */
+  resetFailures(guildId: bigint, calendarId: string): Promise<void>;
+
+  /** Records that the Discord channel was inaccessible. Does not affect calendar failure state. */
+  recordDiscordChannelError(guildId: bigint, calendarId: string): Promise<void>;
 }

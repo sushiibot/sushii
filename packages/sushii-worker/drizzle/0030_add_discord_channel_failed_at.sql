@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."schedules" ADD COLUMN "discord_channel_failed_at" timestamp with time zone;

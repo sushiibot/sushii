@@ -718,12 +718,12 @@ export class DiscordSchedulePublisher {
   }
 
   async sendDiscordChannelErrorAlert(channel: Schedule): Promise<void> {
-    if (isAlertRateLimited(channel.lastErrorAt)) {
+    if (isAlertRateLimited(channel.discordChannelFailedAt)) {
       this.logger.debug(
         {
           guildId: channel.guildId.toString(),
           calendarId: channel.calendarId,
-          lastErrorAt: channel.lastErrorAt,
+          discordChannelFailedAt: channel.discordChannelFailedAt,
         },
         "Skipping Discord channel error alert — rate limited (already sent within 24h)",
       );

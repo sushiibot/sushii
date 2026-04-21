@@ -27,6 +27,7 @@ function makeSchedule(overrides: Partial<Schedule> = {}): Schedule {
     consecutiveFailures: 0,
     lastErrorAt: null,
     lastErrorReason: null,
+    discordChannelFailedAt: null,
     accentColor: null,
     createdAt: now,
     updatedAt: now,
@@ -61,7 +62,8 @@ function makeRepo(
     delete: mock(async () => {}),
     updateSyncToken: mock(async () => {}),
     recordFailure: mock(async () => {}),
-    resetFailuresAndUpdateToken: mock(async () => {}),
+    resetFailures: mock(async () => {}),
+    recordDiscordChannelError: mock(async () => {}),
     updateSettings: mock(async () => upsertResult),
     // ScheduleMessageRepository
     getMessages: mock(async () => []),
