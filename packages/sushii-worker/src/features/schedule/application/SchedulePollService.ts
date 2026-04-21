@@ -126,13 +126,13 @@ export class SchedulePollService {
           }
 
           // Fetch events
-          const wasFullFetch = !schedule.syncToken;
-          span.setAttribute("schedule.fetch_type", wasFullFetch ? "full" : "incremental");
+          const isFullFetch = !schedule.syncToken;
+          span.setAttribute("schedule.fetch_type", isFullFetch ? "full" : "incremental");
           let changedItems: CalendarEventItem[];
           let newSyncToken: string | undefined;
 
           try {
-            if (wasFullFetch) {
+            if (isFullFetch) {
               const result = await this.calendarSync.fullFetch(schedule, year, month);
               changedItems = result.items;
               newSyncToken = result.nextSyncToken;
@@ -241,7 +241,7 @@ export class SchedulePollService {
           });
 
           // On full fetch, alert about any problematic events in the current month
-          if (wasFullFetch) {
+          if (isFullFetch) {
             const problemItems = changedItems.filter(
               (item) => item.status !== "cancelled" && calendarItemIssues(item) !== null,
             );
@@ -251,7 +251,7 @@ export class SchedulePollService {
           }
 
           // Only send change notifications for incremental syncs
-          if (!wasFullFetch && currentMonthChanges.length > 0) {
+          if (!isFullFetch && currentMonthChanges.length > 0) {
             await this.discordPublisher.sendEventChangeNotifications(
               schedule,
               currentMonthChanges,
@@ -283,7 +283,7 @@ export class SchedulePollService {
             {
               guildId: schedule.guildId.toString(),
               calendarId: schedule.calendarId,
-              fetchType: wasFullFetch ? "full" : "incremental",
+              fetchType: isFullFetch ? "full" : "incremental",
               changedItems: changedItems.length,
               currentMonthChanges: currentMonthChanges.length,
               storedEvents: currentMonthEvents.length,

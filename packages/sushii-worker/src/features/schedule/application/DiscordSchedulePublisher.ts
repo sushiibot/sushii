@@ -75,6 +75,26 @@ function isChannelInaccessibleError(err: unknown): boolean {
   );
 }
 
+function componentsV2Body(container: ContainerBuilder) {
+  return { components: [container.toJSON()], flags: MessageFlags.IsComponentsV2 };
+}
+
+function isAlertRateLimited(lastErrorAt: Date | null): boolean {
+  return !!lastErrorAt && Date.now() - lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS;
+}
+
+function formatMaybeLinkedTitle(title: string, location: string | undefined | null): string {
+  if (!location) return title;
+  try {
+    const safeUrl = location.replace(/\)/g, "%29");
+    new URL(location);
+    const escapedTitle = title.replace(/[\[\]]/g, "\\$&");
+    return `[${escapedTitle}](${safeUrl})`;
+  } catch {
+    return title;
+  }
+}
+
 /**
  * Handles all Discord-facing output for the schedule feature:
  * message sync, archive, and log-channel notifications.
@@ -117,10 +137,6 @@ export class DiscordSchedulePublisher {
           );
 
           const channelId = channel.channelId.toString();
-          const body = (container: ContainerBuilder) => ({
-            components: [container.toJSON()],
-            flags: MessageFlags.IsComponentsV2,
-          });
 
           let edited = 0;
           let posted = 0;
@@ -141,7 +157,7 @@ export class DiscordSchedulePublisher {
                 try {
                   await this.client.rest.patch(
                     Routes.channelMessage(channelId, existing.messageId.toString()),
-                    { body: body(chunk.container) },
+                    { body: componentsV2Body(chunk.container) },
                   );
                   await this.repo.upsertMessage(
                     channel.guildId,
@@ -159,7 +175,7 @@ export class DiscordSchedulePublisher {
                   if (isDiscordUnknownMessageError(err)) {
                     const newMsg = await this.client.rest.post(
                       Routes.channelMessages(channelId),
-                      { body: body(chunk.container) },
+                      { body: componentsV2Body(chunk.container) },
                     ) as { id: string };
                     try {
                       await this.repo.upsertMessage(
@@ -187,7 +203,7 @@ export class DiscordSchedulePublisher {
                 // Post new message
                 const newMsg = await this.client.rest.post(
                   Routes.channelMessages(channelId),
-                  { body: body(chunk.container) },
+                  { body: componentsV2Body(chunk.container) },
                 ) as { id: string };
                 try {
                   await this.repo.upsertMessage(
@@ -224,6 +240,9 @@ export class DiscordSchedulePublisher {
                 );
                 deleted++;
               } catch (err) {
+                if (isChannelInaccessibleError(err)) {
+                  throw err;
+                }
                 if (!isDiscordUnknownMessageError(err)) {
                   this.logger.warn(
                     { err, messageId: msg.messageId.toString() },
@@ -308,11 +327,6 @@ export class DiscordSchedulePublisher {
     archiveChunks: ReturnType<typeof renderSchedule>,
   ): Promise<void> {
     const channelId = channel.channelId.toString();
-    const body = (container: ContainerBuilder) => ({
-      components: [container.toJSON()],
-      flags: MessageFlags.IsComponentsV2,
-    });
-
     let channelAccessible = true;
 
     for (let i = 0; i < archiveChunks.length; i++) {
@@ -324,7 +338,7 @@ export class DiscordSchedulePublisher {
           try {
             await this.client.rest.patch(
               Routes.channelMessage(channelId, existing.messageId.toString()),
-              { body: body(chunk.container) },
+              { body: componentsV2Body(chunk.container) },
             );
             await this.repo.upsertMessage(
               channel.guildId,
@@ -350,7 +364,7 @@ export class DiscordSchedulePublisher {
           try {
             const newMsg = await this.client.rest.post(
               Routes.channelMessages(channelId),
-              { body: body(chunk.container) },
+              { body: componentsV2Body(chunk.container) },
             ) as { id: string };
             await this.repo.upsertMessage(
               channel.guildId,
@@ -459,20 +473,7 @@ export class DiscordSchedulePublisher {
         const prevEvent = change.previousEvent;
         const summary = prevEvent?.summary ?? change.item.summary ?? "(unknown event)";
 
-        let titleLine: string;
-        if (prevEvent?.location) {
-          try {
-            const safeUrl = prevEvent.location.replace(/\)/g, "%29");
-            new URL(prevEvent.location);
-            const escapedTitle = summary.replace(/[\[\]]/g, "\\$&");
-            titleLine = `[${escapedTitle}](${safeUrl})`;
-          } catch {
-            titleLine = summary;
-          }
-        } else {
-          titleLine = summary;
-        }
-
+        const titleLine = formatMaybeLinkedTitle(summary, prevEvent?.location);
         lines.push(`${emojis.trash} **Removed** — **${titleLine}**`);
 
         if (prevEvent) {
@@ -504,21 +505,9 @@ export class DiscordSchedulePublisher {
 
         // location is the event link (e.g. YouTube/stream URL) — use it for the title hyperlink.
         // Skip link if there's an issue since the title may be missing.
-        let titleLine: string;
-        if (!issue && event.location) {
-          try {
-            const safeUrl = event.location.replace(/\)/g, "%29");
-            new URL(event.location);
-            const escapedTitle = event.summary.replace(/[\[\]]/g, "\\$&");
-            titleLine = `[${escapedTitle}](${safeUrl})`;
-          } catch {
-            titleLine = event.summary;
-          }
-        } else if (issue) {
-          titleLine = `*(${issue.kind.replace(/_/g, " ")})*`;
-        } else {
-          titleLine = event.summary;
-        }
+        const titleLine = issue
+          ? `*(${issue.kind.replace(/_/g, " ")})*`
+          : formatMaybeLinkedTitle(event.summary, event.location);
 
         lines.push(`${actionEmoji} **${actionLabel}** — **${titleLine}**`);
 
@@ -541,7 +530,7 @@ export class DiscordSchedulePublisher {
 
     try {
       await this.client.rest.post(Routes.channelMessages(logChannelId), {
-        body: { components: [container.toJSON()], flags: MessageFlags.IsComponentsV2 },
+        body: componentsV2Body(container),
       });
       // Count changes only after confirming they were delivered
       for (const change of changes) {
@@ -622,7 +611,7 @@ export class DiscordSchedulePublisher {
 
     try {
       await this.client.rest.post(Routes.channelMessages(logChannelId), {
-        body: { components: [container.toJSON()], flags: MessageFlags.IsComponentsV2 },
+        body: componentsV2Body(container),
       });
     } catch (err) {
       this.logger.warn(
@@ -642,10 +631,7 @@ export class DiscordSchedulePublisher {
     // findAllDue fetch — not the recordFailure call that just ran. On the first
     // failure lastErrorAt is null so the alert fires; on repeat failures the
     // re-fetched schedule object from the next poll has the updated value.
-    if (
-      channel.lastErrorAt &&
-      Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS
-    ) {
+    if (isAlertRateLimited(channel.lastErrorAt)) {
       this.logger.debug(
         {
           guildId: channel.guildId.toString(),
@@ -659,12 +645,14 @@ export class DiscordSchedulePublisher {
     }
 
     const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
-    const message =
-      statusCode === 403
-        ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`
-        : statusCode === 404
-          ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`
-          : `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> encountered an error (${statusCode}). Please check your calendar configuration.`;
+    let message: string;
+    if (statusCode === 403) {
+      message = `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> is no longer accessible (permission denied). Please ensure the calendar is set to public.`;
+    } else if (statusCode === 404) {
+      message = `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`;
+    } else {
+      message = `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> encountered an error (${statusCode}). Please check your calendar configuration.`;
+    }
 
     const logChannelId = channel.logChannelId.toString();
     const alertContainer = new ContainerBuilder().addTextDisplayComponents(
@@ -673,7 +661,7 @@ export class DiscordSchedulePublisher {
 
     try {
       await this.client.rest.post(Routes.channelMessages(logChannelId), {
-        body: { components: [alertContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
+        body: componentsV2Body(alertContainer),
       });
       this.logger.info(
         {
@@ -702,7 +690,7 @@ export class DiscordSchedulePublisher {
 
     try {
       await this.client.rest.post(Routes.channelMessages(logChannelId), {
-        body: { components: [recoveryContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
+        body: componentsV2Body(recoveryContainer),
       });
       this.logger.info(
         { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
@@ -717,10 +705,15 @@ export class DiscordSchedulePublisher {
   }
 
   async sendDiscordChannelErrorAlert(channel: Schedule): Promise<void> {
-    if (
-      channel.lastErrorAt &&
-      Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS
-    ) {
+    if (isAlertRateLimited(channel.lastErrorAt)) {
+      this.logger.debug(
+        {
+          guildId: channel.guildId.toString(),
+          calendarId: channel.calendarId,
+          lastErrorAt: channel.lastErrorAt,
+        },
+        "Skipping Discord channel error alert — rate limited (already sent within 24h)",
+      );
       return;
     }
 
@@ -734,7 +727,7 @@ export class DiscordSchedulePublisher {
 
     try {
       await this.client.rest.post(Routes.channelMessages(logChannelId), {
-        body: { components: [alertContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
+        body: componentsV2Body(alertContainer),
       });
       this.logger.info(
         { guildId: channel.guildId.toString(), calendarId: channel.calendarId },

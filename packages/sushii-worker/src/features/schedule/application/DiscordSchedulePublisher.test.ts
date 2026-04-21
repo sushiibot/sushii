@@ -125,11 +125,10 @@ function makeEmojiRepo(): BotEmojiRepository {
 }
 
 function makeMetrics() {
-  const counter = { add: mock(() => {}) };
   return {
-    pollCounter: counter,
-    messagesSyncedCounter: counter,
-    eventsChangedCounter: counter,
+    pollCounter: { add: mock(() => {}) },
+    messagesSyncedCounter: { add: mock(() => {}) },
+    eventsChangedCounter: { add: mock(() => {}) },
   };
 }
 
@@ -245,7 +244,9 @@ describe("DiscordSchedulePublisher.syncMessages", () => {
         GUILD, CAL, CHANNEL_ID, 2024, 6, 0, 7777777777777777777n, "new-hash",
       );
     });
+  });
 
+  describe("channel unavailable", () => {
     it("returns false when patch throws a channel-inaccessible error (10003)", async () => {
       const repo = makeRepo([makeStoredMessage(0, 10000n, "old-hash")]);
       const patchError = makeDiscordAPIError(RESTJSONErrorCodes.UnknownChannel, "Unknown Channel");
@@ -256,9 +257,7 @@ describe("DiscordSchedulePublisher.syncMessages", () => {
       expect(result).toBe(false);
       expect(repo.upsertMessage).not.toHaveBeenCalled();
     });
-  });
 
-  describe("channel unavailable", () => {
     it("returns false when the channel cannot be posted to (10003)", async () => {
       const repo = makeRepo([]);
       const postError = makeDiscordAPIError(RESTJSONErrorCodes.UnknownChannel, "Unknown Channel");
