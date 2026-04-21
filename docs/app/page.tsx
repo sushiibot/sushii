@@ -20,18 +20,21 @@ const FEATURES = [
   {
     title: "Case Management",
     tag: "moderation",
+    emoji: "🛡️",
     body: "Every mod action is tracked — even native Discord bans, kicks, and timeouts. No sushii commands required. Reasons are optional and can be set or updated any time after.",
     cmd: "/history @wawa",
   },
   {
     title: "Message & Reaction Logs",
     tag: "logging",
+    emoji: "📋",
     body: "Track who started a reaction, not just who piled on. Plus the usual — edits, deletes, and member changes, all posted automatically to your log channels.",
     cmd: "/settings",
   },
   {
     title: "XP & Levels",
     tag: "engagement",
+    emoji: "⭐",
     body: "Activity-based progression with automatic role rewards. Leaderboards, per-channel XP controls, cooldowns.",
     cmd: "/rank",
   },
@@ -39,30 +42,35 @@ const FEATURES = [
     title: "Schedule Channel",
     tag: "automation",
     isNew: true,
+    emoji: "📅",
     body: "Sync your Google Calendar to a dedicated channel — new and updated events post automatically. Your community always knows what's next.",
     cmd: "/schedule-config",
   },
   {
     title: "Emoji & Sticker Stats",
     tag: "insights",
+    emoji: "📊",
     body: "See which emoji and stickers are loved, which are forgotten. Track usage across your server — including emoji hosted in a separate emoji server.",
     cmd: "/emoji-stats",
   },
   {
     title: "Custom Commands",
     tag: "tags",
+    emoji: "📌",
     body: "Tags for FAQs, rules, reminders. Text responses with optional attachments. Your community wiki as Discord commands.",
     cmd: "/t rules",
   },
   {
     title: "Role Menus",
     tag: "community",
+    emoji: "🎨",
     body: "Self-serve buttons or dropdowns for colors, pronouns, notifications. Members customize themselves, you stop copy-pasting.",
     cmd: "/rolemenu create",
   },
   {
     title: "Giveaways",
     tag: "events",
+    emoji: "🎁",
     body: "Gate entries by role, level, or booster status. Set a start and end time — winners are selected automatically.",
     cmd: "/giveaway create",
   },
@@ -489,24 +497,16 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Icon box */}
+              {/* Icon */}
               <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  background: ACCENT_CYCLE[i % ACCENT_CYCLE.length],
-                  border: `3px solid ${OUTLINE}`,
                   marginBottom: 16,
-                  boxShadow: hardShadow(2, 2),
-                  display: "grid",
-                  placeItems: "center",
-                  fontFamily: "var(--font-display)",
-                  color: ON_ACCENT,
-                  fontSize: 20,
+                  fontSize: 38,
+                  fontFamily: "NotoColorEmoji, sans-serif",
+                  lineHeight: 1,
                 }}
               >
-                {f.title.charAt(0)}
+                {f.emoji}
               </div>
 
               {/* Category */}
