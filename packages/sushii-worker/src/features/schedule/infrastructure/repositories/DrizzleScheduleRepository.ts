@@ -190,6 +190,7 @@ export class DrizzleScheduleRepository
           consecutiveFailures: 0,
           lastErrorAt: null,
           lastErrorReason: null,
+          discordChannelFailedAt: null,
           updatedAt: now,
         },
       })

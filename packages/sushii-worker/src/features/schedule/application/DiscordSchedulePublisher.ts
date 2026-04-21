@@ -86,7 +86,7 @@ function isAlertRateLimited(lastErrorAt: Date | null): boolean {
 function parseMessageId(resp: unknown): bigint {
   const id = (resp as { id?: string })?.id;
   if (typeof id !== "string") {
-    throw new Error(`Unexpected REST response shape: missing id field`);
+    throw new Error(`Unexpected REST response shape: missing id field`, { cause: resp });
   }
   return BigInt(id);
 }
