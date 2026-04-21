@@ -139,7 +139,7 @@ export default function HomePage() {
                 flexShrink: 0,
               }}
             />
-            Moderating since 2019
+            Moderating since 2017
             <span
               style={{
                 fontFamily: "'Zen Maru Gothic', sans-serif",
