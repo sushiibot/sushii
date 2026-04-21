@@ -227,8 +227,6 @@ export class SchedulePollService {
             );
           }
 
-          this.metrics.pollCounter.add(1, { outcome: "success" });
-
           // Filter changed items to current month for notifications
           const currentMonthChanges = changedItems.filter((item) => {
             const startStr = item.start?.dateTime ?? item.start?.date;
@@ -294,7 +292,21 @@ export class SchedulePollService {
             "Schedule poll complete, syncing Discord messages",
           );
 
-          await this.discordPublisher.syncMessages(schedule, year, month, chunks);
+          const posted = await this.discordPublisher.syncMessages(schedule, year, month, chunks);
+          if (!posted) {
+            const nextPollAt = computeBackoffNextPollAt(schedule.pollIntervalSec, schedule.consecutiveFailures);
+            this.metrics.pollCounter.add(1, { outcome: "discord_channel_error" });
+            await this.scheduleRepo.recordFailure(
+              schedule.guildId,
+              schedule.calendarId,
+              "Discord channel inaccessible",
+              nextPollAt,
+            );
+            await this.discordPublisher.sendDiscordChannelErrorAlert(schedule);
+            return;
+          }
+
+          this.metrics.pollCounter.add(1, { outcome: "success" });
           span.addEvent("discord_sync_complete");
         } catch (err) {
           span.recordException(err instanceof Error ? err : new Error(String(err)));

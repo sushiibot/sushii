@@ -1,6 +1,6 @@
 import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
-import type { Client, GuildTextBasedChannel } from "discord.js";
-import { ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, time, TimestampStyles } from "discord.js";
+import type { Client } from "discord.js";
+import { ContainerBuilder, DiscordAPIError, MessageFlags, RESTJSONErrorCodes, Routes, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, time, TimestampStyles } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
@@ -63,11 +63,15 @@ function buildUpdateDiffLines(prev: ScheduleEvent, next: ScheduleEvent): string[
 }
 
 function isDiscordUnknownMessageError(err: unknown): boolean {
+  return err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage;
+}
+
+function isChannelInaccessibleError(err: unknown): boolean {
   return (
-    err !== null &&
-    typeof err === "object" &&
-    "code" in err &&
-    (err as { code: number }).code === 10008
+    err instanceof DiscordAPIError &&
+    (err.code === RESTJSONErrorCodes.UnknownChannel ||
+      err.code === RESTJSONErrorCodes.MissingAccess ||
+      err.code === RESTJSONErrorCodes.MissingPermissions)
   );
 }
 
@@ -88,36 +92,13 @@ export class DiscordSchedulePublisher {
     private readonly metrics: ScheduleMetrics,
   ) {}
 
-  private async fetchTextChannel(
-    channelId: string,
-    context: string,
-  ): Promise<GuildTextBasedChannel | null> {
-    try {
-      const ch = await this.client.channels.fetch(channelId);
-      if (!ch) {
-        this.logger.warn({ channelId, context }, "Channel not found");
-        return null;
-      }
-
-      if (!ch.isTextBased() || ch.isDMBased()) {
-        this.logger.warn({ channelId, channelType: ch.type, context }, "Channel is not a guild text channel");
-        return null;
-      }
-
-      return ch as GuildTextBasedChannel;
-    } catch (err) {
-      this.logger.warn({ err, channelId, context }, "Failed to fetch channel");
-      return null;
-    }
-  }
-
   async syncMessages(
     channel: Schedule,
     year: number,
     month: number,
     chunks: ReturnType<typeof renderSchedule>,
-  ): Promise<void> {
-    await tracer.startActiveSpan(
+  ): Promise<boolean> {
+    return tracer.startActiveSpan(
       "schedule.discord.sync_messages",
       {
         attributes: {
@@ -135,15 +116,11 @@ export class DiscordSchedulePublisher {
             month,
           );
 
-          const discordChannel = await this.fetchTextChannel(
-            channel.channelId.toString(),
-            "syncMessages",
-          );
-
-          if (!discordChannel) {
-            span.setStatus({ code: SpanStatusCode.ERROR, message: "Discord channel not found or not a guild text channel" });
-            return;
-          }
+          const channelId = channel.channelId.toString();
+          const body = (container: ContainerBuilder) => ({
+            components: [container.toJSON()],
+            flags: MessageFlags.IsComponentsV2,
+          });
 
           let edited = 0;
           let posted = 0;
@@ -162,11 +139,10 @@ export class DiscordSchedulePublisher {
                 }
 
                 try {
-                  const msg = await discordChannel.messages.fetch(existing.messageId.toString());
-                  await msg.edit({
-                    components: [chunk.container],
-                    flags: MessageFlags.IsComponentsV2,
-                  });
+                  await this.client.rest.patch(
+                    Routes.channelMessage(channelId, existing.messageId.toString()),
+                    { body: body(chunk.container) },
+                  );
                   await this.repo.upsertMessage(
                     channel.guildId,
                     channel.calendarId,
@@ -181,10 +157,10 @@ export class DiscordSchedulePublisher {
                 } catch (err: unknown) {
                   // 10008 = Unknown Message — repost as new
                   if (isDiscordUnknownMessageError(err)) {
-                    const newMsg = await discordChannel.send({
-                      components: [chunk.container],
-                      flags: MessageFlags.IsComponentsV2,
-                    });
+                    const newMsg = await this.client.rest.post(
+                      Routes.channelMessages(channelId),
+                      { body: body(chunk.container) },
+                    ) as { id: string };
                     try {
                       await this.repo.upsertMessage(
                         channel.guildId,
@@ -209,10 +185,10 @@ export class DiscordSchedulePublisher {
                 }
               } else {
                 // Post new message
-                const newMsg = await discordChannel.send({
-                  components: [chunk.container],
-                  flags: MessageFlags.IsComponentsV2,
-                });
+                const newMsg = await this.client.rest.post(
+                  Routes.channelMessages(channelId),
+                  { body: body(chunk.container) },
+                ) as { id: string };
                 try {
                   await this.repo.upsertMessage(
                     channel.guildId,
@@ -243,8 +219,9 @@ export class DiscordSchedulePublisher {
           for (const msg of excessMessages) {
             await this.discordSemaphore.run(async () => {
               try {
-                const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
-                await discordMsg.delete();
+                await this.client.rest.delete(
+                  Routes.channelMessage(channelId, msg.messageId.toString()),
+                );
                 deleted++;
               } catch (err) {
                 if (!isDiscordUnknownMessageError(err)) {
@@ -298,7 +275,17 @@ export class DiscordSchedulePublisher {
               "messages.unchanged": unchanged,
             });
           }
+
+          return true;
         } catch (err) {
+          if (isChannelInaccessibleError(err)) {
+            this.logger.warn(
+              { err, channelId: channel.channelId.toString() },
+              "Schedule channel inaccessible",
+            );
+            span.setStatus({ code: SpanStatusCode.ERROR, message: "Schedule channel inaccessible" });
+            return false;
+          }
           span.recordException(err instanceof Error ? err : new Error(String(err)));
           span.setStatus({ code: SpanStatusCode.ERROR });
           throw err;
@@ -320,66 +307,80 @@ export class DiscordSchedulePublisher {
     unarchivedMessages: ScheduleMessage[],
     archiveChunks: ReturnType<typeof renderSchedule>,
   ): Promise<void> {
-    const discordChannel = await this.fetchTextChannel(
-      channel.channelId.toString(),
-      "archiveMonth",
-    );
+    const channelId = channel.channelId.toString();
+    const body = (container: ContainerBuilder) => ({
+      components: [container.toJSON()],
+      flags: MessageFlags.IsComponentsV2,
+    });
 
-    if (discordChannel) {
-      for (let i = 0; i < archiveChunks.length; i++) {
-        const chunk = archiveChunks[i];
-        const existing = unarchivedMessages.find((m) => m.messageIndex === i);
+    let channelAccessible = true;
 
-        await this.discordSemaphore.run(async () => {
-          if (existing) {
-            try {
-              const discordMsg = await discordChannel.messages.fetch(existing.messageId.toString());
-              await discordMsg.edit({
-                components: [chunk.container],
-                flags: MessageFlags.IsComponentsV2,
-              });
-              await this.repo.upsertMessage(
-                channel.guildId,
-                channel.calendarId,
-                channel.channelId,
-                year,
-                month,
-                i,
-                existing.messageId,
-                chunk.hash,
-              );
-            } catch (err) {
+    for (let i = 0; i < archiveChunks.length; i++) {
+      const chunk = archiveChunks[i];
+      const existing = unarchivedMessages.find((m) => m.messageIndex === i);
+
+      await this.discordSemaphore.run(async () => {
+        if (existing) {
+          try {
+            await this.client.rest.patch(
+              Routes.channelMessage(channelId, existing.messageId.toString()),
+              { body: body(chunk.container) },
+            );
+            await this.repo.upsertMessage(
+              channel.guildId,
+              channel.calendarId,
+              channel.channelId,
+              year,
+              month,
+              i,
+              existing.messageId,
+              chunk.hash,
+            );
+          } catch (err) {
+            if (isChannelInaccessibleError(err)) {
+              channelAccessible = false;
+            } else {
               this.logger.warn(
                 { err, messageId: existing.messageId.toString() },
                 "Failed to edit archived message",
               );
             }
-          } else {
-            try {
-              const newMsg = await discordChannel.send({
-                components: [chunk.container],
-                flags: MessageFlags.IsComponentsV2,
-              });
-              await this.repo.upsertMessage(
-                channel.guildId,
-                channel.calendarId,
-                channel.channelId,
-                year,
-                month,
-                i,
-                BigInt(newMsg.id),
-                chunk.hash,
-              );
-            } catch (err) {
+          }
+        } else {
+          try {
+            const newMsg = await this.client.rest.post(
+              Routes.channelMessages(channelId),
+              { body: body(chunk.container) },
+            ) as { id: string };
+            await this.repo.upsertMessage(
+              channel.guildId,
+              channel.calendarId,
+              channel.channelId,
+              year,
+              month,
+              i,
+              BigInt(newMsg.id),
+              chunk.hash,
+            );
+          } catch (err) {
+            if (isChannelInaccessibleError(err)) {
+              channelAccessible = false;
+            } else {
               this.logger.warn(
                 { err, chunkIndex: i },
                 "Failed to post new archive message",
               );
             }
           }
-        });
-      }
+        }
+      });
 
+      if (!channelAccessible) {
+        break;
+      }
+    }
+
+    if (channelAccessible) {
       // Delete Discord messages and DB rows for indices beyond archiveChunks.length
       const excessMessages = unarchivedMessages.filter(
         (m) => m.messageIndex >= archiveChunks.length,
@@ -387,8 +388,9 @@ export class DiscordSchedulePublisher {
       for (const msg of excessMessages) {
         await this.discordSemaphore.run(async () => {
           try {
-            const discordMsg = await discordChannel.messages.fetch(msg.messageId.toString());
-            await discordMsg.delete();
+            await this.client.rest.delete(
+              Routes.channelMessage(channelId, msg.messageId.toString()),
+            );
           } catch (err) {
             if (!isDiscordUnknownMessageError(err)) {
               this.logger.warn(
@@ -422,12 +424,7 @@ export class DiscordSchedulePublisher {
     const changes = classifyChanges(changedItems, previousEvents);
     if (changes.length === 0) return;
 
-    const logChannel = await this.fetchTextChannel(
-      channel.logChannelId.toString(),
-      "sendEventChangeNotifications",
-    );
-    if (!logChannel) return;
-
+    const logChannelId = channel.logChannelId.toString();
     const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
 
     const container = new ContainerBuilder();
@@ -543,9 +540,8 @@ export class DiscordSchedulePublisher {
     }
 
     try {
-      await logChannel.send({
-        components: [container],
-        flags: MessageFlags.IsComponentsV2,
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: { components: [container.toJSON()], flags: MessageFlags.IsComponentsV2 },
       });
       // Count changes only after confirming they were delivered
       for (const change of changes) {
@@ -553,7 +549,7 @@ export class DiscordSchedulePublisher {
       }
     } catch (err) {
       this.logger.warn(
-        { err, logChannelId: channel.logChannelId.toString() },
+        { err, logChannelId },
         "Failed to send event change notifications to log channel",
       );
     }
@@ -582,11 +578,7 @@ export class DiscordSchedulePublisher {
 
     if (groups.size === 0) return;
 
-    const logChannel = await this.fetchTextChannel(
-      channel.logChannelId.toString(),
-      "sendEventIssuesAlert",
-    );
-    if (!logChannel) return;
+    const logChannelId = channel.logChannelId.toString();
 
     const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const container = new ContainerBuilder();
@@ -629,13 +621,12 @@ export class DiscordSchedulePublisher {
     }
 
     try {
-      await logChannel.send({
-        components: [container],
-        flags: MessageFlags.IsComponentsV2,
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: { components: [container.toJSON()], flags: MessageFlags.IsComponentsV2 },
       });
     } catch (err) {
       this.logger.warn(
-        { err, logChannelId: channel.logChannelId.toString() },
+        { err, logChannelId },
         "Failed to send event issues alert to log channel",
       );
     }
@@ -675,20 +666,14 @@ export class DiscordSchedulePublisher {
           ? `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> was not found (404). The calendar may have been deleted or the ID is invalid.`
           : `${emojis.warning} <@${channel.configuredByUserId}> The Google Calendar for <#${channel.channelId}> encountered an error (${statusCode}). Please check your calendar configuration.`;
 
-    const logChannel = await this.fetchTextChannel(
-      channel.logChannelId.toString(),
-      "sendPermanentErrorAlert",
-    );
-    if (!logChannel) return;
-
+    const logChannelId = channel.logChannelId.toString();
     const alertContainer = new ContainerBuilder().addTextDisplayComponents(
       new TextDisplayBuilder().setContent(message),
     );
 
     try {
-      await logChannel.send({
-        components: [alertContainer],
-        flags: MessageFlags.IsComponentsV2,
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: { components: [alertContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
       });
       this.logger.info(
         {
@@ -700,19 +685,14 @@ export class DiscordSchedulePublisher {
       );
     } catch (err) {
       this.logger.warn(
-        { err, logChannelId: channel.logChannelId.toString() },
+        { err, logChannelId },
         "Failed to send error alert to log channel",
       );
     }
   }
 
   async sendRecoveryNotification(channel: Schedule): Promise<void> {
-    const logChannel = await this.fetchTextChannel(
-      channel.logChannelId.toString(),
-      "sendRecoveryNotification",
-    );
-    if (!logChannel) return;
-
+    const logChannelId = channel.logChannelId.toString();
     const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
     const recoveryContainer = new ContainerBuilder().addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
@@ -721,9 +701,8 @@ export class DiscordSchedulePublisher {
     );
 
     try {
-      await logChannel.send({
-        components: [recoveryContainer],
-        flags: MessageFlags.IsComponentsV2,
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: { components: [recoveryContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
       });
       this.logger.info(
         { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
@@ -731,8 +710,40 @@ export class DiscordSchedulePublisher {
       );
     } catch (err) {
       this.logger.warn(
-        { err, logChannelId: channel.logChannelId.toString() },
+        { err, logChannelId },
         "Failed to send recovery notification to log channel",
+      );
+    }
+  }
+
+  async sendDiscordChannelErrorAlert(channel: Schedule): Promise<void> {
+    if (
+      channel.lastErrorAt &&
+      Date.now() - channel.lastErrorAt.getTime() < ALERT_RATE_LIMIT_MS
+    ) {
+      return;
+    }
+
+    const logChannelId = channel.logChannelId.toString();
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
+    const message = `${emojis.warning} <@${channel.configuredByUserId}> The schedule channel <#${channel.channelId}> is no longer accessible (the bot may have been removed from the server, or the channel was changed). Please use \`/schedule-config edit\` to update the schedule channel.`;
+
+    const alertContainer = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(message),
+    );
+
+    try {
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: { components: [alertContainer.toJSON()], flags: MessageFlags.IsComponentsV2 },
+      });
+      this.logger.info(
+        { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
+        "Schedule Discord channel error alert sent",
+      );
+    } catch (err) {
+      this.logger.warn(
+        { err, logChannelId },
+        "Failed to send Discord channel error alert to log channel",
       );
     }
   }
