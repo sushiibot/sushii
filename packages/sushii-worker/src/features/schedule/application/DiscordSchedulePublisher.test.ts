@@ -399,3 +399,36 @@ describe("DiscordSchedulePublisher.sendPermanentErrorAlert", () => {
     expect(JSON.stringify(callArgs.body)).toContain("404");
   });
 });
+
+// ── sendDiscordChannelRecoveryNotification tests ───────────────────────────────
+
+describe("DiscordSchedulePublisher.sendDiscordChannelRecoveryNotification", () => {
+  it("posts a recovery message to the log channel", async () => {
+    const repo = makeRepo([]);
+    const { publisher, client } = makePublisher(repo);
+
+    await publisher.sendDiscordChannelRecoveryNotification(makeSchedule());
+
+    expect(client.rest.post).toHaveBeenCalledTimes(1);
+    const [route] = (client.rest.post as ReturnType<typeof mock>).mock.calls[0] as [string];
+    expect(route).toContain(LOG_CHANNEL_ID.toString());
+  });
+
+  it("mentions the schedule channel in the recovery message", async () => {
+    const repo = makeRepo([]);
+    const { publisher, client } = makePublisher(repo);
+
+    await publisher.sendDiscordChannelRecoveryNotification(makeSchedule());
+
+    const [, callArgs] = (client.rest.post as ReturnType<typeof mock>).mock.calls[0] as [unknown, { body: unknown }];
+    expect(JSON.stringify(callArgs.body)).toContain(CHANNEL_ID.toString());
+  });
+
+  it("does not throw when the log channel post fails", async () => {
+    const repo = makeRepo([]);
+    const postError = makeDiscordAPIError(RESTJSONErrorCodes.UnknownChannel, "Unknown Channel");
+    const { publisher } = makePublisher(repo, { postError });
+
+    await expect(publisher.sendDiscordChannelRecoveryNotification(makeSchedule())).resolves.toBeUndefined();
+  });
+});

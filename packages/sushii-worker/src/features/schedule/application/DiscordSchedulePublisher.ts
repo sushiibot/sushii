@@ -717,6 +717,31 @@ export class DiscordSchedulePublisher {
     }
   }
 
+  async sendDiscordChannelRecoveryNotification(channel: Schedule): Promise<void> {
+    const logChannelId = channel.logChannelId.toString();
+    const emojis = await this.emojiRepo.getEmojis(PUBLISHER_EMOJI_NAMES);
+    const recoveryContainer = new ContainerBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${emojis.success} Schedule channel <#${channel.channelId}> is accessible again.`,
+      ),
+    );
+
+    try {
+      await this.client.rest.post(Routes.channelMessages(logChannelId), {
+        body: componentsV2Body(recoveryContainer),
+      });
+      this.logger.info(
+        { guildId: channel.guildId.toString(), calendarId: channel.calendarId },
+        "Schedule Discord channel recovery notification sent",
+      );
+    } catch (err) {
+      this.logger.warn(
+        { err, logChannelId },
+        "Failed to send Discord channel recovery notification to log channel",
+      );
+    }
+  }
+
   async sendDiscordChannelErrorAlert(channel: Schedule): Promise<void> {
     if (isAlertRateLimited(channel.discordChannelFailedAt)) {
       this.logger.debug(

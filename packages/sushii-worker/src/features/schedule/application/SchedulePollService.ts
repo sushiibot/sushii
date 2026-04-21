@@ -291,7 +291,8 @@ export class SchedulePollService {
 
           // Clear all error state now that both calendar and Discord succeeded
           const hadCalendarFailure = schedule.consecutiveFailures > 0;
-          if (hadCalendarFailure || schedule.discordChannelFailedAt) {
+          const hadDiscordFailure = !!schedule.discordChannelFailedAt;
+          if (hadCalendarFailure || hadDiscordFailure) {
             await this.scheduleRepo.resetFailures(schedule.guildId, schedule.calendarId);
             if (hadCalendarFailure) {
               try {
@@ -300,6 +301,16 @@ export class SchedulePollService {
                 this.logger.warn(
                   { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
                   "Failed to send recovery notification — sync state already persisted",
+                );
+              }
+            }
+            if (hadDiscordFailure) {
+              try {
+                await this.discordPublisher.sendDiscordChannelRecoveryNotification(schedule);
+              } catch (err) {
+                this.logger.warn(
+                  { err, guildId: schedule.guildId.toString(), calendarId: schedule.calendarId },
+                  "Failed to send Discord channel recovery notification — sync state already persisted",
                 );
               }
             }
