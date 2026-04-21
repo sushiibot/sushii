@@ -82,7 +82,7 @@ export class ScheduleConfigEditHandler {
           .setChannelSelectMenuComponent(
             new ChannelSelectMenuBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_CHANNEL)
-              .addChannelTypes(ChannelType.GuildText)
+              .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
               .setDefaultChannels([existing.channelId.toString()]),
           ),
         new LabelBuilder()
@@ -91,7 +91,7 @@ export class ScheduleConfigEditHandler {
           .setChannelSelectMenuComponent(
             new ChannelSelectMenuBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_LOG_CHANNEL)
-              .addChannelTypes(ChannelType.GuildText)
+              .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
               .setDefaultChannels([existing.logChannelId.toString()]),
           ),
         new LabelBuilder()
@@ -133,8 +133,8 @@ export class ScheduleConfigEditHandler {
 
     const newTitle = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_NAME);
     const colorInput = submit.fields.getTextInputValue(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_COLOR);
-    const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_CHANNEL, true, [ChannelType.GuildText]);
-    const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText]);
+    const channels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_CHANNEL, true, [ChannelType.GuildText, ChannelType.GuildAnnouncement]);
+    const logChannels = submit.fields.getSelectedChannels(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_EDIT_FIELD_LOG_CHANNEL, true, [ChannelType.GuildText, ChannelType.GuildAnnouncement]);
 
     const channel = channels?.first();
     const logChannel = logChannels?.first();

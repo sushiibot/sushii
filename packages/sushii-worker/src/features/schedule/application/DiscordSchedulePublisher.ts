@@ -95,7 +95,7 @@ export class DiscordSchedulePublisher {
     try {
       const ch = await this.client.channels.fetch(channelId);
       if (!ch?.isTextBased() || ch.isDMBased()) {
-        this.logger.warn({ channelId, context }, "Channel is not a guild text channel");
+        this.logger.warn({ channelId, channelType: ch?.type, context }, "Channel is not a guild text channel");
         return null;
       }
       return ch as GuildTextBasedChannel;
