@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { DISCORD_INVITE_URL } from "@/lib/config";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Navbar() {
   return (
@@ -43,8 +44,8 @@ export function Navbar() {
         </Link>
 
         {/* Nav links + CTA */}
-        <div className="flex items-center gap-7">
-          <div className="hidden items-center gap-7 text-sm font-semibold sm:flex">
+        <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-7 text-sm font-semibold sm:flex mr-4">
             <Link
               href="/#features"
               className="no-underline transition-opacity hover:opacity-70"
@@ -60,6 +61,8 @@ export function Navbar() {
               Docs
             </Link>
           </div>
+
+          <ThemeToggle />
 
           <a
             href={DISCORD_INVITE_URL}
