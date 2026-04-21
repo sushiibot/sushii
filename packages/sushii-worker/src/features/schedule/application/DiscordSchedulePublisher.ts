@@ -94,10 +94,16 @@ export class DiscordSchedulePublisher {
   ): Promise<GuildTextBasedChannel | null> {
     try {
       const ch = await this.client.channels.fetch(channelId);
-      if (!ch?.isTextBased() || ch.isDMBased()) {
-        this.logger.warn({ channelId, channelType: ch?.type, context }, "Channel is not a guild text channel");
+      if (!ch) {
+        this.logger.warn({ channelId, context }, "Channel not found");
         return null;
       }
+
+      if (!ch.isTextBased() || ch.isDMBased()) {
+        this.logger.warn({ channelId, channelType: ch.type, context }, "Channel is not a guild text channel");
+        return null;
+      }
+
       return ch as GuildTextBasedChannel;
     } catch (err) {
       this.logger.warn({ err, channelId, context }, "Failed to fetch channel");
