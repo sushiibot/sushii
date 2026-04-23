@@ -16,7 +16,6 @@ import Color from "@/utils/colors";
 
 import type { ScheduleEventRepository } from "../../domain/repositories/ScheduleEventRepository";
 
-const MAX_PAST_EVENTS = 3;
 // TODO: add pagination so users can browse beyond the first page of events
 const MAX_DISPLAYED_EVENTS = 10;
 const FOOTER_TEXT = "-# All times are shown in your local timezone";
@@ -45,17 +44,11 @@ export class ScheduleCommand extends SlashCommandHandler {
     const guildId = BigInt(interaction.guildId);
     const now = new Date();
 
-    // Fetch recent past events (returned most-recent-first) and reverse for display.
-    const pastEvents = (await this.eventRepo.findRecentPastByGuild(guildId, now, MAX_PAST_EVENTS)).reverse();
+    // Fetch one extra to detect truncation.
+    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_DISPLAYED_EVENTS + 1);
 
-    // Fill remaining slots with future events; fetch one extra to detect truncation.
-    const futureLimit = Math.max(0, MAX_DISPLAYED_EVENTS - pastEvents.length);
-    const futureEvents = futureLimit > 0
-      ? await this.eventRepo.findUpcomingByGuild(guildId, now, futureLimit + 1)
-      : [];
-
-    const truncated = futureEvents.length > futureLimit;
-    const displayed = [...pastEvents, ...futureEvents.slice(0, futureLimit)];
+    const truncated = events.length > MAX_DISPLAYED_EVENTS;
+    const displayed = events.slice(0, MAX_DISPLAYED_EVENTS);
 
     if (displayed.length === 0) {
       const container = new ContainerBuilder()
