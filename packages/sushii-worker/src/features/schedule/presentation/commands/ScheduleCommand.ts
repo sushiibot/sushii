@@ -46,9 +46,11 @@ export class ScheduleCommand extends SlashCommandHandler {
     const guildId = BigInt(interaction.guildId);
     const now = new Date();
 
-    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS);
-    const displayed = events.slice(0, MAX_DISPLAYED_EVENTS);
-    const remainingCount = events.length - displayed.length;
+    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS + 1);
+    const truncated = events.length > MAX_FETCH_EVENTS;
+    const allVisible = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
+    const displayed = allVisible.slice(0, MAX_DISPLAYED_EVENTS);
+    const remainingCount = allVisible.length - displayed.length;
 
     if (displayed.length === 0) {
       const container = new ContainerBuilder()
@@ -114,8 +116,8 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const footerParts: string[] = [FOOTER_TEXT];
     if (remainingCount > 0) {
-      const moreLabel = events.length >= MAX_FETCH_EVENTS ? `${remainingCount}+` : `${remainingCount}`;
-      footerParts.push(`-# …and ${moreLabel} more events — check the schedule channel for the full list`);
+      const suffix = truncated ? "+" : "";
+      footerParts.push(`-# …and ${remainingCount}${suffix} more events — check the schedule channel for the full list`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),
