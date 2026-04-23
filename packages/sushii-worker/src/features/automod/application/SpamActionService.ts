@@ -1,4 +1,6 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
   ContainerBuilder,
   DiscordAPIError,
   MessageFlags,
@@ -12,6 +14,7 @@ import {
 import type { Logger } from "pino";
 
 import Color from "@/utils/colors";
+import customIds from "@/interactions/customIds";
 
 import { SpamDetectionService } from "./SpamDetectionService";
 
@@ -207,6 +210,36 @@ export class SpamActionService {
           new TextDisplayBuilder().setContent(contentLines.join("\n")),
         );
     }
+
+    const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          customIds.automodAlertAction.compile({
+            actionType: "warn",
+            userId,
+          }),
+        )
+        .setLabel("Warn"),
+      new ButtonBuilder()
+        .setCustomId(
+          customIds.automodAlertAction.compile({
+            actionType: "kick",
+            userId,
+          }),
+        )
+        .setLabel("Kick"),
+      new ButtonBuilder()
+        .setCustomId(
+          customIds.automodAlertAction.compile({
+            actionType: "ban",
+            userId,
+          }),
+        )
+        .setLabel("Ban"),
+    );
+    container
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addActionRowComponents(actionRow);
 
     await channel.send({
       components: [container],

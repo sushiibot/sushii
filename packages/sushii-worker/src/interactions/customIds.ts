@@ -13,6 +13,7 @@ enum Paths {
   ReasonConfirmButton = "reason_confirm/:userId/:buttonId/:action",
   SettingsToggleButton = "settings/toggle/:field/:newState",
   GiveawayEnterButton = "giveaway/enter",
+  AutomodAlertAction = "/automod/alert/action/:actionType/:userId",
 }
 
 export type SettingsToggleOptions =
@@ -67,7 +68,12 @@ type PathParams<T extends Paths> = T extends Paths.RoleMenuButton
                     {
                       // No params, uses guild ID and message ID from interaction
                     }
-                  : never;
+                  : T extends Paths.AutomodAlertAction
+                    ? {
+                        actionType: "warn" | "kick" | "ban" | "unban";
+                        userId: string;
+                      }
+                    : never;
 
 /**
  * Returns a function that returns null if the match fails or the params.
@@ -117,6 +123,7 @@ const customIds = {
   reasonConfirmButton: createCustomID(Paths.ReasonConfirmButton),
   settingsToggleButton: createCustomID(Paths.SettingsToggleButton),
   giveawayEnterButton: createCustomID(Paths.GiveawayEnterButton),
+  automodAlertAction: createCustomID(Paths.AutomodAlertAction),
 };
 
 export default customIds;

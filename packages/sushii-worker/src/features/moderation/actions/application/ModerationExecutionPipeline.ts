@@ -681,10 +681,11 @@ export class ModerationExecutionPipeline {
           await guild.members.ban(target.id, {
             reason,
             deleteMessageSeconds:
+              action.deleteMessageSeconds ??
               (action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS) *
-              24 *
-              60 *
-              60,
+                24 *
+                60 *
+                60,
           });
 
           break;

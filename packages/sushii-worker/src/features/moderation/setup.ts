@@ -30,6 +30,7 @@ import {
   ModLogDeleteDMButtonHandler,
   ModLogReasonButtonHandler,
 } from "./audit-logs/presentation/components";
+import { AutomodAlertActionButtonHandler } from "./actions/presentation/components/AutomodAlertActionButtonHandler";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -330,6 +331,10 @@ export function createModerationCommands(
     new ModLogDeleteDMButtonHandler(
       services.modLogRepository,
       logger.child({ buttonHandler: "modLogDeleteDM" }),
+    ),
+    new AutomodAlertActionButtonHandler(
+      moderationService,
+      logger.child({ buttonHandler: "automodAlertAction" }),
     ),
   ];
 

@@ -102,6 +102,7 @@ export class BanAction extends ModerationAction {
     dmChoice: DMChoice,
     attachment: Attachment | null = null,
     private readonly _deleteMessageDays?: number,
+    private readonly _deleteMessageSeconds?: number,
   ) {
     super(
       ActionType.Ban,
@@ -118,6 +119,11 @@ export class BanAction extends ModerationAction {
     return this._deleteMessageDays;
   }
 
+  // Takes precedence over deleteMessageDays when set (supports sub-day granularity)
+  get deleteMessageSeconds(): number | undefined {
+    return this._deleteMessageSeconds;
+  }
+
   validate(): Result<void, string> {
     const basicValidation = this.validateBasicPermissions();
     if (!basicValidation.ok) {
@@ -127,6 +133,12 @@ export class BanAction extends ModerationAction {
     if (this._deleteMessageDays !== undefined) {
       if (this._deleteMessageDays < 0 || this._deleteMessageDays > 7) {
         return Err("Delete message days must be between 0 and 7");
+      }
+    }
+
+    if (this._deleteMessageSeconds !== undefined) {
+      if (this._deleteMessageSeconds < 0 || this._deleteMessageSeconds > 604800) {
+        return Err("Delete message seconds must be between 0 and 604800 (7 days)");
       }
     }
 
