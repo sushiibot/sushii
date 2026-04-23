@@ -18,6 +18,8 @@ import type { ScheduleEventRepository } from "../../domain/repositories/Schedule
 
 // TODO: add pagination so users can browse beyond the first page of events
 const MAX_DISPLAYED_EVENTS = 10;
+// Fetch up to this many events so we can show an accurate "N more" count
+const MAX_FETCH_EVENTS = 50;
 const FOOTER_TEXT = "-# All times are shown in your local timezone";
 
 export class ScheduleCommand extends SlashCommandHandler {
@@ -44,11 +46,9 @@ export class ScheduleCommand extends SlashCommandHandler {
     const guildId = BigInt(interaction.guildId);
     const now = new Date();
 
-    // Fetch one extra to detect truncation.
-    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_DISPLAYED_EVENTS + 1);
-
-    const truncated = events.length > MAX_DISPLAYED_EVENTS;
+    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS);
     const displayed = events.slice(0, MAX_DISPLAYED_EVENTS);
+    const remainingCount = events.length - displayed.length;
 
     if (displayed.length === 0) {
       const container = new ContainerBuilder()
@@ -113,8 +113,9 @@ export class ScheduleCommand extends SlashCommandHandler {
     );
 
     const footerParts: string[] = [FOOTER_TEXT];
-    if (truncated) {
-      footerParts.push("-# …and more events — check the schedule channel for the full list");
+    if (remainingCount > 0) {
+      const moreLabel = events.length >= MAX_FETCH_EVENTS ? `${remainingCount}+` : `${remainingCount}`;
+      footerParts.push(`-# …and ${moreLabel} more events — check the schedule channel for the full list`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),
