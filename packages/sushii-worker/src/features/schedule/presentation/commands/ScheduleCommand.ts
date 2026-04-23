@@ -48,9 +48,9 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS + 1);
     const truncated = events.length > MAX_FETCH_EVENTS;
-    const allVisible = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
-    const displayed = allVisible.slice(0, MAX_DISPLAYED_EVENTS);
-    const remainingCount = allVisible.length - displayed.length;
+    const countable = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
+    const displayed = countable.slice(0, MAX_DISPLAYED_EVENTS);
+    const remainingCount = countable.length - displayed.length;
 
     if (displayed.length === 0) {
       const container = new ContainerBuilder()
@@ -65,7 +65,7 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
-    const calendarIds = new Set(displayed.map((e) => e.calendarId));
+    const calendarIds = new Set(displayed.map((ev) => ev.calendarId));
     const multipleCalendars = calendarIds.size > 1;
     const accentColor = calendarIds.size === 1 ? (displayed[0].accentColor ?? Color.Info) : Color.Info;
 
@@ -78,13 +78,21 @@ export class ScheduleCommand extends SlashCommandHandler {
     for (let i = 0; i < displayed.length; i++) {
       const { event, calendarTitle } = displayed[i];
       const date = event.getDate();
-      if (!date) continue; // defensive — ensured non-null by SQL filter
+      if (!date) {
+        continue; // defensive — ensured non-null by SQL filter
+      }
 
-      const locationIsUrl = !!event.location && URL.canParse(event.location);
+      let parsed: URL | null = null;
+      try {
+        parsed = event.location ? new URL(event.location) : null;
+      } catch {
+        // ignore unparseable locations
+      }
+      const locationIsUrl = parsed?.protocol === "http:" || parsed?.protocol === "https:";
 
       let titleLine: string;
-      if (locationIsUrl) {
-        const safeLocation = event.location.replace(/\)/g, "%29");
+      if (locationIsUrl && parsed) {
+        const safeLocation = parsed.href.replace(/\)/g, "%29");
         const escapedSummary = event.summary.replace(/[\[\]]/g, "\\$&");
         titleLine = `**[${escapedSummary}](${safeLocation})**`;
       } else {
@@ -102,8 +110,12 @@ export class ScheduleCommand extends SlashCommandHandler {
       if (event.location && !locationIsUrl) {
         meta.push(event.location);
       }
-      if (multipleCalendars) meta.push(calendarTitle);
-      if (meta.length > 0) lines.push(`-# ${meta.join("  ·  ")}`);
+      if (multipleCalendars) {
+        meta.push(calendarTitle);
+      }
+      if (meta.length > 0) {
+        lines.push(`-# ${meta.join("  ·  ")}`);
+      }
 
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(lines.join("\n")),
@@ -117,7 +129,8 @@ export class ScheduleCommand extends SlashCommandHandler {
     const footerParts: string[] = [FOOTER_TEXT];
     if (remainingCount > 0) {
       const suffix = truncated ? "+" : "";
-      footerParts.push(`-# …and ${remainingCount}${suffix} more events — check the schedule channel for the full list`);
+      const noun = remainingCount === 1 ? "event" : "events";
+      footerParts.push(`-# …and ${remainingCount}${suffix} more ${noun} — check the schedule channel for the full list`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),
