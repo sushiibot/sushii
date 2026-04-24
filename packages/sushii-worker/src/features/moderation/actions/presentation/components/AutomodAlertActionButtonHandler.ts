@@ -5,6 +5,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
   StringSelectMenuBuilder,
@@ -60,22 +61,22 @@ function buildModal(
     .setTitle(MODAL_TITLES[actionType]);
 
   if (actionType === "ban") {
-    // discord.js types don't reflect that Discord now supports select menus in modals
-    const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(DELETE_SECONDS_CUSTOM_ID)
-        .setPlaceholder("Delete message history")
-        .addOptions([
-          { label: "Don't delete any", value: "0" },
-          { label: "Previous hour", value: "3600" },
-          { label: "Previous 12 hours", value: "43200" },
-          { label: "Previous 24 hours", value: "86400" },
-          { label: "Previous 3 days", value: "259200" },
-          { label: "Previous 7 days", value: "604800" },
-        ]),
-    );
-    modal.addComponents(
-      selectRow as unknown as ActionRowBuilder<TextInputBuilder>,
+    modal.addLabelComponents(
+      new LabelBuilder()
+        .setLabel("Delete message history")
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(DELETE_SECONDS_CUSTOM_ID)
+            .setPlaceholder("Don't delete any")
+            .addOptions([
+              { label: "Don't delete any", value: "0" },
+              { label: "Previous hour", value: "3600" },
+              { label: "Previous 12 hours", value: "43200" },
+              { label: "Previous 24 hours", value: "86400" },
+              { label: "Previous 3 days", value: "259200" },
+              { label: "Previous 7 days", value: "604800" },
+            ]),
+        ),
     );
   }
 
