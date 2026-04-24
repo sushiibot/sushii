@@ -11,6 +11,9 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { SpamActionService } from "../../application/SpamActionService";
 import type { SpamDetectionService } from "../../application/SpamDetectionService";
 
+const TEST_GUILD_ID = "167058919611564043";
+const TEST_TRIGGER = "__automod_test__";
+
 export class AutomodMessageHandler extends EventHandler<Events.Raw> {
   constructor(
     private readonly spamDetectionService: SpamDetectionService,
@@ -62,6 +65,19 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       const guildConfig = await this.guildConfigRepository.findByGuildId(
         guildId,
       );
+
+      if (guildId === TEST_GUILD_ID && payload.content?.trim() === TEST_TRIGGER) {
+        await this.spamActionService.executeSpamAction(
+          guildId,
+          payload.author.id,
+          payload.author.username,
+          new Map([[payload.channel_id, [payload.id]]]),
+          payload.content,
+          [],
+          guildConfig.moderationSettings.automodAlertsChannelId,
+        );
+        return;
+      }
 
       if (!guildConfig.moderationSettings.automodSpamEnabled) {
         return;
