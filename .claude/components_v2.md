@@ -118,6 +118,8 @@ container.addActionRowComponents(row);
 ```
 
 ### Modals
+
+Text inputs use the classic `ActionRowBuilder` + `addComponents`:
 ```typescript
 const modal = new ModalBuilder()
   .setCustomId("text_modal")
@@ -130,9 +132,25 @@ const input = new TextInputBuilder()
   .setMaxLength(1000);
 
 modal.addComponents(
-  new ActionRowBuilder<TextInputBuilder>()
-    .addComponents(input)
+  new ActionRowBuilder<TextInputBuilder>().addComponents(input)
 );
+```
+
+Select menus in modals require `LabelBuilder` + `addLabelComponents` (not `ActionRowBuilder`):
+```typescript
+// ✓ correct — select menus must be wrapped in a Label
+modal.addLabelComponents(
+  new LabelBuilder()
+    .setLabel("Choose an option")
+    .setStringSelectMenuComponent(
+      new StringSelectMenuBuilder()
+        .setCustomId("my_select")
+        .addOptions([...]),
+    ),
+);
+
+// ✗ wrong — select menus in ActionRow are rejected by Discord API
+// modal.addComponents(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(...))
 ```
 
 ## Interaction Handling
