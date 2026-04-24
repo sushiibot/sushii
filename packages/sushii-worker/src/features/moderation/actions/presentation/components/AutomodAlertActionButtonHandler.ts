@@ -60,6 +60,10 @@ function buildModal(
     .setCustomId(customId)
     .setTitle(MODAL_TITLES[actionType]);
 
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(buildReasonInput()),
+  );
+
   if (actionType === "ban") {
     modal.addLabelComponents(
       new LabelBuilder()
@@ -67,10 +71,10 @@ function buildModal(
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(DELETE_SECONDS_CUSTOM_ID)
-            .setPlaceholder("Don't delete any")
+            .setPlaceholder("Previous hour")
             .addOptions([
+              { label: "Previous hour", value: "3600", default: true },
               { label: "Don't delete any", value: "0" },
-              { label: "Previous hour", value: "3600" },
               { label: "Previous 12 hours", value: "43200" },
               { label: "Previous 24 hours", value: "86400" },
               { label: "Previous 3 days", value: "259200" },
@@ -79,10 +83,6 @@ function buildModal(
         ),
     );
   }
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(buildReasonInput()),
-  );
 
   return modal;
 }
