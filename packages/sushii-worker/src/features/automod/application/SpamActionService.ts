@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder,
   ButtonBuilder,
+  ButtonStyle,
   ContainerBuilder,
   DiscordAPIError,
   MessageFlags,
@@ -219,7 +220,8 @@ export class SpamActionService {
             userId,
           }),
         )
-        .setLabel("Warn"),
+        .setLabel("Warn")
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(
           customIds.automodAlertAction.compile({
@@ -227,7 +229,8 @@ export class SpamActionService {
             userId,
           }),
         )
-        .setLabel("Kick"),
+        .setLabel("Kick")
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(
           customIds.automodAlertAction.compile({
@@ -235,7 +238,8 @@ export class SpamActionService {
             userId,
           }),
         )
-        .setLabel("Ban"),
+        .setLabel("Ban")
+        .setStyle(ButtonStyle.Secondary),
     );
     container
       .addSeparatorComponents(new SeparatorBuilder())
