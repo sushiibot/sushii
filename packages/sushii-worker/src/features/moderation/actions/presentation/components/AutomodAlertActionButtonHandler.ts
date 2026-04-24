@@ -4,6 +4,7 @@ import type { ButtonInteraction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   ModalBuilder,
   StringSelectMenuBuilder,
@@ -97,7 +98,8 @@ function buildContextualActionRow(
       .setCustomId(
         customIds.automodAlertAction.compile({ actionType: type, userId }),
       )
-      .setLabel(label);
+      .setLabel(label)
+      .setStyle(ButtonStyle.Secondary);
 
   switch (actionType) {
     case "warn":
