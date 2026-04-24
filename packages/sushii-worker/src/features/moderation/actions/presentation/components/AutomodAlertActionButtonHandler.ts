@@ -5,6 +5,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ContainerBuilder,
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
@@ -13,6 +14,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
+
+import Color from "@/utils/colors";
 import type { Logger } from "pino";
 
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
@@ -43,6 +46,23 @@ const ACTION_VERBS = {
   ban: "banned",
   unban: "unbanned",
 } as const;
+
+function buildErrorReply(message: string): {
+  components: ReturnType<ContainerBuilder["toJSON"]>[];
+  flags: number;
+  ephemeral: boolean;
+} {
+  const container = new ContainerBuilder()
+    .setAccentColor(Color.Error)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(message),
+    );
+  return {
+    components: [container.toJSON()],
+    flags: MessageFlags.IsComponentsV2,
+    ephemeral: true,
+  };
+}
 
 function buildReasonInput(): TextInputBuilder {
   return new TextInputBuilder()
@@ -176,10 +196,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     if (reasonText) {
       const reasonResult = Reason.create(reasonText);
       if (reasonResult.err) {
-        await modalSubmission.followUp({
-          content: `Invalid reason: ${reasonResult.val}`,
-          ephemeral: true,
-        });
+        await modalSubmission.followUp(buildErrorReply(`Invalid reason: ${reasonResult.val}`));
         return;
       }
       reason = reasonResult.val;
@@ -220,10 +237,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     try {
       targetUser = member?.user ?? (await interaction.client.users.fetch(userId));
     } catch {
-      await modalSubmission.followUp({
-        content: "Could not find the target user.",
-        ephemeral: true,
-      });
+      await modalSubmission.followUp(buildErrorReply("Could not find the target user."));
       return;
     }
 
@@ -272,10 +286,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
         },
         "Automod alert action failed",
       );
-      await modalSubmission.followUp({
-        content: `Action failed: ${result?.val ?? "unknown error"}`,
-        ephemeral: true,
-      });
+      await modalSubmission.followUp(buildErrorReply(`Action failed: ${result?.val ?? "unknown error"}`));
       return;
     }
 
