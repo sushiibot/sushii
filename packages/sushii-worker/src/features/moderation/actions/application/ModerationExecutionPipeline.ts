@@ -233,6 +233,10 @@ export class ModerationExecutionPipeline {
           timeoutDuration = action.duration.asSeconds();
         }
 
+        const deleteMessageSeconds = action.isSoftbanAction()
+          ? action.deleteMessageSeconds ?? null
+          : null;
+
         // Create moderation case with DM intent
         // Use placeholder case ID - createCase() will auto-generate the real ID
         let moderationCase = ModerationCase.create(
@@ -246,6 +250,7 @@ export class ModerationExecutionPipeline {
           undefined,
           action.attachment ? [action.attachment.url] : [],
           timeoutDuration,
+          deleteMessageSeconds,
         )
           .withPending(isPending)
           .withDMIntent(

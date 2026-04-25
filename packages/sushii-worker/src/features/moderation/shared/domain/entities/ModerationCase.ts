@@ -44,6 +44,7 @@ export class ModerationCase {
     private readonly _dmAttempted: boolean = false,
     private readonly _dmNotAttemptedReason: DMNotAttemptedReason | null = null,
     private readonly _dmFailureReason: DMFailureReason | null = null,
+    private readonly _deleteMessageSeconds: number | null = null,
   ) {}
 
   static create(
@@ -57,6 +58,7 @@ export class ModerationCase {
     msgId?: string,
     attachments?: string[],
     timeoutDuration?: number | null,
+    deleteMessageSeconds?: number | null,
   ): ModerationCase {
     return new ModerationCase(
       guildId,
@@ -77,6 +79,7 @@ export class ModerationCase {
       false,
       null,
       null,
+      deleteMessageSeconds ?? null,
     );
   }
 
@@ -160,6 +163,10 @@ export class ModerationCase {
     return this._dmFailureReason;
   }
 
+  get deleteMessageSeconds(): number | null {
+    return this._deleteMessageSeconds;
+  }
+
   withDMResult(dmResult: DMResult): ModerationCase {
     const dmAttempted =
       dmResult.messageId !== undefined || dmResult.error !== undefined;
@@ -188,6 +195,7 @@ export class ModerationCase {
       dmAttempted,
       this._dmNotAttemptedReason,
       dmFailureReason,
+      this._deleteMessageSeconds,
     );
   }
 
@@ -215,6 +223,7 @@ export class ModerationCase {
       this._dmAttempted,
       notAttemptedReason || null,
       this._dmFailureReason,
+      this._deleteMessageSeconds,
     );
   }
 
@@ -238,6 +247,7 @@ export class ModerationCase {
       this._dmAttempted,
       this._dmNotAttemptedReason,
       this._dmFailureReason,
+      this._deleteMessageSeconds,
     );
   }
 
@@ -261,6 +271,7 @@ export class ModerationCase {
       this._dmAttempted,
       this._dmNotAttemptedReason,
       this._dmFailureReason,
+      this._deleteMessageSeconds,
     );
   }
 
@@ -284,6 +295,7 @@ export class ModerationCase {
       this._dmAttempted,
       this._dmNotAttemptedReason,
       this._dmFailureReason,
+      this._deleteMessageSeconds,
     );
   }
 }

@@ -43,6 +43,7 @@ export class ModLogPostingService {
           attachments: modLogCase.attachments,
           timeout_duration: modLogCase.timeoutDuration,
           action_time: modLogCase.actionTime,
+          delete_message_seconds: modLogCase.deleteMessageSeconds,
         },
         auditLogEvent.timeoutChange,
       );

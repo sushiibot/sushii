@@ -24,6 +24,8 @@ interface ModCase {
   timeout_duration?: number | null;
   /** When the moderation action was taken */
   action_time?: Date | null;
+  /** Delete message duration in seconds (for softban cases) */
+  delete_message_seconds?: number | null;
 }
 
 export default async function buildModLogEmbed(
@@ -80,6 +82,15 @@ export default async function buildModLogEmbed(
     fields.push({
       name: "Ban Duration",
       value: `${dur.humanize()}\nExpiring ${expiryTs}`,
+      inline: false,
+    });
+  }
+
+  // Add softban deleted messages duration
+  if (actionType === ActionType.Softban && modCase.delete_message_seconds) {
+    fields.push({
+      name: "Deleted Messages",
+      value: dayjs.duration(modCase.delete_message_seconds, "seconds").humanize(),
       inline: false,
     });
   }
