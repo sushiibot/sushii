@@ -163,7 +163,7 @@ export class DMNotificationService {
             channelId: null,
             messageId: null,
             error: "User has blocked the bot",
-            failureReason: "user_blocked" as DMFailureReason,
+            failureReason: "user_blocked",
           });
         }
 
@@ -175,7 +175,7 @@ export class DMNotificationService {
             channelId: null,
             messageId: null,
             error: "User has server DMs disabled or no mutual guilds",
-            failureReason: "user_privacy" as DMFailureReason,
+            failureReason: "user_privacy",
           });
         }
       }

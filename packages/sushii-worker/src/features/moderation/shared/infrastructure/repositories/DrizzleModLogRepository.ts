@@ -245,6 +245,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         dmChannelId: dmResult.channelId ? BigInt(dmResult.channelId) : null,
         dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
         dmMessageError: dmResult.error || null,
+        dmFailureReason: dmResult.failureReason ?? null,
       })
       .where(
         and(

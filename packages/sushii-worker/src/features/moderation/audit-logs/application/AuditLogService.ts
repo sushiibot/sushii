@@ -7,7 +7,7 @@ import { Err, Ok } from "ts-results";
 const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
 
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
-import type { DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { DMFailureReason, DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
@@ -18,10 +18,8 @@ import { ActionType } from "../../shared";
 import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import { AuditLogEvent } from "../domain/entities";
 import type { ModLogPostingService } from "./ModLogPostingService";
-import type {
-  DMSentResult,
-  NativeTimeoutDMService,
-} from "./NativeTimeoutDMService";
+import type { DMSentResult } from "../../shared/application/DMNotificationService";
+import type { NativeTimeoutDMService } from "./NativeTimeoutDMService";
 
 /**
  * Application service for handling Discord audit log events end-to-end.
@@ -524,6 +522,7 @@ export class AuditLogService {
       dmSentResult.channelId,
       dmSentResult.messageId,
       dmSentResult.error,
+      dmSentResult.failureReason ?? null,
     );
 
     return Ok(dmSentResult);
@@ -572,11 +571,13 @@ export class AuditLogService {
     dmChannelId: string | null,
     dmMessageId: string | null,
     dmMessageError: string | null,
+    dmFailureReason: DMFailureReason | null,
   ): Promise<Result<void, string>> {
-    const dmResult = {
+    const dmResult: DMResult = {
       channelId: dmChannelId || undefined,
       messageId: dmMessageId || undefined,
       error: dmMessageError || undefined,
+      failureReason: dmFailureReason ?? undefined,
     };
 
     const result = await this.modLogRepository.updateDMInfo(

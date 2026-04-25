@@ -653,7 +653,7 @@ export class ModerationExecutionPipeline {
       channelId: dmSentResult.channelId || undefined,
       messageId: dmSentResult.messageId || undefined,
       error: dmSentResult.error || undefined,
-      failureReason: dmSentResult.failureReason || undefined,
+      failureReason: dmSentResult.failureReason ?? undefined,
     };
   }
 

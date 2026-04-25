@@ -4,8 +4,7 @@ import type { Result } from "ts-results";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
-import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import type { DMFailureReason } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { DMFailureReason, ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import {
   ActionType,
@@ -257,18 +256,25 @@ export function buildActionResultMessage(
         .filter((c) => c.dmFailureReason)
         .map((c) => c.dmFailureReason);
 
-      const allKnownFailures = failureReasons.every(
-        (r) => r === "user_blocked" || r === "user_privacy",
-      );
+      const allKnownFailures =
+        failureReasons.length > 0 &&
+        failureReasons.every(
+          (r) => r === "user_blocked" || r === "user_privacy",
+        );
 
       if (allKnownFailures) {
         const allBlocked = failureReasons.every((r) => r === "user_blocked");
         const allPrivacy = failureReasons.every((r) => r === "user_privacy");
-        const reason = allBlocked
-          ? describeDMFailureReason("user_blocked")
-          : allPrivacy
-            ? describeDMFailureReason("user_privacy")
-            : "User blocked bot or DMs disabled";
+
+        let reason: string;
+        if (allBlocked) {
+          reason = describeDMFailureReason("user_blocked");
+        } else if (allPrivacy) {
+          reason = describeDMFailureReason("user_privacy");
+        } else {
+          reason = "User blocked bot or DMs disabled";
+        }
+
         dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (${reason})`;
       } else {
         dmSectionContent += `${emojis.fail} **Failed to send**`;
