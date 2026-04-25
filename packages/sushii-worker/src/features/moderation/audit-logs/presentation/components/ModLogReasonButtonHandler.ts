@@ -204,6 +204,8 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
         executor_id: updatedCaseWithExecutor.executorId,
         reason: updatedCaseWithExecutor.reason?.value || null,
         attachments: updatedCaseWithExecutor.attachments,
+        timeout_duration: updatedCaseWithExecutor.timeoutDuration,
+        action_time: updatedCaseWithExecutor.actionTime,
         delete_message_seconds: updatedCaseWithExecutor.deleteMessageSeconds,
       },
     );

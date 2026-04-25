@@ -264,6 +264,8 @@ export class ReasonUpdateService {
           executor_id: modCase.executorId,
           reason: modCase.reason?.value || null,
           attachments: modCase.attachments,
+          timeout_duration: modCase.timeoutDuration,
+          action_time: modCase.actionTime,
           delete_message_seconds: modCase.deleteMessageSeconds,
         },
       );

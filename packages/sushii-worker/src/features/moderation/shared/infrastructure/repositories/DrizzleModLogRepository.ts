@@ -111,7 +111,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
           dmAttempted: moderationCase.dmAttempted,
           dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
           dmFailureReason: moderationCase.dmFailureReason,
-          timeoutDuration: moderationCase.timeoutDuration
+          timeoutDuration: moderationCase.timeoutDuration !== null
             ? BigInt(moderationCase.timeoutDuration)
             : null,
           deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
@@ -677,7 +677,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
       row.attachments || [],
       dmResult,
       row.pending,
-      row.timeoutDuration ? Number(row.timeoutDuration) : null,
+      row.timeoutDuration !== null ? Number(row.timeoutDuration) : null,
       row.dmIntended,
       row.dmIntentSource as DMIntentSource,
       row.dmAttempted,

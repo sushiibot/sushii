@@ -73,7 +73,7 @@ export class ModerationCase {
       attachments || [],
       null,
       false,
-      timeoutDuration || null,
+      timeoutDuration ?? null,
       false,
       "unknown",
       false,
