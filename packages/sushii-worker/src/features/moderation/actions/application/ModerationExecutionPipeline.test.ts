@@ -20,6 +20,7 @@ import { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressi
 import {
   BanAction,
   KickAction,
+  SoftbanAction,
   TempBanAction,
   WarnAction,
 } from "../../shared/domain/entities/ModerationAction";
@@ -534,6 +535,54 @@ describe("ModerationExecutionPipeline", () => {
       expect(result.ok).toBe(true);
     });
 
+    test("should execute softban action (ban + unban)", async () => {
+      const guild = createMockGuild();
+      const clientWithGuild = {
+        guilds: { cache: { get: () => guild } },
+        channels: { fetch: mock(() => Promise.resolve(null)) },
+      } as unknown as Client;
+
+      const pipelineWithGuild = new ModerationExecutionPipeline(
+        mockDb,
+        mockModLogRepository,
+        mockTempBanRepository,
+        mockModLogService,
+        mockDMPolicyService,
+        mockDMNotificationService,
+        mockGuildConfigRepository,
+        clientWithGuild,
+        testLogger,
+        new SoftbanSuppressionSet(),
+      );
+
+      const action = new SoftbanAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+        3600,
+      );
+      const target = createMockTarget();
+
+      const result = await pipelineWithGuild.execute(
+        action,
+        ActionType.Softban,
+        target,
+        createMockGuildConfig(),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(guild.members.ban).toHaveBeenCalledWith(target.id, {
+        reason: expect.any(String),
+        deleteMessageSeconds: 3600,
+      });
+      expect(guild.members.unban).toHaveBeenCalledWith(
+        target.id,
+        expect.any(String),
+      );
+    });
+
     test("should fail when Discord API call fails", async () => {
       // Mock guild to throw error on ban
       const mockGuildWithError = {
@@ -748,12 +797,8 @@ describe("ModerationExecutionPipeline", () => {
         expect(result.val).toContain("Discord API error");
       }
 
-      // Case should be created but cleanup logic may not be working as expected
       expect(mockModLogRepository.createCase).toHaveBeenCalled();
-
-      // TODO: Investigate why cleanup delete is not being called
-      // The pipeline creates a case, fails on Discord action, but doesn't cleanup
-      // This may indicate an issue with the cleanup logic in the actual implementation
+      expect(mockModLogRepository.delete).toHaveBeenCalled();
     });
 
     test("should handle cleanup failure gracefully", async () => {

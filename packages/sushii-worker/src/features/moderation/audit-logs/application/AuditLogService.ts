@@ -285,7 +285,8 @@ export class AuditLogService {
     let actionTypesToSearch: ActionType[];
 
     if (auditLogEvent.actionType === ActionType.Ban) {
-      // Ban audit log can be triggered by ban, tempban, or softban actions
+      // Ban audit log can be triggered by ban, tempban, or softban actions.
+      // First match wins — searched in this order.
       actionTypesToSearch = [ActionType.Ban, ActionType.TempBan, ActionType.Softban];
     } else if (auditLogEvent.actionType === ActionType.Timeout) {
       // Discord always sends Timeout events, but bot may have saved as TimeoutAdjust

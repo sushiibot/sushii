@@ -528,7 +528,7 @@ export class ModerationExecutionPipeline {
     switch (action.actionType) {
       case ActionType.TempBan: {
         if (!action.isTempBanAction()) {
-          return Err("Invalid action type for temp ban database operation");
+          throw new Error("Invalid action type for temp ban database operation");
         }
 
         // Create temp ban record with expiration time
@@ -678,16 +678,13 @@ export class ModerationExecutionPipeline {
       switch (actionType) {
         case ActionType.Ban: {
           if (!action.isBanAction()) {
-            return Err("Invalid action type for ban operation");
+            throw new Error("Invalid action type for ban operation");
           }
           await guild.members.ban(target.id, {
             reason,
             deleteMessageSeconds:
               action.deleteMessageSeconds ??
-              (action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS) *
-                24 *
-                60 *
-                60,
+              ((action.deleteMessageDays ?? DEFAULT_DELETE_MESSAGE_DAYS) * 24 * 60 * 60),
           });
 
           break;
@@ -695,13 +692,13 @@ export class ModerationExecutionPipeline {
 
         case ActionType.TempBan: {
           if (!action.isTempBanAction()) {
-            return Err("Invalid action type for temp ban operation");
+            throw new Error("Invalid action type for temp ban operation");
           }
 
           await guild.members.ban(target.id, {
             reason: reason,
             deleteMessageDays:
-              action.deleteMessageDays || DEFAULT_DELETE_MESSAGE_DAYS,
+              action.deleteMessageDays ?? DEFAULT_DELETE_MESSAGE_DAYS,
           });
           break;
         }
@@ -727,14 +724,28 @@ export class ModerationExecutionPipeline {
 
         case ActionType.Softban: {
           if (!action.isSoftbanAction()) {
-            return Err("Invalid action type for softban operation");
+            throw new Error("Invalid action type for softban operation");
           }
           this.softbanSuppressionSet.suppress(guildId, target.id);
           await guild.members.ban(target.id, {
             reason,
             deleteMessageSeconds: action.deleteMessageSeconds,
           });
-          await guild.members.unban(target.id, reason);
+          try {
+            await guild.members.unban(target.id, reason);
+            // Release immediately on success — TTL remains as safety net for failures
+            this.softbanSuppressionSet.release(guildId, target.id);
+          } catch (unbanError) {
+            this.logger.error(
+              {
+                err: unbanError,
+                guildId,
+                targetId: target.id,
+              },
+              "Softban unban step failed — user remains banned, suppression expires via TTL",
+            );
+            throw unbanError;
+          }
           break;
         }
 
@@ -751,7 +762,7 @@ export class ModerationExecutionPipeline {
             return Err("Cannot timeout a user who is not in the guild");
           }
           if (!action.isTimeoutAction()) {
-            return Err("Invalid action type for timeout operation");
+            throw new Error("Invalid action type for timeout operation");
           }
           await target.member.timeout(
             action.duration.value.asMilliseconds(),
@@ -765,7 +776,7 @@ export class ModerationExecutionPipeline {
             return Err("Cannot timeout a user who is not in the guild");
           }
           if (!action.isTimeoutAction()) {
-            return Err("Invalid action type for timeout operation");
+            throw new Error("Invalid action type for timeout operation");
           }
           await target.member.timeout(
             action.duration.value.asMilliseconds(),
