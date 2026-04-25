@@ -15,7 +15,10 @@ export class InteractionMetrics {
   readonly messageComponentCounter: Counter;
   readonly modalCounter: Counter;
 
-  constructor() {
+  private readonly clusterId: string;
+
+  constructor(clusterId: number) {
+    this.clusterId = String(clusterId);
     try {
       const meter = metrics.getMeter("interactions", "1.0");
 
@@ -78,6 +81,7 @@ export class InteractionMetrics {
             this.slashCommandCounter.add(1, {
               command_name: interaction.commandName,
               status,
+              cluster_id: this.clusterId,
             });
             break;
           }
@@ -85,6 +89,7 @@ export class InteractionMetrics {
             this.userCommandCounter.add(1, {
               command_name: interaction.commandName,
               status,
+              cluster_id: this.clusterId,
             });
             break;
           }
@@ -92,6 +97,7 @@ export class InteractionMetrics {
             this.messageCommandCounter.add(1, {
               command_name: interaction.commandName,
               status,
+              cluster_id: this.clusterId,
             });
             break;
           }
@@ -102,6 +108,7 @@ export class InteractionMetrics {
         this.autocompleteCounter.add(1, {
           command_name: interaction.commandName,
           status,
+          cluster_id: this.clusterId,
         });
         break;
       }
@@ -109,12 +116,14 @@ export class InteractionMetrics {
         // Does not have custom_id since it is high cardinality
         this.messageComponentCounter.add(1, {
           status,
+          cluster_id: this.clusterId,
         });
         break;
       }
       case InteractionType.ModalSubmit: {
         this.modalCounter.add(1, {
           status,
+          cluster_id: this.clusterId,
         });
         break;
       }

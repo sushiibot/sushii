@@ -12,7 +12,7 @@ import { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionM
 
 import InteractionRouter from "../discord/InteractionRouter";
 
-export async function initCore(client: Client) {
+export async function initCore(client: Client, clusterId: number) {
   // This just returns the global existing database for now, until we fully
   // integrate the database into the core
   const db = initDatabase(config.database.url, 3);
@@ -44,7 +44,7 @@ export async function initCore(client: Client) {
 
   // Initialize metrics
   const coreMetrics = new CoreMetrics();
-  const interactionMetrics = new InteractionMetrics();
+  const interactionMetrics = new InteractionMetrics(clusterId);
 
   // Initialize interaction router
   const interactionRouter = new InteractionRouter(

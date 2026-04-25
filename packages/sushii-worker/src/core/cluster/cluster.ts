@@ -71,7 +71,7 @@ async function initializeShardCluster(): Promise<void> {
 
   // START NEW REGISTRATION
   const { db, deploymentService, interactionRouter, coreMetrics } =
-    await initCore(client);
+    await initCore(client, clusterInfo.CLUSTER);
 
   // Register shard metrics now that client is logged in
   coreMetrics.registerShardCallbacks(client);
