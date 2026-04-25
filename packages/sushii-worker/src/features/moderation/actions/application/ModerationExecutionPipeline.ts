@@ -228,13 +228,12 @@ export class ModerationExecutionPipeline {
           finalActionType !== ActionType.Warn;
 
         // Extract duration in seconds if applicable (timeout or tempban)
-        let timeoutDuration: number | null = null;
-        if (action.isTemporalAction()) {
-          timeoutDuration = action.duration.asSeconds();
-        }
+        const timeoutDuration = action.isTemporalAction()
+          ? action.duration.asSeconds()
+          : null;
 
         const deleteMessageSeconds = action.isSoftbanAction()
-          ? action.deleteMessageSeconds ?? null
+          ? action.deleteMessageSeconds
           : null;
 
         // Create moderation case with DM intent

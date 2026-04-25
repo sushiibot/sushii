@@ -114,7 +114,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
           timeoutDuration: moderationCase.timeoutDuration
             ? BigInt(moderationCase.timeoutDuration)
             : null,
-          deleteMessageSeconds: moderationCase.deleteMessageSeconds
+          deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
             ? BigInt(moderationCase.deleteMessageSeconds)
             : null,
         })
@@ -381,6 +381,9 @@ export class DrizzleModLogRepository implements ModLogRepository {
           dmAttempted: moderationCase.dmAttempted,
           dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
           dmFailureReason: moderationCase.dmFailureReason,
+          deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
+            ? BigInt(moderationCase.deleteMessageSeconds)
+            : null,
         })
         .where(
           and(
@@ -680,7 +683,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
       row.dmAttempted,
       row.dmNotAttemptedReason as DMNotAttemptedReason | null,
       row.dmFailureReason as DMFailureReason | null,
-      row.deleteMessageSeconds ? Number(row.deleteMessageSeconds) : null,
+      row.deleteMessageSeconds !== null ? Number(row.deleteMessageSeconds) : null,
     );
   }
 }

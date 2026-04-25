@@ -87,10 +87,14 @@ export default async function buildModLogEmbed(
   }
 
   // Add softban deleted messages duration
-  if (actionType === ActionType.Softban && modCase.delete_message_seconds) {
+  if (actionType === ActionType.Softban && modCase.delete_message_seconds != null) {
+    const value =
+      modCase.delete_message_seconds === 0
+        ? "None"
+        : dayjs.duration(modCase.delete_message_seconds, "seconds").humanize();
     fields.push({
       name: "Deleted Messages",
-      value: dayjs.duration(modCase.delete_message_seconds, "seconds").humanize(),
+      value,
       inline: false,
     });
   }

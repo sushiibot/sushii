@@ -784,6 +784,9 @@ export const modLogsInAppPublic = appPublic.table(
     // Timeout duration
     timeoutDuration: bigint("timeout_duration", { mode: "bigint" }),
 
+    // Softban delete message duration
+    deleteMessageSeconds: bigint("delete_message_seconds", { mode: "bigint" }),
+
     // DM fields
     dmChannelId: bigint("dm_channel_id", { mode: "bigint" }),
     dmMessageId: bigint("dm_message_id", { mode: "bigint" }),
@@ -795,9 +798,6 @@ export const modLogsInAppPublic = appPublic.table(
     dmAttempted: boolean("dm_attempted").default(false).notNull(),
     dmNotAttemptedReason: text("dm_not_attempted_reason"),
     dmFailureReason: text("dm_failure_reason"),
-
-    // Softban delete message duration
-    deleteMessageSeconds: bigint("delete_message_seconds", { mode: "bigint" }),
   },
   (table) => [
     // Critical index for user history queries (findByUserId)
