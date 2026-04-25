@@ -10,7 +10,7 @@ import { AutocompleteHandler } from "@/shared/presentation/handlers";
 import type { TagSearchService } from "../../application/TagSearchService";
 
 export class TagAutocomplete extends AutocompleteHandler {
-  fullCommandNamePath = ["tag.info", "tag-edit", "tagadmin.delete"];
+  fullCommandNamePath = ["tag.info", "tag-edit", "tag-admin.delete"];
 
   constructor(
     private readonly tagSearchService: TagSearchService,
