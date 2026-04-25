@@ -87,42 +87,38 @@ export class TagAddCommand extends SlashCommandHandler {
       return;
     }
 
-    const embedDataRes = await processTagAttachment(tagContent, tagAttachment);
-    if (!embedDataRes.success) {
-      await interactionReplyErrorMessage(interaction, embedDataRes.error);
-      return;
-    }
+    let attachmentUrl: string | null = null;
 
-    const { files } = embedDataRes.data;
-
-    await interaction.reply({
-      components: [
-        createTagAddSuccessContainer(tagName, tagContent, emojis["success"]),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-      files,
-      allowedMentions: { parse: [] },
-    });
-
-    let attachmentUrl;
     if (tagAttachment) {
-      try {
-        const replyMsg = await interaction.fetchReply();
-        attachmentUrl = replyMsg.attachments.at(0)?.url;
-      } catch {
-        await interaction.editReply({
-          components: [
-            createTagErrorContainer(
-              t("tag.add.error.failed_title", { ns: "commands" }),
-              t("tag.add.error.failed_get_original_message", {
-                ns: "commands",
-              }),
-              emojis["fail"],
-            ),
-          ],
-          flags: MessageFlags.IsComponentsV2,
-        });
+      if (!interaction.channel) {
+        await interactionReplyErrorMessage(interaction, "Cannot access channel.");
+        return;
+      }
 
+      const embedDataRes = await processTagAttachment(tagContent, tagAttachment);
+      if (!embedDataRes.success) {
+        await interactionReplyErrorMessage(interaction, embedDataRes.error);
+        return;
+      }
+
+      const { files } = embedDataRes.data;
+
+      // Send a plain channel message to store the file on Discord's CDN.
+      // This message must not be deleted — the tag attachment URL points here.
+      const storageMsg = await interaction.channel.send({
+        content: `-# Tag \`${tagName}\` attachment — do not delete this message.`,
+        files,
+        allowedMentions: { parse: [] },
+      });
+
+      attachmentUrl = storageMsg.attachments.at(0)?.url ?? null;
+
+      if (!attachmentUrl) {
+        await storageMsg.delete().catch(() => undefined);
+        await interactionReplyErrorMessage(
+          interaction,
+          t("tag.add.error.failed_get_original_message", { ns: "commands" }),
+        );
         return;
       }
     }
@@ -130,13 +126,13 @@ export class TagAddCommand extends SlashCommandHandler {
     const result = await this.tagService.createTag({
       name: tagName,
       content: tagContent,
-      attachment: attachmentUrl || null,
+      attachment: attachmentUrl,
       guildId: interaction.guildId,
       ownerId: interaction.user.id,
     });
 
     if (result.err) {
-      await interaction.editReply({
+      await interaction.reply({
         components: [
           createTagErrorContainer(
             t("tag.add.error.failed_title", { ns: "commands" }),
@@ -145,7 +141,17 @@ export class TagAddCommand extends SlashCommandHandler {
           ),
         ],
         flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
       });
+      return;
     }
+
+    await interaction.reply({
+      components: [
+        createTagAddSuccessContainer(tagName, tagContent, emojis["success"]),
+      ],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    });
   }
 }
