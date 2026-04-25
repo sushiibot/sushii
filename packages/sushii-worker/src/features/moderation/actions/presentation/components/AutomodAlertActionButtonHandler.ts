@@ -22,6 +22,7 @@ import type { ModerationService } from "@/features/moderation/actions/applicatio
 import {
   BanAction,
   KickAction,
+  SoftbanAction,
   UnbanAction,
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
@@ -37,6 +38,7 @@ const MODAL_TITLES = {
   warn: "Warn User",
   kick: "Kick User",
   ban: "Ban User",
+  softban: "Softban User",
   unban: "Unban User",
 } as const;
 
@@ -44,6 +46,7 @@ const ACTION_VERBS = {
   warn: "warned",
   kick: "kicked",
   ban: "banned",
+  softban: "softbanned",
   unban: "unbanned",
 } as const;
 
@@ -73,7 +76,7 @@ function buildReasonInput(): TextInputBuilder {
 }
 
 function buildModal(
-  actionType: "warn" | "kick" | "ban" | "unban",
+  actionType: "warn" | "kick" | "ban" | "softban" | "unban",
   customId: string,
 ): ModalBuilder {
   const modal = new ModalBuilder()
@@ -84,7 +87,7 @@ function buildModal(
     new ActionRowBuilder<TextInputBuilder>().addComponents(buildReasonInput()),
   );
 
-  if (actionType === "ban") {
+  if (actionType === "ban" || actionType === "softban") {
     modal.addLabelComponents(
       new LabelBuilder()
         .setLabel("Delete message history")
@@ -108,11 +111,11 @@ function buildModal(
 }
 
 function buildContextualActionRow(
-  actionType: "warn" | "kick" | "ban" | "unban",
+  actionType: "warn" | "kick" | "ban" | "softban" | "unban",
   userId: string,
 ): ActionRowBuilder<ButtonBuilder> | null {
   const makeButton = (
-    type: "warn" | "kick" | "ban" | "unban",
+    type: "warn" | "kick" | "ban" | "softban" | "unban",
     label: string,
   ): ButtonBuilder =>
     new ButtonBuilder()
@@ -127,11 +130,18 @@ function buildContextualActionRow(
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
         makeButton("warn", "Warn"),
         makeButton("kick", "Kick"),
+        makeButton("softban", "Softban"),
         makeButton("ban", "Ban"),
       );
     case "kick":
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
+        makeButton("softban", "Softban"),
         makeButton("ban", "Ban"),
+      );
+    case "softban":
+      return new ActionRowBuilder<ButtonBuilder>().addComponents(
+        makeButton("ban", "Ban"),
+        makeButton("unban", "Unban"),
       );
     case "ban":
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -141,6 +151,7 @@ function buildContextualActionRow(
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
         makeButton("warn", "Warn"),
         makeButton("kick", "Kick"),
+        makeButton("softban", "Softban"),
         makeButton("ban", "Ban"),
       );
   }
@@ -202,9 +213,9 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       reason = reasonResult.val;
     }
 
-    // Extract delete seconds for ban (optional select menu)
+    // Extract delete seconds for ban/softban (optional select menu)
     let deleteMessageSeconds = 0;
-    if (actionType === "ban") {
+    if (actionType === "ban" || actionType === "softban") {
       for (const row of modalSubmission.components) {
         if (!("components" in row)) {
           continue;
@@ -262,6 +273,16 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           "unspecified",
           null,
           undefined,
+          deleteMessageSeconds,
+        );
+        break;
+      case "softban":
+        action = new SoftbanAction(
+          guildId,
+          executor,
+          executorMember,
+          reason,
+          "unspecified",
           deleteMessageSeconds,
         );
         break;

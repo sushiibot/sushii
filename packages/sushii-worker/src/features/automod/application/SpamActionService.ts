@@ -234,6 +234,15 @@ export class SpamActionService {
       new ButtonBuilder()
         .setCustomId(
           customIds.automodAlertAction.compile({
+            actionType: "softban",
+            userId,
+          }),
+        )
+        .setLabel("Softban")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(
+          customIds.automodAlertAction.compile({
             actionType: "ban",
             userId,
           }),
