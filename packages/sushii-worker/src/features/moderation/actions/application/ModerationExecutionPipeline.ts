@@ -582,6 +582,29 @@ export class ModerationExecutionPipeline {
         break;
       }
 
+      case ActionType.Softban: {
+        // The softban's unban removes the Discord ban, so any existing tempban record
+        // would fire at expiry against a non-banned user. Clear it.
+        const softbanDeleteResult = await this.tempBanRepository.delete(
+          action.guildId,
+          target.id,
+          tx,
+        );
+        if (!softbanDeleteResult.ok) {
+          return Err(`Failed to delete temp ban during softban: ${softbanDeleteResult.val}`);
+        }
+        if (softbanDeleteResult.val) {
+          this.logger.info(
+            {
+              userId: target.id,
+              guildId: action.guildId,
+            },
+            "Deleted existing temp ban record during softban",
+          );
+        }
+        break;
+      }
+
       default:
         // No temp ban database operations needed for other action types
         break;
@@ -726,15 +749,16 @@ export class ModerationExecutionPipeline {
           if (!action.isSoftbanAction()) {
             throw new Error("Invalid action type for softban operation");
           }
-          this.softbanSuppressionSet.suppress(guildId, target.id);
           await guild.members.ban(target.id, {
             reason,
             deleteMessageSeconds: action.deleteMessageSeconds,
           });
+          // Suppress before unban — covers the BanRemove audit log event that Discord
+          // emits asynchronously after the HTTP unban completes (gateway delivery delay
+          // can be several seconds). TTL auto-expires after 60s.
+          this.softbanSuppressionSet.suppress(guildId, target.id);
           try {
             await guild.members.unban(target.id, reason);
-            // Release immediately on success — TTL remains as safety net for failures
-            this.softbanSuppressionSet.release(guildId, target.id);
           } catch (unbanError) {
             this.logger.error(
               {

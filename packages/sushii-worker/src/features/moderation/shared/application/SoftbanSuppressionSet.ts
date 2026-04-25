@@ -1,3 +1,4 @@
+// 60s comfortably exceeds worst-case audit-log gateway delivery delay (~1–30s).
 const SUPPRESSION_TTL_MS = 60_000;
 
 /**

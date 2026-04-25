@@ -100,6 +100,24 @@ export abstract class ModerationAction {
 
 const MAX_DELETE_MESSAGE_SECONDS = 604800; // 7 days in seconds
 
+function validateDeleteMessageSeconds(
+  seconds: number | undefined,
+): Result<void, string> {
+  if (seconds === undefined) {
+    return Ok.EMPTY;
+  }
+  if (
+    Number.isNaN(seconds) ||
+    seconds < 0 ||
+    seconds > MAX_DELETE_MESSAGE_SECONDS
+  ) {
+    return Err(
+      `Delete message seconds must be between 0 and ${MAX_DELETE_MESSAGE_SECONDS} (7 days)`,
+    );
+  }
+  return Ok.EMPTY;
+}
+
 export class BanAction extends ModerationAction {
   constructor(
     guildId: string,
@@ -143,16 +161,9 @@ export class BanAction extends ModerationAction {
       }
     }
 
-    if (this._deleteMessageSeconds !== undefined) {
-      if (
-        Number.isNaN(this._deleteMessageSeconds) ||
-        this._deleteMessageSeconds < 0 ||
-        this._deleteMessageSeconds > MAX_DELETE_MESSAGE_SECONDS
-      ) {
-        return Err(
-          `Delete message seconds must be between 0 and ${MAX_DELETE_MESSAGE_SECONDS} (7 days)`,
-        );
-      }
+    const secondsValidation = validateDeleteMessageSeconds(this._deleteMessageSeconds);
+    if (!secondsValidation.ok) {
+      return secondsValidation;
     }
 
     return Ok.EMPTY;
@@ -296,14 +307,9 @@ export class SoftbanAction extends ModerationAction {
       return basicValidation;
     }
 
-    if (
-      Number.isNaN(this._deleteMessageSeconds) ||
-      this._deleteMessageSeconds < 0 ||
-      this._deleteMessageSeconds > MAX_DELETE_MESSAGE_SECONDS
-    ) {
-      return Err(
-        `Delete message seconds must be between 0 and ${MAX_DELETE_MESSAGE_SECONDS} (7 days)`,
-      );
+    const secondsValidation = validateDeleteMessageSeconds(this._deleteMessageSeconds);
+    if (!secondsValidation.ok) {
+      return secondsValidation;
     }
 
     return Ok.EMPTY;
