@@ -600,7 +600,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     guildConfig: GuildConfig,
-  ): Promise<{ channelId?: string; messageId?: string; error?: string }> {
+  ): Promise<DMResult> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
       return { error: "Guild not found" };
@@ -653,6 +653,7 @@ export class ModerationExecutionPipeline {
       channelId: dmSentResult.channelId || undefined,
       messageId: dmSentResult.messageId || undefined,
       error: dmSentResult.error || undefined,
+      failureReason: dmSentResult.failureReason || undefined,
     };
   }
 

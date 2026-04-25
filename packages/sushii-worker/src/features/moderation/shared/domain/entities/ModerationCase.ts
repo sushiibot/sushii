@@ -5,6 +5,7 @@ export interface DMResult {
   channelId?: string;
   messageId?: string;
   error?: string;
+  failureReason?: DMFailureReason | null;
 }
 
 export type DMIntentSource =
@@ -15,7 +16,11 @@ export type DMIntentSource =
   | "action_not_supported"
   | "unknown";
 export type DMNotAttemptedReason = "user_not_in_guild";
-export type DMFailureReason = "user_blocked" | "user_privacy" | "unknown";
+export type DMFailureReason =
+  | "user_blocked"
+  | "user_privacy"
+  | "user_cannot_receive"
+  | "unknown";
 
 export class ModerationCase {
   constructor(
@@ -156,19 +161,12 @@ export class ModerationCase {
   }
 
   withDMResult(dmResult: DMResult): ModerationCase {
-    // Determine if DM was attempted and failure reason
     const dmAttempted =
       dmResult.messageId !== undefined || dmResult.error !== undefined;
     let dmFailureReason: DMFailureReason | null = null;
 
     if (dmResult.error) {
-      if (dmResult.error.includes("blocked the bot")) {
-        dmFailureReason = "user_blocked";
-      } else if (dmResult.error.includes("server DMs disabled")) {
-        dmFailureReason = "user_privacy";
-      } else {
-        dmFailureReason = "unknown";
-      }
+      dmFailureReason = dmResult.failureReason ?? "unknown";
     }
 
     return new ModerationCase(

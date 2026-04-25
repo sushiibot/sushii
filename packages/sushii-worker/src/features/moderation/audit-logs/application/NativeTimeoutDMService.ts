@@ -6,6 +6,7 @@ import { Err, Ok } from "ts-results";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
+import type { DMFailureReason } from "../../shared/domain/entities/ModerationCase";
 import { Reason } from "../../shared/domain/value-objects/Reason";
 import type { AuditLogEvent } from "../domain/entities";
 
@@ -104,6 +105,7 @@ export class NativeTimeoutDMService {
         channelId: null,
         messageId: null,
         error: errorMessage,
+        failureReason: null,
       });
     }
   }
@@ -116,4 +118,5 @@ export interface DMSentResult {
   channelId: string | null;
   messageId: string | null;
   error: string | null;
+  failureReason: DMFailureReason | null;
 }

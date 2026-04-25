@@ -126,6 +126,9 @@ export class AuditLogService {
                 if (dmInfo.error) {
                   dmResultForCase.error = dmInfo.error;
                 }
+                if (dmInfo.failureReason) {
+                  dmResultForCase.failureReason = dmInfo.failureReason;
+                }
                 updatedModLogCase = processedLog.modLogCase.withDMResult(dmResultForCase);
               }
             }

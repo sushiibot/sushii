@@ -14,6 +14,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
+import type { DMFailureReason } from "../domain/entities/ModerationCase";
 import {
   ActionType,
   actionTypeSupportsDM,
@@ -143,6 +144,7 @@ export class DMNotificationService {
         channelId: dmMessage.channel.id,
         messageId: dmMessage.id,
         error: null,
+        failureReason: null,
       });
     } catch (error) {
       this.logger.debug(
@@ -160,7 +162,8 @@ export class DMNotificationService {
           return Ok({
             channelId: null,
             messageId: null,
-            error: "User has blocked the bot.",
+            error: "User has blocked the bot",
+            failureReason: "user_blocked" as DMFailureReason,
           });
         }
 
@@ -171,7 +174,8 @@ export class DMNotificationService {
           return Ok({
             channelId: null,
             messageId: null,
-            error: "User has server DMs disabled.",
+            error: "User has server DMs disabled or no mutual guilds",
+            failureReason: "user_privacy" as DMFailureReason,
           });
         }
       }
@@ -182,6 +186,7 @@ export class DMNotificationService {
         channelId: null,
         messageId: null,
         error: errorMessage,
+        failureReason: null,
       });
     }
   }
@@ -284,4 +289,5 @@ export interface DMSentResult {
   channelId: string | null;
   messageId: string | null;
   error: string | null;
+  failureReason: DMFailureReason | null;
 }

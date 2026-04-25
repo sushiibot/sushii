@@ -5,6 +5,7 @@ import type { Result } from "ts-results";
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { DMFailureReason } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import {
   ActionType,
@@ -93,6 +94,17 @@ function getConfiguredDMText(
   }
 }
 
+function describeDMFailureReason(reason: DMFailureReason | null): string {
+  switch (reason) {
+    case "user_blocked":
+      return "User has blocked the bot";
+    case "user_privacy":
+      return "User has server DMs disabled or no mutual guilds";
+    default:
+      return "Could not deliver DM";
+  }
+}
+
 export function buildActionResultMessage(
   actionType: ActionType,
   executor: User,
@@ -149,12 +161,9 @@ export function buildActionResultMessage(
       // Add DM failure indicator for successful moderation cases
       const moderationCase = actionResult.result.val as ModerationCase;
       if (moderationCase.dmFailed) {
-        const dmFailReason =
-          moderationCase.dmFailureReason === "user_blocked"
-            ? "User has blocked the bot"
-            : moderationCase.dmFailureReason === "user_privacy"
-              ? "User has server DMs disabled"
-              : "Could not deliver DM";
+        const dmFailReason = describeDMFailureReason(
+          moderationCase.dmFailureReason,
+        );
         fullContent += `> -# ${emojis.fail} DM Failed — ${dmFailReason}\n`;
       }
     }
@@ -248,18 +257,18 @@ export function buildActionResultMessage(
         .filter((c) => c.dmFailureReason)
         .map((c) => c.dmFailureReason);
 
-      const allUserCannotReceive = failureReasons.every(
+      const allKnownFailures = failureReasons.every(
         (r) => r === "user_blocked" || r === "user_privacy",
       );
 
-      if (allUserCannotReceive) {
+      if (allKnownFailures) {
         const allBlocked = failureReasons.every((r) => r === "user_blocked");
         const allPrivacy = failureReasons.every((r) => r === "user_privacy");
         const reason = allBlocked
-          ? "user blocked the bot"
+          ? describeDMFailureReason("user_blocked")
           : allPrivacy
-            ? "user has server DMs disabled"
-            : "privacy settings or bot blocked";
+            ? describeDMFailureReason("user_privacy")
+            : "User blocked bot or DMs disabled";
         dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (${reason})`;
       } else {
         dmSectionContent += `${emojis.fail} **Failed to send**`;
@@ -267,7 +276,7 @@ export function buildActionResultMessage(
     } else {
       // Mixed results - some succeeded, some failed
       dmSectionContent += `${emojis.warning} **Partially sent** — Delivered to ${dmSuccessCount} of ${dmAttemptedCount} users`;
-      dmSectionContent += `\n> ${emojis.fail} Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (privacy settings or bot blocked)`;
+      dmSectionContent += `\n> ${emojis.fail} Could not deliver to ${dmFailedCount} ${dmFailedCount === 1 ? "user" : "users"} (user blocked bot or DMs disabled)`;
     }
 
     dmSectionContent += `\n-# **Note**: You can configure default DM behavior for this action in \`/settings\``;
