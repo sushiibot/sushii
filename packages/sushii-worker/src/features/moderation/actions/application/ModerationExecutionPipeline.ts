@@ -551,8 +551,8 @@ export class ModerationExecutionPipeline {
         break;
       }
 
-      case ActionType.BanRemove: {
-        // Delete temp ban record if it exists (user might have been manually unbanned)
+      case ActionType.BanRemove:
+      case ActionType.Softban: {
         const deleteResult = await this.tempBanRepository.delete(
           action.guildId,
           target.id,
@@ -567,6 +567,7 @@ export class ModerationExecutionPipeline {
             {
               userId: target.id,
               guildId: action.guildId,
+              actionType: action.actionType,
             },
             "Deleted temp ban database record",
           );
@@ -577,29 +578,6 @@ export class ModerationExecutionPipeline {
               guildId: action.guildId,
             },
             "No temp ban record found to delete",
-          );
-        }
-        break;
-      }
-
-      case ActionType.Softban: {
-        // The softban's unban removes the Discord ban, so any existing tempban record
-        // would fire at expiry against a non-banned user. Clear it.
-        const softbanDeleteResult = await this.tempBanRepository.delete(
-          action.guildId,
-          target.id,
-          tx,
-        );
-        if (!softbanDeleteResult.ok) {
-          return Err(`Failed to delete temp ban during softban: ${softbanDeleteResult.val}`);
-        }
-        if (softbanDeleteResult.val) {
-          this.logger.info(
-            {
-              userId: target.id,
-              guildId: action.guildId,
-            },
-            "Deleted existing temp ban record during softban",
           );
         }
         break;
@@ -760,13 +738,23 @@ export class ModerationExecutionPipeline {
           try {
             await guild.members.unban(target.id, reason);
           } catch (unbanError) {
+            // UnknownBan means the user is already not banned — that's the desired end state.
+            if (
+              unbanError instanceof DiscordAPIError &&
+              unbanError.code === RESTJSONErrorCodes.UnknownBan
+            ) {
+              break;
+            }
+            // For other failures: release suppression so a moderator's manual unban
+            // attempt is not silently swallowed by the TTL window.
+            this.softbanSuppressionSet.release(guildId, target.id);
             this.logger.error(
               {
                 err: unbanError,
                 guildId,
                 targetId: target.id,
               },
-              "Softban unban step failed — user remains banned, suppression expires via TTL",
+              "Softban unban step failed — user remains banned, suppression released",
             );
             throw unbanError;
           }

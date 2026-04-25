@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 import { SoftbanSuppressionSet } from "./SoftbanSuppressionSet";
 
@@ -7,11 +7,6 @@ describe("SoftbanSuppressionSet", () => {
 
   beforeEach(() => {
     set = new SoftbanSuppressionSet();
-  });
-
-  afterEach(() => {
-    // Clean up any pending timers
-    // (Tests that check TTL behavior will manage their own timers)
   });
 
   test("suppress marks a guildId:userId pair as suppressed", () => {

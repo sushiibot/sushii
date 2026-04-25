@@ -117,9 +117,15 @@ export class AuditLogService {
               const dmInfo = dmResult.val;
               if (dmInfo) {
                 const dmResultForCase: DMResult = {};
-                if (dmInfo.channelId) dmResultForCase.channelId = dmInfo.channelId;
-                if (dmInfo.messageId) dmResultForCase.messageId = dmInfo.messageId;
-                if (dmInfo.error) dmResultForCase.error = dmInfo.error;
+                if (dmInfo.channelId) {
+                  dmResultForCase.channelId = dmInfo.channelId;
+                }
+                if (dmInfo.messageId) {
+                  dmResultForCase.messageId = dmInfo.messageId;
+                }
+                if (dmInfo.error) {
+                  dmResultForCase.error = dmInfo.error;
+                }
                 updatedModLogCase = processedLog.modLogCase.withDMResult(dmResultForCase);
               }
             }

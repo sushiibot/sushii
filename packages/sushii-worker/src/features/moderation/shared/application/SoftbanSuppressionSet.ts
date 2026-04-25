@@ -24,6 +24,7 @@ export class SoftbanSuppressionSet {
     const timer = setTimeout(() => {
       this.timers.delete(k);
     }, SUPPRESSION_TTL_MS);
+    timer.unref();
 
     this.timers.set(k, timer);
   }
