@@ -84,6 +84,7 @@ export class DMPolicyService {
     switch (actionType) {
       case ActionType.Ban:
       case ActionType.TempBan:
+      case ActionType.Softban:
         return guildConfig.moderationSettings.banDmEnabled;
       case ActionType.Kick:
         return guildConfig.moderationSettings.kickDmEnabled;
@@ -101,6 +102,7 @@ export class DMPolicyService {
     switch (actionType) {
       case ActionType.Ban:
       case ActionType.TempBan:
+      case ActionType.Softban:
         return !!guildConfig.moderationSettings.banDmText;
       case ActionType.Timeout:
         return !!guildConfig.moderationSettings.timeoutDmText;

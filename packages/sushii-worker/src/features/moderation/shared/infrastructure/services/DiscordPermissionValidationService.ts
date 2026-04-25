@@ -68,6 +68,7 @@ export class DiscordPermissionValidationService
       case ActionType.Ban:
       case ActionType.TempBan:
       case ActionType.BanRemove:
+      case ActionType.Softban:
         if (!permissions.has(PermissionFlagsBits.BanMembers)) {
           return Err(
             "You need the 'Ban Members' permission to perform this action",
