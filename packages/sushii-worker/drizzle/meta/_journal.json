@@ -218,6 +218,13 @@
       "when": 1776798412126,
       "tag": "0030_add_discord_channel_failed_at",
       "breakpoints": false
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777148789801,
+      "tag": "0031_unique_mad_thinker",
+      "breakpoints": false
     }
   ]
 }

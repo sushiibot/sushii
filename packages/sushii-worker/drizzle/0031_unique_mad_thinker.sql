@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."mod_logs" ADD COLUMN "delete_message_seconds" bigint;
