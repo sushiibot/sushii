@@ -139,9 +139,9 @@ function buildContextualActionRow(
         makeButton("ban", "Ban"),
       );
     case "softban":
+      // User is no longer banned after softban — escalate to ban if needed
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
         makeButton("ban", "Ban"),
-        makeButton("unban", "Unban"),
       );
     case "ban":
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
