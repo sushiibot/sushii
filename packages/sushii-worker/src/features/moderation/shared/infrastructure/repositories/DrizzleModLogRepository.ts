@@ -654,6 +654,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         channelId: row.dmChannelId?.toString(),
         messageId: row.dmMessageId?.toString(),
         error: row.dmMessageError || undefined,
+        failureReason: (row.dmFailureReason as DMFailureReason | null) ?? undefined,
       };
     }
 

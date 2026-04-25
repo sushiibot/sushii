@@ -99,6 +99,8 @@ function describeDMFailureReason(reason: DMFailureReason | null): string {
       return "User has blocked the bot";
     case "user_privacy":
       return "User has server DMs disabled or no mutual guilds";
+    case "user_cannot_receive":
+      return "User has DMs disabled or has blocked the bot";
     default:
       return "Could not deliver DM";
   }
@@ -253,7 +255,7 @@ export function buildActionResultMessage(
     } else if (dmSuccessCount === 0) {
       // All DM attempts failed - check failure reasons
       const failureReasons = successfulCases
-        .filter((c) => c.dmFailureReason)
+        .filter((c) => c.dmFailed)
         .map((c) => c.dmFailureReason);
 
       const allKnownFailures =
@@ -272,7 +274,7 @@ export function buildActionResultMessage(
         } else if (allPrivacy) {
           reason = describeDMFailureReason("user_privacy");
         } else {
-          reason = "User blocked bot or DMs disabled";
+          reason = "Some users blocked the bot, others have DMs disabled";
         }
 
         dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (${reason})`;
