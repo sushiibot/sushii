@@ -82,15 +82,16 @@ export abstract class ModerationAction {
   }
 
   shouldSendDMBeforeAction(): boolean {
-    // Ban, TempBan, Softban, Kick, and Warn should all send DMs before the action
-    // to ensure the user receives the notification before being removed
-    // Evaluate each check independently to prevent TypeScript from narrowing
-    // `this` to `never` through the type-guard chain.
-    const isBanOrTempBan = this.isBanOrTempBanAction();
-    const isSoftban = this.isSoftbanAction();
-    const isKick = this.isKickAction();
-    const isWarn = this.isWarnAction();
-    return isBanOrTempBan || isSoftban || isKick || isWarn;
+    switch (this.actionType) {
+      case ActionType.Ban:
+      case ActionType.TempBan:
+      case ActionType.Softban:
+      case ActionType.Kick:
+      case ActionType.Warn:
+        return true;
+      default:
+        return false;
+    }
   }
 
   isTemporalAction(): this is TempBanAction | TimeoutAction {

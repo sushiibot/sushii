@@ -738,11 +738,14 @@ export class ModerationExecutionPipeline {
           try {
             await guild.members.unban(target.id, reason);
           } catch (unbanError) {
-            // UnknownBan means the user is already not banned — that's the desired end state.
+            // UnknownBan means the user is already not banned — desired end state.
+            // Release suppression: if someone else unbanned them, their BanRemove
+            // audit log is not ours to suppress.
             if (
               unbanError instanceof DiscordAPIError &&
               unbanError.code === RESTJSONErrorCodes.UnknownBan
             ) {
+              this.softbanSuppressionSet.release(guildId, target.id);
               break;
             }
             // For other failures: release suppression so a moderator's manual unban
