@@ -9,6 +9,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
+import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
 import {
   type DMResult,
@@ -43,6 +44,7 @@ export class ModerationExecutionPipeline {
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly client: Client,
     private readonly logger: Logger,
+    private readonly softbanSuppressionSet: SoftbanSuppressionSet,
   ) {}
 
   /**
@@ -720,6 +722,19 @@ export class ModerationExecutionPipeline {
             // Re-throw other errors
             throw error;
           }
+          break;
+        }
+
+        case ActionType.Softban: {
+          if (!action.isSoftbanAction()) {
+            return Err("Invalid action type for softban operation");
+          }
+          this.softbanSuppressionSet.suppress(guildId, target.id);
+          await guild.members.ban(target.id, {
+            reason,
+            deleteMessageSeconds: action.deleteMessageSeconds,
+          });
+          await guild.members.unban(target.id, reason);
           break;
         }
 

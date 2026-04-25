@@ -62,6 +62,7 @@ import {
 } from "./management/presentation";
 // Shared components
 import { DMNotificationService } from "./shared/application";
+import { SoftbanSuppressionSet } from "./shared/application/SoftbanSuppressionSet";
 // Shared components
 import { TimeoutDetectionService } from "./shared/domain/services/TimeoutDetectionService";
 import {
@@ -111,6 +112,8 @@ export function createModerationServices({
     logger.child({ module: "dmNotificationService" }),
   );
 
+  const softbanSuppressionSet = new SoftbanSuppressionSet();
+
   const permissionService = new DiscordPermissionValidationService();
   const timeoutDetectionService = new TimeoutDetectionService();
   const modLogService = new DiscordModLogService(
@@ -130,6 +133,7 @@ export function createModerationServices({
     guildConfigRepository,
     client,
     logger.child({ module: "moderationExecutionPipeline" }),
+    softbanSuppressionSet,
   );
 
   const moderationService = new ModerationService(
@@ -213,6 +217,7 @@ export function createModerationServices({
     guildConfigRepository,
     automodAlertReactionService,
     logger.child({ module: "auditLogService" }),
+    softbanSuppressionSet,
   );
 
   return {

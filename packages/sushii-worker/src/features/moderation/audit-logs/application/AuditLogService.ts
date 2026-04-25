@@ -15,6 +15,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { ActionType } from "../../shared";
+import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import { AuditLogEvent } from "../domain/entities";
 import type { ModLogPostingService } from "./ModLogPostingService";
 import type {
@@ -48,6 +49,7 @@ export class AuditLogService {
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly automodAlertReactionService: AutomodAlertReactionService,
     private readonly logger: Logger,
+    private readonly softbanSuppressionSet: SoftbanSuppressionSet,
   ) {}
 
   /**
@@ -185,6 +187,22 @@ export class AuditLogService {
       return { tag: "unrelated" };
     }
 
+    // Suppress spurious BanRemove cases created by the immediate unban in a softban
+    if (
+      auditLogEvent.actionType === ActionType.BanRemove &&
+      this.softbanSuppressionSet.isSuppressed(auditLogEvent.guildId, auditLogEvent.targetId)
+    ) {
+      this.logger.debug(
+        {
+          guildId: auditLogEvent.guildId,
+          targetId: auditLogEvent.targetId,
+          actionType: auditLogEvent.actionType,
+        },
+        "Suppressing BanRemove case creation — part of a softban",
+      );
+      return { tag: "unrelated" };
+    }
+
     this.logger.debug(
       {
         guildId: guild.id,
@@ -209,8 +227,10 @@ export class AuditLogService {
     const targetUser = await guild.client.users.fetch(entry.targetId);
 
     // Find or create mod log case (always do this to mark pending cases as complete)
-    const { modLogCase, wasPendingCase } =
-      await this.resolvePendingOrCreateCase(auditLogEvent, targetUser);
+    const { modLogCase, wasPendingCase } = await this.resolvePendingOrCreateCase(
+      auditLogEvent,
+      targetUser,
+    );
 
     // Check guild configuration for mod log posting
     const guildConfig = await this.guildConfigRepository.findByGuildId(
@@ -265,8 +285,8 @@ export class AuditLogService {
     let actionTypesToSearch: ActionType[];
 
     if (auditLogEvent.actionType === ActionType.Ban) {
-      // Ban audit log can be triggered by either ban or tempban actions
-      actionTypesToSearch = [ActionType.Ban, ActionType.TempBan];
+      // Ban audit log can be triggered by ban, tempban, or softban actions
+      actionTypesToSearch = [ActionType.Ban, ActionType.TempBan, ActionType.Softban];
     } else if (auditLogEvent.actionType === ActionType.Timeout) {
       // Discord always sends Timeout events, but bot may have saved as TimeoutAdjust
       actionTypesToSearch = [ActionType.Timeout, ActionType.TimeoutAdjust];

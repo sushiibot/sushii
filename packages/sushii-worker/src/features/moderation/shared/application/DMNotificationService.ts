@@ -209,6 +209,8 @@ export class DMNotificationService {
         return "You have received a warning";
       case ActionType.Ban:
         return "You have been banned";
+      case ActionType.Softban:
+        return "You have been softbanned";
       case ActionType.TimeoutRemove:
         return "Your timeout has been removed";
       case ActionType.TempBan:
@@ -227,6 +229,8 @@ export class DMNotificationService {
     switch (action) {
       case ActionType.Ban:
         return "banned";
+      case ActionType.Softban:
+        return "softbanned";
       case ActionType.TempBan:
         return "temporarily banned";
       case ActionType.Kick:
@@ -256,6 +260,7 @@ export class DMNotificationService {
         return guildConfig.moderationSettings.warnDmText;
       case ActionType.Ban:
       case ActionType.TempBan:
+      case ActionType.Softban:
         return guildConfig.moderationSettings.banDmText;
       case ActionType.Kick:
         return guildConfig.moderationSettings.kickDmText;

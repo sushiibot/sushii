@@ -4,6 +4,7 @@ export enum ActionType {
   Ban = "ban",
   TempBan = "temp_ban",
   BanRemove = "unban",
+  Softban = "softban",
   Kick = "kick",
   Timeout = "timeout",
   TimeoutRemove = "timeout_remove",
@@ -20,6 +21,7 @@ export function actionTypeRequiresDiscordAction(action: ActionType): boolean {
     ActionType.Ban,
     ActionType.TempBan,
     ActionType.BanRemove,
+    ActionType.Softban,
     ActionType.Kick,
     ActionType.Timeout,
     ActionType.TimeoutRemove,
@@ -49,6 +51,8 @@ export function actionTypeFromString(s: string): ActionType {
       return ActionType.TempBan;
     case "unban":
       return ActionType.BanRemove;
+    case "softban":
+      return ActionType.Softban;
     case "kick":
       return ActionType.Kick;
     case "warn":

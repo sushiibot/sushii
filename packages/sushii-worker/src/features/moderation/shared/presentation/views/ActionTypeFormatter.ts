@@ -12,6 +12,8 @@ export function formatActionType(action: ActionType): string {
       return "temporary ban";
     case ActionType.BanRemove:
       return "unban";
+    case ActionType.Softban:
+      return "softban";
     case ActionType.Kick:
       return "kick";
     case ActionType.Timeout:
@@ -43,6 +45,8 @@ export function formatActionTypeAsPresentTense(action: ActionType): string {
       return "temporarily banning";
     case ActionType.BanRemove:
       return "unbanning";
+    case ActionType.Softban:
+      return "softbanning";
     case ActionType.Kick:
       return "kicking";
     case ActionType.Timeout:
@@ -70,6 +74,8 @@ export function formatActionTypeAsPastTense(action: ActionType): string {
       return "temporarily banned";
     case ActionType.BanRemove:
       return "unbanned";
+    case ActionType.Softban:
+      return "softbanned";
     case ActionType.Kick:
       return "kicked";
     case ActionType.Timeout:
@@ -99,6 +105,8 @@ export function getActionTypeBotEmoji(
       return "tempban";
     case ActionType.BanRemove:
       return "unban";
+    case ActionType.Softban:
+      return "ban";
     case ActionType.Kick:
       return "kick";
     case ActionType.Timeout:
@@ -129,6 +137,8 @@ export function getActionTypeEmoji(action: ActionType): string {
       return "⏳";
     case ActionType.BanRemove:
       return "🔓";
+    case ActionType.Softban:
+      return "🔨";
     case ActionType.Kick:
       return "👢";
     case ActionType.Timeout:
@@ -156,6 +166,7 @@ export function getActionTypeColor(actionType: ActionType): Color | null {
       return Color.Purple;
     case ActionType.BanRemove:
       return Color.Success;
+    case ActionType.Softban:
     case ActionType.Kick:
     case ActionType.Warn:
     case ActionType.Timeout:

@@ -16,6 +16,7 @@ import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { type DMNotificationService } from "../../shared/application/DMNotificationService";
+import { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import {
   BanAction,
   KickAction,
@@ -256,6 +257,7 @@ describe("ModerationExecutionPipeline", () => {
       mockGuildConfigRepository,
       mockClient,
       testLogger,
+      new SoftbanSuppressionSet(),
     );
   });
 
@@ -562,6 +564,7 @@ describe("ModerationExecutionPipeline", () => {
         mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
+        new SoftbanSuppressionSet(),
       );
 
       const action = new BanAction(
@@ -721,6 +724,7 @@ describe("ModerationExecutionPipeline", () => {
         mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
+        new SoftbanSuppressionSet(),
       );
 
       const action = new BanAction(
@@ -785,6 +789,7 @@ describe("ModerationExecutionPipeline", () => {
         mockGuildConfigRepository,
         mockClientWithError,
         testLogger,
+        new SoftbanSuppressionSet(),
       );
 
       const action = new BanAction(

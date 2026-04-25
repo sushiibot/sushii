@@ -20,6 +20,7 @@ import {
   BanAction,
   KickAction,
   NoteAction,
+  SoftbanAction,
   TempBanAction,
   TimeoutAction,
   UnTimeoutAction,
@@ -59,6 +60,7 @@ interface ParsedOptions {
   attachment: Attachment | null;
   dmChoice: DMChoice;
   deleteMessageDays: number | null;
+  deleteMessageSeconds: number | null;
   duration: string | null;
   channelId: string | null;
 }
@@ -93,6 +95,9 @@ export class ModerationCommand extends SlashCommandHandler {
       dmChoice: this.parseDmChoice(interaction),
       deleteMessageDays: interaction.options.getInteger(
         OPTION_NAMES.DAYS_TO_DELETE,
+      ),
+      deleteMessageSeconds: interaction.options.getInteger(
+        OPTION_NAMES.DELETE_MESSAGES,
       ),
       duration: interaction.options.getString(OPTION_NAMES.DURATION),
       channelId:
@@ -190,6 +195,23 @@ export class ModerationCommand extends SlashCommandHandler {
               base.executorMember,
               base.reason,
               base.dmChoice,
+              base.attachment,
+            ),
+          );
+        }
+
+        case ActionType.Softban: {
+          if (options.deleteMessageSeconds === null) {
+            return Err("Delete message duration is required for softban");
+          }
+          return Ok(
+            new SoftbanAction(
+              base.guildId,
+              base.executor,
+              base.executorMember,
+              base.reason,
+              base.dmChoice,
+              options.deleteMessageSeconds,
               base.attachment,
             ),
           );

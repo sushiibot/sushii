@@ -59,6 +59,7 @@ function wereDMsIntended(
   switch (actionType) {
     case ActionType.Ban:
     case ActionType.TempBan:
+    case ActionType.Softban:
       return guildConfig.moderationSettings.banDmEnabled;
     case ActionType.Timeout:
     case ActionType.TimeoutAdjust:
@@ -85,6 +86,7 @@ function getConfiguredDMText(
       return guildConfig.moderationSettings.timeoutDmText;
     case ActionType.Ban:
     case ActionType.TempBan:
+    case ActionType.Softban:
       return guildConfig.moderationSettings.banDmText;
     default:
       return null;

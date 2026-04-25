@@ -52,6 +52,20 @@ export function addDaysToDeleteOption(option: SlashCommandIntegerOption) {
     .setRequired(false);
 }
 
+export function addSoftbanDeleteOption(option: SlashCommandIntegerOption) {
+  return option
+    .setName(OPTION_NAMES.DELETE_MESSAGES)
+    .setDescription("How far back to delete messages")
+    .setRequired(true)
+    .setChoices(
+      { name: "1 hour", value: 3600 },
+      { name: "6 hours", value: 21600 },
+      { name: "1 day", value: 86400 },
+      { name: "3 days", value: 259200 },
+      { name: "7 days", value: 604800 },
+    );
+}
+
 export function addDurationOption(option: SlashCommandStringOption) {
   return option
     .setName(OPTION_NAMES.DURATION)

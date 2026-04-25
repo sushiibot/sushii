@@ -11,6 +11,7 @@ import {
   addDurationOption,
   addNoteOption,
   addReasonOption,
+  addSoftbanDeleteOption,
   addUsersOption,
 } from "./ModerationCommandOptions";
 
@@ -23,6 +24,7 @@ export const OPTION_NAMES = {
   DURATION: "duration",
   CHANNEL: "channel",
   NOTE: "note",
+  DELETE_MESSAGES: "delete_messages",
 } as const;
 
 export const COMMAND_METADATA = {
@@ -57,6 +59,11 @@ export const COMMAND_METADATA = {
   NOTE: {
     name: "note",
     description: "Add a private note to users, only visible to staff",
+  },
+  SOFTBAN: {
+    name: "softban",
+    description:
+      "Softban a user — removes them and deletes their recent messages without a permanent ban",
   },
 } as const;
 
@@ -155,5 +162,18 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         .addStringOption(addUsersOption)
         .addStringOption(addNoteOption)
         .addAttachmentOption(addAttachmentOption),
+  },
+  SOFTBAN: {
+    actionType: ActionType.Softban,
+    name: COMMAND_METADATA.SOFTBAN.name,
+    description: COMMAND_METADATA.SOFTBAN.description,
+    permissions: PermissionFlagsBits.BanMembers,
+    options: (builder: SlashCommandBuilder) =>
+      builder
+        .addStringOption(addUsersOption)
+        .addIntegerOption(addSoftbanDeleteOption)
+        .addStringOption(addReasonOption)
+        .addAttachmentOption(addAttachmentOption)
+        .addStringOption(addDmReasonOption),
   },
 };

@@ -69,6 +69,10 @@ export abstract class ModerationAction {
     return this.isBanAction() || this.isTempBanAction();
   }
 
+  isSoftbanAction(): this is SoftbanAction {
+    return this.actionType === ActionType.Softban;
+  }
+
   isKickAction(): this is KickAction {
     return this.actionType === ActionType.Kick;
   }
@@ -78,20 +82,23 @@ export abstract class ModerationAction {
   }
 
   shouldSendDMBeforeAction(): boolean {
-    // Ban, TempBan, Kick, and Warn should all send DMs before the action
-    // to ensure the user receives the notification
-    const actionType = this.actionType;
-    return (
-      this.isBanOrTempBanAction() ||
-      this.isKickAction() ||
-      actionType === ActionType.Warn
-    );
+    // Ban, TempBan, Softban, Kick, and Warn should all send DMs before the action
+    // to ensure the user receives the notification before being removed
+    // Evaluate each check independently to prevent TypeScript from narrowing
+    // `this` to `never` through the type-guard chain.
+    const isBanOrTempBan = this.isBanOrTempBanAction();
+    const isSoftban = this.isSoftbanAction();
+    const isKick = this.isKickAction();
+    const isWarn = this.isWarnAction();
+    return isBanOrTempBan || isSoftban || isKick || isWarn;
   }
 
   isTemporalAction(): this is TempBanAction | TimeoutAction {
     return this.isTempBanAction() || this.isTimeoutAction();
   }
 }
+
+const MAX_DELETE_MESSAGE_SECONDS = 604800; // 7 days in seconds
 
 export class BanAction extends ModerationAction {
   constructor(
@@ -137,8 +144,14 @@ export class BanAction extends ModerationAction {
     }
 
     if (this._deleteMessageSeconds !== undefined) {
-      if (this._deleteMessageSeconds < 0 || this._deleteMessageSeconds > 604800) {
-        return Err("Delete message seconds must be between 0 and 604800 (7 days)");
+      if (
+        Number.isNaN(this._deleteMessageSeconds) ||
+        this._deleteMessageSeconds < 0 ||
+        this._deleteMessageSeconds > MAX_DELETE_MESSAGE_SECONDS
+      ) {
+        return Err(
+          `Delete message seconds must be between 0 and ${MAX_DELETE_MESSAGE_SECONDS} (7 days)`,
+        );
       }
     }
 
@@ -246,6 +259,51 @@ export class KickAction extends ModerationAction {
     const basicValidation = this.validateBasicPermissions();
     if (!basicValidation.ok) {
       return basicValidation;
+    }
+
+    return Ok.EMPTY;
+  }
+}
+
+export class SoftbanAction extends ModerationAction {
+  constructor(
+    guildId: string,
+    executor: User,
+    executorMember: GuildMember | null,
+    reason: Reason | null,
+    dmChoice: DMChoice,
+    private readonly _deleteMessageSeconds: number,
+    attachment: Attachment | null = null,
+  ) {
+    super(
+      ActionType.Softban,
+      guildId,
+      executor,
+      executorMember,
+      reason,
+      dmChoice,
+      attachment,
+    );
+  }
+
+  get deleteMessageSeconds(): number {
+    return this._deleteMessageSeconds;
+  }
+
+  validate(): Result<void, string> {
+    const basicValidation = this.validateBasicPermissions();
+    if (!basicValidation.ok) {
+      return basicValidation;
+    }
+
+    if (
+      Number.isNaN(this._deleteMessageSeconds) ||
+      this._deleteMessageSeconds < 0 ||
+      this._deleteMessageSeconds > MAX_DELETE_MESSAGE_SECONDS
+    ) {
+      return Err(
+        `Delete message seconds must be between 0 and ${MAX_DELETE_MESSAGE_SECONDS} (7 days)`,
+      );
     }
 
     return Ok.EMPTY;
