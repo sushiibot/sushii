@@ -149,7 +149,13 @@ export function buildActionResultMessage(
       // Add DM failure indicator for successful moderation cases
       const moderationCase = actionResult.result.val as ModerationCase;
       if (moderationCase.dmFailed) {
-        fullContent += `> -# ${emojis.fail} DM Failed (privacy settings or bot blocked)\n`;
+        const dmFailReason =
+          moderationCase.dmFailureReason === "user_blocked"
+            ? "User has blocked the bot"
+            : moderationCase.dmFailureReason === "user_privacy"
+              ? "User has server DMs disabled"
+              : "Could not deliver DM";
+        fullContent += `> -# ${emojis.fail} DM Failed — ${dmFailReason}\n`;
       }
     }
   }
@@ -243,11 +249,18 @@ export function buildActionResultMessage(
         .map((c) => c.dmFailureReason);
 
       const allUserCannotReceive = failureReasons.every(
-        (r) => r === "user_cannot_receive",
+        (r) => r === "user_blocked" || r === "user_privacy",
       );
 
       if (allUserCannotReceive) {
-        dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (privacy settings or bot blocked)`;
+        const allBlocked = failureReasons.every((r) => r === "user_blocked");
+        const allPrivacy = failureReasons.every((r) => r === "user_privacy");
+        const reason = allBlocked
+          ? "user blocked the bot"
+          : allPrivacy
+            ? "user has server DMs disabled"
+            : "privacy settings or bot blocked";
+        dmSectionContent += `${emojis.fail} **Failed to send** — Could not deliver to any users (${reason})`;
       } else {
         dmSectionContent += `${emojis.fail} **Failed to send**`;
       }

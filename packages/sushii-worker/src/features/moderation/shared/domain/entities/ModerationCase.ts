@@ -15,7 +15,7 @@ export type DMIntentSource =
   | "action_not_supported"
   | "unknown";
 export type DMNotAttemptedReason = "user_not_in_guild";
-export type DMFailureReason = "user_cannot_receive" | "unknown";
+export type DMFailureReason = "user_blocked" | "user_privacy" | "unknown";
 
 export class ModerationCase {
   constructor(
@@ -162,13 +162,10 @@ export class ModerationCase {
     let dmFailureReason: DMFailureReason | null = null;
 
     if (dmResult.error) {
-      // Categorize the error
-      if (
-        dmResult.error.includes("Cannot send messages to this user") ||
-        dmResult.error.includes("privacy settings") ||
-        dmResult.error.includes("bot blocked")
-      ) {
-        dmFailureReason = "user_cannot_receive";
+      if (dmResult.error.includes("blocked the bot")) {
+        dmFailureReason = "user_blocked";
+      } else if (dmResult.error.includes("server DMs disabled")) {
+        dmFailureReason = "user_privacy";
       } else {
         dmFailureReason = "unknown";
       }
