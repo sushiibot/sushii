@@ -27,7 +27,7 @@ import {
 import type { DMPolicyService } from "./DMPolicyService";
 
 // Constants
-const DEFAULT_DELETE_MESSAGE_DAYS = 0 as const;
+const DEFAULT_DELETE_MESSAGE_DAYS = 0;
 
 /**
  * Handles the execution pipeline for single moderation actions.
@@ -311,7 +311,7 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Handles pre-action DM delivery (simplified version without context)
+   * Handles pre-action DM delivery
    */
   private async handlePreActionDM(
     action: ModerationAction,
@@ -358,7 +358,7 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Handles Discord action execution (simplified version without context)
+   * Handles Discord action execution
    */
   private async handleDiscordAction(
     action: ModerationAction,
