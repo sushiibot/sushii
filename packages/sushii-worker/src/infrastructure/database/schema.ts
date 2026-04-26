@@ -784,7 +784,7 @@ export const modLogsInAppPublic = appPublic.table(
     // Timeout duration
     timeoutDuration: bigint("timeout_duration", { mode: "bigint" }),
 
-    // Delete message duration in seconds (softban/ban actions)
+    // Delete message duration in seconds (softban)
     deleteMessageSeconds: bigint("delete_message_seconds", { mode: "bigint" }),
 
     // DM fields

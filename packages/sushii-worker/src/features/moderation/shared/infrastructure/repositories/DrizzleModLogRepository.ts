@@ -381,6 +381,9 @@ export class DrizzleModLogRepository implements ModLogRepository {
           dmAttempted: moderationCase.dmAttempted,
           dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
           dmFailureReason: moderationCase.dmFailureReason,
+          timeoutDuration: moderationCase.timeoutDuration !== null
+            ? BigInt(moderationCase.timeoutDuration)
+            : null,
           deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
             ? BigInt(moderationCase.deleteMessageSeconds)
             : null,

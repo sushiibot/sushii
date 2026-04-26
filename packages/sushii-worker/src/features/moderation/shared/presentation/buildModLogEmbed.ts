@@ -163,9 +163,8 @@ export default async function buildModLogEmbed(
     }
   }
 
-  if (modCase.attachments.length > 0) {
-    const attachments = modCase.attachments.filter((a): a is string => !!a);
-
+  const attachments = modCase.attachments.filter((a): a is string => !!a);
+  if (attachments.length > 0) {
     fields.push({
       name: "Attachments",
       value: attachments
@@ -191,5 +190,5 @@ export default async function buildModLogEmbed(
       text: `Case #${modCase.case_id}`,
     })
     .setImage(modCase.attachments.at(0) || null)
-    .setTimestamp(new Date());
+    .setTimestamp(modCase.action_time ?? new Date());
 }

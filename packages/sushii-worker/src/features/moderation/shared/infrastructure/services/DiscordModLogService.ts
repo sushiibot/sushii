@@ -60,6 +60,8 @@ export class DiscordModLogService implements ModLogService {
           executor_id: moderationCase.executorId,
           reason: moderationCase.reason?.value || null,
           attachments: moderationCase.attachments || [],
+          timeout_duration: moderationCase.timeoutDuration,
+          action_time: moderationCase.actionTime,
           delete_message_seconds: moderationCase.deleteMessageSeconds,
         },
       );
