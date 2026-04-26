@@ -3,7 +3,7 @@ import type { Result } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 
-import type { DMResult, ModerationCase } from "../entities/ModerationCase";
+import type { DMFailureReason, DMResult, ModerationCase } from "../entities/ModerationCase";
 import type { ActionType } from "../value-objects/ActionType";
 
 /**
@@ -177,6 +177,7 @@ export interface ModLogAuditOperations {
     dmResult: DMResult,
     dmAttempted: boolean,
     dmIntended: boolean,
+    dmFailureReason: DMFailureReason | null,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>>;
 }

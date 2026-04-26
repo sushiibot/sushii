@@ -95,7 +95,7 @@ export class ModerationExecutionPipeline {
               guildConfig,
             );
 
-            if (preDMResult.error) {
+            if (preDMResult !== null && preDMResult.error) {
               return Err(`Failed to send warning DM: ${preDMResult.error}`);
             }
           }
@@ -337,6 +337,11 @@ export class ModerationExecutionPipeline {
       target,
       guildConfig,
     );
+
+    if (dmResult === null) {
+      return moderationCase;
+    }
+
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result
@@ -346,6 +351,7 @@ export class ModerationExecutionPipeline {
       updatedCase.dmResult ?? {},
       updatedCase.dmAttempted,
       updatedCase.dmIntended,
+      updatedCase.dmFailureReason,
     );
 
     return updatedCase;
@@ -446,6 +452,11 @@ export class ModerationExecutionPipeline {
       target,
       guildConfig,
     );
+
+    if (dmResult === null) {
+      return moderationCase;
+    }
+
     const updatedCase = moderationCase.withDMResult(dmResult);
 
     // Update case with DM result
@@ -455,6 +466,7 @@ export class ModerationExecutionPipeline {
       updatedCase.dmResult ?? {},
       updatedCase.dmAttempted,
       updatedCase.dmIntended,
+      updatedCase.dmFailureReason,
     );
 
     return updatedCase;
@@ -608,10 +620,10 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     guildConfig: GuildConfig,
-  ): Promise<DMResult> {
+  ): Promise<DMResult | null> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
-      return { error: "Guild not found" };
+      return null;
     }
 
     // Determine duration end time for temporal actions
@@ -637,12 +649,10 @@ export class ModerationExecutionPipeline {
           targetId: target.id,
           error: dmResult.val,
         },
-        "Failed to send DM via notification service",
+        "DM not sent via notification service (action type not supported or pre-send guard)",
       );
 
-      return {
-        error: dmResult.val,
-      };
+      return null;
     }
 
     const dmSentResult = dmResult.val;

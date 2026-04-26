@@ -511,6 +511,16 @@ export class AuditLogService {
     );
 
     if (dmResult.err) {
+      await this.updateCaseDMInfo(
+        guild.id,
+        caseId,
+        null,          // no channel
+        null,          // no message
+        dmResult.val,  // the error message
+        null,          // no failure reason
+        false,         // dmAttempted: false — no Discord API call was made
+        true,          // dmIntended: true — shouldSend was confirmed
+      );
       return dmResult as Err<string>;
     }
 
@@ -590,6 +600,7 @@ export class AuditLogService {
       dmResult,
       dmAttempted,
       dmIntended,
+      dmFailureReason,
     );
 
     if (result.ok) {
