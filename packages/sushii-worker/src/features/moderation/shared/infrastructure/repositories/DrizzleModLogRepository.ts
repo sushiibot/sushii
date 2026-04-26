@@ -63,10 +63,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
       const moderationCase = this.mapRowToModerationCase(row);
 
       return Ok(moderationCase);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         {
-          err: error,
+          err,
           guildId,
           userId,
           actionType,
@@ -74,7 +74,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         },
         "Failed to find pending case",
       );
-      return Err(`Failed to find pending case: ${error}`);
+      return Err(`Failed to find pending case: ${err}`);
     }
   }
 
@@ -137,17 +137,17 @@ export class DrizzleModLogRepository implements ModLogRepository {
         : await this.db.transaction((innerTx) => doInsert(innerTx));
 
       return Ok(createdCase);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         {
-          err: error,
+          err,
           guildId: moderationCase.guildId,
           caseId: moderationCase.caseId,
           actionType: moderationCase.actionType,
         },
         "Failed to create case",
       );
-      return Err(`Failed to create case: ${error}`);
+      return Err(`Failed to create case: ${err}`);
     }
   }
 

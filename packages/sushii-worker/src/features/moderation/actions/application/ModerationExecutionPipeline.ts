@@ -343,7 +343,9 @@ export class ModerationExecutionPipeline {
     await this.modLogRepository.updateDMInfo(
       updatedCase.guildId,
       updatedCase.caseId,
-      updatedCase.dmResult || {},
+      updatedCase.dmResult ?? {},
+      updatedCase.dmAttempted,
+      updatedCase.dmIntended,
     );
 
     return updatedCase;
@@ -450,7 +452,9 @@ export class ModerationExecutionPipeline {
     await this.modLogRepository.updateDMInfo(
       updatedCase.guildId,
       updatedCase.caseId,
-      updatedCase.dmResult || {},
+      updatedCase.dmResult ?? {},
+      updatedCase.dmAttempted,
+      updatedCase.dmIntended,
     );
 
     return updatedCase;
