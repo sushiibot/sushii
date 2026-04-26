@@ -25,7 +25,10 @@ import {
   WarnAction,
 } from "../../shared/domain/entities/ModerationAction";
 import { ModerationCase } from "../../shared/domain/entities/ModerationCase";
-import type { DMIntentSource } from "../../shared/domain/entities/ModerationCase";
+import type {
+  DMFailureReason,
+  DMIntentSource,
+} from "../../shared/domain/entities/ModerationCase";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { type ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { type TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
@@ -469,7 +472,7 @@ describe("ModerationExecutionPipeline", () => {
             channelId: null,
             messageId: null,
             error: "Failed to send DM: User has DMs disabled",
-            failureReason: "user_privacy",
+            failureReason: "user_privacy" as DMFailureReason,
           }),
         ),
       );
