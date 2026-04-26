@@ -70,8 +70,9 @@ export default async function buildModLogEmbed(
   // Add tempban duration and expiry
   if (
     actionType === ActionType.TempBan &&
-    modCase.timeout_duration &&
-    modCase.action_time
+    modCase.timeout_duration != null &&
+    modCase.timeout_duration > 0 &&
+    modCase.action_time != null
   ) {
     const dur = dayjs.duration(modCase.timeout_duration, "seconds");
     const expiryTs = toTimestamp(

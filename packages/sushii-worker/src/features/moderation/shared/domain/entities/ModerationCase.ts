@@ -140,7 +140,7 @@ export class ModerationCase {
   }
 
   get dmAttempted(): boolean {
-    return this._dmResult !== null;
+    return this._dmAttempted;
   }
 
   get timeoutDuration(): number | null {
