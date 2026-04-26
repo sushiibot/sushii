@@ -93,7 +93,7 @@ const modalCustomId = `my-feature/edit:${hash}`;
 
 Both approaches keep the ID well under Discord's 100-char limit (~29 chars for each pattern above).
 
-**Why**: If a user dismisses a modal without submitting, the `awaitModalSubmit` listener stays alive on the server. When the same modal is reopened with the same custom ID, the stale listener intercepts the new submit — causing double-processing or showing the wrong data. A unique ID per open prevents the old listener from matching the new submit.
+**Why**: Modal dismissal fires **no event** — Discord handles it entirely client-side. The `awaitModalSubmit` collector on the server has no way to know the modal was closed, so it stays alive until its timeout. When the same modal is reopened with the same custom ID, the stale listener intercepts the new submit alongside the fresh one — both collectors resolve, both call `reply()`/`update()` on the same interaction, and the second one gets `DiscordAPIError[40060]: Interaction has already been acknowledged`. A unique ID per open prevents the stale collector from matching the new submit. The user sees no error — the first collector handles it correctly — but the second attempt throws to Sentry.
 
 > Note: Client-side visual caching of modal text inputs by custom ID is **not confirmed** in Discord's documentation. The real issue is server-side listener collision. However, unique IDs solve both concerns simultaneously.
 
