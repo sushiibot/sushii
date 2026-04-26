@@ -47,9 +47,13 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       textInput,
     );
 
+    // Unique per button click so stale collectors (from dismissed modals) can't
+    // intercept a later submission for the same case by the same user.
+    const modalCustomId = `${interaction.customId}:${Date.now().toString(36)}`;
+
     const modal = {
       title: `Case #${caseId}`,
-      custom_id: interaction.customId, // Reuse the same custom ID for matching
+      custom_id: modalCustomId,
       components: [row.toJSON()],
     };
 
@@ -60,11 +64,8 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     try {
       modalSubmission = await interaction.awaitModalSubmit({
         time: 300_000, // 5 minutes
-        // Match customId to prevent a stale collector (from a previously dismissed
-        // modal) from intercepting a submission intended for a different case.
         filter: (i) =>
-          i.user.id === interaction.user.id &&
-          i.customId === interaction.customId,
+          i.user.id === interaction.user.id && i.customId === modalCustomId,
       });
     } catch {
       // Modal timed out or was dismissed - no need to respond
