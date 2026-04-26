@@ -106,7 +106,7 @@ export function getActionTypeBotEmoji(
     case ActionType.BanRemove:
       return "unban";
     case ActionType.Softban:
-      return "ban"; // reuse ban emoji — no dedicated softban asset
+      return "message_delete";
     case ActionType.Kick:
       return "kick";
     case ActionType.Timeout:
@@ -138,7 +138,7 @@ export function getActionTypeEmoji(action: ActionType): string {
     case ActionType.BanRemove:
       return "🔓";
     case ActionType.Softban:
-      return "🔨";
+      return "🗑️";
     case ActionType.Kick:
       return "👢";
     case ActionType.Timeout:

@@ -80,6 +80,7 @@ export const ActionTypeBotEmojis = [
   "ban",
   "tempban",
   "unban",
+  "message_delete",
   "kick",
   "timeout",
   "untimeout",
