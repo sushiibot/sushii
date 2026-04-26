@@ -62,7 +62,9 @@ describe("DrizzleModLogRepository (Integration)", () => {
       const r2 = await repo.createCase(makeCase(guildId, userId));
       const r3 = await repo.createCase(makeCase(guildId, userId));
 
-      expect(r1.ok && r2.ok && r3.ok).toBe(true);
+      expect(r1.ok).toBe(true);
+      expect(r2.ok).toBe(true);
+      expect(r3.ok).toBe(true);
       if (r1.ok && r2.ok && r3.ok) {
         expect([r1.val.caseId, r2.val.caseId, r3.val.caseId]).toEqual(["1", "2", "3"]);
       }
@@ -77,7 +79,9 @@ describe("DrizzleModLogRepository (Integration)", () => {
       const r2 = await repo.createCase(makeCase(guild2, userId));
       const r3 = await repo.createCase(makeCase(guild1, userId));
 
-      expect(r1.ok && r2.ok && r3.ok).toBe(true);
+      expect(r1.ok).toBe(true);
+      expect(r2.ok).toBe(true);
+      expect(r3.ok).toBe(true);
       if (r1.ok && r2.ok && r3.ok) {
         expect(r1.val.caseId).toBe("1");
         expect(r2.val.caseId).toBe("1");
@@ -89,7 +93,7 @@ describe("DrizzleModLogRepository (Integration)", () => {
       // With a single DB connection, this test verifies sequential correctness under async
       // scheduling concurrency (Promise.all interleaving microtasks), not true multi-connection
       // contention. The advisory lock in the DB handles that case at the DB level.
-      "concurrent inserts for the same guild produce distinct sequential case_ids",
+      "Promise.all inserts for the same guild produce distinct sequential case_ids",
       async () => {
         const guildId = "111111111111111111";
         const userId = "222222222222222222";

@@ -78,6 +78,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
     }
   }
 
+  /** Acquires pg_advisory_xact_lock(guildId); when tx is supplied, the lock is held for the caller's entire transaction. */
   async createCase(
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
@@ -86,8 +87,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
       const doInsert = async (
         activeTx: NodePgDatabase<typeof schema>,
       ): Promise<ModerationCase> => {
+        const guildIdBigInt = BigInt(moderationCase.guildId);
+
         await activeTx.execute(
-          sql`SELECT pg_advisory_xact_lock(${BigInt(moderationCase.guildId)})`,
+          sql`SELECT pg_advisory_xact_lock(${guildIdBigInt})`,
         );
 
         const dmResult = moderationCase.dmResult;
@@ -95,8 +98,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
         const insertResult = await activeTx
           .insert(modLogsInAppPublic)
           .values({
-            guildId: BigInt(moderationCase.guildId),
-            caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${BigInt(moderationCase.guildId)})`,
+            guildId: guildIdBigInt,
+            caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${guildIdBigInt})`,
             action: moderationCase.actionType,
             actionTime: moderationCase.actionTime,
             pending: moderationCase.pending,
@@ -252,6 +255,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
     dmResult: DMResult,
     dmAttempted: boolean,
     dmIntended: boolean,
+    dmFailureReason: DMFailureReason | null,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>> {
     const db = tx || this.db;
@@ -261,7 +265,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         dmChannelId: dmResult.channelId ? BigInt(dmResult.channelId) : null,
         dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
         dmMessageError: dmResult.error || null,
-        dmFailureReason: dmResult.failureReason ?? null,
+        dmFailureReason,
         dmAttempted,
         dmIntended,
       })
