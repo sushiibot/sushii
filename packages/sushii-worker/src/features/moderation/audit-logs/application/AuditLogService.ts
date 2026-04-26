@@ -523,6 +523,8 @@ export class AuditLogService {
       dmSentResult.messageId,
       dmSentResult.error,
       dmSentResult.failureReason ?? null,
+      true, // dmAttempted: this path only runs after a successful DM attempt
+      true, // dmIntended: shouldSend was true to reach this point
     );
 
     return Ok(dmSentResult);
@@ -572,6 +574,8 @@ export class AuditLogService {
     dmMessageId: string | null,
     dmMessageError: string | null,
     dmFailureReason: DMFailureReason | null,
+    dmAttempted: boolean,
+    dmIntended: boolean,
   ): Promise<Result<void, string>> {
     const dmResult: DMResult = {
       channelId: dmChannelId || undefined,
@@ -584,11 +588,13 @@ export class AuditLogService {
       guildId,
       caseId,
       dmResult,
+      dmAttempted,
+      dmIntended,
     );
 
     if (result.ok) {
       this.logger.debug(
-        { guildId, caseId, dmChannelId, dmMessageId, dmMessageError },
+        { guildId, caseId, dmChannelId, dmMessageId, dmMessageError, dmAttempted, dmIntended },
         "Updated mod log case with DM information",
       );
     }
