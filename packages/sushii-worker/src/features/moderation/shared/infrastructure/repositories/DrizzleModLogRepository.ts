@@ -264,7 +264,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
       .set({
         dmChannelId: dmResult.channelId ? BigInt(dmResult.channelId) : null,
         dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
-        dmMessageError: dmResult.error || null,
+        dmMessageError: dmResult.error ?? null,
         dmFailureReason,
         dmAttempted,
         dmIntended,
@@ -394,7 +394,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
           attachments: moderationCase.attachments,
           dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
           dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
-          dmMessageError: dmResult?.error || null,
+          dmMessageError: dmResult?.error ?? null,
           dmIntended: moderationCase.dmIntended,
           dmIntentSource: moderationCase.dmIntentSource,
           dmAttempted: moderationCase.dmAttempted,
