@@ -462,9 +462,16 @@ describe("ModerationExecutionPipeline", () => {
         }),
       );
 
-      // Override mock to simulate DM failure
+      // Override mock to simulate DM failure (real impl returns Ok with error field)
       mockDMNotificationService.sendModerationDM = mock(() =>
-        Promise.resolve(Err("Failed to send DM: User has DMs disabled")),
+        Promise.resolve(
+          Ok({
+            channelId: null,
+            messageId: null,
+            error: "Failed to send DM: User has DMs disabled",
+            failureReason: "user_privacy",
+          }),
+        ),
       );
 
       const action = new WarnAction(
