@@ -82,49 +82,60 @@ export class DrizzleModLogRepository implements ModLogRepository {
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<ModerationCase, string>> {
-    const db = tx || this.db;
     try {
-      const dmResult = moderationCase.dmResult;
+      const doInsert = async (
+        activeTx: NodePgDatabase<typeof schema>,
+      ): Promise<ModerationCase> => {
+        await activeTx.execute(
+          sql`SELECT pg_advisory_xact_lock(${BigInt(moderationCase.guildId)})`,
+        );
 
-      // Generate case ID using the same pattern as the legacy insertModLog
-      const insertResult = await db
-        .insert(modLogsInAppPublic)
-        .values({
-          guildId: BigInt(moderationCase.guildId),
-          caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${BigInt(moderationCase.guildId)})`,
-          action: moderationCase.actionType,
-          actionTime: moderationCase.actionTime,
-          pending: moderationCase.pending,
-          userId: BigInt(moderationCase.userId),
-          userTag: moderationCase.userTag,
-          executorId: moderationCase.executorId
-            ? BigInt(moderationCase.executorId)
-            : null,
-          reason: moderationCase.reason?.value || null,
-          msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
-          attachments: moderationCase.attachments,
-          dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
-          dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
-          dmMessageError: dmResult?.error || null,
-          dmIntended: moderationCase.dmIntended,
-          dmIntentSource: moderationCase.dmIntentSource,
-          dmAttempted: moderationCase.dmAttempted,
-          dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
-          dmFailureReason: moderationCase.dmFailureReason,
-          timeoutDuration: moderationCase.timeoutDuration !== null
-            ? BigInt(moderationCase.timeoutDuration)
-            : null,
-          deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
-            ? BigInt(moderationCase.deleteMessageSeconds)
-            : null,
-        })
-        .returning();
+        const dmResult = moderationCase.dmResult;
 
-      if (insertResult.length === 0) {
-        return Err("Failed to create case - no rows returned");
-      }
+        const insertResult = await activeTx
+          .insert(modLogsInAppPublic)
+          .values({
+            guildId: BigInt(moderationCase.guildId),
+            caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${BigInt(moderationCase.guildId)})`,
+            action: moderationCase.actionType,
+            actionTime: moderationCase.actionTime,
+            pending: moderationCase.pending,
+            userId: BigInt(moderationCase.userId),
+            userTag: moderationCase.userTag,
+            executorId: moderationCase.executorId
+              ? BigInt(moderationCase.executorId)
+              : null,
+            reason: moderationCase.reason?.value || null,
+            msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
+            attachments: moderationCase.attachments,
+            dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
+            dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
+            dmMessageError: dmResult?.error || null,
+            dmIntended: moderationCase.dmIntended,
+            dmIntentSource: moderationCase.dmIntentSource,
+            dmAttempted: moderationCase.dmAttempted,
+            dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+            dmFailureReason: moderationCase.dmFailureReason,
+            timeoutDuration: moderationCase.timeoutDuration !== null
+              ? BigInt(moderationCase.timeoutDuration)
+              : null,
+            deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
+              ? BigInt(moderationCase.deleteMessageSeconds)
+              : null,
+          })
+          .returning();
 
-      const createdCase = this.mapRowToModerationCase(insertResult[0]);
+        if (insertResult.length === 0) {
+          throw new Error("Failed to create case - no rows returned");
+        }
+
+        return this.mapRowToModerationCase(insertResult[0]);
+      };
+
+      const createdCase = tx
+        ? await doInsert(tx)
+        : await this.db.transaction((innerTx) => doInsert(innerTx));
+
       return Ok(createdCase);
     } catch (error) {
       this.logger.error(
@@ -239,6 +250,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
     guildId: string,
     caseId: string,
     dmResult: DMResult,
+    dmAttempted: boolean,
+    dmIntended: boolean,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>> {
     const db = tx || this.db;
@@ -249,6 +262,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
         dmMessageId: dmResult.messageId ? BigInt(dmResult.messageId) : null,
         dmMessageError: dmResult.error || null,
         dmFailureReason: dmResult.failureReason ?? null,
+        dmAttempted,
+        dmIntended,
       })
       .where(
         and(

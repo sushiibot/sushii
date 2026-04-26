@@ -523,7 +523,7 @@ export class AuditLogService {
       dmSentResult.messageId,
       dmSentResult.error,
       dmSentResult.failureReason ?? null,
-      true, // dmAttempted: this path only runs after a successful DM attempt
+      true, // dmAttempted: this path only runs after the DM was attempted (success or failure)
       true, // dmIntended: shouldSend was true to reach this point
     );
 

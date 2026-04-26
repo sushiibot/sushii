@@ -49,7 +49,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
 
     // Unique per button click so stale collectors (from dismissed modals) can't
     // intercept a later submission for the same case by the same user.
-    const modalCustomId = `${interaction.customId}:${interaction.id}`;
+    const modalCustomId = `${interaction.customId}/n/${interaction.id}`;
 
     const modal = {
       title: `Case #${caseId}`,

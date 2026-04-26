@@ -169,12 +169,14 @@ export interface ModLogAuditOperations {
 
   /**
    * Updates a mod log case with DM result information.
-   * Stores channel ID, message ID, and any error that occurred.
+   * Stores channel ID, message ID, error, and the dmAttempted/dmIntended flags.
    */
   updateDMInfo(
     guildId: string,
     caseId: string,
     dmResult: DMResult,
+    dmAttempted: boolean,
+    dmIntended: boolean,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<void, string>>;
 }
