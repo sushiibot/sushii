@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, count, eq, ilike, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -152,7 +152,7 @@ export class DrizzleTagRepository implements TagRepository {
       .select()
       .from(schema.tagsInAppPublic)
       .where(and(...conditions))
-      .orderBy(desc(schema.tagsInAppPublic.tagName))
+      .orderBy(schema.tagsInAppPublic.tagName)
       .limit(limit);
 
     return results.map((row) => this.mapToTag(row));
@@ -233,10 +233,25 @@ export class DrizzleTagRepository implements TagRepository {
           ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(query)}%`),
         ),
       )
-      .orderBy(desc(schema.tagsInAppPublic.tagName))
+      .orderBy(schema.tagsInAppPublic.tagName)
       .limit(25);
 
     return results.map((row) => this.mapToTag(row));
+  }
+
+  async incrementUseCount(name: TagName, guildId: string): Promise<Tag | null> {
+    const results = await this.db
+      .update(schema.tagsInAppPublic)
+      .set({ useCount: sql`${schema.tagsInAppPublic.useCount} + 1` })
+      .where(
+        and(
+          eq(schema.tagsInAppPublic.guildId, BigInt(guildId)),
+          eq(schema.tagsInAppPublic.tagName, name.getValue()),
+        ),
+      )
+      .returning();
+
+    return results.length > 0 ? this.mapToTag(results[0]) : null;
   }
 
   async rename(

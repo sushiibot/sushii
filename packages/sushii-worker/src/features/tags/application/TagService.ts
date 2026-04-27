@@ -113,13 +113,15 @@ export class TagService {
   }
 
   async useTag(name: string, guildId: string): Promise<Result<Tag, string>> {
-    const tag = await this.getTag(name, guildId);
-    if (!tag) {
+    const nameResult = TagName.create(name);
+    if (nameResult.err) {
       return Err(`Tag '${name}' not found`);
     }
 
-    tag.incrementUseCount();
-    await this.tagRepository.save(tag);
+    const tag = await this.tagRepository.incrementUseCount(nameResult.val, guildId);
+    if (!tag) {
+      return Err(`Tag '${name}' not found`);
+    }
 
     this.logger.debug(
       { tagName: name, guildId, useCount: tag.getUseCount() },

@@ -16,6 +16,7 @@ export interface TagRepository {
   ): Promise<string[]>;
   countByGuild(guildId: string): Promise<number>;
   findByAutocomplete(guildId: string, query: string): Promise<Tag[]>;
+  incrementUseCount(name: TagName, guildId: string): Promise<Tag | null>;
   rename(currentName: TagName, newName: TagName, guildId: string): Promise<Tag | null>;
   delete(name: TagName, guildId: string): Promise<Tag | null>;
   deleteAllByOwner(guildId: string, ownerId: string): Promise<number>;

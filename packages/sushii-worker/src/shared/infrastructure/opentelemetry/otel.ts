@@ -49,13 +49,14 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   const sentryTracesSampleRate = parseFloat(
     process.env.SENTRY_TRACES_SAMPLE_RATE ?? "1.0",
   );
+  const resolvedSampleRate = Number.isNaN(sentryTracesSampleRate) ? 1.0 : sentryTracesSampleRate;
 
   const sentryClient = Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.sentry.environment,
     release: config.build.gitHash,
     skipOpenTelemetrySetup: true,
-    tracesSampleRate: sentryTracesSampleRate,
+    tracesSampleRate: resolvedSampleRate,
     beforeSendTransaction(event) {
       // Strip user when no Discord user was explicitly set — prevents server IP
       // geolocation from leaking onto background transactions (schedule, notifications, etc.)
@@ -129,7 +130,6 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   });
   metrics.setGlobalMeterProvider(meterProvider);
 
-  const processStartMs = Date.now();
   metrics
     .getMeter("sushii-bot")
     .createObservableGauge("process_uptime_seconds", {
@@ -137,7 +137,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
       unit: "s",
     })
     .addCallback((result) => {
-      result.observe(Math.floor((Date.now() - processStartMs) / 1000));
+      result.observe(Math.floor(process.uptime()));
     });
 
   logger.info(

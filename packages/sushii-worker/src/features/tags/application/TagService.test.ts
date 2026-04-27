@@ -82,6 +82,27 @@ class MockTagRepository implements TagRepository {
     return toDelete.length;
   }
 
+  async incrementUseCount(name: TagName, guildId: string): Promise<Tag | null> {
+    const key = this.createKey(name.getValue(), guildId);
+    const tag = this.tags.get(key);
+    if (!tag) {
+      return null;
+    }
+
+    const tagData = tag.toData();
+    const updatedTagResult = Tag.create({
+      ...tagData,
+      useCount: tagData.useCount + BigInt(1),
+    });
+    if (updatedTagResult.err) {
+      return null;
+    }
+
+    const updatedTag = updatedTagResult.val;
+    this.tags.set(key, updatedTag);
+    return updatedTag;
+  }
+
   async rename(
     currentName: TagName,
     newName: TagName,
@@ -355,10 +376,8 @@ describe("TagService", () => {
   });
 
   describe("useTag", () => {
-    let existingTag: Tag;
-
     beforeEach(() => {
-      existingTag = mockRepository.addTag({
+      mockRepository.addTag({
         name: testName,
         content: testContent,
         attachment: null,
@@ -375,7 +394,6 @@ describe("TagService", () => {
       expect(result.ok).toBe(true);
       const tag = result.val as Tag;
       expect(tag.getUseCount()).toBe(BigInt(6));
-      expect(tag).toEqual(existingTag);
     });
 
     it("should fail for non-existent tag", async () => {

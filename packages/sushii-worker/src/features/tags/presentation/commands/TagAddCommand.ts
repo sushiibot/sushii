@@ -88,7 +88,7 @@ export class TagAddCommand extends SlashCommandHandler {
     }
 
     if (tagAttachment) {
-      // Defer immediately — downloading + reuploading can exceed the 3s reply window
+      // Defer before slow work — gives 15 minutes for the upload + DB write
       await interaction.deferReply();
 
       // Inline download: fetch the attachment from Discord
@@ -128,20 +128,22 @@ export class TagAddCommand extends SlashCommandHandler {
         return;
       }
 
-      // Upload file first (no components yet) so we can read the CDN URL back
-      await interaction.editReply({ files: [file] });
+      // Single combined edit: send success message AND file together so
+      // IsComponentsV2 is set on the initial commit (Discord rejects adding it later)
+      await interaction.editReply({
+        components: [createTagAddSuccessContainer(tagName, tagContent, emojis["success"])],
+        files: [file],
+        flags: MessageFlags.IsComponentsV2,
+      });
 
       const replyMsg = await interaction.fetchReply();
       const attachmentUrl = replyMsg.attachments.at(0)?.url ?? null;
 
       if (attachmentUrl === null) {
-        await interaction.editReply(
-          getErrorMessageEdit(
-            t("tag.add.error.failed_title", { ns: "commands" }),
-            t("tag.add.error.failed_get_original_message", { ns: "commands" }),
-          ),
+        this.logger.warn(
+          { tagName, guildId: interaction.guildId },
+          "Tag created but attachment URL missing from reply",
         );
-        return;
       }
 
       const createRes = await this.tagService.createTag({
@@ -161,11 +163,6 @@ export class TagAddCommand extends SlashCommandHandler {
         );
         return;
       }
-
-      await interaction.editReply({
-        components: [createTagAddSuccessContainer(tagName, tagContent, emojis["success"])],
-        flags: MessageFlags.IsComponentsV2,
-      });
 
       return;
     }
