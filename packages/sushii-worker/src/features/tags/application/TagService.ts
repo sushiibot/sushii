@@ -45,21 +45,33 @@ export class TagService {
     private readonly logger: Logger,
   ) {}
 
-  async createTag(params: CreateTagParams): Promise<Result<Tag, string>> {
-    this.logger.debug({ params }, "Creating new tag");
-
-    const nameResult = TagName.create(params.name);
+  async validateNewTag(
+    name: string,
+    guildId: string,
+  ): Promise<Result<TagName, string>> {
+    const nameResult = TagName.create(name);
     if (nameResult.err) {
       return Err(nameResult.val);
     }
 
     const existingTag = await this.tagRepository.findByNameAndGuild(
       nameResult.val,
-      params.guildId,
+      guildId,
     );
 
     if (existingTag) {
-      return Err(`Tag '${params.name}' already exists`);
+      return Err(`Tag '${name}' already exists`);
+    }
+
+    return Ok(nameResult.val);
+  }
+
+  async createTag(params: CreateTagParams): Promise<Result<Tag, string>> {
+    this.logger.debug({ params }, "Creating new tag");
+
+    const validateResult = await this.validateNewTag(params.name, params.guildId);
+    if (validateResult.err) {
+      return Err(validateResult.val);
     }
 
     const tagData: TagData = {
@@ -78,14 +90,17 @@ export class TagService {
     }
 
     const tag = tagResult.val;
-    await this.tagRepository.save(tag);
+    const createdTag = await this.tagRepository.create(tag);
+    if (!createdTag) {
+      return Err(`Tag '${params.name}' already exists`);
+    }
 
     this.logger.info(
       { tagName: params.name, guildId: params.guildId },
       "Tag created successfully",
     );
 
-    return Ok(tag);
+    return Ok(createdTag);
   }
 
   async getTag(name: string, guildId: string): Promise<Tag | null> {

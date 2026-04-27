@@ -23,6 +23,15 @@ class MockTagRepository implements TagRepository {
     this.tags.set(key, tag);
   }
 
+  async create(tag: Tag): Promise<Tag | null> {
+    const key = this.createKey(tag.getName().getValue(), tag.getGuildId());
+    if (this.tags.has(key)) {
+      return null;
+    }
+    this.tags.set(key, tag);
+    return tag;
+  }
+
   async findByNameAndGuild(
     name: TagName,
     guildId: string,

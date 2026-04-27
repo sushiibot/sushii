@@ -51,6 +51,31 @@ export class DrizzleTagRepository implements TagRepository {
     this.logger.debug({ tagName: tagData.name }, "Tag saved to database");
   }
 
+  async create(tag: Tag): Promise<Tag | null> {
+    const tagData = tag.toData();
+
+    const results = await this.db
+      .insert(schema.tagsInAppPublic)
+      .values({
+        tagName: tagData.name,
+        content: tagData.content ?? "",
+        attachment: tagData.attachment,
+        guildId: BigInt(tagData.guildId),
+        ownerId: BigInt(tagData.ownerId),
+        useCount: tagData.useCount,
+        created: tagData.created,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    this.logger.debug({ tagName: tagData.name }, "Tag created in database");
+    return this.mapToTag(results[0]);
+  }
+
   async findByNameAndGuild(
     name: TagName,
     guildId: string,

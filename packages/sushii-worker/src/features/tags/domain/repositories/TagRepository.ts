@@ -4,6 +4,7 @@ import type { TagName } from "../value-objects/TagName";
 
 export interface TagRepository {
   save(tag: Tag): Promise<void>;
+  create(tag: Tag): Promise<Tag | null>;
   findByNameAndGuild(name: TagName, guildId: string): Promise<Tag | null>;
   findByFilters(filters: TagFilters, limit: number): Promise<Tag[]>;
   findRandomByFilters(filters: TagFilters): Promise<Tag | null>;

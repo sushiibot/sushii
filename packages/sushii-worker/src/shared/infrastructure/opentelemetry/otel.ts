@@ -129,6 +129,17 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   });
   metrics.setGlobalMeterProvider(meterProvider);
 
+  const processStartMs = Date.now();
+  metrics
+    .getMeter("sushii-bot")
+    .createObservableGauge("process_uptime_seconds", {
+      description: "Process uptime in seconds",
+      unit: "s",
+    })
+    .addCallback((result) => {
+      result.observe(Math.floor((Date.now() - processStartMs) / 1000));
+    });
+
   logger.info(
     {
       endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,

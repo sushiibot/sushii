@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  AttachmentBuilder,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
@@ -8,7 +9,7 @@ import { t } from "i18next";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
-import { interactionReplyErrorMessage } from "@/interactions/responses/error";
+import { getErrorMessageEdit } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { TagService } from "../../application/TagService";
@@ -16,7 +17,6 @@ import {
   TAG_STATUS_EMOJIS,
   createTagAddSuccessContainer,
   createTagErrorContainer,
-  processTagAttachment,
 } from "../views/TagMessageBuilder";
 
 export class TagAddCommand extends SlashCommandHandler {
@@ -87,46 +87,93 @@ export class TagAddCommand extends SlashCommandHandler {
       return;
     }
 
-    let attachmentUrl: string | null = null;
-
     if (tagAttachment) {
-      if (!interaction.channel) {
-        await interactionReplyErrorMessage(interaction, "Cannot access channel.");
-        return;
-      }
+      // Defer immediately — downloading + reuploading can exceed the 3s reply window
+      await interaction.deferReply();
 
-      const embedDataRes = await processTagAttachment(tagContent, tagAttachment);
-      if (!embedDataRes.success) {
-        await interactionReplyErrorMessage(interaction, embedDataRes.error);
-        return;
-      }
+      // Inline download: fetch the attachment from Discord
+      let file: AttachmentBuilder;
+      try {
+        const response = await fetch(tagAttachment.url);
+        if (!response.ok) {
+          await interaction.editReply(
+            getErrorMessageEdit(
+              "Error",
+              `Failed to fetch attachment (HTTP ${response.status}).`,
+            ),
+          );
+          return;
+        }
 
-      const { files } = embedDataRes.data;
-
-      // Send a plain channel message to store the file on Discord's CDN.
-      // This message must not be deleted — the tag attachment URL points here.
-      const storageMsg = await interaction.channel.send({
-        content: `-# Tag \`${tagName}\` attachment — do not delete this message.`,
-        files,
-        allowedMentions: { parse: [] },
-      });
-
-      attachmentUrl = storageMsg.attachments.at(0)?.url ?? null;
-
-      if (!attachmentUrl) {
-        await storageMsg.delete().catch(() => undefined);
-        await interactionReplyErrorMessage(
-          interaction,
-          t("tag.add.error.failed_get_original_message", { ns: "commands" }),
+        const buffer = Buffer.from(await response.arrayBuffer());
+        file = new AttachmentBuilder(buffer).setName(tagAttachment.name);
+      } catch {
+        await interaction.editReply(
+          getErrorMessageEdit("Error", "Failed to fetch attachment from Discord."),
         );
         return;
       }
+
+      const validateRes = await this.tagService.validateNewTag(
+        tagName,
+        interaction.guildId,
+      );
+      if (validateRes.err) {
+        await interaction.editReply(
+          getErrorMessageEdit(
+            t("tag.add.error.failed_title", { ns: "commands" }),
+            validateRes.val,
+          ),
+        );
+        return;
+      }
+
+      // Upload file first (no components yet) so we can read the CDN URL back
+      await interaction.editReply({ files: [file] });
+
+      const replyMsg = await interaction.fetchReply();
+      const attachmentUrl = replyMsg.attachments.at(0)?.url ?? null;
+
+      if (attachmentUrl === null) {
+        await interaction.editReply(
+          getErrorMessageEdit(
+            t("tag.add.error.failed_title", { ns: "commands" }),
+            t("tag.add.error.failed_get_original_message", { ns: "commands" }),
+          ),
+        );
+        return;
+      }
+
+      const createRes = await this.tagService.createTag({
+        name: tagName,
+        content: tagContent,
+        attachment: attachmentUrl,
+        guildId: interaction.guildId,
+        ownerId: interaction.user.id,
+      });
+
+      if (createRes.err) {
+        await interaction.editReply(
+          getErrorMessageEdit(
+            t("tag.add.error.failed_title", { ns: "commands" }),
+            createRes.val,
+          ),
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        components: [createTagAddSuccessContainer(tagName, tagContent, emojis["success"])],
+        flags: MessageFlags.IsComponentsV2,
+      });
+
+      return;
     }
 
     const result = await this.tagService.createTag({
       name: tagName,
       content: tagContent,
-      attachment: attachmentUrl,
+      attachment: null,
       guildId: interaction.guildId,
       ownerId: interaction.user.id,
     });
