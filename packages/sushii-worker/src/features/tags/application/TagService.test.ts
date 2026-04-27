@@ -90,15 +90,11 @@ class MockTagRepository implements TagRepository {
     }
 
     const tagData = tag.toData();
-    const updatedTagResult = Tag.create({
+    const updatedTag = Tag.createFromDatabase({
       ...tagData,
       useCount: tagData.useCount + BigInt(1),
     });
-    if (updatedTagResult.err) {
-      return null;
-    }
 
-    const updatedTag = updatedTagResult.val;
     this.tags.set(key, updatedTag);
     return updatedTag;
   }
@@ -117,12 +113,7 @@ class MockTagRepository implements TagRepository {
     this.tags.delete(oldKey);
 
     const tagData = tag.toData();
-    const renamedTagResult = Tag.create({ ...tagData, name: newName.getValue() });
-    if (renamedTagResult.err) {
-      return null;
-    }
-
-    const renamedTag = renamedTagResult.val;
+    const renamedTag = Tag.createFromDatabase({ ...tagData, name: newName.getValue() });
     const newKey = this.createKey(newName.getValue(), guildId);
     this.tags.set(newKey, renamedTag);
     return renamedTag;
@@ -648,6 +639,42 @@ describe("TagService", () => {
 
       expect(result.err).toBe(true);
       expect(result.val).toBe(`Tag '${newName}' already exists`);
+    });
+  });
+
+  describe("validateNewTag", () => {
+    it("should return Ok(TagName) when name is valid and tag does not exist", async () => {
+      const result = await tagService.validateNewTag(testName, testGuildId);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw new Error("Expected Ok result");
+      }
+      expect(result.val.getValue()).toBe(testName);
+    });
+
+    it("should return Err when a tag with that name already exists in the guild", async () => {
+      mockRepository.addTag({
+        name: testName,
+        content: testContent,
+        attachment: null,
+        guildId: testGuildId,
+        ownerId: testUserId,
+        useCount: BigInt(0),
+        created: new Date(),
+      });
+
+      const result = await tagService.validateNewTag(testName, testGuildId);
+
+      expect(result.err).toBe(true);
+      expect(result.val).toBe(`Tag '${testName}' already exists`);
+    });
+
+    it("should return Err when name fails validation", async () => {
+      const result = await tagService.validateNewTag("invalid name with spaces", testGuildId);
+
+      expect(result.err).toBe(true);
+      expect(result.val).toContain("invalid characters");
     });
   });
 

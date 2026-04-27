@@ -64,7 +64,7 @@ export class TagAddCommand extends SlashCommandHandler {
       throw new Error("Missing tag name");
     }
 
-    const tagContent = interaction.options.getString("content") || null;
+    const tagContent = interaction.options.getString("content") ?? null;
     const tagAttachment = interaction.options.getAttachment("attachment");
 
     const emojis = await this.emojiRepository.getEmojis(TAG_STATUS_EMOJIS);

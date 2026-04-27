@@ -68,7 +68,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
 
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
   // BasicTracerProvider doesn't auto-read env vars like NodeSDK — use envDetector explicitly.
-  // OTEL_SERVICE_NAME must be set in the environment — not hardcoded here since multiple services share this file.
+  // OTEL_SERVICE_NAME should be set — defaults to "sushii-bot". Not hardcoded here since multiple services share this file.
   // merge(other): other's attributes win, so envDetector result overrides the fallback attributes below.
   const fallbackAttributes: Record<string, string> = {
     "cluster.id": String(clusterId),

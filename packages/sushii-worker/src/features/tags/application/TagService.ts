@@ -123,6 +123,7 @@ export class TagService {
 
     const tag = await this.tagRepository.incrementUseCount(nameResult.val, guildId);
     if (!tag) {
+      this.logger.debug({ tagName: name, guildId }, "Tag not found for use count increment");
       return Err(`Tag '${name}' not found`);
     }
 
