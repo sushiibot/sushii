@@ -96,6 +96,10 @@ export class TagAddCommand extends SlashCommandHandler {
       try {
         const response = await fetch(tagAttachment.url);
         if (!response.ok) {
+          this.logger.warn(
+            { status: response.status, attachmentUrl: tagAttachment.url, tagName, guildId: interaction.guildId },
+            "Tag attachment fetch returned non-OK status",
+          );
           await interaction.editReply(
             getErrorMessageEdit(
               "Error",
@@ -107,7 +111,11 @@ export class TagAddCommand extends SlashCommandHandler {
 
         const buffer = Buffer.from(await response.arrayBuffer());
         file = new AttachmentBuilder(buffer).setName(tagAttachment.name);
-      } catch {
+      } catch (err) {
+        this.logger.warn(
+          { err, attachmentUrl: tagAttachment.url, tagName, guildId: interaction.guildId },
+          "Failed to fetch tag attachment from Discord",
+        );
         await interaction.editReply(
           getErrorMessageEdit("Error", "Failed to fetch attachment from Discord."),
         );
@@ -142,8 +150,16 @@ export class TagAddCommand extends SlashCommandHandler {
       if (attachmentUrl === null) {
         this.logger.warn(
           { tagName, guildId: interaction.guildId },
-          "Tag created but attachment URL missing from reply",
+          "Attachment URL missing from interaction reply",
         );
+        await interaction.editReply({
+          ...getErrorMessageEdit(
+            t("tag.add.error.failed_title", { ns: "commands" }),
+            t("tag.add.error.failed_get_original_message", { ns: "commands" }),
+          ),
+          files: [],
+        });
+        return;
       }
 
       const createRes = await this.tagService.createTag({
@@ -155,12 +171,13 @@ export class TagAddCommand extends SlashCommandHandler {
       });
 
       if (createRes.err) {
-        await interaction.editReply(
-          getErrorMessageEdit(
+        await interaction.editReply({
+          ...getErrorMessageEdit(
             t("tag.add.error.failed_title", { ns: "commands" }),
             createRes.val,
           ),
-        );
+          files: [],
+        });
         return;
       }
 

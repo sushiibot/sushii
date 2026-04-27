@@ -67,11 +67,14 @@ export class TagService {
   }
 
   async createTag(params: CreateTagParams): Promise<Result<Tag, string>> {
-    this.logger.debug({ params }, "Creating new tag");
+    this.logger.debug(
+      { tagName: params.name, guildId: params.guildId, hasAttachment: !!params.attachment },
+      "Creating new tag",
+    );
 
-    const validateResult = await this.validateNewTag(params.name, params.guildId);
-    if (validateResult.err) {
-      return Err(validateResult.val);
+    const nameResult = TagName.create(params.name);
+    if (nameResult.err) {
+      return Err(nameResult.val);
     }
 
     const tagData: TagData = {

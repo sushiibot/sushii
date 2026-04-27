@@ -1,5 +1,4 @@
 import { context, metrics, propagation, trace } from "@opentelemetry/api";
-import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
@@ -131,7 +130,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   metrics.setGlobalMeterProvider(meterProvider);
 
   metrics
-    .getMeter("sushii-bot")
+    .getMeter(process.env.OTEL_SERVICE_NAME ?? "sushii-bot")
     .createObservableGauge("process_uptime_seconds", {
       description: "Process uptime in seconds",
       unit: "s",
