@@ -132,14 +132,16 @@ export class DrizzleTagRepository implements TagRepository {
       eq(schema.tagsInAppPublic.guildId, BigInt(filters.getGuildId())),
     ];
 
-    if (filters.getStartsWith()) {
+    const startsWith = filters.getStartsWith();
+    const contains = filters.getContains();
+    if (startsWith) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(filters.getStartsWith()!)}%`),
+        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(startsWith)}%`),
       );
-    } else if (filters.getContains()) {
+    } else if (contains) {
       // Escape any special characters in the contains filter
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(filters.getContains()!)}%`),
+        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(contains)}%`),
       );
     }
 
@@ -163,13 +165,15 @@ export class DrizzleTagRepository implements TagRepository {
       eq(schema.tagsInAppPublic.guildId, BigInt(filters.getGuildId())),
     ];
 
-    if (filters.getStartsWith()) {
+    const startsWith = filters.getStartsWith();
+    const contains = filters.getContains();
+    if (startsWith) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(filters.getStartsWith()!)}%`),
+        ilike(schema.tagsInAppPublic.tagName, `${this.escapeLikePattern(startsWith)}%`),
       );
-    } else if (filters.getContains()) {
+    } else if (contains) {
       conditions.push(
-        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(filters.getContains()!)}%`),
+        ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(contains)}%`),
       );
     }
 
