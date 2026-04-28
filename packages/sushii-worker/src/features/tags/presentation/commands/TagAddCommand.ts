@@ -136,9 +136,9 @@ export class TagAddCommand extends SlashCommandHandler {
         return;
       }
 
-      // CV2 requires attachments to be referenced via attachment://filename inside a
-      // component, otherwise they won't appear in the message's attachments collection.
-      const replyMsg = await interaction.editReply({
+      // CV2 PATCH responses don't include `attachments` in the returned message data;
+      // fetchReply() makes a separate GET that returns the full message with attachments.
+      await interaction.editReply({
         components: [
           createTagAddSuccessContainer(tagName, tagContent, emojis["success"], tagAttachment.name),
         ],
@@ -146,7 +146,13 @@ export class TagAddCommand extends SlashCommandHandler {
         flags: MessageFlags.IsComponentsV2,
       });
 
+      const replyMsg = await interaction.fetchReply();
       const attachmentUrl = replyMsg.attachments.at(0)?.url ?? null;
+
+      this.logger.debug(
+        { tagName, guildId: interaction.guildId, attachmentsSize: replyMsg.attachments.size, attachmentUrl },
+        "Fetched reply message after editReply",
+      );
 
       if (attachmentUrl === null) {
         this.logger.warn(
