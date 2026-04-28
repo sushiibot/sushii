@@ -68,9 +68,9 @@ export function createTagAddSuccessContainer(
   emoji = "✅",
   attachmentFilename?: string,
 ): ContainerBuilder {
-  let text = `${emoji} **Tag added** \`${tagName}\``;
+  let text = `## ${emoji} Tag added \`${tagName}\``;
   if (content) {
-    text += `\n\n${content}`;
+    text += `\n**Tag Content**\n${content}`;
   }
 
   const container = new ContainerBuilder().setAccentColor(Color.Success);
@@ -82,6 +82,11 @@ export function createTagAddSuccessContainer(
     container.addMediaGalleryComponents(
       new MediaGalleryBuilder().addItems(
         new MediaGalleryItemBuilder().setURL(`attachment://${attachmentFilename}`),
+      ),
+    );
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        "-# Do not delete this message — the tag attachment is hosted here.",
       ),
     );
   }
