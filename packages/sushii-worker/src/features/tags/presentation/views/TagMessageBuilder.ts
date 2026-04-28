@@ -86,7 +86,7 @@ export function createTagAddSuccessContainer(
     );
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        "-# Do not delete this message — the tag attachment is hosted here.",
+        "-# Do not delete this message — deleting it will break the tag's image.",
       ),
     );
   }
