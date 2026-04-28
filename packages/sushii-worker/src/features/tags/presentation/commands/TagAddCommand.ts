@@ -137,14 +137,14 @@ export class TagAddCommand extends SlashCommandHandler {
       }
 
       // Single combined edit: send success message AND file together so
-      // IsComponentsV2 is set on the initial commit (Discord rejects adding it later)
-      await interaction.editReply({
+      // IsComponentsV2 is set on the initial commit (Discord rejects adding it later).
+      // Use the returned Message directly — fetchReply() may not have attachments populated.
+      const replyMsg = await interaction.editReply({
         components: [createTagAddSuccessContainer(tagName, tagContent, emojis["success"])],
         files: [file],
         flags: MessageFlags.IsComponentsV2,
       });
 
-      const replyMsg = await interaction.fetchReply();
       const attachmentUrl = replyMsg.attachments.at(0)?.url ?? null;
 
       if (attachmentUrl === null) {
