@@ -1,6 +1,7 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type { ChatInputCommandInteraction, ContainerComponent, FileComponent } from "discord.js";
 import {
   AttachmentBuilder,
+  ComponentType,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
@@ -136,8 +137,9 @@ export class TagAddCommand extends SlashCommandHandler {
         return;
       }
 
-      // CV2 PATCH responses don't include `attachments` in the returned message data;
-      // fetchReply() makes a separate GET that returns the full message with attachments.
+      // CV2 messages don't populate message.attachments in the REST response — files are
+      // only accessible via the component tree. Send the CV2 message, then fetchReply()
+      // to get the fully-resolved component data (including the CDN URL in file.url).
       await interaction.editReply({
         components: [
           createTagAddSuccessContainer(tagName, tagContent, emojis["success"], tagAttachment.name),
@@ -147,11 +149,26 @@ export class TagAddCommand extends SlashCommandHandler {
       });
 
       const replyMsg = await interaction.fetchReply();
-      const attachmentUrl = replyMsg.attachments.at(0)?.url ?? null;
+
+      // Walk: message → Container (components[0]) → FileComponent
+      const container = replyMsg.components.find(
+        (c): c is ContainerComponent => c.type === ComponentType.Container,
+      );
+      const fileComp = container?.components.find(
+        (c): c is FileComponent => c.type === ComponentType.File,
+      );
+
+      // Discord resolves attachment:// references to CDN URLs in the response url field.
+      // proxy_url is the fallback in case url is still an attachment:// reference.
+      const rawUrl = fileComp?.file.url;
+      const attachmentUrl =
+        rawUrl && !rawUrl.startsWith("attachment://")
+          ? rawUrl
+          : (fileComp?.file.data.proxy_url ?? null);
 
       this.logger.debug(
-        { tagName, guildId: interaction.guildId, attachmentsSize: replyMsg.attachments.size, attachmentUrl },
-        "Fetched reply message after editReply",
+        { tagName, guildId: interaction.guildId, rawUrl, attachmentUrl },
+        "Resolved attachment URL from CV2 file component",
       );
 
       if (attachmentUrl === null) {
@@ -159,13 +176,12 @@ export class TagAddCommand extends SlashCommandHandler {
           { tagName, guildId: interaction.guildId },
           "Attachment URL missing from interaction reply",
         );
-        await interaction.editReply({
-          ...getErrorMessageEdit(
+        await interaction.editReply(
+          getErrorMessageEdit(
             t("tag.add.error.failed_title", { ns: "commands" }),
             t("tag.add.error.failed_get_original_message", { ns: "commands" }),
           ),
-          files: [],
-        });
+        );
         return;
       }
 
@@ -178,13 +194,12 @@ export class TagAddCommand extends SlashCommandHandler {
       });
 
       if (createRes.err) {
-        await interaction.editReply({
-          ...getErrorMessageEdit(
+        await interaction.editReply(
+          getErrorMessageEdit(
             t("tag.add.error.failed_title", { ns: "commands" }),
             createRes.val,
           ),
-          files: [],
-        });
+        );
         return;
       }
 
