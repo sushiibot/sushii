@@ -105,7 +105,7 @@ export class TagAdminCommand extends SlashCommandHandler {
     const container = new ContainerBuilder().setAccentColor(Color.Success);
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `${emojis["success"]} **Tag deleted**\nTag \`${tagName}\` has been deleted.`,
+        `## ${emojis["success"]} Tag deleted\nTag \`${tagName}\` has been deleted.`,
       ),
     );
     await interaction.reply({
@@ -140,7 +140,7 @@ export class TagAdminCommand extends SlashCommandHandler {
     const container = new ContainerBuilder().setAccentColor(Color.Success);
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `${emojis["success"]} **Tags deleted**\n${deleteCount} tags created by ${user} deleted.`,
+        `## ${emojis["success"]} Tags deleted\n${deleteCount} tags created by ${user} deleted.`,
       ),
     );
     await interaction.reply({

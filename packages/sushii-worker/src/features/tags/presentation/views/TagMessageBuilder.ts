@@ -36,10 +36,10 @@ export function createTagInfoMessage(
   const tagData = tag.toData();
   const createdTimestamp = Math.floor(dayjs.utc(tagData.created).unix());
 
-  let content = `**${tagData.name}**\n\n`;
+  let content = `## \`${tagData.name}\`\n`;
   content += `**Content**\n${tagData.content || "No content"}\n\n`;
-  content += `**Owner** <@${tagData.ownerId}>\n`;
-  content += `**Use Count** ${tagData.useCount}\n\n`;
+  content += `**Owner**\n<@${tagData.ownerId}>\n\n`;
+  content += `**Use Count**\n${tagData.useCount}\n\n`;
   content += `-# Created <t:${createdTimestamp}:R>`;
 
   const container = new ContainerBuilder().setAccentColor(Color.Info);
@@ -101,7 +101,7 @@ export function createTagErrorContainer(
 ): ContainerBuilder {
   const container = new ContainerBuilder().setAccentColor(Color.Error);
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`${emoji} **${title}**\n${description}`),
+    new TextDisplayBuilder().setContent(`## ${emoji} ${title}\n${description}`),
   );
   return container;
 }
@@ -113,7 +113,7 @@ export function createTagNotFoundContainer(
   const container = new ContainerBuilder().setAccentColor(Color.Error);
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `${emoji} **Tag not found**\n${t("tag.get.not_found", { ns: "commands", tagName })}`,
+      `## ${emoji} Tag not found\n${t("tag.get.not_found", { ns: "commands", tagName })}`,
     ),
   );
   return container;
@@ -194,13 +194,10 @@ export function createTagEditMessage(
   let contentTextContent = "";
 
   if (flags.deleted) {
-    contentTextContent += `### Tag Deleted`;
-    contentTextContent += `\nTag details are still shown below in case you want to re-add it.\n\n`;
-
+    contentTextContent += `## Tag Deleted\nTag details are still shown below in case you want to re-add it.\n\n`;
     container.setAccentColor(Color.Error);
   } else {
-    contentTextContent += `### Editing Tag\n`;
-
+    contentTextContent += `## Editing Tag\n`;
     container.setAccentColor(Color.Info);
   }
 
@@ -268,8 +265,7 @@ export function createTagDeleteConfirmationMessage(
 } {
   const container = new ContainerBuilder();
 
-  const content = `### Confirm Deletion
-Are you sure you want to delete the tag \`${tagName}\`? This cannot be undone.`;
+  const content = `## Confirm Deletion\nAre you sure you want to delete the tag \`${tagName}\`? This cannot be undone.`;
 
   const textBuilder = new TextDisplayBuilder().setContent(content);
   container.addTextDisplayComponents(textBuilder);
@@ -303,7 +299,7 @@ export function createTagHelpMessage(
 } {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
-  const content = `### Tag Commands Help
+  const content = `## Tag Commands Help
 Tags are custom server messages that can be saved and used later.
 
 **Using Tags**
