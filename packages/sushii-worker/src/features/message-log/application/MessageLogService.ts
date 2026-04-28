@@ -221,15 +221,39 @@ export class MessageLogService {
 
     try {
       let firstMessage: Message | null = null;
-      const chunkSize = 10;
-      for (let i = 0; i < embeds.length; i += chunkSize) {
-        const chunk = embeds.slice(i, i + chunkSize).map((e) => e.toJSON());
 
+      // Discord limits total embed size to 6000 chars per message.
+      // Group embeds into batches where the sum of description lengths stays under that.
+      const MAX_TOTAL_EMBED_SIZE = 6000;
+      const MAX_EMBEDS_PER_MESSAGE = 10;
+      const batches: EmbedBuilder[][] = [];
+      let currentBatch: EmbedBuilder[] = [];
+      let currentBatchSize = 0;
+
+      for (const embed of embeds) {
+        const descLen = embed.data.description?.length ?? 0;
+        if (
+          currentBatch.length > 0 &&
+          (currentBatchSize + descLen > MAX_TOTAL_EMBED_SIZE ||
+            currentBatch.length >= MAX_EMBEDS_PER_MESSAGE)
+        ) {
+          batches.push(currentBatch);
+          currentBatch = [];
+          currentBatchSize = 0;
+        }
+        currentBatch.push(embed);
+        currentBatchSize += descLen;
+      }
+      if (currentBatch.length > 0) {
+        batches.push(currentBatch);
+      }
+
+      for (const batch of batches) {
         const sent = await channel.send({
-          embeds: chunk,
+          embeds: batch.map((e) => e.toJSON()),
         });
 
-        if (i === 0) {
+        if (firstMessage === null) {
           firstMessage = sent;
         }
       }
