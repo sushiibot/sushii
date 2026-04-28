@@ -257,7 +257,7 @@ export class SpamActionService {
     await channel.send({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
-      allowedMentions: { parse: [] },
+      allowedMentions: { parse: [], users: [] },
     });
   }
 

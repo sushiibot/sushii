@@ -88,6 +88,24 @@ function buildModal(
   );
 
   if (actionType === "ban" || actionType === "softban") {
+    const deleteOptions =
+      actionType === "ban"
+        ? [
+            { label: "Previous hour", value: "3600", default: true },
+            { label: "Don't delete any", value: "0" },
+            { label: "Previous 12 hours", value: "43200" },
+            { label: "Previous 24 hours", value: "86400" },
+            { label: "Previous 3 days", value: "259200" },
+            { label: "Previous 7 days", value: "604800" },
+          ]
+        : [
+            { label: "Previous hour", value: "3600", default: true },
+            { label: "Previous 12 hours", value: "43200" },
+            { label: "Previous 24 hours", value: "86400" },
+            { label: "Previous 3 days", value: "259200" },
+            { label: "Previous 7 days", value: "604800" },
+          ];
+
     modal.addLabelComponents(
       new LabelBuilder()
         .setLabel("Delete message history")
@@ -95,14 +113,7 @@ function buildModal(
           new StringSelectMenuBuilder()
             .setCustomId(DELETE_SECONDS_CUSTOM_ID)
             .setPlaceholder("Previous hour")
-            .addOptions([
-              { label: "Previous hour", value: "3600", default: true },
-              { label: "Don't delete any", value: "0" },
-              { label: "Previous 12 hours", value: "43200" },
-              { label: "Previous 24 hours", value: "86400" },
-              { label: "Previous 3 days", value: "259200" },
-              { label: "Previous 7 days", value: "604800" },
-            ]),
+            .addOptions(deleteOptions),
         ),
     );
   }
@@ -216,23 +227,14 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     // Extract delete seconds for ban/softban (optional select menu)
     let deleteMessageSeconds = 0;
     if (actionType === "ban" || actionType === "softban") {
-      for (const row of modalSubmission.components) {
-        if (!("components" in row)) {
-          continue;
+      try {
+        const values = modalSubmission.fields.getStringSelectValues(DELETE_SECONDS_CUSTOM_ID);
+        const val = parseInt(values[0] as string, 10);
+        if (!isNaN(val)) {
+          deleteMessageSeconds = val;
         }
-        for (const component of row.components) {
-          if (
-            "customId" in component &&
-            component.customId === DELETE_SECONDS_CUSTOM_ID &&
-            "values" in component &&
-            Array.isArray(component.values)
-          ) {
-            const val = parseInt(component.values[0] as string, 10);
-            if (!isNaN(val)) {
-              deleteMessageSeconds = val;
-            }
-          }
-        }
+      } catch {
+        // Select was not submitted — use default
       }
     }
 
