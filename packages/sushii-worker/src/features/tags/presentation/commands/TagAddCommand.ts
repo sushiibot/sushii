@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction, ContainerComponent, FileComponent } from "discord.js";
+import type { ChatInputCommandInteraction, ContainerComponent, MediaGalleryComponent } from "discord.js";
 import {
   AttachmentBuilder,
   ComponentType,
@@ -150,21 +150,22 @@ export class TagAddCommand extends SlashCommandHandler {
 
       const replyMsg = await interaction.fetchReply();
 
-      // Walk: message → Container (components[0]) → FileComponent
+      // Walk: message → Container → MediaGalleryComponent → first item → media URL
       const container = replyMsg.components.find(
         (c): c is ContainerComponent => c.type === ComponentType.Container,
       );
-      const fileComp = container?.components.find(
-        (c): c is FileComponent => c.type === ComponentType.File,
+      const gallery = container?.components.find(
+        (c): c is MediaGalleryComponent => c.type === ComponentType.MediaGallery,
       );
+      const mediaItem = gallery?.items[0];
 
       // Discord resolves attachment:// references to CDN URLs in the response url field.
       // proxy_url is the fallback in case url is still an attachment:// reference.
-      const rawUrl = fileComp?.file.url;
+      const rawUrl = mediaItem?.media.url;
       const attachmentUrl =
         rawUrl && !rawUrl.startsWith("attachment://")
           ? rawUrl
-          : (fileComp?.file.data.proxy_url ?? null);
+          : (mediaItem?.media.data.proxy_url ?? null);
 
       this.logger.debug(
         { tagName, guildId: interaction.guildId, rawUrl, attachmentUrl },

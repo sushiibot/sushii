@@ -5,7 +5,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  FileBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   MessageFlags,
@@ -80,8 +79,10 @@ export function createTagAddSuccessContainer(
   );
 
   if (attachmentFilename) {
-    container.addFileComponents(
-      new FileBuilder().setURL(`attachment://${attachmentFilename}`),
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(`attachment://${attachmentFilename}`),
+      ),
     );
   }
 
