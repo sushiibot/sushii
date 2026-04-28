@@ -5,6 +5,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  FileBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   MessageFlags,
@@ -66,6 +67,7 @@ export function createTagAddSuccessContainer(
   tagName: string,
   content: string | null,
   emoji = "✅",
+  attachmentFilename?: string,
 ): ContainerBuilder {
   let text = `${emoji} **Tag added** \`${tagName}\``;
   if (content) {
@@ -76,6 +78,13 @@ export function createTagAddSuccessContainer(
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(text),
   );
+
+  if (attachmentFilename) {
+    container.addFileComponents(
+      new FileBuilder().setURL(`attachment://${attachmentFilename}`),
+    );
+  }
+
   return container;
 }
 
