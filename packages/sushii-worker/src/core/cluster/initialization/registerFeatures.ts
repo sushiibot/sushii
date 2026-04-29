@@ -3,6 +3,7 @@ import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { setupAutomodFeature } from "@/features/automod/setup";
+import { setupChangelogPromptFeature } from "@/features/changelog-prompt/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
@@ -193,6 +194,7 @@ export function registerFeatures(
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
+  const changelogPromptFeature = setupChangelogPromptFeature({ db, client, logger });
   const levelingFeature = setupLevelingFeature({
     db,
     logger,
@@ -334,10 +336,14 @@ export function registerFeatures(
     ...moderationFeature.buttonHandlers,
     ...giveawayFeature.buttonHandlers,
     ...emojiStatsFeature.buttonHandlers,
+    ...changelogPromptFeature.buttonHandlers,
   );
 
   // Select menu handlers
-  interactionRouter.addSelectMenus(...roleMenuFeature.selectMenuHandlers);
+  interactionRouter.addSelectMenus(
+    ...roleMenuFeature.selectMenuHandlers,
+    ...changelogPromptFeature.selectMenuHandlers,
+  );
 
   // ---------------------------------------------------------------------------
   // Build event handlers
@@ -366,6 +372,7 @@ export function registerFeatures(
     ...messageLogFeature.eventHandlers,
     ...reactionLogFeature.eventHandlers,
     ...scheduleFeature.eventHandlers,
+    ...changelogPromptFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------

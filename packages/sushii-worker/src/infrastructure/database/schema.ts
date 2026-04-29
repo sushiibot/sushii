@@ -1003,6 +1003,25 @@ export const scheduleEventsInAppPublic = appPublic.table(
   ],
 );
 
+export const guildChangelogPromptsInAppPublic = appPublic.table(
+  "guild_changelog_prompts",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    lastPromptedAt: timestamp("last_prompted_at", { mode: "date" }),
+    snoozeUntil: timestamp("snooze_until", { mode: "date" }),
+    dismissedAt: timestamp("dismissed_at", { mode: "date" }),
+    followedAt: timestamp("followed_at", { mode: "date" }),
+  },
+  (table) => [
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
 export const scheduleMessagesInAppPublic = appPublic.table(
   "schedule_messages",
   {

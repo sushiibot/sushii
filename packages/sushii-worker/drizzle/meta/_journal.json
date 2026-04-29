@@ -225,6 +225,13 @@
       "when": 1777148789801,
       "tag": "0031_unique_mad_thinker",
       "breakpoints": false
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1777439927224,
+      "tag": "0032_changelog_prompt",
+      "breakpoints": false
     }
   ]
 }
