@@ -9,9 +9,8 @@ import {
   buildFollowUpdatesContent,
 } from "./message";
 
-// TODO: Replace with the actual updates/changelog channel ID once confirmed.
 // The channel must be of type Announcement (GuildAnnouncement) for following to work.
-const UPDATES_CHANNEL_ID = "TODO";
+const UPDATES_CHANNEL_ID = "828010062383153192";
 
 // TODO: Remove once feature is ready for all guilds
 const ENABLED_GUILD_IDS = new Set(["167058919611564043"]);
@@ -71,11 +70,6 @@ export const followUpdatesPrompt: PromptDefinition = {
       }
 
       await i.deferUpdate();
-
-      if (UPDATES_CHANNEL_ID === "TODO") {
-        await i.editReply(buildFollowErrorMessage("Updates channel not configured yet."));
-        return;
-      }
 
       try {
         const updatesChannel = await i.client.channels.fetch(UPDATES_CHANNEL_ID);
