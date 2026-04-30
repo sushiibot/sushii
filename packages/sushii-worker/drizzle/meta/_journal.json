@@ -232,6 +232,13 @@
       "when": 1777439927224,
       "tag": "0032_changelog_prompt",
       "breakpoints": false
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1777570870314,
+      "tag": "0033_prompt_states",
+      "breakpoints": false
     }
   ]
 }

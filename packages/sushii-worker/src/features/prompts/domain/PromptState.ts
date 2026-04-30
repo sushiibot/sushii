@@ -1,7 +1,8 @@
-export interface GuildChangelogPromptData {
+export interface PromptStateData {
   guildId: bigint;
+  promptId: string;
   lastPromptedAt: Date | null;
   snoozeUntil: Date | null;
   dismissedAt: Date | null;
-  followedAt: Date | null;
+  completedAt: Date | null;
 }

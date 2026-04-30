@@ -3,10 +3,10 @@ import { Events } from "discord.js";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
-import type { ChangelogPromptService } from "../../application/ChangelogPromptService";
+import type { PromptService } from "../../application/PromptService";
 
-export class ChangelogPromptEventHandler extends EventHandler<Events.InteractionCreate> {
-  constructor(private readonly changelogPromptService: ChangelogPromptService) {
+export class PromptEventHandler extends EventHandler<Events.InteractionCreate> {
+  constructor(private readonly promptService: PromptService) {
     super();
   }
 
@@ -19,6 +19,6 @@ export class ChangelogPromptEventHandler extends EventHandler<Events.Interaction
     if (!interaction.inCachedGuild()) {
       return;
     }
-    await this.changelogPromptService.maybePrompt(interaction);
+    await this.promptService.maybePrompt(interaction);
   }
 }

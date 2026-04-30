@@ -1003,16 +1003,21 @@ export const scheduleEventsInAppPublic = appPublic.table(
   ],
 );
 
-export const guildChangelogPromptsInAppPublic = appPublic.table(
-  "guild_changelog_prompts",
+export const guildPromptStatesInAppPublic = appPublic.table(
+  "guild_prompt_states",
   {
-    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    promptId: text("prompt_id").notNull(),
     lastPromptedAt: timestamp("last_prompted_at", { mode: "date" }),
     snoozeUntil: timestamp("snooze_until", { mode: "date" }),
     dismissedAt: timestamp("dismissed_at", { mode: "date" }),
-    followedAt: timestamp("followed_at", { mode: "date" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
   },
   (table) => [
+    primaryKey({
+      columns: [table.guildId, table.promptId],
+      name: "guild_prompt_states_pkey",
+    }),
     pgPolicy("admin_access", {
       as: "permissive",
       for: "all",
