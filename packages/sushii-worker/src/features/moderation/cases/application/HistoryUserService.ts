@@ -43,7 +43,7 @@ export class HistoryUserService {
       try {
         user = await this.client.users.fetch(userId);
       } catch (error) {
-        log.error({ error }, "Failed to fetch user from Discord");
+        log.error({ err: error }, "Failed to fetch user from Discord");
         return Err(`Failed to fetch user: ${error}`);
       }
     }

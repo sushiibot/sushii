@@ -59,7 +59,7 @@ export class NamesCommand extends SlashCommandHandler {
     );
 
     if (!result.ok) {
-      log.error(
+      log.warn(
         { err: result.val, targetUserId: targetUser.id },
         "Failed to get user name history",
       );
