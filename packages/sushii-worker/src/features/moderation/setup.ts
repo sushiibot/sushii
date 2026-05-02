@@ -5,6 +5,7 @@ import type { Logger } from "pino";
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import type { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -37,12 +38,14 @@ import {
   CaseRangeAutocompleteService,
   HistoryUserService,
   LookupUserService,
+  NamesUserService,
   ReasonUpdateService,
 } from "./cases/application";
 import { DrizzleUserLookupRepository } from "./cases/infrastructure/repositories/DrizzleUserLookupRepository";
 import {
   HistoryCommand,
   LookupCommand,
+  NamesCommand,
   ReasonCommand,
   UncaseCommand,
   UserInfoContextMenuHandler,
@@ -79,6 +82,7 @@ interface ModerationDependencies {
   logger: Logger;
   emojiRepository: BotEmojiRepository;
   automodAlertReactionService: AutomodAlertReactionService;
+  nameHistoryService: UserNameHistoryService;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -91,6 +95,7 @@ export function createModerationServices({
   logger,
   emojiRepository,
   automodAlertReactionService,
+  nameHistoryService,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -163,6 +168,13 @@ export function createModerationServices({
     logger.child({ module: "historyUserService" }),
   );
 
+  const namesUserService = new NamesUserService(
+    client,
+    nameHistoryService,
+    modLogRepository,
+    logger.child({ module: "namesUserService" }),
+  );
+
   const targetResolutionService = new TargetResolutionService();
 
   // New utility services
@@ -229,6 +241,7 @@ export function createModerationServices({
     moderationService,
     lookupUserService,
     historyUserService,
+    namesUserService,
     targetResolutionService,
     tempBanListService,
     slowmodeService,
@@ -255,6 +268,7 @@ export function createModerationCommands(
     moderationService,
     lookupUserService,
     historyUserService,
+    namesUserService,
     targetResolutionService,
     tempBanListService,
     slowmodeService,
@@ -309,6 +323,10 @@ export function createModerationCommands(
     new ReasonCommand(
       reasonUpdateService,
       logger.child({ commandHandler: "reason" }),
+    ),
+    new NamesCommand(
+      namesUserService,
+      logger.child({ commandHandler: "names" }),
     ),
   );
 
@@ -388,6 +406,7 @@ export function setupModerationFeature({
   deploymentService,
   emojiRepository,
   automodAlertReactionService,
+  nameHistoryService,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
@@ -397,6 +416,7 @@ export function setupModerationFeature({
     logger,
     emojiRepository,
     automodAlertReactionService,
+    nameHistoryService,
   });
   const commands = createModerationCommands(services, logger);
   const events = createModerationEventHandlers(services, logger);

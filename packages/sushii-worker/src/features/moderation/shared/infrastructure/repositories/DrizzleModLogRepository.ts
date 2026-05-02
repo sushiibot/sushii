@@ -708,4 +708,26 @@ export class DrizzleModLogRepository implements ModLogRepository {
       row.deleteMessageSeconds !== null ? Number(row.deleteMessageSeconds) : null,
     );
   }
+
+  async hasAnyForGuild(guildId: string, userId: string): Promise<boolean> {
+    try {
+      const result = await this.db
+        .select({ id: modLogsInAppPublic.caseId })
+        .from(modLogsInAppPublic)
+        .where(
+          and(
+            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+            eq(modLogsInAppPublic.userId, BigInt(userId)),
+          ),
+        )
+        .limit(1);
+      return result.length > 0;
+    } catch (error) {
+      this.logger.error(
+        { err: error, guildId, userId },
+        "Failed to check mod log existence for guild",
+      );
+      throw error;
+    }
+  }
 }
