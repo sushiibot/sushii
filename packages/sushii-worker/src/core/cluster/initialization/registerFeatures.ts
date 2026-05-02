@@ -7,6 +7,7 @@ import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
+import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
 import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
@@ -166,6 +167,9 @@ export function registerFeatures(
   // Cache feature
   const cacheFeature = createCacheFeature({ logger, db });
 
+  // User name history feature
+  const userNameHistoryFeature = setupUserNameHistoryFeature({ db });
+
   // Stats feature (setup early so other features can use it)
   const statsFeature = setupStatsFeature({
     db,
@@ -235,6 +239,7 @@ export function registerFeatures(
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
     automodAlertReactionService:
       automodFeature.services.automodAlertReactionService,
+    nameHistoryService: userNameHistoryFeature.service,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,
@@ -360,6 +365,7 @@ export function registerFeatures(
     ...notificationFeature.eventHandlers,
     ...memberEventsFeature.eventHandlers,
     ...moderationFeature.eventHandlers,
+    ...userNameHistoryFeature.eventHandlers,
     ...cacheFeature.eventHandlers,
     ...banCacheFeature.eventHandlers,
     ...webhookLoggingFeature.eventHandlers,
