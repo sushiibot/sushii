@@ -4,7 +4,7 @@ import type * as schema from "@/infrastructure/database/schema";
 
 import { UserNameHistoryService } from "./application";
 import { DrizzleUserNameHistoryRepository } from "./infrastructure";
-import { NameHistoryGuildMemberUpdateHandler } from "./presentation";
+import { UserNameHistoryGuildMemberUpdateHandler } from "./presentation";
 
 interface UserNameHistoryFeatureDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -12,7 +12,7 @@ interface UserNameHistoryFeatureDependencies {
 
 export interface UserNameHistoryFeature {
   service: UserNameHistoryService;
-  eventHandlers: [NameHistoryGuildMemberUpdateHandler];
+  eventHandlers: [UserNameHistoryGuildMemberUpdateHandler];
 }
 
 export function setupUserNameHistoryFeature(
@@ -23,6 +23,6 @@ export function setupUserNameHistoryFeature(
 
   return {
     service,
-    eventHandlers: [new NameHistoryGuildMemberUpdateHandler(service)],
+    eventHandlers: [new UserNameHistoryGuildMemberUpdateHandler(service)],
   };
 }
