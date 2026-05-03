@@ -368,13 +368,17 @@ export default class InteractionRouter {
         Routes.applicationCommands(config.discord.applicationId),
         { body: this.getCommandsArray() },
       );
+    } catch (err) {
+      log.error(err, "error registering global commands");
+    }
 
-      for (const [guildId, handlers] of this.guildCommands) {
-        const body = [...handlers.values()].map((h) => h.command);
-        log.info(
-          { guildId, count: body.length },
-          "registering guild-specific commands",
-        );
+    for (const [guildId, handlers] of this.guildCommands) {
+      const body = [...handlers.values()].map((h) => h.command);
+      log.info(
+        { guildId, count: body.length },
+        "registering guild-specific commands",
+      );
+      try {
         await this.client.rest.put(
           Routes.applicationGuildCommands(
             config.discord.applicationId,
@@ -382,10 +386,14 @@ export default class InteractionRouter {
           ),
           { body },
         );
+      } catch (err) {
+        log.error({ err, guildId }, "error registering guild commands");
       }
+    }
 
-      for (const guildId of this.guildsToClear) {
-        log.info({ guildId }, "clearing stale guild commands");
+    for (const guildId of this.guildsToClear) {
+      log.info({ guildId }, "clearing stale guild commands");
+      try {
         await this.client.rest.put(
           Routes.applicationGuildCommands(
             config.discord.applicationId,
@@ -393,12 +401,12 @@ export default class InteractionRouter {
           ),
           { body: [] },
         );
+      } catch (err) {
+        log.error({ err, guildId }, "error clearing guild commands");
       }
-
-      log.info("commands registered!");
-    } catch (err) {
-      log.error(err, "error registering commands");
     }
+
+    log.info("commands registered!");
   }
 
   /**
