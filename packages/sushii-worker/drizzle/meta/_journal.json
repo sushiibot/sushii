@@ -239,6 +239,13 @@
       "when": 1777570870314,
       "tag": "0033_prompt_states",
       "breakpoints": false
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777753517099,
+      "tag": "0034_user-name-history",
+      "breakpoints": false
     }
   ]
 }

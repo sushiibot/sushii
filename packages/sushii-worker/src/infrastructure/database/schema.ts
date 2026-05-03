@@ -51,6 +51,11 @@ export const notificationBlockTypeInAppPublic = appPublic.enum(
   "notification_block_type",
   ["user", "channel", "category"],
 );
+export const nameTypeInAppPublic = appPublic.enum("name_type", [
+  "username",
+  "global_name",
+  "nickname",
+]);
 
 export const cachedUsersInAppPublic = appPublic.table(
   "cached_users",
@@ -68,6 +73,21 @@ export const cachedUsersInAppPublic = appPublic.table(
       to: ["public"],
       using: sql`true`,
     }),
+  ],
+);
+
+export const userNameHistoryInAppPublic = appPublic.table(
+  "user_name_history",
+  {
+    id: serial().primaryKey(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    nameType: nameTypeInAppPublic("name_type").notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }),
+    value: text(),
+    recordedAt: timestamp("recorded_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_user_name_history_user").on(t.userId, t.recordedAt.desc()),
   ],
 );
 
