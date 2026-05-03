@@ -290,7 +290,13 @@ export function registerFeatures(
     logger.child({ component: "ReactionLogFeature" }),
   );
 
+  // Guild IDs that previously had guild-specific commands.
+  // Add a guild here when removing it from a command's registeredGuilds so the
+  // stale commands are wiped from Discord on next deploy, then remove once cleared.
+  const retiredGuildCommandIds: string[] = [];
+
   // Register commands and handlers on interaction router
+  interactionRouter.clearGuildCommands(...retiredGuildCommandIds);
   interactionRouter.addCommands(
     ...levelingFeature.commands,
     ...tagFeature.commands,

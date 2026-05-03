@@ -135,6 +135,13 @@ export default class InteractionRouter {
   private guildCommands: Map<string, Collection<string, SlashCommandHandler>>;
 
   /**
+   * Guild IDs whose commands should be cleared on the next register() call.
+   * Use this when a guild is removed from a command's registeredGuilds so the
+   * stale commands are deleted from Discord rather than left as ghost entries.
+   */
+  private guildsToClear: Set<string>;
+
+  /**
    * Autocomplete handlers
    */
   private autocompleteHandlers: Collection<string, AutocompleteHandler>;
@@ -171,6 +178,7 @@ export default class InteractionRouter {
     this.interactionMetrics = interactionMetrics;
     this.commands = new Collection();
     this.guildCommands = new Map();
+    this.guildsToClear = new Set();
     this.autocompleteHandlers = new Collection();
     this.modalHandlers = [];
     this.buttonHandlers = [];
@@ -203,6 +211,19 @@ export default class InteractionRouter {
       }
     } else {
       this.commands.set(command.command.name, command);
+    }
+  }
+
+  /**
+   * Mark guilds whose commands should be cleared on the next register() call.
+   * Use this when a guild is retired from a command's registeredGuilds so the
+   * stale commands are deleted from Discord rather than left as ghost entries.
+   *
+   * @param guildIds Guild IDs to clear commands for
+   */
+  public clearGuildCommands(...guildIds: string[]): void {
+    for (const guildId of guildIds) {
+      this.guildsToClear.add(guildId);
     }
   }
 
@@ -360,6 +381,17 @@ export default class InteractionRouter {
             guildId,
           ),
           { body },
+        );
+      }
+
+      for (const guildId of this.guildsToClear) {
+        log.info({ guildId }, "clearing stale guild commands");
+        await this.client.rest.put(
+          Routes.applicationGuildCommands(
+            config.discord.applicationId,
+            guildId,
+          ),
+          { body: [] },
         );
       }
 
