@@ -14,6 +14,8 @@ import type { NamesUserService } from "../../application/NamesUserService";
 import { buildUserNamesReply } from "../views/UserNamesView";
 
 export class NamesCommand extends SlashCommandHandler {
+  readonly registeredGuilds = ["187450744427773963"] as const;
+
   requiredBotPermissions = new PermissionsBitField();
 
   command = new SlashCommandBuilder()

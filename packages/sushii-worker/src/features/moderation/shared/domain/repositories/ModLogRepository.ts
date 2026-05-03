@@ -188,4 +188,10 @@ export interface ModLogAuditOperations {
  */
 export interface ModLogRepository
   extends ModLogCaseOperations,
-    ModLogAuditOperations {}
+    ModLogAuditOperations {
+  /**
+   * Returns true if the user has any moderation record in the given guild.
+   * Used to verify a moderation relationship before exposing user history.
+   */
+  hasAnyForGuild(guildId: string, userId: string): Promise<boolean>;
+}

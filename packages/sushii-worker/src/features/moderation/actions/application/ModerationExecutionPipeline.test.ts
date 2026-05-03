@@ -204,6 +204,7 @@ describe("ModerationExecutionPipeline", () => {
       markAsNotPending: mock(() => Promise.resolve(Ok({} as ModerationCase))),
       updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
       updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
+      hasAnyForGuild: mock(() => Promise.resolve(false)),
     };
 
     mockTempBanRepository = {
