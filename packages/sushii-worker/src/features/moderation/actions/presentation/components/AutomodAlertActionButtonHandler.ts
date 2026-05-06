@@ -365,6 +365,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     await modalSubmission.editReply({
       components: [updatedContainer],
       flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
     });
   }
 }
