@@ -38,10 +38,13 @@ export class AutomodAlertReactionService {
 
       try {
         const entries = this.cache.consumeRecent(guild.id, targetUserId);
+        // Entries are oldest-first; react only to the latest to avoid reacting
+        // to all messages when a user triggers multiple automod alerts at once.
+        const latest = entries[entries.length - 1];
 
-        span.setAttribute("alert.entries.count", entries.length);
+        span.setAttribute("alert.entries.total", entries.length);
 
-        if (entries.length === 0) {
+        if (!latest) {
           this.logger.debug(
             { guildId: guild.id, targetUserId, actionType },
             "No recent automod alert entries found for user, skipping reaction",
@@ -58,11 +61,7 @@ export class AutomodAlertReactionService {
 
         span.setAttribute("emoji", emojiString);
 
-        await Promise.all(
-          entries.map((entry) =>
-            this.reactToMessage(guild, targetUserId, entry.channelId, entry.messageId, emojiString),
-          ),
-        );
+        await this.reactToMessage(guild, targetUserId, latest.channelId, latest.messageId, emojiString);
       } catch (error) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
