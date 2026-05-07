@@ -180,7 +180,7 @@ export class SpamActionService {
     const timeoutMinutes = SPAM_TIMEOUT_MS / 60_000;
     const summary = [
       `-# AutoMod · Spam Detection`,
-      `<@${userId}> (\`${username}\`) timed out for ${timeoutMinutes} minutes`,
+      `<@${userId}> (\`${userId}\`) timed out for ${timeoutMinutes} minutes`,
       `Same message sent to ${channelCount} channels · ${deletedMessageCount} messages deleted`,
     ].join("\n");
 

@@ -10,7 +10,7 @@ interface ChannelRecord {
 type ContentHashTracker = Map<string, Map<string, ChannelRecord[]>>;
 
 export class SpamDetectionService {
-  static readonly SPAM_WINDOW_MS = 5000;
+  static readonly SPAM_WINDOW_MS = 60000;
   private static readonly CLEANUP_INTERVAL_MS = 30000;
   private static readonly SPAM_CHANNEL_THRESHOLD = 3;
 
