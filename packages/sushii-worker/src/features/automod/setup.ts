@@ -10,6 +10,8 @@ import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
 import { SpamActionService } from "./application/SpamActionService";
+import { SpamAlertCache } from "./application/SpamAlertCache";
+import { SpamAlertUpdateService } from "./application/SpamAlertUpdateService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
@@ -18,6 +20,7 @@ export interface AutomodFeature {
   eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler];
   services: {
     automodAlertReactionService: AutomodAlertReactionService;
+    spamAlertUpdateService: SpamAlertUpdateService;
   };
   destroy(): void;
 }
@@ -39,9 +42,18 @@ export function setupAutomodFeature(
     logger.child({ component: "SpamDetectionService" }),
   );
 
+  const spamAlertCache = new SpamAlertCache();
+
   const spamActionService = new SpamActionService(
     client,
+    spamAlertCache,
     logger.child({ component: "SpamActionService" }),
+  );
+
+  const spamAlertUpdateService = new SpamAlertUpdateService(
+    client,
+    spamAlertCache,
+    logger.child({ component: "SpamAlertUpdateService" }),
   );
 
   const automodAlertCache = new AutomodAlertCache();
@@ -75,6 +87,7 @@ export function setupAutomodFeature(
     eventHandlers: [automodMessageHandler, automodAlertExecutionHandler],
     services: {
       automodAlertReactionService,
+      spamAlertUpdateService,
     },
     destroy: () => spamDetectionService.destroy(),
   };

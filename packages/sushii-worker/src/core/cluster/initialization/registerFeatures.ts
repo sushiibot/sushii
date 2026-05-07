@@ -239,6 +239,7 @@ export function registerFeatures(
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
     automodAlertReactionService:
       automodFeature.services.automodAlertReactionService,
+    spamAlertUpdateService: automodFeature.services.spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
   });
   const giveawayFeature = setupGiveawayFeature({

@@ -7,6 +7,7 @@ import { Err, Ok } from "ts-results";
 const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
 
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
+import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { DMFailureReason, DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
@@ -46,6 +47,7 @@ export class AuditLogService {
     private readonly modLogPostingService: ModLogPostingService,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly automodAlertReactionService: AutomodAlertReactionService,
+    private readonly spamAlertUpdateService: SpamAlertUpdateService,
     private readonly logger: Logger,
     private readonly softbanSuppressionSet: SoftbanSuppressionSet,
   ) {}
@@ -75,6 +77,18 @@ export class AuditLogService {
         )
         .catch((err: unknown) => {
           this.logger.warn({ err }, "Failed to react to automod alerts");
+        });
+
+      // Update sushii's own spam detection alert for this user if one exists
+      this.spamAlertUpdateService
+        .updateSpamAlert(
+          guild,
+          findResult.targetUserId,
+          findResult.auditLogEvent.actionType,
+          findResult.auditLogEvent.executorId,
+        )
+        .catch((err: unknown) => {
+          this.logger.warn({ err }, "Failed to update spam alert");
         });
 
       if (findResult.tag === "skip") {

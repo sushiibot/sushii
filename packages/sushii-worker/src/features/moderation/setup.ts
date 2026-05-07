@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
+import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { UserNameHistoryService } from "@/features/user-name-history";
@@ -82,6 +83,7 @@ interface ModerationDependencies {
   logger: Logger;
   emojiRepository: BotEmojiRepository;
   automodAlertReactionService: AutomodAlertReactionService;
+  spamAlertUpdateService: SpamAlertUpdateService;
   nameHistoryService: UserNameHistoryService;
 }
 
@@ -89,12 +91,14 @@ interface ModerationTaskDependencies extends ModerationDependencies {
   deploymentService: DeploymentService;
 }
 
+
 export function createModerationServices({
   db,
   client,
   logger,
   emojiRepository,
   automodAlertReactionService,
+  spamAlertUpdateService,
   nameHistoryService,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
@@ -228,6 +232,7 @@ export function createModerationServices({
     modLogPostingService,
     guildConfigRepository,
     automodAlertReactionService,
+    spamAlertUpdateService,
     logger.child({ module: "auditLogService" }),
     softbanSuppressionSet,
   );
@@ -406,6 +411,7 @@ export function setupModerationFeature({
   deploymentService,
   emojiRepository,
   automodAlertReactionService,
+  spamAlertUpdateService,
   nameHistoryService,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
@@ -416,6 +422,7 @@ export function setupModerationFeature({
     logger,
     emojiRepository,
     automodAlertReactionService,
+    spamAlertUpdateService,
     nameHistoryService,
   });
   const commands = createModerationCommands(services, logger);

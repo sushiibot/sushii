@@ -4,6 +4,8 @@ import pino from "pino";
 
 import { AutomodAlertCache } from "@/features/automod/application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
+import { SpamAlertCache } from "@/features/automod/application/SpamAlertCache";
+import { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import { DrizzleBotEmojiRepository } from "@/features/bot-emojis";
 import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -83,6 +85,11 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     botEmojiRepository,
     logger,
   );
+  const spamAlertUpdateService = new SpamAlertUpdateService(
+    mockDiscord.client as unknown as Client,
+    new SpamAlertCache(),
+    logger,
+  );
   const userNameHistoryFeature = setupUserNameHistoryFeature({ db });
   const moderationFeature = setupModerationFeature({
     db,
@@ -91,6 +98,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     deploymentService,
     emojiRepository: botEmojiRepository,
     automodAlertReactionService,
+    spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
   });
 

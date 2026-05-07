@@ -18,6 +18,7 @@ import Color from "@/utils/colors";
 import customIds from "@/interactions/customIds";
 
 import { SpamDetectionService } from "./SpamDetectionService";
+import type { SpamAlertCache } from "./SpamAlertCache";
 
 interface SpamAttachment {
   filename: string;
@@ -30,6 +31,7 @@ const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 export class SpamActionService {
   constructor(
     private readonly client: Client,
+    private readonly spamAlertCache: SpamAlertCache,
     private readonly logger: Logger,
   ) {}
 
@@ -254,11 +256,13 @@ export class SpamActionService {
       .addSeparatorComponents(new SeparatorBuilder())
       .addActionRowComponents(actionRow);
 
-    await channel.send({
+    const alertMessage = await channel.send({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [], users: [] },
     });
+
+    this.spamAlertCache.track(guild.id, userId, alertMessage.channelId, alertMessage.id);
   }
 
   private async sweepRemainingSpamMessages(
