@@ -1089,7 +1089,7 @@ export const scheduleMessagesInAppPublic = appPublic.table(
 
 const globalRankingViewColumns = {
   userId: bigint("user_id", { mode: "bigint" }).notNull(),
-  totalXp: bigint("total_xp", { mode: "bigint" }),
+  totalXp: bigint("total_xp", { mode: "bigint" }).notNull(),
   rank: bigint("rank", { mode: "bigint" }).notNull(),
 };
 

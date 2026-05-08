@@ -1,4 +1,4 @@
-import { type SQL, sql as drizzleSql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { Client } from "discord.js";
 import type { Logger } from "pino";
 

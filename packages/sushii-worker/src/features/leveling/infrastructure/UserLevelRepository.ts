@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, sum, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import {
@@ -143,44 +143,26 @@ export class UserLevelRepository implements IUserLevelRepository {
     }
   }
 
-  private async getPrivateUserCountInTimeframe(
-    guildId: string,
-    timeframe: TimeFrame,
-  ): Promise<number> {
-    const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
-
+  private getTimeframeConditions(timeframe: TimeFrame): SQL[] {
     switch (timeframe) {
       case TimeFrame.DAY:
-        conditions.push(
+        return [
           sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
           sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        );
-        break;
+        ];
       case TimeFrame.WEEK:
-        conditions.push(
+        return [
           sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
           sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        );
-        break;
+        ];
       case TimeFrame.MONTH:
-        conditions.push(
+        return [
           sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
           sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        );
-        break;
+        ];
       case TimeFrame.ALL_TIME:
-        // No additional filtering needed
-        break;
+        return [];
     }
-
-    const result = await this.db
-      // count() automatically maps to Number! If doing a raw sql for COUNT(),
-      // it will return string and require manual .mapWith(Number)
-      .select({ count: count() })
-      .from(userLevelsInAppPublic)
-      .where(and(...conditions));
-
-    return result[0]?.count ?? 0;
   }
 
   private async getUserGuildTimeframeRank(
@@ -190,7 +172,7 @@ export class UserLevelRepository implements IUserLevelRepository {
   ): Promise<UserRankData> {
     try {
       // First get total count as it's always returned
-      const totalCount = await this.getPrivateUserCountInTimeframe(
+      const totalCount = await this.getUserCountInTimeframe(
         guildId,
         timeframe,
       );
@@ -208,12 +190,6 @@ export class UserLevelRepository implements IUserLevelRepository {
         .limit(1);
 
       if (!user[0]) {
-        // Still want to return the total
-        const totalCount = await this.getPrivateUserCountInTimeframe(
-          guildId,
-          timeframe,
-        );
-
         return {
           rank: null,
           total_count: totalCount,
@@ -224,30 +200,7 @@ export class UserLevelRepository implements IUserLevelRepository {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
       const orderColumn = this.getOrderByColumn(timeframe);
 
-      // Add timeframe conditions
-      switch (timeframe) {
-        case TimeFrame.DAY:
-          conditions.push(
-            sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.WEEK:
-          conditions.push(
-            sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.MONTH:
-          conditions.push(
-            sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.ALL_TIME:
-          // No additional conditions
-          break;
-      }
+      conditions.push(...this.getTimeframeConditions(timeframe));
 
       // Get the user's XP for this timeframe
       const userXpResult = await this.db
@@ -361,30 +314,7 @@ export class UserLevelRepository implements IUserLevelRepository {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
       const orderColumn = this.getOrderByColumn(timeframe);
 
-      // Add timeframe conditions for filtering users
-      switch (timeframe) {
-        case TimeFrame.DAY:
-          conditions.push(
-            sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.WEEK:
-          conditions.push(
-            sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.MONTH:
-          conditions.push(
-            sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.ALL_TIME:
-          // No additional conditions
-          break;
-      }
+      conditions.push(...this.getTimeframeConditions(timeframe));
 
       const result = await this.db
         .select({
@@ -425,29 +355,7 @@ export class UserLevelRepository implements IUserLevelRepository {
     try {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
 
-      switch (timeframe) {
-        case TimeFrame.DAY:
-          conditions.push(
-            sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.WEEK:
-          conditions.push(
-            sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.MONTH:
-          conditions.push(
-            sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
-            sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-          );
-          break;
-        case TimeFrame.ALL_TIME:
-          // No additional filtering needed
-          break;
-      }
+      conditions.push(...this.getTimeframeConditions(timeframe));
 
       const result = await this.db
         .select({ count: count() })

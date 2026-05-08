@@ -78,12 +78,19 @@ export function registerTasks(
     );
 
     if (task.runOnInit) {
-      task.onTick().catch((err) =>
+      task.onTick().catch((err) => {
+        Sentry.captureException(err, {
+          tags: {
+            type: "task",
+            name: task.name,
+            clusterId: client.cluster.id,
+          },
+        });
         logger.error(
-          { err, taskName: task.name },
+          { err, taskName: task.name, clusterId: client.cluster.id },
           "runOnInit task failed",
-        ),
-      );
+        );
+      });
     }
   }
 }
