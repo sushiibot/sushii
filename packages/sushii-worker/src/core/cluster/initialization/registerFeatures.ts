@@ -203,6 +203,8 @@ export function registerFeatures(
     db,
     logger,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
+    client,
+    deploymentService,
   });
   const tagFeature = setupTagFeature({
     db,
@@ -446,6 +448,7 @@ export function registerFeatures(
     ...statsFeature.tasks,
     ...remindersFeature.tasks,
     ...scheduleFeature.tasks,
+    ...levelingFeature.tasks,
   ];
 
   registerTasks(client, featureTasks);

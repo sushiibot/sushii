@@ -1,7 +1,9 @@
+import type { GlobalLeaderboardEntry } from "../entities/GlobalLeaderboardEntry";
 import type { GlobalUserLevel } from "../entities/GlobalUserLevel";
 import type { LeaderboardEntry } from "../entities/LeaderboardEntry";
 import type { UserLevel } from "../entities/UserLevel";
 import type { UserRank } from "../entities/UserRank";
+import type { RankPosition } from "../value-objects/RankPosition";
 import type { TimeFrame } from "../value-objects/TimeFrame";
 
 export interface UserLevelRepository {
@@ -24,4 +26,13 @@ export interface UserLevelRepository {
     guildId: string,
     timeframe: TimeFrame,
   ): Promise<number>;
+  getGlobalLeaderboardPage(
+    timeframe: TimeFrame,
+    pageIndex: number,
+    pageSize: number,
+  ): Promise<GlobalLeaderboardEntry[]>;
+  getGlobalUserRank(
+    userId: string,
+    timeframe: TimeFrame,
+  ): Promise<RankPosition>;
 }

@@ -1,14 +1,22 @@
-import { and, count, desc, eq, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, sum } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { userLevelsInAppPublic } from "@/infrastructure/database/schema";
+import {
+  globalUserLevelRankingsAllTime,
+  globalUserLevelRankingsDay,
+  globalUserLevelRankingsMonth,
+  globalUserLevelRankingsWeek,
+  userLevelsInAppPublic,
+} from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
+import { GlobalLeaderboardEntry } from "../domain/entities/GlobalLeaderboardEntry";
 import { GlobalUserLevel } from "../domain/entities/GlobalUserLevel";
 import { LeaderboardEntry } from "../domain/entities/LeaderboardEntry";
 import { UserLevel } from "../domain/entities/UserLevel";
 import { UserRank } from "../domain/entities/UserRank";
 import type { UserLevelRepository as IUserLevelRepository } from "../domain/repositories/UserLevelRepository";
+import { RankPosition } from "../domain/value-objects/RankPosition";
 import { TimeFrame } from "../domain/value-objects/TimeFrame";
 
 export type DrizzleDB = NodePgDatabase<typeof schema>;
@@ -453,5 +461,74 @@ export class UserLevelRepository implements IUserLevelRepository {
         { cause: error },
       );
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Global leaderboard
+
+  private getGlobalView(timeframe: TimeFrame) {
+    switch (timeframe) {
+      case TimeFrame.DAY:
+        return globalUserLevelRankingsDay;
+      case TimeFrame.WEEK:
+        return globalUserLevelRankingsWeek;
+      case TimeFrame.MONTH:
+        return globalUserLevelRankingsMonth;
+      case TimeFrame.ALL_TIME:
+        return globalUserLevelRankingsAllTime;
+    }
+  }
+
+  private async getGlobalUserCount(timeframe: TimeFrame): Promise<number> {
+    const view = this.getGlobalView(timeframe);
+    const result = await this.db.select({ count: count() }).from(view);
+    return result[0]?.count ?? 0;
+  }
+
+  async getGlobalLeaderboardPage(
+    timeframe: TimeFrame,
+    pageIndex: number,
+    pageSize: number,
+  ): Promise<GlobalLeaderboardEntry[]> {
+    const view = this.getGlobalView(timeframe);
+
+    const result = await this.db
+      .select({
+        userId: view.userId,
+        totalXp: view.totalXp,
+        rank: view.rank,
+      })
+      .from(view)
+      .orderBy(asc(view.rank))
+      .limit(pageSize)
+      .offset(pageIndex * pageSize);
+
+    return result.map((row) =>
+      GlobalLeaderboardEntry.create(
+        String(row.userId),
+        Number(row.rank),
+        BigInt(row.totalXp ?? "0"),
+      ),
+    );
+  }
+
+  async getGlobalUserRank(
+    userId: string,
+    timeframe: TimeFrame,
+  ): Promise<RankPosition> {
+    const view = this.getGlobalView(timeframe);
+    const totalCount = await this.getGlobalUserCount(timeframe);
+
+    const result = await this.db
+      .select({ rank: view.rank })
+      .from(view)
+      .where(eq(view.userId, BigInt(userId)))
+      .limit(1);
+
+    if (!result[0] || result[0].rank === null) {
+      return RankPosition.unranked(totalCount);
+    }
+
+    return RankPosition.create(Number(result[0].rank), totalCount);
   }
 }

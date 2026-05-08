@@ -246,6 +246,13 @@
       "when": 1777753517099,
       "tag": "0034_user-name-history",
       "breakpoints": false
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1778217381097,
+      "tag": "0035_global_leaderboard_views_and_indexes",
+      "breakpoints": false
     }
   ]
 }

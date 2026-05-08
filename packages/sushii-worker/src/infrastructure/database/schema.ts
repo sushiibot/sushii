@@ -771,6 +771,7 @@ export const userLevelsInAppPublic = appPublic.table(
       columns: [table.userId, table.guildId],
       name: "user_levels_pkey",
     }),
+    index("user_levels_last_msg_idx").on(table.lastMsg),
     pgPolicy("admin_access", {
       as: "permissive",
       for: "all",
@@ -1081,4 +1082,41 @@ export const scheduleMessagesInAppPublic = appPublic.table(
       table.calendarId,
     ),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Global leaderboard materialized views
+
+const globalRankingViewColumns = {
+  userId: bigint("user_id", { mode: "bigint" }).notNull(),
+  totalXp: bigint("total_xp", { mode: "bigint" }),
+  rank: bigint("rank", { mode: "bigint" }).notNull(),
+};
+
+export const globalUserLevelRankingsAllTime = appPublic.materializedView(
+  "global_user_level_rankings_all_time",
+  globalRankingViewColumns,
+).as(
+  sql`SELECT user_id, SUM(msg_all_time) AS total_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_all_time) DESC, user_id DESC) AS rank FROM app_public.user_levels GROUP BY user_id`,
+);
+
+export const globalUserLevelRankingsDay = appPublic.materializedView(
+  "global_user_level_rankings_day",
+  globalRankingViewColumns,
+).as(
+  sql`SELECT user_id, SUM(msg_day) AS total_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_day) DESC, user_id DESC) AS rank FROM app_public.user_levels WHERE last_msg >= date_trunc('day', now()) AND last_msg < date_trunc('day', now()) + interval '1 day' GROUP BY user_id`,
+);
+
+export const globalUserLevelRankingsWeek = appPublic.materializedView(
+  "global_user_level_rankings_week",
+  globalRankingViewColumns,
+).as(
+  sql`SELECT user_id, SUM(msg_week) AS total_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_week) DESC, user_id DESC) AS rank FROM app_public.user_levels WHERE last_msg >= date_trunc('week', now()) AND last_msg < date_trunc('week', now()) + interval '1 week' GROUP BY user_id`,
+);
+
+export const globalUserLevelRankingsMonth = appPublic.materializedView(
+  "global_user_level_rankings_month",
+  globalRankingViewColumns,
+).as(
+  sql`SELECT user_id, SUM(msg_month) AS total_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_month) DESC, user_id DESC) AS rank FROM app_public.user_levels WHERE last_msg >= date_trunc('month', now()) AND last_msg < date_trunc('month', now()) + interval '1 month' GROUP BY user_id`,
 );

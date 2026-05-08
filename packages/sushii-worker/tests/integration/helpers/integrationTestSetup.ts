@@ -77,7 +77,11 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   const botEmojiRepository = new DrizzleBotEmojiRepository(db);
 
   // Create leveling services (needed for giveaways)
-  const levelingServices = createLevelingServices({ db, logger, emojiRepository: botEmojiRepository });
+  const levelingServices = createLevelingServices({
+    db,
+    logger,
+    emojiRepository: botEmojiRepository,
+  });
 
   // Create moderation services with mock client
   const automodAlertReactionService = new AutomodAlertReactionService(

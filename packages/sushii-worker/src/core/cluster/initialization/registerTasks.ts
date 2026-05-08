@@ -76,5 +76,14 @@ export function registerTasks(
       },
       "Started background task",
     );
+
+    if (task.runOnInit) {
+      task.onTick().catch((err) =>
+        logger.error(
+          { err, taskName: task.name },
+          "runOnInit task failed",
+        ),
+      );
+    }
   }
 }

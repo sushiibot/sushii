@@ -6,6 +6,7 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 export abstract class AbstractBackgroundTask {
   abstract readonly name: string;
   abstract readonly cronTime: string;
+  readonly runOnInit: boolean = false;
 
   constructor(
     protected readonly client: Client,
