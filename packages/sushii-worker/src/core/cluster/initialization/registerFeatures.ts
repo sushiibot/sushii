@@ -296,7 +296,12 @@ export function registerFeatures(
   // Guild IDs that previously had guild-specific commands.
   // Add a guild here when removing it from a command's registeredGuilds so the
   // stale commands are wiped from Discord on next deploy, then remove once cleared.
-  const retiredGuildCommandIds: string[] = [];
+  // 187450744427773963, 167058919611564043 — previously had guild-specific
+  // `names` and `global-leaderboard` commands, now registered globally.
+  const retiredGuildCommandIds: string[] = [
+    "187450744427773963",
+    "167058919611564043",
+  ];
 
   // Register commands and handlers on interaction router
   interactionRouter.clearGuildCommands(...retiredGuildCommandIds);
