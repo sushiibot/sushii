@@ -53,7 +53,7 @@ jobs:
     needs: docker-build
     uses: sushiibot/sushii-workflows/.github/workflows/deploy.yml@main
     with:
-      service: private-bots/sushii-mcp
+      service: sushii-bot/sushii-mcp
       image_version: ${{ needs.docker-build.outputs.sha_short }}
       host: sushii-bot
       environment: sushii-mcp
