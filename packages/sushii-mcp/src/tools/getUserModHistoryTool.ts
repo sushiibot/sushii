@@ -9,7 +9,7 @@ export function registerGetUserModHistoryTool(server: McpServer, db: Db): void {
     "get_user_mod_history",
     {
       description:
-        "Get a user's moderation case history in a guild, ordered by case ID descending (most recent first). Excludes pending cases.",
+        "All moderation cases against a specific user in a guild (warns, bans, kicks, mutes, notes), newest first. Returns: caseId, action, actionTime (ISO), userId, userTag, executorId, reason, attachments.",
       inputSchema: {
         guild_id: z.string().describe("Discord guild (server) ID"),
         user_id: z.string().describe("Discord user ID"),

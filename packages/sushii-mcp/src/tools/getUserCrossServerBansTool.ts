@@ -12,7 +12,7 @@ export function registerGetUserCrossServerBansTool(
     "get_user_cross_server_bans",
     {
       description:
-        "Get all guilds that currently have a user banned. Results include guild metadata and apply opt-out redaction: guilds with lookupDetailsOptIn=false will have guildName set to '[redacted]' and reason set to null.",
+        "All guilds that currently have a user banned, with guild name, member count, ban reason, and timestamp. Guilds that opted out of cross-server sharing show '[redacted]' for name and null for reason — the ban is still counted.",
       inputSchema: {
         user_id: z.string().describe("Discord user ID"),
       },

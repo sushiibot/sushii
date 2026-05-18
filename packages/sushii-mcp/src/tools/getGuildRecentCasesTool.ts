@@ -12,7 +12,7 @@ export function registerGetGuildRecentCasesTool(
     "get_guild_recent_cases",
     {
       description:
-        "Get the most recent moderation cases across all users in a guild, ordered by case ID descending. Includes pending cases unlike get_user_mod_history.",
+        "Most recent moderation actions across all users in the guild, newest first. Same fields as get_user_mod_history but guild-wide. Useful for understanding current enforcement activity and patterns.",
       inputSchema: {
         guild_id: z.string().describe("Discord guild (server) ID"),
         limit: z
