@@ -2,6 +2,9 @@
   "name": "@sushiibot/sushii-worker",
   "version": "1.0.0",
   "main": "./index.js",
+  "exports": {
+    "./schema": "./src/infrastructure/database/schema.ts"
+  },
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "bun run ./src/index.ts",

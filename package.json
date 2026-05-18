@@ -2,7 +2,8 @@
   "name": "sushii",
   "private": true,
   "workspaces": [
-    "packages/sushii-worker"
+    "packages/sushii-worker",
+    "packages/sushii-mcp"
   ],
   "scripts": {
     "prepare": "lefthook install",
