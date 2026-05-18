@@ -22,7 +22,7 @@ describe("parseValidationError", () => {
     test("handles ValidationError from string validation", () => {
       let error: unknown;
       try {
-        s.string.parse(123);
+        s.string().parse(123);
       } catch (e) {
         error = e;
       }
@@ -61,7 +61,7 @@ describe("parseValidationError", () => {
     test("handles ExpectedConstraintError from number validation", () => {
       let error: unknown;
       try {
-        s.number.greaterThan(10).parse(5);
+        s.number().greaterThan(10).parse(5);
       } catch (e) {
         error = e;
       }
@@ -82,9 +82,9 @@ describe("parseValidationError", () => {
   describe("handles real object validation errors", () => {
     test("handles object validation with multiple property errors", () => {
       const userSchema = s.object({
-        username: s.string,
-        age: s.number.greaterThan(0),
-        email: s.string.email,
+        username: s.string(),
+        age: s.number().greaterThan(0),
+        email: s.string().email(),
       });
 
       let error: unknown;
@@ -124,8 +124,8 @@ describe("parseValidationError", () => {
 
     test("handles missing required properties", () => {
       const requiredSchema = s.object({
-        required: s.string,
-        optional: s.string.optional,
+        required: s.string(),
+        optional: s.string().optional(),
       });
 
       let error: unknown;
@@ -152,11 +152,11 @@ describe("parseValidationError", () => {
 
   describe("handles real CombinedError from union validation", () => {
     test("processes CombinedError from union that fails all options", () => {
-      const unionValidator = s.union(
-        s.string.lengthGreaterThan(10),
-        s.number.greaterThan(100),
+      const unionValidator = s.union([
+        s.string().lengthGreaterThan(10),
+        s.number().greaterThan(100),
         s.instance(Date),
-      );
+      ]);
 
       let error: unknown;
       try {
@@ -194,10 +194,10 @@ describe("parseValidationError", () => {
     });
 
     test("processes nested validation errors in union", () => {
-      const complexUnion = s.union(
-        s.object({ type: s.literal("user"), name: s.string }),
-        s.object({ type: s.literal("admin"), permissions: s.array(s.string) }),
-      );
+      const complexUnion = s.union([
+        s.object({ type: s.literal("user"), name: s.string() }),
+        s.object({ type: s.literal("admin"), permissions: s.array(s.string()) }),
+      ]);
 
       let error: unknown;
       try {
