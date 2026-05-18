@@ -48,8 +48,6 @@ export default class LeaderboardPrivacyCommand extends SlashCommandHandler {
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const anonymous = interaction.options.getBoolean("anonymous", true);
 
-    await interaction.deferReply({ flags: ["Ephemeral"] });
-
     try {
       await this.userProfileRepository.setGlobalLeaderboardAnonymous(
         interaction.user.id,
@@ -68,9 +66,9 @@ export default class LeaderboardPrivacyCommand extends SlashCommandHandler {
           ),
         );
 
-      await interaction.editReply({
+      await interaction.reply({
         components: [container],
-        flags: ["IsComponentsV2"],
+        flags: ["IsComponentsV2", "Ephemeral"],
       });
     } catch (error) {
       this.logger.error(
@@ -86,9 +84,9 @@ export default class LeaderboardPrivacyCommand extends SlashCommandHandler {
           ),
         );
 
-      await interaction.editReply({
+      await interaction.reply({
         components: [errorContainer],
-        flags: ["IsComponentsV2"],
+        flags: ["IsComponentsV2", "Ephemeral"],
       });
     }
   }
