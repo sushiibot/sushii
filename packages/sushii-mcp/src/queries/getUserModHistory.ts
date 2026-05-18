@@ -23,10 +23,11 @@ export async function getUserModHistory(
   limit: number,
   beforeCaseId?: string,
 ): Promise<ModCase[]> {
+  // No pending filter — old cases may be marked pending=true due to stale data
+  // predating the pending system. Match what the sushii /user command shows.
   const conditions = [
     eq(modLogsInAppPublic.guildId, BigInt(guildId)),
     eq(modLogsInAppPublic.userId, BigInt(userId)),
-    eq(modLogsInAppPublic.pending, false),
   ];
 
   if (beforeCaseId !== undefined) {
