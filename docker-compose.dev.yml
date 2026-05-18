@@ -1,11 +1,10 @@
-version: "3.8"
 services:
   discord_api_proxy:
     ports:
       - "3001:8080"
   sushii_db:
     ports:
-      - "5432:5432"
+      - "5433:5432"
   otel-collector-agent:
     ports:
       - 4317:4317

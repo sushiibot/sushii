@@ -124,12 +124,5 @@ services:
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
 
 networks:
-  web:
-    external: true
-    name: sushii-2_web
   sushii_net:
-    external: true
-    name: sushii-2_sushii_net
-  metrics:
-    external: true
-    name: metrics
+    driver: bridge
