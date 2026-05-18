@@ -405,6 +405,7 @@ export class UserLevelRepository implements IUserLevelRepository {
       .select({
         userId: view.userId,
         totalXp: view.totalXp,
+        allTimeXp: view.allTimeXp,
         rank: view.rank,
         anonymous: usersInAppPublic.globalLeaderboardAnonymous,
       })
@@ -420,6 +421,7 @@ export class UserLevelRepository implements IUserLevelRepository {
         String(row.userId),
         Number(row.rank),
         BigInt(row.totalXp ?? "0"),
+        BigInt(row.allTimeXp ?? "0"),
         row.anonymous ?? false,
       ),
     );

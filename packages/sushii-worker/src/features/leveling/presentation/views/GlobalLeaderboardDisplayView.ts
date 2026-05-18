@@ -28,7 +28,7 @@ export function buildGlobalLeaderboardContainer(
   let entriesText = "";
 
   for (const entry of data.entries) {
-    const level = calculateLevel(entry.getTotalXp().getValue());
+    const level = calculateLevel(entry.getAllTimeXp().getValue());
     const isSelf = entry.getUserId() === requestingUserId;
     const isAnonymous = entry.isAnonymous() && !isSelf;
     const userDisplay = isAnonymous ? "Anonymous" : `<@${entry.getUserId()}>`;

@@ -260,6 +260,13 @@
       "when": 1779080413563,
       "tag": "0036_add_global_leaderboard_anonymous",
       "breakpoints": false
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1779145470090,
+      "tag": "0037_global_leaderboard_all_time_xp",
+      "breakpoints": false
     }
   ]
 }
