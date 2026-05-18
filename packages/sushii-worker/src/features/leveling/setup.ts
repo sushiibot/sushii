@@ -21,6 +21,7 @@ import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import GlobalLeaderboardCommand from "./presentation/commands/GlobalLeaderboardCommand";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
+import LeaderboardPrivacyCommand from "./presentation/commands/LeaderboardPrivacyCommand";
 import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
 import RankCommand from "./presentation/commands/RankCommand";
 import XpCommand from "./presentation/commands/XpCommands";
@@ -88,6 +89,7 @@ export function createLevelingCommands(
   logger: Logger,
 ) {
   const {
+    userProfileRepository,
     getUserRankService,
     getLeaderboardService,
     getGlobalLeaderboardService,
@@ -100,6 +102,7 @@ export function createLevelingCommands(
     new RankCommand(getUserRankService, emojiRepository, logger.child({ module: "rank" })),
     new LeaderboardCommand(getLeaderboardService),
     new GlobalLeaderboardCommand(getGlobalLeaderboardService),
+    new LeaderboardPrivacyCommand(userProfileRepository, logger.child({ module: "leaderboard-privacy" })),
     new LevelRoleCommand(levelRoleService),
     new XpCommand(xpBlockService),
   ];

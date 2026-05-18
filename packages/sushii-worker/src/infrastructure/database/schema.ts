@@ -105,6 +105,9 @@ export const usersInAppPublic = appPublic.table("users", {
   lastfmUsername: text("lastfm_username"),
   patronEmoji: text("patron_emoji"),
   profileData: jsonb("profile_data"),
+  globalLeaderboardAnonymous: boolean("global_leaderboard_anonymous")
+    .default(false)
+    .notNull(),
 });
 
 export const failuresInAppHidden = appHidden.table("failures", {

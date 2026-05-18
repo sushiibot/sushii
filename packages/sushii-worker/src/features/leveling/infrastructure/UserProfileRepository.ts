@@ -56,4 +56,20 @@ export class UserProfileRepository implements UserProfileRepositoryI {
       profileData: userData.profileData as { patronEmojiURL?: string } | null,
     });
   }
+
+  async setGlobalLeaderboardAnonymous(
+    userId: string,
+    anonymous: boolean,
+  ): Promise<void> {
+    await this.db
+      .insert(usersInAppPublic)
+      .values({
+        id: BigInt(userId),
+        globalLeaderboardAnonymous: anonymous,
+      })
+      .onConflictDoUpdate({
+        target: usersInAppPublic.id,
+        set: { globalLeaderboardAnonymous: anonymous },
+      });
+  }
 }

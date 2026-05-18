@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."users" ADD COLUMN "global_leaderboard_anonymous" boolean DEFAULT false NOT NULL;

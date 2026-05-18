@@ -253,6 +253,13 @@
       "when": 1778217381097,
       "tag": "0035_global_leaderboard_views_and_indexes",
       "breakpoints": false
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1779080413563,
+      "tag": "0036_add_global_leaderboard_anonymous",
+      "breakpoints": false
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   globalUserLevelRankingsMonth,
   globalUserLevelRankingsWeek,
   userLevelsInAppPublic,
+  usersInAppPublic,
 } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -405,8 +406,11 @@ export class UserLevelRepository implements IUserLevelRepository {
         userId: view.userId,
         totalXp: view.totalXp,
         rank: view.rank,
+        anonymous: usersInAppPublic.globalLeaderboardAnonymous,
       })
       .from(view)
+      // Left join: users with no row in app_public.users return null, defaulted to false in mapping
+      .leftJoin(usersInAppPublic, eq(view.userId, usersInAppPublic.id))
       .orderBy(asc(view.rank))
       .limit(pageSize)
       .offset(pageIndex * pageSize);
@@ -416,6 +420,7 @@ export class UserLevelRepository implements IUserLevelRepository {
         String(row.userId),
         Number(row.rank),
         BigInt(row.totalXp ?? "0"),
+        row.anonymous ?? false,
       ),
     );
   }

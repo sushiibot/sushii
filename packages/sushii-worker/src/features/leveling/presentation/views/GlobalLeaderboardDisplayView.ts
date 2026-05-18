@@ -29,9 +29,12 @@ export function buildGlobalLeaderboardContainer(
 
   for (const entry of data.entries) {
     const level = calculateLevel(entry.getTotalXp().getValue());
-    entriesText += `${entry.getRank().getRank()}. **Level ${level}** • <@${entry.getUserId()}>\n`;
+    const isSelf = entry.getUserId() === requestingUserId;
+    const isAnonymous = entry.isAnonymous() && !isSelf;
+    const userDisplay = isAnonymous ? "Anonymous" : `<@${entry.getUserId()}>`;
+    entriesText += `${entry.getRank().getRank()}. **Level ${level}** • ${userDisplay}\n`;
 
-    if (entry.getUserId() === requestingUserId) {
+    if (isSelf) {
       userInTopList = true;
     }
   }
