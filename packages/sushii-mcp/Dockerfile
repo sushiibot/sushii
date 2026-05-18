@@ -3,7 +3,7 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 # Copy the entire monorepo so the lockfile and all workspace packages resolve
-COPY package.json bun.lock ./
+COPY package.json bun.lockb ./
 COPY packages/sushii-worker/package.json ./packages/sushii-worker/
 COPY packages/sushii-mcp/package.json ./packages/sushii-mcp/
 

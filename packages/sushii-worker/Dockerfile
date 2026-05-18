@@ -19,6 +19,7 @@ COPY ./package.json ./bun.lockb ./
 
 # Project specific package.json - only the workspace packages required
 COPY ./packages/sushii-worker/package.json ./packages/sushii-worker/
+COPY ./packages/sushii-mcp/package.json ./packages/sushii-mcp/
 
 # Install dependencies
 RUN bun install --frozen-lockfile --ignore-scripts
