@@ -56,7 +56,7 @@ jobs:
       service: private-bots/sushii-mcp
       image_version: ${{ needs.docker-build.outputs.sha_short }}
       host: sushii-bot
-      environment: production
+      environment: sushii-mcp
     secrets: inherit
 
   docker-cleanup:
