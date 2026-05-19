@@ -1091,9 +1091,9 @@ export const scheduleMessagesInAppPublic = appPublic.table(
 // Global leaderboard materialized views
 
 function buildPeriodRankingView(period: "day" | "week" | "month") {
-  const col = sql.raw(`msg_${period}`);
-  const unit = sql.raw(period);
-  return sql`SELECT filtered.user_id, filtered.total_xp, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(${col}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${unit}', now()) AND last_msg < date_trunc('${unit}', now()) + interval '1 ${unit}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`;
+  return sql.raw(
+    `SELECT filtered.user_id, filtered.total_xp, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(msg_${period}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${period}', now()) AND last_msg < date_trunc('${period}', now()) + interval '1 ${period}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`,
+  );
 }
 
 const globalRankingViewColumns = {
