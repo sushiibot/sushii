@@ -1092,26 +1092,21 @@ export const scheduleMessagesInAppPublic = appPublic.table(
 
 function buildPeriodRankingView(period: "day" | "week" | "month") {
   return sql.raw(
-    `SELECT filtered.user_id, filtered.total_xp, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(msg_${period}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${period}', now()) AND last_msg < date_trunc('${period}', now()) + interval '1 ${period}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`,
+    `SELECT filtered.user_id, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(msg_${period}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${period}', now()) AND last_msg < date_trunc('${period}', now()) + interval '1 ${period}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`,
   );
 }
 
 const globalRankingViewColumns = {
   userId: bigint("user_id", { mode: "bigint" }).notNull(),
-  totalXp: bigint("total_xp", { mode: "bigint" }).notNull(),
   allTimeXp: bigint("all_time_xp", { mode: "bigint" }).notNull(),
   rank: bigint("rank", { mode: "bigint" }).notNull(),
 };
 
-// total_xp and all_time_xp are the same expression here intentionally — the
-// duplicate alias keeps the column shape uniform with the period views so the
-// repository and entity code can use a single column definition
-// (globalRankingViewColumns) for all four views.
 export const globalUserLevelRankingsAllTime = appPublic.materializedView(
   "global_user_level_rankings_all_time",
   globalRankingViewColumns,
 ).as(
-  sql`SELECT user_id, SUM(msg_all_time) AS total_xp, SUM(msg_all_time) AS all_time_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_all_time) DESC, user_id DESC) AS rank FROM app_public.user_levels GROUP BY user_id`,
+  sql`SELECT user_id, SUM(msg_all_time) AS all_time_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_all_time) DESC, user_id DESC) AS rank FROM app_public.user_levels GROUP BY user_id`,
 );
 
 export const globalUserLevelRankingsDay = appPublic.materializedView(
