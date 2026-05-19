@@ -1090,8 +1090,10 @@ export const scheduleMessagesInAppPublic = appPublic.table(
 // ---------------------------------------------------------------------------
 // Global leaderboard materialized views
 
-function buildPeriodRankingView(col: string, unit: string) {
-  return sql`SELECT filtered.user_id, filtered.total_xp, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(${sql.raw(col)}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${sql.raw(unit)}', now()) AND last_msg < date_trunc('${sql.raw(unit)}', now()) + interval '1 ${sql.raw(unit)}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`;
+function buildPeriodRankingView(period: "day" | "week" | "month") {
+  const col = sql.raw(`msg_${period}`);
+  const unit = sql.raw(period);
+  return sql`SELECT filtered.user_id, filtered.total_xp, all_time.all_time_xp, DENSE_RANK() OVER (ORDER BY filtered.total_xp DESC, filtered.user_id DESC) AS rank FROM (SELECT user_id, SUM(${col}) AS total_xp FROM app_public.user_levels WHERE last_msg >= date_trunc('${unit}', now()) AND last_msg < date_trunc('${unit}', now()) + interval '1 ${unit}' GROUP BY user_id) filtered JOIN (SELECT user_id, SUM(msg_all_time) AS all_time_xp FROM app_public.user_levels GROUP BY user_id) all_time ON filtered.user_id = all_time.user_id`;
 }
 
 const globalRankingViewColumns = {
@@ -1101,6 +1103,10 @@ const globalRankingViewColumns = {
   rank: bigint("rank", { mode: "bigint" }).notNull(),
 };
 
+// total_xp and all_time_xp are the same expression here intentionally — the
+// duplicate alias keeps the column shape uniform with the period views so the
+// repository and entity code can use a single column definition
+// (globalRankingViewColumns) for all four views.
 export const globalUserLevelRankingsAllTime = appPublic.materializedView(
   "global_user_level_rankings_all_time",
   globalRankingViewColumns,
@@ -1111,14 +1117,14 @@ export const globalUserLevelRankingsAllTime = appPublic.materializedView(
 export const globalUserLevelRankingsDay = appPublic.materializedView(
   "global_user_level_rankings_day",
   globalRankingViewColumns,
-).as(buildPeriodRankingView("msg_day", "day"));
+).as(buildPeriodRankingView("day"));
 
 export const globalUserLevelRankingsWeek = appPublic.materializedView(
   "global_user_level_rankings_week",
   globalRankingViewColumns,
-).as(buildPeriodRankingView("msg_week", "week"));
+).as(buildPeriodRankingView("week"));
 
 export const globalUserLevelRankingsMonth = appPublic.materializedView(
   "global_user_level_rankings_month",
   globalRankingViewColumns,
-).as(buildPeriodRankingView("msg_month", "month"));
+).as(buildPeriodRankingView("month"));

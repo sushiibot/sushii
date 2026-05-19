@@ -5,7 +5,6 @@ export class GlobalLeaderboardEntry {
   constructor(
     private readonly userId: string,
     private readonly rank: RankPosition,
-    private readonly periodXp: XpAmount,
     private readonly allTimeXp: XpAmount,
     private readonly anonymous: boolean,
   ) {}
@@ -16,10 +15,6 @@ export class GlobalLeaderboardEntry {
 
   getRank(): RankPosition {
     return this.rank;
-  }
-
-  getPeriodXp(): XpAmount {
-    return this.periodXp;
   }
 
   getAllTimeXp(): XpAmount {
@@ -33,14 +28,12 @@ export class GlobalLeaderboardEntry {
   static create(
     userId: string,
     rank: number,
-    periodXp: bigint,
     allTimeXp: bigint,
     anonymous: boolean,
   ): GlobalLeaderboardEntry {
     return new GlobalLeaderboardEntry(
       userId,
       RankPosition.create(rank, 0), // totalCount not needed on page entries
-      XpAmount.from(periodXp),
       XpAmount.from(allTimeXp),
       anonymous,
     );

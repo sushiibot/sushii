@@ -404,7 +404,6 @@ export class UserLevelRepository implements IUserLevelRepository {
     const result = await this.db
       .select({
         userId: view.userId,
-        totalXp: view.totalXp,
         allTimeXp: view.allTimeXp,
         rank: view.rank,
         anonymous: usersInAppPublic.globalLeaderboardAnonymous,
@@ -420,7 +419,6 @@ export class UserLevelRepository implements IUserLevelRepository {
       GlobalLeaderboardEntry.create(
         String(row.userId),
         Number(row.rank),
-        BigInt(row.totalXp ?? "0"),
         BigInt(row.allTimeXp ?? "0"),
         row.anonymous ?? false,
       ),
