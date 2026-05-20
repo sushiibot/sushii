@@ -31,9 +31,9 @@ describe("parseValidationError", () => {
 
       expect(result).toBeDefined();
       expect(result?.name).toBe("ValidationError");
-      expect(result?.validator).toBe("s.string");
+      expect(result?.validator).toBe("s.string()");
       expect(result?.given).toBe(123);
-      expect(result?.description).toContain("ValidationError > s.string");
+      expect(result?.description).toContain("ValidationError > s.string()");
       expect(result?.description).toContain("Expected a string primitive");
     });
 
