@@ -21,8 +21,7 @@ import {
 } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import type { ReplyableInteraction } from "@/interactions/responses/error";
-import { interactionReplyErrorInternal } from "@/interactions/responses/error";
+import { interactionReplyErrorInternal, type ReplyableInteraction } from "@/interactions/responses/error";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
@@ -417,7 +416,15 @@ export default class InteractionRouter {
       await interactionReplyErrorInternal(interaction, traceId);
     } catch (replyErr) {
       Sentry.captureException(replyErr);
-      log.warn({ err: replyErr }, "error replying with internal error");
+      log.warn(
+        {
+          err: replyErr,
+          interactionId: interaction.id,
+          interactionType: interaction.type,
+          traceId,
+        },
+        "error replying with internal error",
+      );
     }
   }
 
