@@ -250,7 +250,6 @@
       "error": "Error",
       "no_permission": "You do not have permission to use this command, sorry! You need the {{permission}} permission.",
       "unauthorized_target": "You do can't do that to this user, sorry! {{message}}",
-      "internal": "Uh oh! Something went wrong, I'll let my owner know about the error! Maybe you can try again?",
       "message": "Uh oh! Something went wrong: {{message}}"
     }
   }

@@ -21,6 +21,8 @@ import {
 } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { ReplyableInteraction } from "@/interactions/responses/error";
+import { interactionReplyErrorInternal } from "@/interactions/responses/error";
 import { config } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
@@ -32,7 +34,6 @@ import type {
   SlashCommandHandler,
 } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
-import { interactionReplyErrorInternal } from "@/interactions/responses/error";
 import getFullCommandName from "@/utils/getFullCommandName";
 import parseValidationError from "@/utils/parseValidationError";
 
@@ -409,7 +410,7 @@ export default class InteractionRouter {
   }
 
   private async safeReplyInternalError(
-    interaction: ChatInputCommandInteraction | ContextMenuCommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction,
+    interaction: ReplyableInteraction,
   ): Promise<void> {
     const traceId = opentelemetry.trace.getActiveSpan()?.spanContext().traceId;
     try {

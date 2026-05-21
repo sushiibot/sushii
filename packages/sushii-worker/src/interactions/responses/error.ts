@@ -14,7 +14,7 @@ import Color from "../../utils/colors";
 
 const SUPPORT_SERVER_URL = "https://discord.gg/PjDRRXSSAF";
 
-type ReplyableInteraction =
+export type ReplyableInteraction =
   | ChatInputCommandInteraction
   | ContextMenuCommandInteraction
   | ButtonInteraction
@@ -42,13 +42,14 @@ function buildInternalErrorContainer(traceId?: string): ContainerBuilder {
 
   if (traceId) {
     lines.push(`**Error ID:** \`${traceId}\``);
+    lines.push(
+      `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL}) and share the error ID.`,
+    );
+  } else {
+    lines.push(
+      `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL}).`,
+    );
   }
-
-  lines.push(
-    `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL})${
-      traceId ? " and share the error ID" : ""
-    }.`,
-  );
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(lines.join("\n")),
@@ -161,9 +162,13 @@ export async function interactionReplyErrorInternal(
 ): Promise<void> {
   if (interaction.deferred) {
     await interaction.editReply(getInternalErrorMessageEdit(traceId));
-  } else if (interaction.replied) {
-    await interaction.followUp(getInternalErrorMessage(traceId));
-  } else {
-    await interaction.reply(getInternalErrorMessage(traceId));
+    return;
   }
+
+  if (interaction.replied) {
+    await interaction.followUp(getInternalErrorMessage(traceId));
+    return;
+  }
+
+  await interaction.reply(getInternalErrorMessage(traceId));
 }
