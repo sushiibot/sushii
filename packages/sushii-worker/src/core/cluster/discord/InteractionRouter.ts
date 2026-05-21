@@ -17,10 +17,8 @@ import {
   Collection,
   ComponentType,
   InteractionType,
-  MessageFlags,
   Routes,
 } from "discord.js";
-import { t } from "i18next";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { config } from "@/shared/infrastructure/config";
@@ -34,6 +32,7 @@ import type {
   SlashCommandHandler,
 } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
+import { interactionReplyErrorInternal } from "@/interactions/responses/error";
 import getFullCommandName from "@/utils/getFullCommandName";
 import parseValidationError from "@/utils/parseValidationError";
 
@@ -409,6 +408,18 @@ export default class InteractionRouter {
     log.info("commands registered!");
   }
 
+  private async safeReplyInternalError(
+    interaction: ChatInputCommandInteraction | ContextMenuCommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction,
+  ): Promise<void> {
+    const traceId = opentelemetry.trace.getActiveSpan()?.spanContext().traceId;
+    try {
+      await interactionReplyErrorInternal(interaction, traceId);
+    } catch (replyErr) {
+      Sentry.captureException(replyErr);
+      log.warn({ err: replyErr }, "error replying with internal error");
+    }
+  }
+
   /**
    * Handle an slash command
    *
@@ -544,16 +555,7 @@ export default class InteractionRouter {
           },
         });
       });
-      try {
-        if (interaction.deferred) {
-          await interaction.editReply(t("generic.error.internal"));
-        } else {
-          await interaction.reply(t("generic.error.internal"));
-        }
-      } catch (e2) {
-        Sentry.captureException(e2);
-        log.warn(e2, "error replying error %s", interaction.commandName);
-      }
+      await this.safeReplyInternalError(interaction);
 
       // Failure
       return false;
@@ -692,15 +694,7 @@ export default class InteractionRouter {
       });
       log.error(e, "error running command %s", interaction.commandName);
 
-      try {
-        await interaction.reply({
-          content: t("generic.error.internal"),
-          flags: MessageFlags.Ephemeral,
-        });
-      } catch (e2) {
-        Sentry.captureException(e2);
-        log.warn(e2, "error replying error %s", interaction.commandName);
-      }
+      await this.safeReplyInternalError(interaction);
 
       return false;
     }
@@ -743,6 +737,9 @@ export default class InteractionRouter {
       });
 
       log.error(e, "error handling modal %s", interaction.id);
+
+      await this.safeReplyInternalError(interaction);
+
       throw e;
     }
   }
@@ -790,6 +787,8 @@ export default class InteractionRouter {
         "error handling button",
       );
 
+      await this.safeReplyInternalError(interaction);
+
       throw err;
     }
   }
@@ -829,6 +828,9 @@ export default class InteractionRouter {
         },
       });
       log.error(e, "error handling select menu %s", interaction.id);
+
+      await this.safeReplyInternalError(interaction);
+
       throw e;
     }
   }

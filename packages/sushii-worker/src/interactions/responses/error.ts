@@ -1,6 +1,8 @@
 import type {
+  AnySelectMenuInteraction,
   ButtonInteraction,
   ChatInputCommandInteraction,
+  ContextMenuCommandInteraction,
   InteractionEditReplyOptions,
   InteractionReplyOptions,
   ModalSubmitInteraction,
@@ -10,9 +12,13 @@ import { t } from "i18next";
 
 import Color from "../../utils/colors";
 
+const SUPPORT_SERVER_URL = "https://discord.gg/PjDRRXSSAF";
+
 type ReplyableInteraction =
   | ChatInputCommandInteraction
+  | ContextMenuCommandInteraction
   | ButtonInteraction
+  | AnySelectMenuInteraction
   | ModalSubmitInteraction;
 
 function buildErrorContainer(
@@ -24,6 +30,48 @@ function buildErrorContainer(
     new TextDisplayBuilder().setContent(`❌ **${title}**\n${description}`),
   );
   return container;
+}
+
+function buildInternalErrorContainer(traceId?: string): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
+
+  const lines = [
+    "❌ **Something went wrong**",
+    "Something unexpected happened. Please try again.",
+  ];
+
+  if (traceId) {
+    lines.push(`**Error ID:** \`${traceId}\``);
+  }
+
+  lines.push(
+    `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL})${
+      traceId ? " and share the error ID" : ""
+    }.`,
+  );
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(lines.join("\n")),
+  );
+  return container;
+}
+
+function getInternalErrorMessage(traceId?: string): InteractionReplyOptions {
+  return {
+    components: [buildInternalErrorContainer(traceId)],
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  };
+}
+
+function getInternalErrorMessageEdit(
+  traceId?: string,
+): InteractionEditReplyOptions {
+  return {
+    components: [buildInternalErrorContainer(traceId)],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+  };
 }
 
 export function getErrorMessage(
@@ -109,10 +157,13 @@ export async function interactionReplyErrorPlainMessage(
 
 export async function interactionReplyErrorInternal(
   interaction: ReplyableInteraction,
+  traceId?: string,
 ): Promise<void> {
-  return interactionReplyError(
-    interaction,
-    t("generic.error.error", { ns: "commands" }),
-    t("generic.error.internal", { ns: "commands" }),
-  );
+  if (interaction.deferred) {
+    await interaction.editReply(getInternalErrorMessageEdit(traceId));
+  } else if (interaction.replied) {
+    await interaction.followUp(getInternalErrorMessage(traceId));
+  } else {
+    await interaction.reply(getInternalErrorMessage(traceId));
+  }
 }
