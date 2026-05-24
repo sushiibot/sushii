@@ -88,6 +88,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: false,
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       ["123", "456", "789"],
     );
@@ -146,6 +147,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: false,
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       [],
     );
@@ -186,6 +188,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: true,
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       ["999"],
     );
@@ -238,6 +241,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: false,
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       [],
     );
@@ -307,6 +311,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: false,
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       disabledChannels,
     );
@@ -355,6 +360,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         lookupPrompted: false,
         automodSpamEnabled: true,
         automodAlertsChannelId: alertsChannelId,
+        automodExemptRoleIds: [],
       },
       [],
     );
@@ -373,5 +379,36 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
     const cleared = savedConfig.setAutomodAlertsChannel(null);
     const clearedConfig = await repo.save(cleared);
     expect(clearedConfig.moderationSettings.automodAlertsChannelId).toBeNull();
+  });
+
+  test("should save and retrieve automod exempt role IDs as strings", async () => {
+    const guildId = "900000000000000001";
+    const exemptRoleIds = ["100000000000000001", "200000000000000002", "300000000000000003"];
+
+    const config = GuildConfig.createDefault(guildId);
+    const configWithRoles = config.setAutomodExemptRoles(exemptRoleIds);
+
+    const savedConfig = await repo.save(configWithRoles);
+    const retrievedConfig = await repo.findByGuildId(guildId);
+
+    expect(savedConfig.moderationSettings.automodExemptRoleIds).toEqual(exemptRoleIds);
+    expect(retrievedConfig.moderationSettings.automodExemptRoleIds).toEqual(exemptRoleIds);
+
+    // Verify clearing works
+    const cleared = savedConfig.setAutomodExemptRoles([]);
+    const clearedConfig = await repo.save(cleared);
+    expect(clearedConfig.moderationSettings.automodExemptRoleIds).toEqual([]);
+  });
+
+  test("maps NULL automodExemptRoleIds from DB to empty array", async () => {
+    const guildId = "900000000000000002";
+
+    await db.insert(guildConfigsInAppPublic).values({
+      id: BigInt(guildId),
+      automodExemptRoleIds: null,
+    }).onConflictDoNothing();
+
+    const retrievedConfig = await repo.findByGuildId(guildId);
+    expect(retrievedConfig.moderationSettings.automodExemptRoleIds).toEqual([]);
   });
 });

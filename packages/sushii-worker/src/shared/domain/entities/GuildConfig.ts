@@ -1,3 +1,5 @@
+import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/features/guild-settings/presentation/views/components/SettingsConstants";
+
 export interface MessageSettings {
   joinMessage: string | null;
   joinMessageEnabled: boolean;
@@ -36,6 +38,7 @@ export interface ModerationSettings {
 
   automodSpamEnabled: boolean;
   automodAlertsChannelId: string | null;
+  automodExemptRoleIds: string[];
 }
 
 export type ToggleableSetting =
@@ -68,7 +71,10 @@ export class GuildConfig {
       this.prefix,
       { ...this.messageSettings },
       { ...this.loggingSettings },
-      { ...this.moderationSettings },
+      {
+        ...this.moderationSettings,
+        automodExemptRoleIds: [...this.moderationSettings.automodExemptRoleIds],
+      },
       [...this.disabledChannels],
     );
   }
@@ -116,6 +122,7 @@ export class GuildConfig {
         // Automod settings
         automodSpamEnabled: false,
         automodAlertsChannelId: null,
+        automodExemptRoleIds: [],
       },
       [],
     );
@@ -318,6 +325,12 @@ export class GuildConfig {
   setAutomodAlertsChannel(channelId: string | null): GuildConfig {
     const config = this.clone();
     config.moderationSettings.automodAlertsChannelId = channelId;
+    return config;
+  }
+
+  setAutomodExemptRoles(roleIds: string[]): GuildConfig {
+    const config = this.clone();
+    config.moderationSettings.automodExemptRoleIds = roleIds.slice(0, MAX_AUTOMOD_EXEMPT_ROLES);
     return config;
   }
 }

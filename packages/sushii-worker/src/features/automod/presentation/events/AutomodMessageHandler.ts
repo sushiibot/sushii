@@ -61,7 +61,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     }
 
     try {
-      // Check if guild has automod enabled
       const guildConfig = await this.guildConfigRepository.findByGuildId(
         guildId,
       );
@@ -80,6 +79,14 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       }
 
       if (!guildConfig.moderationSettings.automodSpamEnabled) {
+        return;
+      }
+
+      const exemptRoles = guildConfig.moderationSettings.automodExemptRoleIds;
+      if (
+        exemptRoles.length > 0 &&
+        payload.member?.roles?.some((r) => exemptRoles.includes(r))
+      ) {
         return;
       }
 

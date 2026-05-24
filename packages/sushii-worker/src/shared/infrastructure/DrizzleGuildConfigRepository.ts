@@ -90,6 +90,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         automodAlertsChannelId: data.automodAlertsChannelId
           ? data.automodAlertsChannelId.toString()
           : null,
+        automodExemptRoleIds:
+          data.automodExemptRoleIds?.map((id) => id.toString()) ?? [],
       },
       data.disabledChannels?.map((id) => id.toString()) ?? [],
     );
@@ -139,6 +141,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       automodAlertsChannelId: config.moderationSettings.automodAlertsChannelId
         ? BigInt(config.moderationSettings.automodAlertsChannelId)
         : null,
+      automodExemptRoleIds:
+        config.moderationSettings.automodExemptRoleIds.map(BigInt),
       disabledChannels: config.disabledChannels.map(BigInt),
     };
   }

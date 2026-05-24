@@ -221,6 +221,9 @@ export const guildConfigsInAppPublic = appPublic.table(
     automodAlertsChannelId: bigint("automod_alerts_channel_id", {
       mode: "bigint",
     }),
+    automodExemptRoleIds: bigint("automod_exempt_role_ids", {
+      mode: "bigint",
+    }).array(),
   },
   () => [
     pgPolicy("admin_access", {

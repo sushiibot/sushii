@@ -3,6 +3,7 @@ import {
   ActionRowBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
+  RoleSelectMenuBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
@@ -13,7 +14,7 @@ import {
   addToggleSetting,
 } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
-import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
+import { MAX_AUTOMOD_EXEMPT_ROLES, SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
 export function addAutomodContent(
   container: ContainerBuilder,
@@ -82,6 +83,31 @@ export function addAutomodContent(
     config.moderationSettings.automodSpamEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
     disabled,
+  );
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
+  // Exempt Roles Section
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `### Exempt Roles\nMembers with any of these roles are skipped entirely by spam detection — no timeout, no alert.`,
+    ),
+  );
+
+  const exemptRoleSelect = new RoleSelectMenuBuilder()
+    .setCustomId(SETTINGS_CUSTOM_IDS.ROLES.SET_AUTOMOD_EXEMPT_ROLES)
+    .setPlaceholder(`Select exempt roles (max ${MAX_AUTOMOD_EXEMPT_ROLES})...`)
+    .setMinValues(0)
+    .setMaxValues(MAX_AUTOMOD_EXEMPT_ROLES)
+    .setDefaultRoles(config.moderationSettings.automodExemptRoleIds)
+    .setDisabled(disabled);
+
+  container.addActionRowComponents(
+    new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
+      exemptRoleSelect,
+    ),
   );
 
   container.addSeparatorComponents(

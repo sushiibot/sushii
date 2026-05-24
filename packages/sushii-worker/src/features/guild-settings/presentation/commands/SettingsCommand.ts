@@ -4,6 +4,7 @@ import type {
   ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
   MessageComponentInteraction,
+  RoleSelectMenuInteraction,
   StringSelectMenuInteraction,
 } from "discord.js";
 import {
@@ -211,6 +212,10 @@ export default class SettingsCommand extends SlashCommandHandler {
       return this.handleChannelSelectInteraction(interaction, guildId);
     }
 
+    if (interaction.isRoleSelectMenu()) {
+      return this.handleRoleSelectInteraction(interaction, guildId);
+    }
+
     if (interaction.isStringSelectMenu()) {
       return this.handleNavigationSelect(interaction, guildId);
     }
@@ -301,6 +306,45 @@ export default class SettingsCommand extends SlashCommandHandler {
     await this.guildSettingsService.updateAutomodAlertsChannel(
       guildId,
       channelId,
+    );
+
+    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
+    const updatedChannelPermissions = this.getChannelPermissions(
+      interaction,
+      updatedConfig,
+    );
+
+    const updatedMessage = createSettingsMessage(
+      {
+        page: "automod",
+        config: updatedConfig,
+        messageLogBlocks: updatedBlocks,
+        channelPermissions: updatedChannelPermissions,
+        disabled: false,
+        emojis,
+      },
+      interaction,
+    );
+
+    await interaction.update(updatedMessage);
+    return "automod";
+  }
+
+  private async handleRoleSelectInteraction(
+    interaction: RoleSelectMenuInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage | undefined> {
+    if (interaction.customId !== SETTINGS_CUSTOM_IDS.ROLES.SET_AUTOMOD_EXEMPT_ROLES) {
+      return undefined;
+    }
+
+    await this.guildSettingsService.updateAutomodExemptRoles(
+      guildId,
+      interaction.values,
     );
 
     const [updatedConfig, updatedBlocks, emojis] = await Promise.all([

@@ -267,6 +267,13 @@
       "when": 1779145470090,
       "tag": "0037_global_leaderboard_all_time_xp",
       "breakpoints": false
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1779655117975,
+      "tag": "0038_add-automod-exempt-roles",
+      "breakpoints": false
     }
   ]
 }

@@ -80,6 +80,7 @@ const allEnabledConfig = new GuildConfig(
     lookupPrompted: true,
     automodSpamEnabled: true,
     automodAlertsChannelId: null,
+    automodExemptRoleIds: [],
   },
   [],
 );

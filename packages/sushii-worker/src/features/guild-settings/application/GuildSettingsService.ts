@@ -103,6 +103,18 @@ export class GuildSettingsService {
     return this.guildConfigRepository.save(updatedConfig);
   }
 
+  async updateAutomodExemptRoles(
+    guildId: string,
+    roleIds: string[],
+  ): Promise<GuildConfig> {
+    this.logger.info({ guildId, count: roleIds.length }, "Updating automod exempt roles");
+
+    const config = await this.guildConfigRepository.findByGuildId(guildId);
+    const updatedConfig = config.setAutomodExemptRoles(roleIds);
+
+    return this.guildConfigRepository.save(updatedConfig);
+  }
+
   async updateLogChannel(
     guildId: string,
     type: "mod" | "member" | "message" | "reaction",

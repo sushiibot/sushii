@@ -7,6 +7,8 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
+export const MAX_AUTOMOD_EXEMPT_ROLES = 10;
+
 export type SettingsPage =
   | "logging"
   | "moderation"
@@ -69,6 +71,10 @@ export const SETTINGS_CUSTOM_IDS = {
 
     // Automod Toggles
     AUTOMOD_SPAM: "settings_toggle_automod_spam",
+  },
+
+  ROLES: {
+    SET_AUTOMOD_EXEMPT_ROLES: "settings_set_automod_exempt_roles",
   },
 
   CHANNELS: {
