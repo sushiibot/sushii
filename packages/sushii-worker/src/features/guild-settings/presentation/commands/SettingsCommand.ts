@@ -338,7 +338,10 @@ export default class SettingsCommand extends SlashCommandHandler {
     interaction: RoleSelectMenuInteraction<"cached">,
     guildId: string,
   ): Promise<SettingsPage | undefined> {
-    if (interaction.customId !== SETTINGS_CUSTOM_IDS.ROLES.SET_AUTOMOD_EXEMPT_ROLES) {
+    if (
+      interaction.customId !==
+      SETTINGS_CUSTOM_IDS.ROLES.SET_AUTOMOD_EXEMPT_ROLES
+    ) {
       return undefined;
     }
 
@@ -773,9 +776,8 @@ export default class SettingsCommand extends SlashCommandHandler {
     } else if (
       interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT
     ) {
-      const newText = interaction.fields.getTextInputValue(
-        "kick_dm_text_input",
-      );
+      const newText =
+        interaction.fields.getTextInputValue("kick_dm_text_input");
       await this.guildSettingsService.updateKickDmText(guildId, newText);
       targetPage = "mod-dms";
     }

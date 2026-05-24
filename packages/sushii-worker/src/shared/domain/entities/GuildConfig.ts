@@ -330,7 +330,10 @@ export class GuildConfig {
 
   setAutomodExemptRoles(roleIds: string[]): GuildConfig {
     const config = this.clone();
-    config.moderationSettings.automodExemptRoleIds = roleIds.slice(0, MAX_AUTOMOD_EXEMPT_ROLES);
+    config.moderationSettings.automodExemptRoleIds = roleIds.slice(
+      0,
+      MAX_AUTOMOD_EXEMPT_ROLES,
+    );
     return config;
   }
 }

@@ -383,7 +383,11 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
 
   test("should save and retrieve automod exempt role IDs as strings", async () => {
     const guildId = "900000000000000001";
-    const exemptRoleIds = ["100000000000000001", "200000000000000002", "300000000000000003"];
+    const exemptRoleIds = [
+      "100000000000000001",
+      "200000000000000002",
+      "300000000000000003",
+    ];
 
     const config = GuildConfig.createDefault(guildId);
     const configWithRoles = config.setAutomodExemptRoles(exemptRoleIds);
@@ -391,8 +395,12 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
     const savedConfig = await repo.save(configWithRoles);
     const retrievedConfig = await repo.findByGuildId(guildId);
 
-    expect(savedConfig.moderationSettings.automodExemptRoleIds).toEqual(exemptRoleIds);
-    expect(retrievedConfig.moderationSettings.automodExemptRoleIds).toEqual(exemptRoleIds);
+    expect(savedConfig.moderationSettings.automodExemptRoleIds).toEqual(
+      exemptRoleIds,
+    );
+    expect(retrievedConfig.moderationSettings.automodExemptRoleIds).toEqual(
+      exemptRoleIds,
+    );
 
     // Verify clearing works
     const cleared = savedConfig.setAutomodExemptRoles([]);
@@ -400,13 +408,16 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
     expect(clearedConfig.moderationSettings.automodExemptRoleIds).toEqual([]);
   });
 
-  test("maps NULL automodExemptRoleIds from DB to empty array", async () => {
+  test("should map NULL automodExemptRoleIds from DB to empty array", async () => {
     const guildId = "900000000000000002";
 
-    await db.insert(guildConfigsInAppPublic).values({
-      id: BigInt(guildId),
-      automodExemptRoleIds: null,
-    }).onConflictDoNothing();
+    await db
+      .insert(guildConfigsInAppPublic)
+      .values({
+        id: BigInt(guildId),
+        automodExemptRoleIds: null,
+      })
+      .onConflictDoNothing();
 
     const retrievedConfig = await repo.findByGuildId(guildId);
     expect(retrievedConfig.moderationSettings.automodExemptRoleIds).toEqual([]);

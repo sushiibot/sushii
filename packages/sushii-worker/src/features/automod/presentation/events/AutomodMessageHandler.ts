@@ -4,12 +4,12 @@ import { Events, GatewayDispatchEvents } from "discord.js";
 import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
-
-const tracer = opentelemetry.trace.getTracer("automod");
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { SpamActionService } from "../../application/SpamActionService";
 import type { SpamDetectionService } from "../../application/SpamDetectionService";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 
 const TEST_GUILD_ID = "167058919611564043";
 const TEST_TRIGGER = "__automod_test__";
@@ -49,7 +49,10 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     // with the same combination of text + files hash identically across channels
     const contentPart = payload.content?.trim();
     const attachmentPart = payload.attachments?.length
-      ? payload.attachments.map((a) => a.filename).sort().join(",")
+      ? payload.attachments
+          .map((a) => a.filename)
+          .sort()
+          .join(",")
       : undefined;
     const spamKey = [contentPart, attachmentPart]
       .filter((s): s is string => Boolean(s))
@@ -61,11 +64,13 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     }
 
     try {
-      const guildConfig = await this.guildConfigRepository.findByGuildId(
-        guildId,
-      );
+      const guildConfig =
+        await this.guildConfigRepository.findByGuildId(guildId);
 
-      if (guildId === TEST_GUILD_ID && payload.content?.trim() === TEST_TRIGGER) {
+      if (
+        guildId === TEST_GUILD_ID &&
+        payload.content?.trim() === TEST_TRIGGER
+      ) {
         await this.spamActionService.executeSpamAction(
           guildId,
           payload.author.id,

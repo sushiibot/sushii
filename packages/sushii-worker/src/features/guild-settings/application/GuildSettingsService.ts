@@ -107,7 +107,10 @@ export class GuildSettingsService {
     guildId: string,
     roleIds: string[],
   ): Promise<GuildConfig> {
-    this.logger.info({ guildId, count: roleIds.length }, "Updating automod exempt roles");
+    this.logger.info(
+      { guildId, count: roleIds.length },
+      "Updating automod exempt roles",
+    );
 
     const config = await this.guildConfigRepository.findByGuildId(guildId);
     const updatedConfig = config.setAutomodExemptRoles(roleIds);

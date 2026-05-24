@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
+import type { EmojiMap } from "@/features/bot-emojis/domain";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
-import type { EmojiMap } from "@/features/bot-emojis/domain";
+import { createSettingsMessage } from "./SettingsMessageBuilder";
 import type { SettingsPage } from "./components/SettingsConstants";
 import { SETTINGS_EMOJI_NAMES } from "./components/SettingsConstants";
-import { createSettingsMessage } from "./SettingsMessageBuilder";
 
 const mockEmojis = Object.fromEntries(
   SETTINGS_EMOJI_NAMES.map((name) => [name, `<:${name}:000000000000000000>`]),
@@ -38,7 +38,9 @@ function totalComponentCount(
 ): number {
   let total = 0;
   for (const topLevel of message.components) {
-    total += countComponents(topLevel.toJSON() as unknown as Record<string, unknown>);
+    total += countComponents(
+      topLevel.toJSON() as unknown as Record<string, unknown>,
+    );
   }
   return total;
 }
@@ -98,7 +100,11 @@ describe("SettingsMessageBuilder component limits", () => {
   describe("default config", () => {
     for (const page of pages) {
       test(`${page} page stays within ${DISCORD_MAX_COMPONENTS} components`, () => {
-        const message = createSettingsMessage({ page, config: defaultConfig, emojis: mockEmojis });
+        const message = createSettingsMessage({
+          page,
+          config: defaultConfig,
+          emojis: mockEmojis,
+        });
         const count = totalComponentCount(message);
         expect(count).toBeLessThanOrEqual(DISCORD_MAX_COMPONENTS);
       });

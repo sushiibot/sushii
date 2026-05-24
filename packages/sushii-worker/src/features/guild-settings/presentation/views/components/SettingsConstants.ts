@@ -1,7 +1,4 @@
-import type {
-  BotEmojiNameType,
-  EmojiMap,
-} from "@/features/bot-emojis/domain";
+import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { MessageLogBlock } from "@/features/message-log/domain/entities/MessageLogBlock";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 

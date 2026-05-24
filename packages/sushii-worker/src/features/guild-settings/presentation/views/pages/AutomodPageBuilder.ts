@@ -9,11 +9,10 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import { formatPermissionWarning } from "../../utils/PermissionChecker";
-import {
-  addToggleSetting,
-} from "../components/SettingsComponents";
 import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/shared/domain/entities/GuildConfig";
+
+import { formatPermissionWarning } from "../../utils/PermissionChecker";
+import { addToggleSetting } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
