@@ -13,8 +13,9 @@ import { formatPermissionWarning } from "../../utils/PermissionChecker";
 import {
   addToggleSetting,
 } from "../components/SettingsComponents";
+import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/shared/domain/entities/GuildConfig";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
-import { MAX_AUTOMOD_EXEMPT_ROLES, SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
+import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
 export function addAutomodContent(
   container: ContainerBuilder,

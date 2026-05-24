@@ -1,4 +1,4 @@
-import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/features/guild-settings/presentation/views/components/SettingsConstants";
+export const MAX_AUTOMOD_EXEMPT_ROLES = 10;
 
 export interface MessageSettings {
   joinMessage: string | null;

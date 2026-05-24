@@ -7,8 +7,6 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
-export const MAX_AUTOMOD_EXEMPT_ROLES = 10;
-
 export type SettingsPage =
   | "logging"
   | "moderation"

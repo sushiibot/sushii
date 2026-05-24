@@ -342,10 +342,8 @@ export default class SettingsCommand extends SlashCommandHandler {
       return undefined;
     }
 
-    await this.guildSettingsService.updateAutomodExemptRoles(
-      guildId,
-      interaction.values,
-    );
+    const roleIds = interaction.values.filter((id) => id !== guildId);
+    await this.guildSettingsService.updateAutomodExemptRoles(guildId, roleIds);
 
     const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
       this.guildSettingsService.getGuildSettings(guildId),
