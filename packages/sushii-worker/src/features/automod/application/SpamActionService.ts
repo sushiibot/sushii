@@ -86,7 +86,7 @@ export class SpamActionService {
 
     const reason = `[AutoMod] Spam: same message sent to ${channelCount} channels within ${SpamDetectionService.SPAM_WINDOW_MS / 1000} seconds`;
 
-    await this.applySpamTimeout(
+    const timedOut = await this.applySpamTimeout(
       member,
       guildId,
       userId,
@@ -107,6 +107,7 @@ export class SpamActionService {
           username,
           channelCount,
           detectedMessageCount,
+          timedOut,
           spamContent,
           spamAttachments,
         );
@@ -152,13 +153,13 @@ export class SpamActionService {
     channelCount: number,
     detectedMessageCount: number,
     reason: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!member) {
       this.logger.warn(
         { guildId, userId },
         "Member not found, skipping timeout",
       );
-      return;
+      return false;
     }
 
     if (!member.moderatable) {
@@ -166,7 +167,7 @@ export class SpamActionService {
         { guildId, userId },
         "Member is not moderatable, skipping timeout",
       );
-      return;
+      return false;
     }
 
     await member.timeout(SPAM_TIMEOUT_MS, reason);
@@ -184,6 +185,8 @@ export class SpamActionService {
       },
       "Applied automatic timeout for spam detection",
     );
+
+    return true;
   }
 
   private async sendSpamAlert(
@@ -193,6 +196,7 @@ export class SpamActionService {
     username: string,
     channelCount: number,
     detectedMessageCount: number,
+    timedOut: boolean,
     spamContent: string | null,
     spamAttachments: SpamAttachment[],
   ): Promise<void> {
@@ -200,9 +204,12 @@ export class SpamActionService {
     if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
 
     const timeoutMinutes = SPAM_TIMEOUT_MS / 60_000;
+    const timeoutStatus = timedOut
+      ? `timed out for ${timeoutMinutes} minutes`
+      : "timeout failed";
     const summary = [
       `-# AutoMod · Spam Detection`,
-      `<@${userId}> (\`${userId}\`) timed out for ${timeoutMinutes} minutes`,
+      `<@${userId}> (\`${userId}\`) ${timeoutStatus}`,
       `Same message sent to ${channelCount} channels · ${detectedMessageCount} messages detected`,
     ].join("\n");
 
