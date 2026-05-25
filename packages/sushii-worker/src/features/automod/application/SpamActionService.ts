@@ -96,8 +96,8 @@ export class SpamActionService {
       reason,
     );
 
-    // Must send alert before deleting — attachment URLs become invalid once source messages
-    // are deleted, and the media gallery needs them to render.
+    // Must send alert before deleting — once source messages are deleted, all attachment
+    // URLs (gallery images and file links) become invalid.
     if (alertsChannelId) {
       try {
         await this.sendSpamAlert(

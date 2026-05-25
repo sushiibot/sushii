@@ -48,6 +48,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     // Derive spam key from content and/or attachment filenames so messages
     // with the same combination of text + files hash identically across channels
     const contentPart = payload.content?.trim();
+    const spamContent = contentPart || null;
     const attachmentPart = payload.attachments?.length
       ? payload.attachments
           .map((a) => a.filename)
@@ -76,7 +77,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           payload.author.id,
           payload.author.username,
           new Map([[payload.channel_id, [payload.id]]]),
-          contentPart || null,
+          spamContent,
           [],
           guildConfig.moderationSettings.automodAlertsChannelId,
         );
@@ -122,7 +123,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
               payload.author.id,
               payload.author.username,
               spamMessages,
-              contentPart || null,
+              spamContent,
               attachments,
               guildConfig.moderationSettings.automodAlertsChannelId,
             );
