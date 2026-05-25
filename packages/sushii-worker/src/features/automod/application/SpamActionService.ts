@@ -368,12 +368,12 @@ export class SpamActionService {
       return;
     }
 
+    await this.bulkDeleteSpamMessages(guild, channelId, toDelete);
+
     this.logger.info(
       { guildId: guild.id, channelId, userId, count: toDelete.length },
-      "Deleting additional spam messages found after timeout",
+      "Deleted additional spam messages found after timeout",
     );
-
-    await this.bulkDeleteSpamMessages(guild, channelId, toDelete);
   }
 
   private async bulkDeleteSpamMessages(
