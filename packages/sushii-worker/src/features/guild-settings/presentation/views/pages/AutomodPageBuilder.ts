@@ -109,8 +109,4 @@ export function addAutomodContent(
       exemptRoleSelect,
     ),
   );
-
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
 }
