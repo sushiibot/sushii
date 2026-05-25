@@ -4,6 +4,8 @@ import {
   ButtonStyle,
   ContainerBuilder,
   DiscordAPIError,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   RESTJSONErrorCodes,
   SeparatorBuilder,
@@ -23,6 +25,21 @@ import type { SpamAlertCache } from "./SpamAlertCache";
 interface SpamAttachment {
   filename: string;
   url: string;
+  contentType?: string;
+}
+
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+function isImageAttachment(attachment: SpamAttachment): boolean {
+  if (attachment.contentType?.startsWith("image/")) {
+    return true;
+  }
+  const dot = attachment.filename.lastIndexOf(".");
+  if (dot === -1) {
+    return false;
+  }
+  const ext = attachment.filename.slice(dot).toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext);
 }
 
 // Timeout duration applied to spam offenders
@@ -79,6 +96,27 @@ export class SpamActionService {
       reason,
     );
 
+    // Await the alert before deleting so Discord can fetch and cache attachment URLs
+    if (alertsChannelId) {
+      try {
+        await this.sendSpamAlert(
+          guild,
+          alertsChannelId,
+          userId,
+          username,
+          channelCount,
+          deletedMessageCount,
+          spamContent,
+          spamAttachments,
+        );
+      } catch (err: unknown) {
+        this.logger.warn(
+          { err, guildId, userId, alertsChannelId },
+          "Failed to send automod alert",
+        );
+      }
+    }
+
     const deleteResults = await Promise.allSettled(
       Array.from(spamMessages.entries()).map(([channelId, messageIds]) =>
         this.bulkDeleteSpamMessages(guild, channelId, messageIds),
@@ -96,32 +134,13 @@ export class SpamActionService {
 
     // After timeout lands, sweep the same channels for any matching messages
     // from this user that arrived during the timeout window
-    deletedMessageCount += await this.sweepRemainingSpamMessages(
+    await this.sweepRemainingSpamMessages(
       guild,
       guildId,
       userId,
       spamMessages,
       spamContent,
     );
-
-    if (alertsChannelId) {
-      // Fire-and-forget: log on failure but don't interrupt the action
-      this.sendSpamAlert(
-        guild,
-        alertsChannelId,
-        userId,
-        username,
-        channelCount,
-        deletedMessageCount,
-        spamContent,
-        spamAttachments,
-      ).catch((err: unknown) => {
-        this.logger.warn(
-          { err, guildId, userId, alertsChannelId },
-          "Failed to send automod alert",
-        );
-      });
-    }
   }
 
   private async applySpamTimeout(
@@ -183,12 +202,18 @@ export class SpamActionService {
     const summary = [
       `-# AutoMod · Spam Detection`,
       `<@${userId}> (\`${userId}\`) timed out for ${timeoutMinutes} minutes`,
-      `Same message sent to ${channelCount} channels · ${deletedMessageCount} messages deleted`,
+      `Same message sent to ${channelCount} channels · ${deletedMessageCount} messages detected`,
     ].join("\n");
 
     const container = new ContainerBuilder()
       .setAccentColor(Color.Warning)
       .addTextDisplayComponents(new TextDisplayBuilder().setContent(summary));
+
+    const imageAttachments: SpamAttachment[] = [];
+    const fileAttachments: SpamAttachment[] = [];
+    for (const a of spamAttachments) {
+      (isImageAttachment(a) ? imageAttachments : fileAttachments).push(a);
+    }
 
     // Show the triggering content if available
     const contentLines: string[] = [];
@@ -200,9 +225,9 @@ export class SpamActionService {
           : spamContent;
       contentLines.push(`\`\`\`\n${truncated}\n\`\`\``);
     }
-    if (spamAttachments.length > 0) {
+    if (fileAttachments.length > 0) {
       contentLines.push(
-        spamAttachments.map((a) => `[${a.filename}](${a.url})`).join("\n"),
+        fileAttachments.map((a) => `[${a.filename}](${a.url})`).join("\n"),
       );
     }
 
@@ -211,6 +236,20 @@ export class SpamActionService {
         .addSeparatorComponents(new SeparatorBuilder())
         .addTextDisplayComponents(
           new TextDisplayBuilder().setContent(contentLines.join("\n")),
+        );
+    }
+
+    if (imageAttachments.length > 0) {
+      container
+        .addSeparatorComponents(new SeparatorBuilder())
+        .addMediaGalleryComponents(
+          new MediaGalleryBuilder().addItems(
+            ...imageAttachments.map((a) =>
+              new MediaGalleryItemBuilder()
+                .setURL(a.url)
+                .setDescription(a.filename),
+            ),
+          ),
         );
     }
 
@@ -271,33 +310,21 @@ export class SpamActionService {
     userId: string,
     spamMessages: Map<string, string[]>,
     spamContent: string | null,
-  ): Promise<number> {
+  ): Promise<void> {
     const sweepResults = await Promise.allSettled(
       Array.from(spamMessages.entries()).map(([channelId, knownIds]) =>
         this.sweepChannel(guild, channelId, userId, knownIds, spamContent),
       ),
     );
 
-    let additionalCount = 0;
     for (const result of sweepResults) {
-      if (result.status === "fulfilled") {
-        additionalCount += result.value;
-      } else {
+      if (result.status === "rejected") {
         this.logger.warn(
           { err: result.reason, guildId, userId },
           "Failed to sweep remaining spam messages",
         );
       }
     }
-
-    if (additionalCount > 0) {
-      this.logger.info(
-        { guildId, userId, additionalCount },
-        "Deleted additional spam messages found after timeout",
-      );
-    }
-
-    return additionalCount;
   }
 
   private async sweepChannel(
@@ -306,15 +333,15 @@ export class SpamActionService {
     userId: string,
     knownIds: string[],
     spamContent: string | null,
-  ): Promise<number> {
+  ): Promise<void> {
     // Without content to match against, we can't reliably identify additional spam messages.
     if (spamContent === null) {
-      return 0;
+      return;
     }
 
     const channel = guild.channels.cache.get(channelId);
     if (!channel || !channel.isTextBased() || channel.isDMBased()) {
-      return 0;
+      return;
     }
 
     const knownSet = new Set(knownIds);
@@ -333,11 +360,10 @@ export class SpamActionService {
       .map((msg) => msg.id);
 
     if (toDelete.length === 0) {
-      return 0;
+      return;
     }
 
     await this.bulkDeleteSpamMessages(guild, channelId, toDelete);
-    return toDelete.length;
   }
 
   private async bulkDeleteSpamMessages(

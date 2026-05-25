@@ -105,12 +105,11 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       );
 
       if (spamMessages) {
-        const attachments = (payload.attachments ?? []).map(
-          (a: { filename: string; url: string }) => ({
-            filename: a.filename,
-            url: a.url,
-          }),
-        );
+        const attachments = (payload.attachments ?? []).map((a) => ({
+          filename: a.filename,
+          url: a.url,
+          contentType: a.content_type,
+        }));
         await tracer.startActiveSpan("automod.spam-action", async (span) => {
           span.setAttributes({
             "guild.id": guildId,
