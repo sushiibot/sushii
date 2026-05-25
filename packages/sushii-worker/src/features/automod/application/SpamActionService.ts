@@ -244,6 +244,8 @@ export class SpamActionService {
         );
     }
 
+    // Discord caps message attachments at 10, matching the gallery item limit,
+    // so no slice guard is needed as long as callers pass single-message attachments.
     if (imageAttachments.length > 0) {
       container
         .addSeparatorComponents(new SeparatorBuilder())
@@ -339,7 +341,7 @@ export class SpamActionService {
     knownIds: string[],
     spamContent: string | null,
   ): Promise<void> {
-    // Without content to match against, we can't reliably identify additional spam messages.
+    // Attachment-only spam (null content) has no reliable text fingerprint to sweep against.
     if (spamContent === null) {
       return;
     }
