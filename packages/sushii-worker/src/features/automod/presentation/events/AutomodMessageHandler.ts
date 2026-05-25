@@ -76,7 +76,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           payload.author.id,
           payload.author.username,
           new Map([[payload.channel_id, [payload.id]]]),
-          payload.content,
+          contentPart ?? null,
           [],
           guildConfig.moderationSettings.automodAlertsChannelId,
         );

@@ -28,7 +28,7 @@ interface SpamAttachment {
   contentType?: string;
 }
 
-const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".apng"]);
 
 function isImageAttachment(attachment: SpamAttachment): boolean {
   if (attachment.contentType?.startsWith("image/")) {
@@ -68,9 +68,9 @@ export class SpamActionService {
     }
 
     const channelCount = spamMessages.size;
-    let deletedMessageCount = 0;
+    let detectedMessageCount = 0;
     for (const ids of spamMessages.values()) {
-      deletedMessageCount += ids.length;
+      detectedMessageCount += ids.length;
     }
 
     // Let API errors throw — only treat a missing member as a soft failure
@@ -92,11 +92,12 @@ export class SpamActionService {
       userId,
       username,
       channelCount,
-      deletedMessageCount,
+      detectedMessageCount,
       reason,
     );
 
-    // Await the alert before deleting so Discord can fetch and cache attachment URLs
+    // Must send alert before deleting — attachment URLs become invalid once source messages
+    // are deleted, and the media gallery needs them to render.
     if (alertsChannelId) {
       try {
         await this.sendSpamAlert(
@@ -105,7 +106,7 @@ export class SpamActionService {
           userId,
           username,
           channelCount,
-          deletedMessageCount,
+          detectedMessageCount,
           spamContent,
           spamAttachments,
         );
@@ -149,7 +150,7 @@ export class SpamActionService {
     userId: string,
     username: string,
     channelCount: number,
-    deletedMessageCount: number,
+    detectedMessageCount: number,
     reason: string,
   ): Promise<void> {
     if (!member) {
@@ -179,7 +180,7 @@ export class SpamActionService {
         userId,
         username,
         channelCount,
-        deletedMessageCount,
+        detectedMessageCount,
       },
       "Applied automatic timeout for spam detection",
     );
@@ -191,7 +192,7 @@ export class SpamActionService {
     userId: string,
     username: string,
     channelCount: number,
-    deletedMessageCount: number,
+    detectedMessageCount: number,
     spamContent: string | null,
     spamAttachments: SpamAttachment[],
   ): Promise<void> {
@@ -202,7 +203,7 @@ export class SpamActionService {
     const summary = [
       `-# AutoMod · Spam Detection`,
       `<@${userId}> (\`${userId}\`) timed out for ${timeoutMinutes} minutes`,
-      `Same message sent to ${channelCount} channels · ${deletedMessageCount} messages detected`,
+      `Same message sent to ${channelCount} channels · ${detectedMessageCount} messages detected`,
     ].join("\n");
 
     const container = new ContainerBuilder()
@@ -211,8 +212,12 @@ export class SpamActionService {
 
     const imageAttachments: SpamAttachment[] = [];
     const fileAttachments: SpamAttachment[] = [];
-    for (const a of spamAttachments) {
-      (isImageAttachment(a) ? imageAttachments : fileAttachments).push(a);
+    for (const attachment of spamAttachments) {
+      if (isImageAttachment(attachment)) {
+        imageAttachments.push(attachment);
+      } else {
+        fileAttachments.push(attachment);
+      }
     }
 
     // Show the triggering content if available
@@ -227,7 +232,7 @@ export class SpamActionService {
     }
     if (fileAttachments.length > 0) {
       contentLines.push(
-        fileAttachments.map((a) => `[${a.filename}](${a.url})`).join("\n"),
+        fileAttachments.map((attachment) => `[${attachment.filename}](${attachment.url})`).join("\n"),
       );
     }
 
@@ -244,10 +249,10 @@ export class SpamActionService {
         .addSeparatorComponents(new SeparatorBuilder())
         .addMediaGalleryComponents(
           new MediaGalleryBuilder().addItems(
-            ...imageAttachments.map((a) =>
+            ...imageAttachments.map((attachment) =>
               new MediaGalleryItemBuilder()
-                .setURL(a.url)
-                .setDescription(a.filename),
+                .setURL(attachment.url)
+                .setDescription(attachment.filename),
             ),
           ),
         );
@@ -362,6 +367,11 @@ export class SpamActionService {
     if (toDelete.length === 0) {
       return;
     }
+
+    this.logger.info(
+      { guildId: guild.id, channelId, userId, count: toDelete.length },
+      "Deleting additional spam messages found after timeout",
+    );
 
     await this.bulkDeleteSpamMessages(guild, channelId, toDelete);
   }
