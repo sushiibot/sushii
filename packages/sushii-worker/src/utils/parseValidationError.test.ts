@@ -196,7 +196,10 @@ describe("parseValidationError", () => {
     test("processes nested validation errors in union", () => {
       const complexUnion = s.union([
         s.object({ type: s.literal("user"), name: s.string() }),
-        s.object({ type: s.literal("admin"), permissions: s.array(s.string()) }),
+        s.object({
+          type: s.literal("admin"),
+          permissions: s.array(s.string()),
+        }),
       ]);
 
       let error: unknown;

@@ -70,7 +70,12 @@ type PathParams<T extends Paths> = T extends Paths.RoleMenuButton
                     }
                   : T extends Paths.AutomodAlertAction
                     ? {
-                        actionType: "warn" | "kick" | "ban" | "softban" | "unban";
+                        actionType:
+                          | "warn"
+                          | "kick"
+                          | "ban"
+                          | "softban"
+                          | "unban";
                         userId: string;
                       }
                     : never;
