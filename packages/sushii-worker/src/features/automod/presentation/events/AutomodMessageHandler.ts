@@ -108,7 +108,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       if (spamMessages) {
         const attachments = (payload.attachments ?? []).map((a) => ({
           filename: a.filename,
-          url: a.url,
+          url: a.proxy_url,
           contentType: a.content_type,
         }));
         await tracer.startActiveSpan("automod.spam-action", async (span) => {
