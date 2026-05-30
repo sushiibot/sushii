@@ -27,6 +27,7 @@ import type { ScamImageHashRepository } from "../../domain/repositories/ScamImag
 import { isImageAttachment } from "../../utils/attachmentUtils";
 import { formatDhash } from "../../utils/bigintUtils";
 
+const OWNER_USER_ID = "150443906511667200";
 const BUTTON_ADD_ALL = "scam_hash_dm:add_all";
 const MODAL_LABEL = "scam_hash_dm:label";
 const MODAL_LABEL_INPUT = "label";
@@ -52,7 +53,6 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
   readonly isExemptFromDeploymentCheck = true;
 
   constructor(
-    private readonly ownerUserId: string,
     private readonly repository: ScamImageHashRepository,
     private readonly hashService: ScamImageHashService,
     private readonly logger: Logger,
@@ -65,7 +65,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
       return;
     }
 
-    if (message.author.id !== this.ownerUserId) {
+    if (message.author.id !== OWNER_USER_ID) {
       return;
     }
 
@@ -237,7 +237,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     let buttonInteraction;
     try {
       buttonInteraction = await reply.awaitMessageComponent({
-        filter: (i) => i.user.id === this.ownerUserId && i.customId === BUTTON_ADD_ALL,
+        filter: (i) => i.user.id === OWNER_USER_ID && i.customId === BUTTON_ADD_ALL,
         time: AWAIT_TIMEOUT_MS,
       });
     } catch {

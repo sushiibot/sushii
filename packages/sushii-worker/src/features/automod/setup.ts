@@ -39,13 +39,12 @@ export interface AutomodFeatureOptions {
   client: Client;
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
-  ownerUserId?: string;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, logger, db, ownerUserId } =
+  const { guildConfigRepository, emojiRepository, client, logger, db } =
     options;
 
   // Services
@@ -105,7 +104,6 @@ export function setupAutomodFeature(
   );
 
   const scamHashDMHandler = new ScamHashDMHandler(
-    ownerUserId ?? "",
     scamImageHashRepository,
     scamImageHashService,
     logger.child({ component: "ScamHashDMHandler" }),
