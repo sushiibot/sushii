@@ -245,6 +245,25 @@ export const guildConfigsInAppPublic = appPublic.table(
   ],
 );
 
+export const scamImageHashesInAppPublic = appPublic.table(
+  "scam_image_hashes",
+  {
+    id: serial().primaryKey().notNull(),
+    hash: bigint({ mode: "bigint" }).notNull(),
+    category: text(),
+    label: text(),
+    addedAt: timestamp("added_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  () => [
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
 export const guildEmojisAndStickersInAppPublic = appPublic.table(
   "guild_emojis_and_stickers",
   {

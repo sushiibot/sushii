@@ -281,6 +281,13 @@
       "when": 1779740353575,
       "tag": "0039_restore-mat-view-indexes",
       "breakpoints": false
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1780111449355,
+      "tag": "0040_add-scam-image-hashes",
+      "breakpoints": false
     }
   ]
 }
