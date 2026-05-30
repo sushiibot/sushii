@@ -1,5 +1,5 @@
 import type { Client } from "discord.js";
-import type { Events } from "discord.js";
+import { Events } from "discord.js";
 import type { Logger } from "pino";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -115,6 +115,10 @@ export function setupAutomodFeature(
     scamImageHashService,
     logger.child({ component: "ScamHashCommand" }),
   );
+
+  client.once(Events.ClientReady, (readyClient) => {
+    void scamHashDMHandler.primeOwnerDMChannel(readyClient);
+  });
 
   return {
     eventHandlers: [automodMessageHandler, automodAlertExecutionHandler, scamHashDMHandler],
