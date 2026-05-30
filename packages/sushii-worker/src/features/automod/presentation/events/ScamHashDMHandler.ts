@@ -68,16 +68,16 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
         authorId: message.author.id,
         isOwner: message.author.id === OWNER_USER_ID,
       },
-      "ScamHashDMHandler: received MessageCreate",
+      "received MessageCreate",
     );
 
     if (!message.channel.isDMBased()) {
-      this.logger.debug({ channelType: message.channel.type }, "ScamHashDMHandler: skip — not DM");
+      this.logger.debug({ channelType: message.channel.type }, "skip — not DM");
       return;
     }
 
     if (message.author.id !== OWNER_USER_ID) {
-      this.logger.debug({ authorId: message.author.id }, "ScamHashDMHandler: skip — not owner");
+      this.logger.debug({ authorId: message.author.id }, "skip — not owner");
       return;
     }
 
