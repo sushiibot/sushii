@@ -10,7 +10,7 @@ import type { ScamImageMetrics } from "../infrastructure/metrics/ScamImageMetric
 export const SCAM_HASH_MATCH_THRESHOLD = 10;
 export const SCAM_HASH_DEDUP_THRESHOLD = 5;
 
-export const SCAM_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+export const SCAM_IMAGE_MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — Discord base upload limit
 export const SCAM_IMAGE_MAX_DIMENSION = 4000;
 const DOWNLOAD_TIMEOUT_MS = 3000;
 
@@ -18,7 +18,7 @@ export class ScamImageHashService {
   constructor(
     private readonly repository: ScamImageHashRepository,
     private readonly logger: Logger,
-    private readonly metrics?: ScamImageMetrics,
+    private readonly metrics: ScamImageMetrics,
   ) {}
 
   async computeHash(buffer: Buffer): Promise<bigint> {
@@ -56,7 +56,7 @@ export class ScamImageHashService {
       try {
         const buffer = await this.downloadImage(url);
         if (!buffer) {
-          this.metrics?.checkCounter.add(1, {
+          this.metrics.checkCounter.add(1, {
             guild_id: guildId,
             outcome: "skip_size",
           });
@@ -64,7 +64,7 @@ export class ScamImageHashService {
         }
 
         const hash = await this.computeHash(buffer);
-        this.metrics?.downloadDurationHistogram.record(Date.now() - start, {
+        this.metrics.downloadDurationHistogram.record(Date.now() - start, {
           guild_id: guildId,
         });
 
@@ -74,18 +74,18 @@ export class ScamImageHashService {
         );
 
         if (match) {
-          this.metrics?.checkCounter.add(1, {
+          this.metrics.checkCounter.add(1, {
             guild_id: guildId,
             outcome: "match",
           });
-          this.metrics?.matchCounter.add(1, {
+          this.metrics.matchCounter.add(1, {
             guild_id: guildId,
             category: match.category ?? "unknown",
           });
           return match;
         }
       } catch (err) {
-        this.metrics?.checkCounter.add(1, {
+        this.metrics.checkCounter.add(1, {
           guild_id: guildId,
           outcome: "error",
         });
@@ -93,7 +93,7 @@ export class ScamImageHashService {
       }
     }
 
-    this.metrics?.checkCounter.add(1, {
+    this.metrics.checkCounter.add(1, {
       guild_id: guildId,
       outcome: "no_match",
     });

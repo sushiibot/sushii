@@ -30,7 +30,7 @@ import {
 // Timeout duration applied to spam offenders
 const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-const ALERT_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5MB — skip re-upload above this
+const ALERT_IMAGE_MAX_BYTES = 8 * 1024 * 1024; // 8MB — matches SCAM_IMAGE_MAX_SIZE_BYTES
 const ALERT_IMAGE_DOWNLOAD_TIMEOUT_MS = 5_000;
 
 interface SpamActionContext {
