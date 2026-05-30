@@ -193,6 +193,7 @@ export function registerFeatures(
   const automodFeature = setupAutomodFeature({
     client,
     logger,
+    db,
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
@@ -319,6 +320,7 @@ export function registerFeatures(
     ...giveawayFeature.commands,
     ...emojiStatsFeature.commands,
     ...statusFeature.commands,
+    ...automodFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,

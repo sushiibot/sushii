@@ -21,29 +21,19 @@ import customIds from "@/interactions/customIds";
 
 import { SpamDetectionService } from "./SpamDetectionService";
 import type { SpamAlertCache } from "./SpamAlertCache";
-
-interface SpamAttachment {
-  filename: string;
-  url: string;
-  contentType?: string;
-}
-
-const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".apng"]);
-
-function isImageAttachment(attachment: SpamAttachment): boolean {
-  if (attachment.contentType?.startsWith("image/")) {
-    return true;
-  }
-  const dot = attachment.filename.lastIndexOf(".");
-  if (dot === -1) {
-    return false;
-  }
-  const ext = attachment.filename.slice(dot).toLowerCase();
-  return IMAGE_EXTENSIONS.has(ext);
-}
+import {
+  isImageAttachment,
+  type SpamAttachment,
+} from "../utils/attachmentUtils";
 
 // Timeout duration applied to spam offenders
 const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+interface SpamActionContext {
+  reason: string;
+  alertTitle: string;
+  alertDetail: string;
+}
 
 export class SpamActionService {
   constructor(
@@ -61,16 +51,77 @@ export class SpamActionService {
     spamAttachments: SpamAttachment[],
     alertsChannelId?: string | null,
   ): Promise<void> {
-    const guild = this.client.guilds.cache.get(guildId);
-    if (!guild) {
-      this.logger.warn({ guildId }, "Guild not found in cache for spam action");
-      return;
-    }
-
     const channelCount = spamMessages.size;
     let detectedMessageCount = 0;
     for (const ids of spamMessages.values()) {
       detectedMessageCount += ids.length;
+    }
+
+    const context: SpamActionContext = {
+      reason: `[AutoMod] Spam: same message sent to ${channelCount} channels within ${SpamDetectionService.SPAM_WINDOW_MS / 1000} seconds`,
+      alertTitle: "AutoMod · Spam Detection",
+      alertDetail: `Same message sent to ${channelCount} channels · ${detectedMessageCount} messages detected`,
+    };
+
+    await this._executeAction(
+      guildId,
+      userId,
+      username,
+      spamMessages,
+      spamContent,
+      spamAttachments,
+      alertsChannelId,
+      context,
+    );
+  }
+
+  async executeScamImageAction(
+    guildId: string,
+    userId: string,
+    username: string,
+    channelId: string,
+    messageId: string,
+    attachments: SpamAttachment[],
+    alertsChannelId?: string | null,
+    matchLabel?: string | null,
+  ): Promise<void> {
+    const messages = new Map([[channelId, [messageId]]]);
+    const detail = matchLabel
+      ? `Known scam image detected · ${matchLabel}`
+      : "Known scam image detected";
+
+    const context: SpamActionContext = {
+      reason: "[AutoMod] Known scam image detected",
+      alertTitle: "AutoMod · Scam Image",
+      alertDetail: detail,
+    };
+
+    await this._executeAction(
+      guildId,
+      userId,
+      username,
+      messages,
+      null,
+      attachments,
+      alertsChannelId,
+      context,
+    );
+  }
+
+  private async _executeAction(
+    guildId: string,
+    userId: string,
+    username: string,
+    messages: Map<string, string[]>,
+    content: string | null,
+    attachments: SpamAttachment[],
+    alertsChannelId: string | null | undefined,
+    context: SpamActionContext,
+  ): Promise<void> {
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      this.logger.warn({ guildId }, "Guild not found in cache for spam action");
+      return;
     }
 
     // Let API errors throw — only treat a missing member as a soft failure
@@ -84,16 +135,12 @@ export class SpamActionService {
       throw err;
     });
 
-    const reason = `[AutoMod] Spam: same message sent to ${channelCount} channels within ${SpamDetectionService.SPAM_WINDOW_MS / 1000} seconds`;
-
     const timedOut = await this.applySpamTimeout(
       member,
       guildId,
       userId,
       username,
-      channelCount,
-      detectedMessageCount,
-      reason,
+      context.reason,
     );
 
     // Must send alert before deleting — once source messages are deleted, all attachment
@@ -105,11 +152,10 @@ export class SpamActionService {
           alertsChannelId,
           userId,
           username,
-          channelCount,
-          detectedMessageCount,
           timedOut,
-          spamContent,
-          spamAttachments,
+          content,
+          attachments,
+          context,
         );
       } catch (err: unknown) {
         this.logger.warn(
@@ -120,7 +166,7 @@ export class SpamActionService {
     }
 
     const deleteResults = await Promise.allSettled(
-      Array.from(spamMessages.entries()).map(([channelId, messageIds]) =>
+      Array.from(messages.entries()).map(([channelId, messageIds]) =>
         this.bulkDeleteSpamMessages(guild, channelId, messageIds),
       ),
     );
@@ -140,8 +186,8 @@ export class SpamActionService {
       guild,
       guildId,
       userId,
-      spamMessages,
-      spamContent,
+      messages,
+      content,
     );
   }
 
@@ -150,8 +196,6 @@ export class SpamActionService {
     guildId: string,
     userId: string,
     username: string,
-    channelCount: number,
-    detectedMessageCount: number,
     reason: string,
   ): Promise<boolean> {
     if (!member) {
@@ -176,14 +220,8 @@ export class SpamActionService {
     // handler picks up to create a moderation case and post to the configured
     // mod log channel automatically.
     this.logger.info(
-      {
-        guildId,
-        userId,
-        username,
-        channelCount,
-        detectedMessageCount,
-      },
-      "Applied automatic timeout for spam detection",
+      { guildId, userId, username },
+      "Applied automatic timeout for automod action",
     );
 
     return true;
@@ -194,11 +232,10 @@ export class SpamActionService {
     alertsChannelId: string,
     userId: string,
     username: string,
-    channelCount: number,
-    detectedMessageCount: number,
     timedOut: boolean,
     spamContent: string | null,
     spamAttachments: SpamAttachment[],
+    context: SpamActionContext,
   ): Promise<void> {
     const channel = guild.channels.cache.get(alertsChannelId);
     if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
@@ -208,9 +245,9 @@ export class SpamActionService {
       ? `timed out for ${timeoutMinutes} minutes`
       : "timeout failed";
     const summary = [
-      `-# AutoMod · Spam Detection`,
+      `-# ${context.alertTitle}`,
       `<@${userId}> (\`${userId}\`) ${timeoutStatus}`,
-      `Same message sent to ${channelCount} channels · ${detectedMessageCount} messages detected`,
+      context.alertDetail,
     ].join("\n");
 
     const container = new ContainerBuilder()

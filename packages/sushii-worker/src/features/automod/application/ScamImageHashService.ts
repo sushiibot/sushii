@@ -1,0 +1,136 @@
+import sharp from "sharp";
+import type { Logger } from "pino";
+
+import type {
+  ScamImageHash,
+  ScamImageHashRepository,
+} from "../domain/repositories/ScamImageHashRepository";
+import type { ScamImageMetrics } from "../infrastructure/metrics/ScamImageMetrics";
+
+export const SCAM_HASH_MATCH_THRESHOLD = 10;
+export const SCAM_HASH_DEDUP_THRESHOLD = 5;
+
+export const SCAM_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+export const SCAM_IMAGE_MAX_DIMENSION = 4000;
+const DOWNLOAD_TIMEOUT_MS = 3000;
+
+export class ScamImageHashService {
+  constructor(
+    private readonly repository: ScamImageHashRepository,
+    private readonly logger: Logger,
+    private readonly metrics?: ScamImageMetrics,
+  ) {}
+
+  async computeHash(buffer: Buffer): Promise<bigint> {
+    const { data } = await sharp(buffer)
+      .flatten({ background: { r: 0, g: 0, b: 0 } })
+      .greyscale()
+      .resize(9, 8, { fit: "fill", kernel: "nearest" })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    let hash = 0n;
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        if (data[row * 9 + col] > data[row * 9 + col + 1]) {
+          hash |= 1n << BigInt(row * 8 + col);
+        }
+      }
+    }
+
+    return hash;
+  }
+
+  async checkAttachments(
+    attachmentUrls: string[],
+    guildId: string,
+  ): Promise<ScamImageHash | null> {
+    for (const url of attachmentUrls) {
+      const start = Date.now();
+      try {
+        const buffer = await this.downloadImage(url);
+        if (!buffer) {
+          this.metrics?.checkCounter.add(1, {
+            guild_id: guildId,
+            outcome: "skip_size",
+          });
+          continue;
+        }
+
+        const hash = await this.computeHash(buffer);
+        this.metrics?.downloadDurationHistogram.record(Date.now() - start, {
+          guild_id: guildId,
+        });
+
+        const match = await this.repository.findMatch(
+          hash,
+          SCAM_HASH_MATCH_THRESHOLD,
+        );
+
+        if (match) {
+          this.metrics?.checkCounter.add(1, {
+            guild_id: guildId,
+            outcome: "match",
+          });
+          this.metrics?.matchCounter.add(1, {
+            guild_id: guildId,
+            category: match.category ?? "unknown",
+          });
+          return match;
+        }
+
+        this.metrics?.checkCounter.add(1, {
+          guild_id: guildId,
+          outcome: "no_match",
+        });
+      } catch (err) {
+        this.metrics?.checkCounter.add(1, {
+          guild_id: guildId,
+          outcome: "error",
+        });
+        this.logger.warn({ err, url }, "Failed to check attachment for scam image");
+      }
+    }
+
+    return null;
+  }
+
+  private async downloadImage(url: string): Promise<Buffer | null> {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      this.logger.debug({ url, status: response.status }, "Failed to download image");
+      return null;
+    }
+
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > SCAM_IMAGE_MAX_SIZE_BYTES) {
+      this.logger.debug({ url, contentLength }, "Skipping oversized image");
+      return null;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    if (buffer.byteLength > SCAM_IMAGE_MAX_SIZE_BYTES) {
+      this.logger.debug({ url, size: buffer.byteLength }, "Skipping oversized image");
+      return null;
+    }
+
+    // Check dimensions without fully decoding
+    const meta = await sharp(buffer).metadata();
+    if (
+      (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||
+      (meta.height && meta.height > SCAM_IMAGE_MAX_DIMENSION)
+    ) {
+      this.logger.debug(
+        { url, width: meta.width, height: meta.height },
+        "Skipping image with excessive dimensions",
+      );
+      return null;
+    }
+
+    return buffer;
+  }
+}

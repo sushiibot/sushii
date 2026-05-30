@@ -1,20 +1,26 @@
 import type { Client } from "discord.js";
 import type { Events } from "discord.js";
 import type { Logger } from "pino";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import type * as schema from "@/infrastructure/database/schema";
 
 import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
+import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";
 import { SpamAlertUpdateService } from "./application/SpamAlertUpdateService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
+import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImageHashRepository";
+import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
+import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
 
 export interface AutomodFeature {
   eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler];
@@ -22,6 +28,7 @@ export interface AutomodFeature {
     automodAlertReactionService: AutomodAlertReactionService;
     spamAlertUpdateService: SpamAlertUpdateService;
   };
+  commands: [ScamHashCommand];
   destroy(): void;
 }
 
@@ -30,12 +37,14 @@ export interface AutomodFeatureOptions {
   emojiRepository: BotEmojiRepository;
   client: Client;
   logger: Logger;
+  db: NodePgDatabase<typeof schema>;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, logger } = options;
+  const { guildConfigRepository, emojiRepository, client, logger, db } =
+    options;
 
   // Services
   const spamDetectionService = new SpamDetectionService(
@@ -64,10 +73,20 @@ export function setupAutomodFeature(
     logger.child({ component: "AutomodAlertReactionService" }),
   );
 
+  const scamImageHashRepository = new DrizzleScamImageHashRepository(db);
+  const scamImageMetrics = new ScamImageMetrics();
+
+  const scamImageHashService = new ScamImageHashService(
+    scamImageHashRepository,
+    logger.child({ component: "ScamImageHashService" }),
+    scamImageMetrics,
+  );
+
   // Event handlers
   const automodMessageHandler = new AutomodMessageHandler(
     spamDetectionService,
     spamActionService,
+    scamImageHashService,
     guildConfigRepository,
     logger.child({ component: "AutomodMessageHandler" }),
   );
@@ -83,12 +102,20 @@ export function setupAutomodFeature(
     logger.child({ component: "AutomodAlertExecutionHandler" }),
   );
 
+  // Commands
+  const scamHashCommand = new ScamHashCommand(
+    scamImageHashRepository,
+    scamImageHashService,
+    logger.child({ component: "ScamHashCommand" }),
+  );
+
   return {
     eventHandlers: [automodMessageHandler, automodAlertExecutionHandler],
     services: {
       automodAlertReactionService,
       spamAlertUpdateService,
     },
+    commands: [scamHashCommand],
     destroy: () => spamDetectionService.destroy(),
   };
 }
