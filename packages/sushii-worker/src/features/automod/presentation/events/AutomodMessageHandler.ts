@@ -115,7 +115,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         }),
       );
 
-      // Fire-and-forget scam image check — does not block the gateway handler
       const imageUrls = (payload.attachments ?? [])
         .filter(
           (a) =>
@@ -127,6 +126,10 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         .slice(0, MAX_IMAGE_ATTACHMENTS_PER_CHECK)
         .map((a) => a.proxy_url ?? a.url);
 
+      // Run scam image check before spam check — if a match is found and the
+      // user is timed out, they can no longer send messages, so the spam
+      // threshold cannot be reached and we avoid a duplicate action.
+      let scamActed = false;
       const userKey = `${guildId}:${payload.author.id}`;
       if (imageUrls.length > 0) {
         if (this.inProgressImageChecks.has(userKey)) {
@@ -136,17 +139,25 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           );
         } else {
           this.inProgressImageChecks.add(userKey);
-          void this.checkScamImage(
-            guildId,
-            payload.author.id,
-            payload.author.username,
-            payload.channel_id,
-            payload.id,
-            imageUrls,
-            spamAttachments,
-            guildConfig.moderationSettings.automodAlertsChannelId,
-          ).finally(() => this.inProgressImageChecks.delete(userKey));
+          try {
+            scamActed = await this.checkScamImage(
+              guildId,
+              payload.author.id,
+              payload.author.username,
+              payload.channel_id,
+              payload.id,
+              imageUrls,
+              spamAttachments,
+              guildConfig.moderationSettings.automodAlertsChannelId,
+            );
+          } finally {
+            this.inProgressImageChecks.delete(userKey);
+          }
         }
+      }
+
+      if (scamActed) {
+        return;
       }
 
       // Check for spam
@@ -208,14 +219,14 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     imageUrls: string[],
     attachments: SpamAttachment[],
     alertsChannelId: string | null | undefined,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const match = await this.scamImageHashService.checkAttachments(
         imageUrls,
         guildId,
       );
       if (!match) {
-        return;
+        return false;
       }
 
       const matchLabel = match.label ?? match.category;
@@ -230,19 +241,21 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         alertsChannelId,
         matchLabel,
       );
+      return true;
     } catch (err) {
       // Silently ignore Unknown Message — already deleted before we could act
       if (
         err instanceof DiscordAPIError &&
         err.code === RESTJSONErrorCodes.UnknownMessage
       ) {
-        return;
+        return false;
       }
 
       this.logger.error(
         { err, guildId, userId },
         "Failed to run scam image check",
       );
+      return false;
     }
   }
 }
