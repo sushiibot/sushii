@@ -12,6 +12,7 @@ import {
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
+  type Client,
   type Message,
 } from "discord.js";
 import type { Logger } from "pino";
@@ -58,6 +59,19 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     private readonly logger: Logger,
   ) {
     super();
+  }
+
+  // Discord gateway DM MESSAGE_CREATE events don't include channel_type, so
+  // discord.js can't construct the DMChannel when it's not cached. Pre-fetch
+  // on ready so the channel is cached before any messages arrive.
+  async primeOwnerDMChannel(client: Client): Promise<void> {
+    try {
+      const user = await client.users.fetch(OWNER_USER_ID);
+      await user.createDM();
+      this.logger.debug({ userId: OWNER_USER_ID }, "Primed owner DM channel");
+    } catch (err) {
+      this.logger.warn({ err }, "Failed to prime owner DM channel");
+    }
   }
 
   async handle(message: Message): Promise<void> {
