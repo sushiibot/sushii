@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
@@ -28,6 +29,9 @@ import {
 
 // Timeout duration applied to spam offenders
 const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+const ALERT_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5MB — skip re-upload above this
+const ALERT_IMAGE_DOWNLOAD_TIMEOUT_MS = 5_000;
 
 interface SpamActionContext {
   reason: string;
@@ -288,6 +292,39 @@ export class SpamActionService {
         );
     }
 
+    // Download images and re-upload them as attachments on the alert message so
+    // they remain visible after the source message is deleted (CDN URLs expire).
+    const fileBuilders: AttachmentBuilder[] = [];
+    const uploadedFilenames = new Set<string>();
+    if (imageAttachments.length > 0) {
+      const results = await Promise.allSettled(
+        imageAttachments.map(async (a) => {
+          const resp = await fetch(a.url, {
+            signal: AbortSignal.timeout(ALERT_IMAGE_DOWNLOAD_TIMEOUT_MS),
+          });
+          if (!resp.ok) {
+            return null;
+          }
+          const buf = Buffer.from(await resp.arrayBuffer());
+          if (buf.byteLength > ALERT_IMAGE_MAX_BYTES) {
+            return null;
+          }
+          return { buffer: buf, filename: a.filename };
+        }),
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value) {
+          fileBuilders.push(
+            new AttachmentBuilder(result.value.buffer, {
+              name: result.value.filename,
+            }),
+          );
+          uploadedFilenames.add(result.value.filename);
+        }
+      }
+    }
+
     // Discord caps message attachments at 10, matching the gallery item limit,
     // so no slice guard is needed as long as callers pass single-message attachments.
     if (imageAttachments.length > 0) {
@@ -297,7 +334,11 @@ export class SpamActionService {
           new MediaGalleryBuilder().addItems(
             ...imageAttachments.map((attachment) =>
               new MediaGalleryItemBuilder()
-                .setURL(attachment.url)
+                .setURL(
+                  uploadedFilenames.has(attachment.filename)
+                    ? `attachment://${attachment.filename}`
+                    : attachment.url,
+                )
                 .setDescription(attachment.filename),
             ),
           ),
@@ -350,6 +391,7 @@ export class SpamActionService {
       components: [container],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [], users: [] },
+      files: fileBuilders,
     });
 
     this.spamAlertCache.track(guild.id, userId, alertMessage.channelId, alertMessage.id);
