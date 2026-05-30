@@ -14,3 +14,7 @@ export function toSignedBigint(u64: bigint): bigint {
 export function toUnsignedBigint(s64: bigint): bigint {
   return s64 < 0n ? s64 + U64_WRAP : s64;
 }
+
+export function formatDhash(hash: bigint): string {
+  return hash.toString(16).padStart(16, "0");
+}

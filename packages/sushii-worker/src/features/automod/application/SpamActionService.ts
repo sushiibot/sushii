@@ -63,7 +63,7 @@ export class SpamActionService {
       alertDetail: `Same message sent to ${channelCount} channels · ${detectedMessageCount} messages detected`,
     };
 
-    await this._executeAction(
+    await this.executeAutomodAction(
       guildId,
       userId,
       username,
@@ -96,7 +96,7 @@ export class SpamActionService {
       alertDetail: detail,
     };
 
-    await this._executeAction(
+    await this.executeAutomodAction(
       guildId,
       userId,
       username,
@@ -108,7 +108,7 @@ export class SpamActionService {
     );
   }
 
-  private async _executeAction(
+  private async executeAutomodAction(
     guildId: string,
     userId: string,
     username: string,

@@ -22,12 +22,18 @@ export class ScamImageHashService {
   ) {}
 
   async computeHash(buffer: Buffer): Promise<bigint> {
-    const { data } = await sharp(buffer)
+    const { data, info } = await sharp(buffer)
       .flatten({ background: { r: 0, g: 0, b: 0 } })
       .greyscale()
       .resize(9, 8, { fit: "fill", kernel: "nearest" })
       .raw()
       .toBuffer({ resolveWithObject: true });
+
+    if (info.channels !== 1 || data.length !== 72) {
+      throw new Error(
+        `Unexpected raw buffer shape: channels=${info.channels}, length=${data.length}`,
+      );
+    }
 
     let hash = 0n;
     for (let row = 0; row < 8; row++) {
@@ -79,18 +85,19 @@ export class ScamImageHashService {
           return match;
         }
 
-        this.metrics?.checkCounter.add(1, {
-          guild_id: guildId,
-          outcome: "no_match",
-        });
       } catch (err) {
         this.metrics?.checkCounter.add(1, {
           guild_id: guildId,
           outcome: "error",
         });
-        this.logger.warn({ err, url }, "Failed to check attachment for scam image");
+        this.logger.debug({ err, url }, "Failed to check attachment for scam image");
       }
     }
+
+    this.metrics?.checkCounter.add(1, {
+      guild_id: guildId,
+      outcome: "no_match",
+    });
 
     return null;
   }
@@ -106,7 +113,8 @@ export class ScamImageHashService {
     }
 
     const contentLength = response.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > SCAM_IMAGE_MAX_SIZE_BYTES) {
+    const cl = Number(contentLength);
+    if (Number.isFinite(cl) && cl > SCAM_IMAGE_MAX_SIZE_BYTES) {
       this.logger.debug({ url, contentLength }, "Skipping oversized image");
       return null;
     }

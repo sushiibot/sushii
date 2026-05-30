@@ -13,8 +13,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 
 import type { SpamActionService } from "../../application/SpamActionService";
 import type { SpamDetectionService } from "../../application/SpamDetectionService";
-import type { ScamImageHashService } from "../../application/ScamImageHashService";
-import { SCAM_IMAGE_MAX_SIZE_BYTES } from "../../application/ScamImageHashService";
+import { SCAM_IMAGE_MAX_SIZE_BYTES, type ScamImageHashService } from "../../application/ScamImageHashService";
 import { isImageAttachment, type SpamAttachment } from "../../utils/attachmentUtils";
 
 const tracer = opentelemetry.trace.getTracer("automod");
@@ -140,8 +139,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           imageUrls,
           spamAttachments,
           guildConfig.moderationSettings.automodAlertsChannelId,
-          userKey,
-        );
+        ).finally(() => this.inProgressImageChecks.delete(userKey));
       }
 
       // Check for spam
@@ -154,7 +152,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       );
 
       if (spamMessages) {
-        const attachments = spamAttachments;
         await tracer.startActiveSpan("automod.spam-action", async (span) => {
           span.setAttributes({
             "guild.id": guildId,
@@ -168,7 +165,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
               payload.author.username,
               spamMessages,
               spamContent,
-              attachments,
+              spamAttachments,
               guildConfig.moderationSettings.automodAlertsChannelId,
             );
           } catch (err) {
@@ -204,7 +201,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     imageUrls: string[],
     attachments: SpamAttachment[],
     alertsChannelId: string | null | undefined,
-    userKey: string,
   ): Promise<void> {
     try {
       const match = await this.scamImageHashService.checkAttachments(
@@ -240,8 +236,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         { err, guildId, userId },
         "Failed to run scam image check",
       );
-    } finally {
-      this.inProgressImageChecks.delete(userKey);
     }
   }
 }

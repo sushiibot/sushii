@@ -19,10 +19,12 @@ import {
   type ScamImageHashService,
 } from "../../application/ScamImageHashService";
 import { isImageAttachment } from "../../utils/attachmentUtils";
+import { formatDhash } from "../../utils/bigintUtils";
 
 const LIST_PAGE_SIZE = 25;
 
 export class ScamHashCommand extends SlashCommandHandler {
+  // 418504865543749642 — sushii home guild; scam hash management is bot-admin-only
   readonly registeredGuilds = ["418504865543749642"] as const;
 
   readonly command = new SlashCommandBuilder()
@@ -79,6 +81,9 @@ export class ScamHashCommand extends SlashCommandHandler {
         break;
       case "list":
         await this.handleList(interaction);
+        break;
+      default:
+        this.logger.warn({ sub }, "Unknown subcommand");
         break;
     }
   }
@@ -138,7 +143,7 @@ export class ScamHashCommand extends SlashCommandHandler {
     }
 
     const id = await this.repository.add(hash, category, label);
-    const hexHash = this.formatHash(hash);
+    const hexHash = formatDhash(hash);
 
     await interaction.editReply(
       `Stored scam hash **#${id}** — \`${hexHash}\`${category ? ` · ${category}` : ""}${label ? ` · ${label}` : ""}`,
@@ -174,7 +179,7 @@ export class ScamHashCommand extends SlashCommandHandler {
 
     const page = entries.slice(0, LIST_PAGE_SIZE);
     const rows = page.map((e) => {
-      const hexHash = this.formatHash(e.hash);
+      const hexHash = formatDhash(e.hash);
       const date = e.addedAt.toISOString().slice(0, 10);
       const tags = [e.category, e.label].filter(Boolean).join(" · ") || "—";
       return `**#${e.id}** \`${hexHash}\` · ${tags} · ${date}`;
@@ -202,7 +207,4 @@ export class ScamHashCommand extends SlashCommandHandler {
     });
   }
 
-  private formatHash(hash: bigint): string {
-    return hash.toString(16).padStart(16, "0");
-  }
 }
