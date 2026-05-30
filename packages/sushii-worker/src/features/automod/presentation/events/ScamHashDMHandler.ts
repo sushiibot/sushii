@@ -61,9 +61,12 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     super();
   }
 
-  // Discord gateway DM MESSAGE_CREATE events don't include channel_type, so
-  // discord.js can't construct the DMChannel when it's not cached. Pre-fetch
-  // on ready so the channel is cached before any messages arrive.
+  // discord.js 14.26.2 regression: getChannel() now requires data.type === ChannelType.DM
+  // to populate recipients, but Discord's gateway MESSAGE_CREATE payloads don't include
+  // channel type. Without recipients, createChannel() returns null and the event is dropped.
+  // Fix is in v15 dev but not backported to v14. Workaround: pre-fetch on ready so the
+  // DMChannel is cached and getChannel() finds it directly without constructing it.
+  // See: https://github.com/discordjs/discord.js/issues/11513
   async primeOwnerDMChannel(client: Client): Promise<void> {
     try {
       const user = await client.users.fetch(OWNER_USER_ID);
