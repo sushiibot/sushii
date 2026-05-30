@@ -9,6 +9,7 @@ export class ScamImageMetrics {
   readonly checkCounter: Counter;
   readonly matchCounter: Counter;
   readonly downloadDurationHistogram: Histogram;
+  readonly hashDurationHistogram: Histogram;
 
   constructor() {
     const meter = metrics.getMeter("automod", "1.0");
@@ -26,7 +27,16 @@ export class ScamImageMetrics {
     this.downloadDurationHistogram = meter.createHistogram(
       "automod.scam_image.download_duration",
       {
-        description: "Time to download and hash an image attachment (ms)",
+        description: "Time to download an image attachment (ms)",
+        valueType: ValueType.DOUBLE,
+        unit: "ms",
+      },
+    );
+
+    this.hashDurationHistogram = meter.createHistogram(
+      "automod.scam_image.hash_duration",
+      {
+        description: "Time to compute dHash for an image buffer (ms)",
         valueType: ValueType.DOUBLE,
         unit: "ms",
       },

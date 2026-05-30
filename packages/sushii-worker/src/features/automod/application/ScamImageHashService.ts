@@ -52,8 +52,8 @@ export class ScamImageHashService {
     guildId: string,
   ): Promise<ScamImageHash | null> {
     for (const url of attachmentUrls) {
-      const start = Date.now();
       try {
+        const downloadStart = Date.now();
         const buffer = await this.downloadImage(url);
         if (!buffer) {
           this.metrics.checkCounter.add(1, {
@@ -62,9 +62,13 @@ export class ScamImageHashService {
           });
           continue;
         }
+        this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart, {
+          guild_id: guildId,
+        });
 
+        const hashStart = Date.now();
         const hash = await this.computeHash(buffer);
-        this.metrics.downloadDurationHistogram.record(Date.now() - start, {
+        this.metrics.hashDurationHistogram.record(Date.now() - hashStart, {
           guild_id: guildId,
         });
 

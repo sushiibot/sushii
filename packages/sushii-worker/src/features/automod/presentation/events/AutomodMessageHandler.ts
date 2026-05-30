@@ -1,4 +1,4 @@
-import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
+import opentelemetry, { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { GatewayDispatchPayload } from "discord.js";
 import {
   DiscordAPIError,
@@ -220,42 +220,73 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     attachments: SpamAttachment[],
     alertsChannelId: string | null | undefined,
   ): Promise<boolean> {
-    try {
-      const match = await this.scamImageHashService.checkAttachments(
-        imageUrls,
-        guildId,
-      );
-      if (!match) {
-        return false;
-      }
+    return tracer.startActiveSpan(
+      "automod.scam-image.check",
+      {
+        kind: SpanKind.INTERNAL,
+        attributes: {
+          "guild.id": guildId,
+          "user.id": userId,
+          "images.count": imageUrls.length,
+        },
+      },
+      async (span) => {
+        try {
+          const match = await this.scamImageHashService.checkAttachments(
+            imageUrls,
+            guildId,
+          );
 
-      const matchLabel = match.label ?? match.category;
+          if (!match) {
+            span.setAttribute("scam.outcome", "no_match");
+            return false;
+          }
 
-      await this.spamActionService.executeScamImageAction(
-        guildId,
-        userId,
-        username,
-        channelId,
-        messageId,
-        attachments,
-        alertsChannelId,
-        matchLabel,
-      );
-      return true;
-    } catch (err) {
-      // Silently ignore Unknown Message — already deleted before we could act
-      if (
-        err instanceof DiscordAPIError &&
-        err.code === RESTJSONErrorCodes.UnknownMessage
-      ) {
-        return false;
-      }
+          span.setAttribute("scam.outcome", "match");
+          span.setAttribute("scam.category", match.category ?? "unknown");
+          if (match.label) {
+            span.setAttribute("scam.label", match.label);
+          }
 
-      this.logger.error(
-        { err, guildId, userId },
-        "Failed to run scam image check",
-      );
-      return false;
-    }
+          const matchLabel = match.label ?? match.category;
+
+          await this.spamActionService.executeScamImageAction(
+            guildId,
+            userId,
+            username,
+            channelId,
+            messageId,
+            attachments,
+            alertsChannelId,
+            matchLabel,
+          );
+          return true;
+        } catch (err) {
+          // Silently ignore Unknown Message — already deleted before we could act
+          if (
+            err instanceof DiscordAPIError &&
+            err.code === RESTJSONErrorCodes.UnknownMessage
+          ) {
+            span.setAttribute("scam.outcome", "unknown_message");
+            return false;
+          }
+
+          span.recordException(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: "Scam image check failed",
+          });
+          this.logger.error(
+            { err, guildId, userId },
+            "Failed to run scam image check",
+          );
+          return false;
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 }
