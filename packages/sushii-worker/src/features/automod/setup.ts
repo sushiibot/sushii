@@ -20,10 +20,11 @@ import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImag
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
+import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
 import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
 
 export interface AutomodFeature {
-  eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler];
+  eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler, ScamHashDMHandler];
   services: {
     automodAlertReactionService: AutomodAlertReactionService;
     spamAlertUpdateService: SpamAlertUpdateService;
@@ -38,12 +39,13 @@ export interface AutomodFeatureOptions {
   client: Client;
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
+  ownerUserId?: string;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, logger, db } =
+  const { guildConfigRepository, emojiRepository, client, logger, db, ownerUserId } =
     options;
 
   // Services
@@ -102,6 +104,13 @@ export function setupAutomodFeature(
     logger.child({ component: "AutomodAlertExecutionHandler" }),
   );
 
+  const scamHashDMHandler = new ScamHashDMHandler(
+    ownerUserId ?? "",
+    scamImageHashRepository,
+    scamImageHashService,
+    logger.child({ component: "ScamHashDMHandler" }),
+  );
+
   // Commands
   const scamHashCommand = new ScamHashCommand(
     scamImageHashRepository,
@@ -110,7 +119,7 @@ export function setupAutomodFeature(
   );
 
   return {
-    eventHandlers: [automodMessageHandler, automodAlertExecutionHandler],
+    eventHandlers: [automodMessageHandler, automodAlertExecutionHandler, scamHashDMHandler],
     services: {
       automodAlertReactionService,
       spamAlertUpdateService,

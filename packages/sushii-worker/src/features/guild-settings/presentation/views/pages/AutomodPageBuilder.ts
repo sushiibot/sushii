@@ -79,7 +79,7 @@ export function addAutomodContent(
   addToggleSetting(
     container,
     `${emojis.lightning} Spam Detection`,
-    "Automatically times out users who spam identical messages across channels, and instantly acts on messages containing known scam images.",
+    "Instantly times out users who post known scam images. Also detects spam — same message sent across multiple channels triggers a timeout.",
     config.moderationSettings.automodSpamEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
     disabled,

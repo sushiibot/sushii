@@ -7,10 +7,9 @@ export interface ScamImageHash {
 }
 
 export interface ScamImageHashRepository {
-  findMatch(
+  findClosest(
     hashValue: bigint,
-    threshold: number,
-  ): Promise<ScamImageHash | null>;
+  ): Promise<{ entry: ScamImageHash; distance: number } | null>;
   add(hashValue: bigint, category?: string, label?: string): Promise<number>;
   delete(id: number): Promise<boolean>;
   list(): Promise<ScamImageHash[]>;

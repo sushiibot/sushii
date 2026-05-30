@@ -2,6 +2,8 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
+import { config } from "@/shared/infrastructure/config";
+
 import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
@@ -197,6 +199,7 @@ export function registerFeatures(
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
+    ownerUserId: config.deployment.ownerUserId,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const promptsFeature = setupPromptsFeature({ db, logger });

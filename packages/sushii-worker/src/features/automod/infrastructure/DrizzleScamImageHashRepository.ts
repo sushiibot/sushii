@@ -13,30 +13,30 @@ import type * as schema from "@/infrastructure/database/schema";
 export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  async findMatch(
+  async findClosest(
     hashValue: bigint,
-    threshold: number,
-  ): Promise<ScamImageHash | null> {
+  ): Promise<{ entry: ScamImageHash; distance: number } | null> {
     const signed = toSignedBigint(hashValue);
+    const distanceExpr = sql<number>`bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signed}::bigint::bit(64))`;
 
     const rows = await this.db
-      .select()
+      .select({
+        id: scamImageHashesInAppPublic.id,
+        hash: scamImageHashesInAppPublic.hash,
+        category: scamImageHashesInAppPublic.category,
+        label: scamImageHashesInAppPublic.label,
+        addedAt: scamImageHashesInAppPublic.addedAt,
+        distance: distanceExpr,
+      })
       .from(scamImageHashesInAppPublic)
-      .where(
-        sql`bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signed}::bigint::bit(64)) <= ${threshold}`,
-      )
-      .orderBy(
-        asc(
-          sql`bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signed}::bigint::bit(64))`,
-        ),
-      )
+      .orderBy(asc(distanceExpr))
       .limit(1);
 
     if (rows.length === 0) {
       return null;
     }
 
-    return this.rowToEntity(rows[0]);
+    return { entry: this.rowToEntity(rows[0]), distance: rows[0].distance };
   }
 
   async add(

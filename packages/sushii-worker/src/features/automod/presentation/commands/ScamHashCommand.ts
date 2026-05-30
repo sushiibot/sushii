@@ -133,11 +133,11 @@ export class ScamHashCommand extends SlashCommandHandler {
     const buffer = Buffer.from(await response.arrayBuffer());
     const hash = await this.hashService.computeHash(buffer);
 
-    const dupe = await this.repository.findMatch(hash, SCAM_HASH_DEDUP_THRESHOLD);
-    if (dupe) {
-      const dupeLabel = dupe.label ?? dupe.category ?? "unlabeled";
+    const closest = await this.repository.findClosest(hash);
+    if (closest && closest.distance <= SCAM_HASH_DEDUP_THRESHOLD) {
+      const dupeLabel = closest.entry.label ?? closest.entry.category ?? "unlabeled";
       await interaction.editReply(
-        `A near-duplicate already exists: ID **${dupe.id}** (${dupeLabel}). Use \`/scam-hash list\` to review.`,
+        `A near-duplicate already exists: ID **${closest.entry.id}** (${dupeLabel}, distance ${closest.distance}). Use \`/scam-hash list\` to review.`,
       );
       return;
     }

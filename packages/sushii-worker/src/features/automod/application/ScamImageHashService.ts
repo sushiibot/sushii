@@ -72,22 +72,30 @@ export class ScamImageHashService {
           guild_id: guildId,
         });
 
-        const match = await this.repository.findMatch(
-          hash,
-          SCAM_HASH_MATCH_THRESHOLD,
-        );
+        const closest = await this.repository.findClosest(hash);
 
-        if (match) {
+        if (closest && closest.distance <= SCAM_HASH_MATCH_THRESHOLD) {
           this.metrics.checkCounter.add(1, {
             guild_id: guildId,
             outcome: "match",
           });
           this.metrics.matchCounter.add(1, {
             guild_id: guildId,
-            category: match.category ?? "unknown",
+            category: closest.entry.category ?? "unknown",
           });
-          return match;
+          return closest.entry;
         }
+
+        this.logger.debug(
+          {
+            url,
+            guildId,
+            closestId: closest?.entry.id,
+            closestDistance: closest?.distance,
+            threshold: SCAM_HASH_MATCH_THRESHOLD,
+          },
+          "Scam image no_match",
+        );
       } catch (err) {
         this.metrics.checkCounter.add(1, {
           guild_id: guildId,
