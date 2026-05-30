@@ -61,11 +61,23 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
   }
 
   async handle(message: Message): Promise<void> {
+    this.logger.debug(
+      {
+        channelType: message.channel.type,
+        isDMBased: message.channel.isDMBased(),
+        authorId: message.author.id,
+        isOwner: message.author.id === OWNER_USER_ID,
+      },
+      "ScamHashDMHandler: received MessageCreate",
+    );
+
     if (!message.channel.isDMBased()) {
+      this.logger.debug({ channelType: message.channel.type }, "ScamHashDMHandler: skip — not DM");
       return;
     }
 
     if (message.author.id !== OWNER_USER_ID) {
+      this.logger.debug({ authorId: message.author.id }, "ScamHashDMHandler: skip — not owner");
       return;
     }
 
