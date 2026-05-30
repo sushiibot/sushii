@@ -128,18 +128,25 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         .map((a) => a.proxy_url ?? a.url);
 
       const userKey = `${guildId}:${payload.author.id}`;
-      if (imageUrls.length > 0 && !this.inProgressImageChecks.has(userKey)) {
-        this.inProgressImageChecks.add(userKey);
-        void this.checkScamImage(
-          guildId,
-          payload.author.id,
-          payload.author.username,
-          payload.channel_id,
-          payload.id,
-          imageUrls,
-          spamAttachments,
-          guildConfig.moderationSettings.automodAlertsChannelId,
-        ).finally(() => this.inProgressImageChecks.delete(userKey));
+      if (imageUrls.length > 0) {
+        if (this.inProgressImageChecks.has(userKey)) {
+          this.logger.debug(
+            { guildId, userId: payload.author.id },
+            "Scam image check already in progress for user, skipping",
+          );
+        } else {
+          this.inProgressImageChecks.add(userKey);
+          void this.checkScamImage(
+            guildId,
+            payload.author.id,
+            payload.author.username,
+            payload.channel_id,
+            payload.id,
+            imageUrls,
+            spamAttachments,
+            guildConfig.moderationSettings.automodAlertsChannelId,
+          ).finally(() => this.inProgressImageChecks.delete(userKey));
+        }
       }
 
       // Check for spam

@@ -206,5 +206,4 @@ export class ScamHashCommand extends SlashCommandHandler {
       flags: MessageFlags.IsComponentsV2,
     });
   }
-
 }

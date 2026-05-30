@@ -84,7 +84,6 @@ export class ScamImageHashService {
           });
           return match;
         }
-
       } catch (err) {
         this.metrics?.checkCounter.add(1, {
           guild_id: guildId,
