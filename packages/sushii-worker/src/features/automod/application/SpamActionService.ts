@@ -294,11 +294,15 @@ export class SpamActionService {
 
     // Download images and re-upload them as attachments on the alert message so
     // they remain visible after the source message is deleted (CDN URLs expire).
+    // Filenames are prefixed with their index (0-, 1-, …) when there are multiple
+    // attachments to ensure uniqueness even when the originals share the same name.
     const fileBuilders: AttachmentBuilder[] = [];
-    const uploadedFilenames = new Set<string>();
+    // Parallel to imageAttachments: the uploaded filename, or null if download failed.
+    const uploadedFilenames: (string | null)[] = [];
     if (imageAttachments.length > 0) {
+      const needsPrefix = imageAttachments.length > 1;
       const results = await Promise.allSettled(
-        imageAttachments.map(async (a) => {
+        imageAttachments.map(async (a, i) => {
           const resp = await fetch(a.url, {
             signal: AbortSignal.timeout(ALERT_IMAGE_DOWNLOAD_TIMEOUT_MS),
           });
@@ -309,7 +313,8 @@ export class SpamActionService {
           if (buf.byteLength > ALERT_IMAGE_MAX_BYTES) {
             return null;
           }
-          return { buffer: buf, filename: a.filename };
+          const filename = needsPrefix ? `${i}-${a.filename}` : a.filename;
+          return { buffer: buf, filename };
         }),
       );
 
@@ -320,7 +325,9 @@ export class SpamActionService {
               name: result.value.filename,
             }),
           );
-          uploadedFilenames.add(result.value.filename);
+          uploadedFilenames.push(result.value.filename);
+        } else {
+          uploadedFilenames.push(null);
         }
       }
     }
@@ -332,11 +339,11 @@ export class SpamActionService {
         .addSeparatorComponents(new SeparatorBuilder())
         .addMediaGalleryComponents(
           new MediaGalleryBuilder().addItems(
-            ...imageAttachments.map((attachment) =>
+            ...imageAttachments.map((attachment, i) =>
               new MediaGalleryItemBuilder()
                 .setURL(
-                  uploadedFilenames.has(attachment.filename)
-                    ? `attachment://${attachment.filename}`
+                  uploadedFilenames[i] != null
+                    ? `attachment://${uploadedFilenames[i]}`
                     : attachment.url,
                 )
                 .setDescription(attachment.filename),
