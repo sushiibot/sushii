@@ -78,7 +78,7 @@ const envSchema = z.object({
   GOOGLE_CALENDAR_API_KEY: z.string().optional(),
 
   OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_SCAM_CLASSIFY_MODEL: z.string().optional().default("google/gemini-2.0-flash-lite"),
+  OPENROUTER_SCAM_CLASSIFY_MODEL: z.string().optional().default("stepfun/step-3.7-flash"),
 });
 
 const parsed = envSchema.safeParse(process.env);
