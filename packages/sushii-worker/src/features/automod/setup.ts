@@ -12,6 +12,7 @@ import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
 import { ScamCandidateService } from "./application/ScamCandidateService";
+import { ScamImageClassifier } from "./application/ScamImageClassifier";
 import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";
@@ -41,12 +42,13 @@ export interface AutomodFeatureOptions {
   client: Client;
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
+  scamImageClassifier?: ScamImageClassifier;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, logger, db } =
+  const { guildConfigRepository, emojiRepository, client, logger, db, scamImageClassifier } =
     options;
 
   // Services
@@ -92,6 +94,7 @@ export function setupAutomodFeature(
     scamImageHashRepository,
     scamCandidateMetrics,
     logger.child({ component: "ScamCandidateService" }),
+    scamImageClassifier,
   );
 
   // Event handlers

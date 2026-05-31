@@ -32,6 +32,10 @@ import {
   SCAM_IMAGE_MAX_SIZE_BYTES,
   type ScamImageHashService,
 } from "./ScamImageHashService";
+import {
+  type ClassificationResult,
+  type ScamImageClassifier,
+} from "./ScamImageClassifier";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
 import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
 
@@ -105,6 +109,7 @@ export class ScamCandidateService {
     private readonly repository: ScamImageHashRepository,
     private readonly metrics: ScamCandidateMetrics,
     private readonly logger: Logger,
+    private readonly classifier?: ScamImageClassifier,
   ) {
     this.janitorInterval = setInterval(() => {
       const now = Date.now();
@@ -357,6 +362,20 @@ export class ScamCandidateService {
       return;
     }
 
+    // Classify new images with AI (best-effort, non-blocking on failure)
+    let classification: ClassificationResult | null = null;
+    if (this.classifier) {
+      classification = await this.classifier.classify(
+        newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
+      );
+      if (classification) {
+        this.logger.debug(
+          { isScam: classification.isScam, confidence: classification.confidence, label: classification.suggestedLabel },
+          "Scam candidate classified",
+        );
+      }
+    }
+
     const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
     if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
       this.logger.error(
@@ -385,6 +404,11 @@ export class ScamCandidateService {
       `**Seen in:** ${channelCount} channels across ${guildCount} public servers within 2 min`,
       `[Jump to message](${jumpUrl})`,
     ];
+    if (classification) {
+      const icon = classification.isScam ? "🔴" : "🟢";
+      const labelPart = classification.suggestedLabel ? ` · \`${classification.suggestedLabel}\`` : "";
+      textLines.push(`-# AI: ${icon} ${classification.confidence} confidence${labelPart} — ${classification.reason}`);
+    }
     if (nearNotes) {
       textLines.push(`-# Already known: ${nearNotes}`);
     }
@@ -460,18 +484,22 @@ export class ScamCandidateService {
       { kind: SpanKind.INTERNAL, attributes: { "user.id": userId, "candidate.images.new": newResults.length } },
       async (span) => {
         try {
+          const labelInput = new TextInputBuilder()
+            .setCustomId(MODAL_LABEL_INPUT)
+            .setLabel("Label (optional)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setPlaceholder("e.g. tezowin.com promo");
+
+          if (classification?.suggestedLabel) {
+            labelInput.setValue(classification.suggestedLabel);
+          }
+
           const modal = new ModalBuilder()
             .setCustomId(MODAL_LABEL_ID)
             .setTitle("Scam Hash Label")
             .addComponents(
-              new ActionRowBuilder<TextInputBuilder>().addComponents(
-                new TextInputBuilder()
-                  .setCustomId(MODAL_LABEL_INPUT)
-                  .setLabel("Label (optional)")
-                  .setStyle(TextInputStyle.Short)
-                  .setRequired(false)
-                  .setPlaceholder("e.g. tezowin.com promo"),
-              ),
+              new ActionRowBuilder<TextInputBuilder>().addComponents(labelInput),
             );
 
           await confirmedInteraction.showModal(modal);

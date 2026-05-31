@@ -4,6 +4,8 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 
 import { setupAutomodFeature } from "@/features/automod/setup";
+import { ScamImageClassifier } from "@/features/automod/application/ScamImageClassifier";
+import { config } from "@/shared/infrastructure/config";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
@@ -191,6 +193,14 @@ export function registerFeatures(
     logger,
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
+  const scamImageClassifier = config.openRouterApiKey
+    ? new ScamImageClassifier(
+        config.openRouterApiKey,
+        config.scamClassifyModel,
+        logger.child({ component: "ScamImageClassifier" }),
+      )
+    : undefined;
+
   const automodFeature = setupAutomodFeature({
     client,
     logger,
@@ -198,6 +208,7 @@ export function registerFeatures(
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
+    scamImageClassifier,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const promptsFeature = setupPromptsFeature({ db, logger });
