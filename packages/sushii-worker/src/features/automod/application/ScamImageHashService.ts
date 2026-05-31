@@ -79,10 +79,7 @@ export class ScamImageHashService {
             guild_id: guildId,
             outcome: "match",
           });
-          this.metrics.matchCounter.add(1, {
-            guild_id: guildId,
-            label: closest.entry.label ?? "unlabeled",
-          });
+          this.metrics.matchCounter.add(1, { guild_id: guildId });
           return closest.entry;
         }
 

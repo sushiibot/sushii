@@ -135,7 +135,7 @@ export class Config {
   readonly posthogAPIKey?: string;
   readonly googleCalendarApiKey?: string;
   readonly openRouterApiKey?: string;
-  readonly scamClassifyModel: string;
+  readonly openRouterScamClassifyModel: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
@@ -198,7 +198,7 @@ export class Config {
     this.posthogAPIKey = env.POSTHOG_API_KEY;
     this.googleCalendarApiKey = env.GOOGLE_CALENDAR_API_KEY;
     this.openRouterApiKey = env.OPENROUTER_API_KEY;
-    this.scamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
+    this.openRouterScamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;

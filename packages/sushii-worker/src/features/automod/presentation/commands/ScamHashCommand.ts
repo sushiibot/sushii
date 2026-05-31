@@ -177,8 +177,8 @@ export class ScamHashCommand extends SlashCommandHandler {
     const rows = page.map((e) => {
       const hexHash = formatDhash(e.hash);
       const date = e.addedAt.toISOString().slice(0, 10);
-      const tags = e.label ?? "—";
-      return `**#${e.id}** \`${hexHash}\` · ${tags} · ${date}`;
+      const labelText = e.label ?? "—";
+      return `**#${e.id}** \`${hexHash}\` · ${labelText} · ${date}`;
     });
 
     const content = rows.join("\n");

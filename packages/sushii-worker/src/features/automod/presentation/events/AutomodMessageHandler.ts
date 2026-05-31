@@ -191,11 +191,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         }
       }
 
-      if (scamActed) {
-        return;
-      }
-
-      if (!spamEnabled) {
+      if (scamActed || !spamEnabled) {
         return;
       }
 

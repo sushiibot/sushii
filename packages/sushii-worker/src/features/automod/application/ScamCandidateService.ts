@@ -369,29 +369,23 @@ export class ScamCandidateService {
         kind: SpanKind.INTERNAL,
         attributes: { "user.id": userId, "candidate.images.new": newResults.length },
       });
-      try {
-        classificationResult = await this.classifier.classify(
-          newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
+      classificationResult = await this.classifier.classify(
+        newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
+      );
+      if (classificationResult) {
+        classifySpan.setAttributes({
+          "classification.is_scam": classificationResult.isScam,
+          "classification.confidence": classificationResult.confidence,
+          "classification.has_label": classificationResult.suggestedLabel !== null,
+        });
+        this.logger.debug(
+          { isScam: classificationResult.isScam, confidence: classificationResult.confidence, label: classificationResult.suggestedLabel },
+          "Scam candidate classified",
         );
-        if (classificationResult) {
-          classifySpan.setAttributes({
-            "classification.is_scam": classificationResult.isScam,
-            "classification.confidence": classificationResult.confidence,
-            "classification.has_label": classificationResult.suggestedLabel !== null,
-          });
-          this.logger.debug(
-            { isScam: classificationResult.isScam, confidence: classificationResult.confidence, label: classificationResult.suggestedLabel },
-            "Scam candidate classified",
-          );
-        } else {
-          classifySpan.addEvent("classification_failed");
-        }
-      } catch (err) {
-        classifySpan.recordException(err instanceof Error ? err : new Error(String(err)));
-        classifySpan.setStatus({ code: SpanStatusCode.ERROR });
-      } finally {
-        classifySpan.end();
+      } else {
+        classifySpan.addEvent("classification_failed");
       }
+      classifySpan.end();
     }
 
     const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
@@ -510,7 +504,7 @@ export class ScamCandidateService {
             .setPlaceholder("e.g. tezowin.com promo");
 
           if (classificationResult?.suggestedLabel) {
-            labelInput.setValue(classificationResult.suggestedLabel);
+            labelInput.setValue(classificationResult.suggestedLabel.slice(0, 100));
           }
 
           const modal = new ModalBuilder()

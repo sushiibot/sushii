@@ -2,15 +2,21 @@ import { z } from "zod";
 import type { Logger } from "pino";
 
 const classificationSchema = z.object({
-  isScam: z.boolean(),
-  confidence: z.enum(["low", "medium", "high"]),
+  isScam: z.preprocess(
+    (v) => (v === "true" ? true : v === "false" ? false : v),
+    z.boolean(),
+  ),
+  confidence: z.preprocess(
+    (v) => (typeof v === "string" ? v.toLowerCase() : v),
+    z.enum(["low", "medium", "high"]),
+  ),
   reason: z.string(),
   suggestedLabel: z.string().nullable(),
 });
 
 export type ClassificationResult = z.infer<typeof classificationSchema>;
 
-const SYSTEM_PROMPT = `You are a Discord moderation assistant reviewing suspected scam images. These images were sent by the same user in 5 or more different Discord servers within 2 minutes, suggesting coordinated spam.
+const SYSTEM_PROMPT = `You are a Discord moderation assistant reviewing suspected scam images. These images were sent by the same user across multiple Discord servers in a short window, suggesting coordinated spam.
 
 Common Discord scam types include:
 - Casino or gambling promotions (deposit bonus, free spins, casino invites)
@@ -103,23 +109,18 @@ export class ScamImageClassifier {
         return null;
       }
 
-      const data = await resp.json() as Record<string, unknown>;
-      const choices = data?.choices;
-      const rawContent: string | undefined =
-        Array.isArray(choices) &&
-        choices[0] != null &&
-        typeof choices[0] === "object" &&
-        "message" in choices[0] &&
-        choices[0].message != null &&
-        typeof choices[0].message === "object" &&
-        "content" in choices[0].message
-          ? String(choices[0].message.content)
-          : undefined;
-
-      if (!rawContent) {
-        this.logger.warn({ data }, "No content in OpenRouter response");
+      const data = await resp.json();
+      const envelopeSchema = z.object({
+        choices: z
+          .array(z.object({ message: z.object({ content: z.string() }) }))
+          .min(1),
+      });
+      const envelope = envelopeSchema.safeParse(data);
+      if (!envelope.success) {
+        this.logger.warn({ data }, "Unexpected OpenRouter response shape");
         return null;
       }
+      const rawContent = envelope.data.choices[0].message.content.trim();
 
       const stripped = rawContent
         .replace(/^```(?:json)?\n?/, "")

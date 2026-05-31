@@ -2,10 +2,8 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-
-import { setupAutomodFeature } from "@/features/automod/setup";
 import { ScamImageClassifier } from "@/features/automod/application/ScamImageClassifier";
-import { config } from "@/shared/infrastructure/config";
+import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
@@ -35,6 +33,7 @@ import { setupTagFeature } from "@/features/tags/setup";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import type * as schema from "@/infrastructure/database/schema";
+import { config } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 
 import type InteractionRouter from "../discord/InteractionRouter";
@@ -196,7 +195,7 @@ export function registerFeatures(
   const scamImageClassifier = config.openRouterApiKey
     ? new ScamImageClassifier(
         config.openRouterApiKey,
-        config.scamClassifyModel,
+        config.openRouterScamClassifyModel,
         logger.child({ component: "ScamImageClassifier" }),
       )
     : undefined;
