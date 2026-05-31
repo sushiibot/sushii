@@ -37,6 +37,7 @@ export interface ModerationSettings {
   lookupPrompted: boolean;
 
   automodSpamEnabled: boolean;
+  automodScamImageEnabled: boolean;
   automodAlertsChannelId: string | null;
   automodExemptRoleIds: string[];
 }
@@ -53,7 +54,8 @@ export type ToggleableSetting =
   | "timeoutNativeDm"
   | "banDm"
   | "kickDm"
-  | "automodSpam";
+  | "automodSpam"
+  | "automodScamImage";
 
 export class GuildConfig {
   constructor(
@@ -121,6 +123,7 @@ export class GuildConfig {
 
         // Automod settings
         automodSpamEnabled: false,
+        automodScamImageEnabled: false,
         automodAlertsChannelId: null,
         automodExemptRoleIds: [],
       },
@@ -319,6 +322,12 @@ export class GuildConfig {
   setAutomodSpamEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.moderationSettings.automodSpamEnabled = enabled;
+    return config;
+  }
+
+  setAutomodScamImageEnabled(enabled: boolean): GuildConfig {
+    const config = this.clone();
+    config.moderationSettings.automodScamImageEnabled = enabled;
     return config;
   }
 

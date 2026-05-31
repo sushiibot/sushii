@@ -81,6 +81,7 @@ const allEnabledConfig = new GuildConfig(
     lookupDetailsOptIn: true,
     lookupPrompted: true,
     automodSpamEnabled: true,
+    automodScamImageEnabled: false,
     automodAlertsChannelId: null,
     automodExemptRoleIds: [],
   },

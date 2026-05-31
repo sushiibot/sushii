@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."guild_configs" ADD COLUMN "automod_scam_image_enabled" boolean DEFAULT false NOT NULL;

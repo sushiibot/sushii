@@ -75,11 +75,25 @@ export function addAutomodContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
+  // Known Scam Images Toggle Section
+  addToggleSetting(
+    container,
+    `${emojis.shield} Known Scam Images`,
+    "Times out users who post images matching the known scam hash database. Enabled servers also contribute to cross-server scam image detection for review.",
+    config.moderationSettings.automodScamImageEnabled,
+    SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SCAM_IMAGE,
+    disabled,
+  );
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
+  );
+
   // Spam Detection Toggle Section
   addToggleSetting(
     container,
     `${emojis.lightning} Spam Detection`,
-    "Instantly times out users who post known scam images. Also detects spam — same message sent across multiple channels triggers a timeout.",
+    "Times out users who send the same message across multiple channels rapidly.",
     config.moderationSettings.automodSpamEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
     disabled,

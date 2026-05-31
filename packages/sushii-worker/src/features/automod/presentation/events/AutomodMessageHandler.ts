@@ -97,7 +97,11 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         return;
       }
 
-      if (!guildConfig.moderationSettings.automodSpamEnabled) {
+      const spamEnabled = guildConfig.moderationSettings.automodSpamEnabled;
+      const scamImageEnabled =
+        guildConfig.moderationSettings.automodScamImageEnabled;
+
+      if (!spamEnabled && !scamImageEnabled) {
         return;
       }
 
@@ -133,28 +137,56 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       // user is timed out, they can no longer send messages, so the spam
       // threshold cannot be reached and we avoid a duplicate action.
       let scamActed = false;
-      const userKey = `${guildId}:${payload.author.id}`;
-      if (imageUrls.length > 0) {
-        if (this.inProgressImageChecks.has(userKey)) {
-          this.logger.debug(
-            { guildId, userId: payload.author.id },
-            "Scam image check already in progress for user, skipping",
-          );
-        } else {
-          this.inProgressImageChecks.add(userKey);
-          try {
-            scamActed = await this.checkScamImage(
-              guildId,
-              payload.author.id,
-              payload.author.username,
-              payload.channel_id,
-              payload.id,
-              imageUrls,
-              spamAttachments,
-              guildConfig.moderationSettings.automodAlertsChannelId,
+      if (scamImageEnabled) {
+        const userKey = `${guildId}:${payload.author.id}`;
+        if (imageUrls.length > 0) {
+          if (this.inProgressImageChecks.has(userKey)) {
+            this.logger.debug(
+              { guildId, userId: payload.author.id },
+              "Scam image check already in progress for user, skipping",
             );
-          } finally {
-            this.inProgressImageChecks.delete(userKey);
+          } else {
+            this.inProgressImageChecks.add(userKey);
+            try {
+              scamActed = await this.checkScamImage(
+                guildId,
+                payload.author.id,
+                payload.author.username,
+                payload.channel_id,
+                payload.id,
+                imageUrls,
+                spamAttachments,
+                guildConfig.moderationSettings.automodAlertsChannelId,
+              );
+            } finally {
+              this.inProgressImageChecks.delete(userKey);
+            }
+          }
+        }
+
+        if (!scamActed) {
+          // Candidate tracking: fire-and-forget sighting record — ScamCandidateService handles
+          // download/hash/review internally when the threshold is reached
+          const candidateImages = imageAttachments
+            .filter((a) => a.size != null)
+            .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
+
+          if (candidateImages.length > 0) {
+            this.scamCandidateService
+              .track({
+                userId: payload.author.id,
+                username: payload.author.username,
+                guildId,
+                channelId: payload.channel_id,
+                messageId: payload.id,
+                images: candidateImages,
+              })
+              .catch((err) => {
+                this.logger.error(
+                  { err, userId: payload.author.id },
+                  "Scam candidate track failed",
+                );
+              });
           }
         }
       }
@@ -163,28 +195,8 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         return;
       }
 
-      // Candidate tracking: fire-and-forget sighting record — ScamCandidateService handles
-      // download/hash/review internally when the threshold is reached
-      const candidateImages = imageAttachments
-        .filter((a) => a.size != null)
-        .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
-
-      if (candidateImages.length > 0) {
-        this.scamCandidateService
-          .track({
-            userId: payload.author.id,
-            username: payload.author.username,
-            guildId,
-            channelId: payload.channel_id,
-            messageId: payload.id,
-            images: candidateImages,
-          })
-          .catch((err) => {
-            this.logger.error(
-              { err, userId: payload.author.id },
-              "Scam candidate track failed",
-            );
-          });
+      if (!spamEnabled) {
+        return;
       }
 
       // Check for spam

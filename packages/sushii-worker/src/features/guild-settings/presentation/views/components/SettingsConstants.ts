@@ -66,6 +66,7 @@ export const SETTINGS_CUSTOM_IDS = {
 
     // Automod Toggles
     AUTOMOD_SPAM: "settings_toggle_automod_spam",
+    AUTOMOD_SCAM_IMAGE: "settings_toggle_automod_scam_image",
   },
 
   ROLES: {

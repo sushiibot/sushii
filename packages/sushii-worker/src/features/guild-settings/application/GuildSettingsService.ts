@@ -201,6 +201,11 @@ export class GuildSettingsService {
           !config.moderationSettings.automodSpamEnabled,
         );
         break;
+      case "automodScamImage":
+        updatedConfig = config.setAutomodScamImageEnabled(
+          !config.moderationSettings.automodScamImageEnabled,
+        );
+        break;
     }
 
     return this.guildConfigRepository.save(updatedConfig);

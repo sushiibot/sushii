@@ -724,6 +724,8 @@ export default class SettingsCommand extends SlashCommandHandler {
         return { setting: "kickDm", page: "moderation" };
       case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM:
         return { setting: "automodSpam", page: "automod" };
+      case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SCAM_IMAGE:
+        return { setting: "automodScamImage", page: "automod" };
       default:
         this.logger.warn(
           { customId },

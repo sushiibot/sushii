@@ -218,6 +218,9 @@ export const guildConfigsInAppPublic = appPublic.table(
     automodSpamEnabled: boolean("automod_spam_enabled")
       .default(false)
       .notNull(),
+    automodScamImageEnabled: boolean("automod_scam_image_enabled")
+      .default(false)
+      .notNull(),
     automodAlertsChannelId: bigint("automod_alerts_channel_id", {
       mode: "bigint",
     }),

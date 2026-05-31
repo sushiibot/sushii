@@ -295,6 +295,13 @@
       "when": 1780214599250,
       "tag": "0041_drop_scam_hash_category",
       "breakpoints": false
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1780242175926,
+      "tag": "0042_add_automod_scam_image_enabled",
+      "breakpoints": false
     }
   ]
 }
