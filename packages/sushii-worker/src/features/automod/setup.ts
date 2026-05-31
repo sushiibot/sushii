@@ -11,6 +11,7 @@ import type * as schema from "@/infrastructure/database/schema";
 import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
+import { ScamCandidateService } from "./application/ScamCandidateService";
 import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";
@@ -83,11 +84,19 @@ export function setupAutomodFeature(
     scamImageMetrics,
   );
 
+  const scamCandidateService = new ScamCandidateService(
+    client,
+    scamImageHashService,
+    scamImageHashRepository,
+    logger.child({ component: "ScamCandidateService" }),
+  );
+
   // Event handlers
   const automodMessageHandler = new AutomodMessageHandler(
     spamDetectionService,
     spamActionService,
     scamImageHashService,
+    scamCandidateService,
     guildConfigRepository,
     logger.child({ component: "AutomodMessageHandler" }),
   );

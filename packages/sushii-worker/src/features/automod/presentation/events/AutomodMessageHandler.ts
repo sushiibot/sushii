@@ -14,6 +14,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { SpamActionService } from "../../application/SpamActionService";
 import type { SpamDetectionService } from "../../application/SpamDetectionService";
 import { SCAM_IMAGE_MAX_SIZE_BYTES, type ScamImageHashService } from "../../application/ScamImageHashService";
+import type { ScamCandidateService } from "../../application/ScamCandidateService";
 import { isImageAttachment, type SpamAttachment } from "../../utils/attachmentUtils";
 
 const tracer = opentelemetry.trace.getTracer("automod");
@@ -29,6 +30,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     private readonly spamDetectionService: SpamDetectionService,
     private readonly spamActionService: SpamActionService,
     private readonly scamImageHashService: ScamImageHashService,
+    private readonly scamCandidateService: ScamCandidateService,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
   ) {
@@ -115,7 +117,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         }),
       );
 
-      const imageUrls = (payload.attachments ?? [])
+      const imageAttachments = (payload.attachments ?? [])
         .filter(
           (a) =>
             isImageAttachment({
@@ -123,8 +125,9 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
               contentType: a.content_type,
             }) && (a.size ?? Infinity) <= SCAM_IMAGE_MAX_SIZE_BYTES,
         )
-        .slice(0, MAX_IMAGE_ATTACHMENTS_PER_CHECK)
-        .map((a) => a.proxy_url ?? a.url);
+        .slice(0, MAX_IMAGE_ATTACHMENTS_PER_CHECK);
+
+      const imageUrls = imageAttachments.map((a) => a.proxy_url ?? a.url);
 
       // Run scam image check before spam check — if a match is found and the
       // user is timed out, they can no longer send messages, so the spam
@@ -158,6 +161,23 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
 
       if (scamActed) {
         return;
+      }
+
+      // Tier 1 candidate tracking: same user sending the same image set to many channels
+      // Key is userId + sorted file sizes; DB match check happens inside sendReview
+      const candidateImages = imageAttachments
+        .filter((a) => a.size != null)
+        .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
+
+      if (candidateImages.length > 0) {
+        void this.scamCandidateService.track({
+          userId: payload.author.id,
+          username: payload.author.username,
+          guildId,
+          channelId: payload.channel_id,
+          messageId: payload.id,
+          images: candidateImages,
+        });
       }
 
       // Check for spam
