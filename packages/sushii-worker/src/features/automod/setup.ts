@@ -18,6 +18,7 @@ import { SpamAlertCache } from "./application/SpamAlertCache";
 import { SpamAlertUpdateService } from "./application/SpamAlertUpdateService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
 import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImageHashRepository";
+import { ScamCandidateMetrics } from "./infrastructure/metrics/ScamCandidateMetrics";
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
@@ -84,10 +85,12 @@ export function setupAutomodFeature(
     scamImageMetrics,
   );
 
+  const scamCandidateMetrics = new ScamCandidateMetrics();
   const scamCandidateService = new ScamCandidateService(
     client,
     scamImageHashService,
     scamImageHashRepository,
+    scamCandidateMetrics,
     logger.child({ component: "ScamCandidateService" }),
   );
 

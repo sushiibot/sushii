@@ -24,6 +24,7 @@ import {
   type ModalSubmitInteraction,
 } from "discord.js";
 import type { Logger } from "pino";
+import opentelemetry, { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 
 import {
   SCAM_HASH_DEDUP_THRESHOLD,
@@ -32,6 +33,9 @@ import {
   type ScamImageHashService,
 } from "./ScamImageHashService";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
+import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 
 const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
@@ -99,6 +103,7 @@ export class ScamCandidateService {
     private readonly client: Client,
     private readonly hashService: ScamImageHashService,
     private readonly repository: ScamImageHashRepository,
+    private readonly metrics: ScamCandidateMetrics,
     private readonly logger: Logger,
   ) {
     this.janitorInterval = setInterval(() => {
@@ -189,9 +194,11 @@ export class ScamCandidateService {
       distinctChannels.size < entry.nextNotifyChannelThreshold ||
       distinctGuilds.size < GUILD_THRESHOLD
     ) {
+      this.metrics.sightingCounter.add(1, { outcome: "recorded" });
       return;
     }
 
+    this.metrics.sightingCounter.add(1, { outcome: "threshold_reached" });
     entry.reviewing = true;
 
     const sample = entry.sightings[entry.sightings.length - 1];
@@ -247,77 +254,106 @@ export class ScamCandidateService {
       attachments: [],
     });
 
-    // Download and hash all images in the set in parallel
-    const settled = await Promise.allSettled(
-      attachmentUrls.map(async (url, idx) => {
-        const resp = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-        if (!resp.ok) {
-          this.logger.warn({ url, status: resp.status }, "Failed to download candidate image");
-          throw new Error(`HTTP ${resp.status}`);
+    let results: ImageResult[] = [];
+    let newResults: ImageResult[] = [];
+
+    // Download, hash, and DB-check all images in the set in parallel
+    await tracer.startActiveSpan(
+      "automod.candidate.process",
+      { kind: SpanKind.INTERNAL, attributes: { "user.id": userId, "candidate.images.count": attachmentUrls.length } },
+      async (span) => {
+        try {
+          const settled = await Promise.allSettled(
+            attachmentUrls.map(async (url, idx) => {
+              const resp = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+              if (!resp.ok) {
+                this.logger.warn({ url, status: resp.status }, "Failed to download candidate image");
+                throw new Error(`HTTP ${resp.status}`);
+              }
+
+              const contentLength = resp.headers.get("content-length");
+              const cl = Number(contentLength);
+              if (Number.isFinite(cl) && cl > SCAM_IMAGE_MAX_SIZE_BYTES) {
+                this.logger.debug({ url }, "Skipping oversized candidate image (content-length)");
+                throw new Error("oversized content-length");
+              }
+
+              const buffer = Buffer.from(await resp.arrayBuffer());
+
+              if (buffer.byteLength > SCAM_IMAGE_MAX_SIZE_BYTES) {
+                this.logger.debug({ url }, "Skipping oversized candidate image (buffer)");
+                throw new Error("oversized buffer");
+              }
+
+              // Dimension guard matching ScamImageHashService.downloadImage
+              const meta = await sharp(buffer).metadata();
+              if (
+                (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||
+                (meta.height && meta.height > SCAM_IMAGE_MAX_DIMENSION)
+              ) {
+                this.logger.debug({ url }, "Skipping oversized candidate image dimensions");
+                throw new Error("oversized dimensions");
+              }
+
+              const hash = await this.hashService.computeHash(buffer);
+              const closest = await this.repository.findClosest(hash);
+              const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
+              const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
+              const filename = `${idx}_${rawFilename}`;
+
+              const result: ImageResult = {
+                filename,
+                buffer,
+                hash,
+                closestId: closest?.entry.id ?? null,
+                closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
+                closestDistance: closest?.distance ?? null,
+                isNew,
+              };
+              return result;
+            }),
+          );
+
+          for (const r of settled) {
+            if (r.status === "rejected") {
+              this.logger.warn({ reason: r.reason }, "Failed to process candidate image");
+            } else {
+              results.push(r.value);
+            }
+          }
+
+          span.setAttribute("candidate.images.processed", results.length);
+          span.setAttribute("candidate.images.new", results.filter((r) => r.isNew).length);
+          span.setAttribute("candidate.images.failed", attachmentUrls.length - results.length);
+
+          if (results.length === 0) {
+            span.addEvent("all_downloads_failed");
+          }
+
+          newResults = results.filter((r) => r.isNew);
+          if (results.length > 0 && newResults.length === 0) {
+            span.addEvent("all_images_known");
+          }
+        } catch (err) {
+          span.recordException(err as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        } finally {
+          span.end();
         }
-
-        const contentLength = resp.headers.get("content-length");
-        const cl = Number(contentLength);
-        if (Number.isFinite(cl) && cl > SCAM_IMAGE_MAX_SIZE_BYTES) {
-          this.logger.debug({ url }, "Skipping oversized candidate image (content-length)");
-          throw new Error("oversized content-length");
-        }
-
-        const buffer = Buffer.from(await resp.arrayBuffer());
-
-        if (buffer.byteLength > SCAM_IMAGE_MAX_SIZE_BYTES) {
-          this.logger.debug({ url }, "Skipping oversized candidate image (buffer)");
-          throw new Error("oversized buffer");
-        }
-
-        // Dimension guard matching ScamImageHashService.downloadImage
-        const meta = await sharp(buffer).metadata();
-        if (
-          (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||
-          (meta.height && meta.height > SCAM_IMAGE_MAX_DIMENSION)
-        ) {
-          this.logger.debug({ url }, "Skipping oversized candidate image dimensions");
-          throw new Error("oversized dimensions");
-        }
-
-        const hash = await this.hashService.computeHash(buffer);
-        const closest = await this.repository.findClosest(hash);
-        const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
-        const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
-        const filename = `${idx}_${rawFilename}`;
-
-        const result: ImageResult = {
-          filename,
-          buffer,
-          hash,
-          closestId: closest?.entry.id ?? null,
-          closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
-          closestDistance: closest?.distance ?? null,
-          isNew,
-        };
-        return result;
-      }),
+      },
     );
 
-    const results: ImageResult[] = [];
-    for (const r of settled) {
-      if (r.status === "rejected") {
-        this.logger.warn({ reason: r.reason }, "Failed to process candidate image");
-      } else {
-        results.push(r.value);
-      }
-    }
-
     if (results.length === 0) {
+      this.metrics.reviewCounter.add(1, { outcome: "download_failed" });
       return;
     }
-
-    const newResults = results.filter((r) => r.isNew);
 
     // Skip if entire set is already known — double threshold so we don't re-hash on every sighting
     if (newResults.length === 0) {
       this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
       entry.nextNotifyChannelThreshold *= 2;
+      this.metrics.reviewCounter.add(1, { outcome: "all_known" });
       return;
     }
 
@@ -327,6 +363,7 @@ export class ScamCandidateService {
         { channelId: REVIEW_CHANNEL_ID },
         "Review channel not found or not text-based",
       );
+      this.metrics.reviewCounter.add(1, { outcome: "channel_error" });
       return;
     }
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
@@ -379,80 +416,126 @@ export class ScamCandidateService {
       files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
     });
     entry.nextNotifyChannelThreshold *= 2;
+    this.metrics.reviewCounter.add(1, { outcome: "sent" });
 
     let interaction: MessageComponentInteraction | undefined;
-    try {
-      interaction = await msg.awaitMessageComponent({
-        filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
-        time: BUTTON_AWAIT_MS,
-      });
-    } catch {
-      await this.safeEditMessage(msg, statusContainer("*timed out*"));
+    await tracer.startActiveSpan(
+      "automod.candidate.button_await",
+      { kind: SpanKind.INTERNAL, attributes: { "user.id": userId } },
+      async (span) => {
+        try {
+          interaction = await msg.awaitMessageComponent({
+            filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
+            time: BUTTON_AWAIT_MS,
+          });
+          span.setAttribute(
+            "button.action",
+            interaction.customId === BUTTON_IGNORE ? "ignored" : "add",
+          );
+        } catch {
+          span.addEvent("timed_out");
+          await this.safeEditMessage(msg, statusContainer("*timed out*"));
+          this.metrics.reviewOutcomeCounter.add(1, { outcome: "timed_out" });
+        } finally {
+          span.end();
+        }
+      },
+    );
+
+    if (!interaction) {
       return;
     }
 
     if (interaction.customId === BUTTON_IGNORE) {
       entry.ignored = true;
       await interaction.update(statusContainer("*ignored*"));
+      this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
       return;
     }
 
     // Add flow
-    const modal = new ModalBuilder()
-      .setCustomId(MODAL_LABEL_ID)
-      .setTitle("Scam Hash Label")
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder()
-            .setCustomId(MODAL_LABEL_INPUT)
-            .setLabel("Label (optional)")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(false)
-            .setPlaceholder("e.g. tezowin.com promo"),
-        ),
-      );
+    const confirmedInteraction = interaction;
+    await tracer.startActiveSpan(
+      "automod.candidate.add",
+      { kind: SpanKind.INTERNAL, attributes: { "user.id": userId, "candidate.images.new": newResults.length } },
+      async (span) => {
+        try {
+          const modal = new ModalBuilder()
+            .setCustomId(MODAL_LABEL_ID)
+            .setTitle("Scam Hash Label")
+            .addComponents(
+              new ActionRowBuilder<TextInputBuilder>().addComponents(
+                new TextInputBuilder()
+                  .setCustomId(MODAL_LABEL_INPUT)
+                  .setLabel("Label (optional)")
+                  .setStyle(TextInputStyle.Short)
+                  .setRequired(false)
+                  .setPlaceholder("e.g. tezowin.com promo"),
+              ),
+            );
 
-    await interaction.showModal(modal);
+          await confirmedInteraction.showModal(modal);
 
-    let modalInteraction: ModalSubmitInteraction | undefined;
-    try {
-      modalInteraction = await interaction.awaitModalSubmit({
-        filter: (i) => i.customId === MODAL_LABEL_ID,
-        time: MODAL_AWAIT_MS,
-      });
-    } catch {
-      return;
-    }
+          let modalInteraction: ModalSubmitInteraction | undefined;
+          try {
+            modalInteraction = await confirmedInteraction.awaitModalSubmit({
+              filter: (i) => i.customId === MODAL_LABEL_ID,
+              time: MODAL_AWAIT_MS,
+            });
+          } catch {
+            return;
+          }
 
-    await modalInteraction.deferUpdate();
+          await modalInteraction.deferUpdate();
 
-    const label = modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
+          const label =
+            modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
 
-    const added: { id: number; filename: string }[] = [];
-    const failed: string[] = [];
-    for (const r of newResults) {
-      try {
-        const id = await this.repository.add(r.hash, undefined, label);
-        added.push({ id, filename: r.filename });
-      } catch (err) {
-        this.logger.error(
-          { err, filename: r.filename },
-          "Failed to add scam hash from candidate review",
-        );
-        failed.push(r.filename);
-      }
-    }
+          const added: { id: number; filename: string }[] = [];
+          const failed: string[] = [];
+          for (const r of newResults) {
+            try {
+              const id = await this.repository.add(r.hash, undefined, label);
+              added.push({ id, filename: r.filename });
+            } catch (err) {
+              this.logger.error(
+                { err, filename: r.filename },
+                "Failed to add scam hash from candidate review",
+              );
+              failed.push(r.filename);
+            }
+          }
 
-    if (added.length === 0) {
-      await this.safeEditMessage(msg, statusContainer("*failed to add hashes*"));
-      return;
-    }
+          span.setAttribute("hashes.added", added.length);
+          span.setAttribute("hashes.failed", failed.length);
 
-    const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
-    const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
-    await this.safeEditMessage(
-      msg,
-      statusContainer(`added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`),
+          if (added.length === 0) {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: "All hash inserts failed" });
+            await this.safeEditMessage(msg, statusContainer("*failed to add hashes*"));
+            this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
+            return;
+          }
+
+          const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
+          const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
+          await this.safeEditMessage(
+            msg,
+            statusContainer(`added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`),
+          );
+
+          if (failed.length > 0) {
+            this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
+          } else {
+            this.metrics.reviewOutcomeCounter.add(1, { outcome: "added" });
+          }
+        } catch (err) {
+          span.recordException(err as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
     );
   }
 }
