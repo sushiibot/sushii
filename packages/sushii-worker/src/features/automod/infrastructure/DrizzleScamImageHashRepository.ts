@@ -23,7 +23,6 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
       .select({
         id: scamImageHashesInAppPublic.id,
         hash: scamImageHashesInAppPublic.hash,
-        category: scamImageHashesInAppPublic.category,
         label: scamImageHashesInAppPublic.label,
         addedAt: scamImageHashesInAppPublic.addedAt,
         distance: distanceExpr,
@@ -39,18 +38,13 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
     return { entry: this.rowToEntity(rows[0]), distance: rows[0].distance };
   }
 
-  async add(
-    hashValue: bigint,
-    category?: string,
-    label?: string,
-  ): Promise<number> {
+  async add(hashValue: bigint, label?: string): Promise<number> {
     const signed = toSignedBigint(hashValue);
 
     const rows = await this.db
       .insert(scamImageHashesInAppPublic)
       .values({
         hash: signed,
-        category: category ?? null,
         label: label ?? null,
       })
       .returning({ id: scamImageHashesInAppPublic.id });
@@ -79,14 +73,12 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   private rowToEntity(row: {
     id: number;
     hash: bigint;
-    category: string | null;
     label: string | null;
     addedAt: Date;
   }): ScamImageHash {
     return {
       id: row.id,
       hash: toUnsignedBigint(row.hash),
-      category: row.category,
       label: row.label,
       addedAt: row.addedAt,
     };

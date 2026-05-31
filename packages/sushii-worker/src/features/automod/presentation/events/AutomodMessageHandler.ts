@@ -270,12 +270,11 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           }
 
           span.setAttribute("scam.outcome", "match");
-          span.setAttribute("scam.category", match.category ?? "unknown");
           if (match.label) {
             span.setAttribute("scam.label", match.label);
           }
 
-          const matchLabel = match.label ?? match.category;
+          const matchLabel = match.label;
 
           await this.spamActionService.executeScamImageAction(
             guildId,

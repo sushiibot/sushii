@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."scam_image_hashes" DROP COLUMN "category";

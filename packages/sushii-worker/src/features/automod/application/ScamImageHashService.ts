@@ -81,7 +81,7 @@ export class ScamImageHashService {
           });
           this.metrics.matchCounter.add(1, {
             guild_id: guildId,
-            category: closest.entry.category ?? "unknown",
+            label: closest.entry.label ?? "unlabeled",
           });
           return closest.entry;
         }

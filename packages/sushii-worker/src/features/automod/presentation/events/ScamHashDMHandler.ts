@@ -180,7 +180,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
           url: attachment.url,
           hash,
           closestId: closest?.entry.id ?? null,
-          closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
+          closestLabel: closest?.entry.label ?? null,
           closestDistance: closest?.distance ?? null,
         });
       } catch (err) {
@@ -326,7 +326,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
 
     for (const c of toAdd) {
       try {
-        const id = await this.repository.add(c.hash, undefined, label);
+        const id = await this.repository.add(c.hash, label);
         added.push({ id, filename: c.filename, hash: c.hash });
       } catch (err) {
         this.logger.error({ err, filename: c.filename }, "Failed to add scam hash from DM");

@@ -42,9 +42,6 @@ export class ScamHashCommand extends SlashCommandHandler {
             .setRequired(true),
         )
         .addStringOption((opt) =>
-          opt.setName("category").setDescription("Category label (e.g. casino)"),
-        )
-        .addStringOption((opt) =>
           opt.setName("label").setDescription("Descriptive label for this hash"),
         ),
     )
@@ -94,7 +91,6 @@ export class ScamHashCommand extends SlashCommandHandler {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const attachment = interaction.options.getAttachment("image", true);
-    const category = interaction.options.getString("category") ?? undefined;
     const label = interaction.options.getString("label") ?? undefined;
 
     if (
@@ -135,18 +131,18 @@ export class ScamHashCommand extends SlashCommandHandler {
 
     const closest = await this.repository.findClosest(hash);
     if (closest && closest.distance <= SCAM_HASH_DEDUP_THRESHOLD) {
-      const dupeLabel = closest.entry.label ?? closest.entry.category ?? "unlabeled";
+      const dupeLabel = closest.entry.label ?? "unlabeled";
       await interaction.editReply(
         `A near-duplicate already exists: ID **${closest.entry.id}** (${dupeLabel}, distance ${closest.distance}). Use \`/scam-hash list\` to review.`,
       );
       return;
     }
 
-    const id = await this.repository.add(hash, category, label);
+    const id = await this.repository.add(hash, label);
     const hexHash = formatDhash(hash);
 
     await interaction.editReply(
-      `Stored scam hash **#${id}** — \`${hexHash}\`${category ? ` · ${category}` : ""}${label ? ` · ${label}` : ""}`,
+      `Stored scam hash **#${id}** — \`${hexHash}\`${label ? ` · ${label}` : ""}`,
     );
   }
 
@@ -181,7 +177,7 @@ export class ScamHashCommand extends SlashCommandHandler {
     const rows = page.map((e) => {
       const hexHash = formatDhash(e.hash);
       const date = e.addedAt.toISOString().slice(0, 10);
-      const tags = [e.category, e.label].filter(Boolean).join(" · ") || "—";
+      const tags = e.label ?? "—";
       return `**#${e.id}** \`${hexHash}\` · ${tags} · ${date}`;
     });
 

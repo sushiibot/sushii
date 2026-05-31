@@ -306,7 +306,7 @@ export class ScamCandidateService {
                 buffer,
                 hash,
                 closestId: closest?.entry.id ?? null,
-                closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
+                closestLabel: closest?.entry.label ?? null,
                 closestDistance: closest?.distance ?? null,
                 isNew,
               };
@@ -495,7 +495,7 @@ export class ScamCandidateService {
           const failed: string[] = [];
           for (const r of newResults) {
             try {
-              const id = await this.repository.add(r.hash, undefined, label);
+              const id = await this.repository.add(r.hash, label);
               added.push({ id, filename: r.filename });
             } catch (err) {
               this.logger.error(
