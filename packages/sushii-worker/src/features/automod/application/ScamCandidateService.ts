@@ -363,16 +363,34 @@ export class ScamCandidateService {
     }
 
     // Classify new images with AI (best-effort, non-blocking on failure)
-    let classification: ClassificationResult | null = null;
+    let classificationResult: ClassificationResult | null = null;
     if (this.classifier) {
-      classification = await this.classifier.classify(
-        newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
-      );
-      if (classification) {
-        this.logger.debug(
-          { isScam: classification.isScam, confidence: classification.confidence, label: classification.suggestedLabel },
-          "Scam candidate classified",
+      const classifySpan = tracer.startSpan("automod.candidate.classify", {
+        kind: SpanKind.INTERNAL,
+        attributes: { "user.id": userId, "candidate.images.new": newResults.length },
+      });
+      try {
+        classificationResult = await this.classifier.classify(
+          newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
         );
+        if (classificationResult) {
+          classifySpan.setAttributes({
+            "classification.is_scam": classificationResult.isScam,
+            "classification.confidence": classificationResult.confidence,
+            "classification.has_label": classificationResult.suggestedLabel !== null,
+          });
+          this.logger.debug(
+            { isScam: classificationResult.isScam, confidence: classificationResult.confidence, label: classificationResult.suggestedLabel },
+            "Scam candidate classified",
+          );
+        } else {
+          classifySpan.addEvent("classification_failed");
+        }
+      } catch (err) {
+        classifySpan.recordException(err instanceof Error ? err : new Error(String(err)));
+        classifySpan.setStatus({ code: SpanStatusCode.ERROR });
+      } finally {
+        classifySpan.end();
       }
     }
 
@@ -404,10 +422,10 @@ export class ScamCandidateService {
       `**Seen in:** ${channelCount} channels across ${guildCount} public servers within 2 min`,
       `[Jump to message](${jumpUrl})`,
     ];
-    if (classification) {
-      const icon = classification.isScam ? "🔴" : "🟢";
-      const labelPart = classification.suggestedLabel ? ` · \`${classification.suggestedLabel}\`` : "";
-      textLines.push(`-# AI: ${icon} ${classification.confidence} confidence${labelPart} — ${classification.reason}`);
+    if (classificationResult) {
+      const icon = classificationResult.isScam ? "🔴" : "🟢";
+      const labelPart = classificationResult.suggestedLabel ? ` · \`${classificationResult.suggestedLabel}\`` : "";
+      textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${classificationResult.reason}`);
     }
     if (nearNotes) {
       textLines.push(`-# Already known: ${nearNotes}`);
@@ -491,8 +509,8 @@ export class ScamCandidateService {
             .setRequired(false)
             .setPlaceholder("e.g. tezowin.com promo");
 
-          if (classification?.suggestedLabel) {
-            labelInput.setValue(classification.suggestedLabel);
+          if (classificationResult?.suggestedLabel) {
+            labelInput.setValue(classificationResult.suggestedLabel);
           }
 
           const modal = new ModalBuilder()
