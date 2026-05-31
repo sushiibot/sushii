@@ -18,7 +18,9 @@ import {
   TextInputStyle,
   type Client,
   type GuildTextBasedChannel,
+  type Message,
   type MessageComponentInteraction,
+  type MessageEditOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
 import type { Logger } from "pino";
@@ -105,9 +107,7 @@ export class ScamCandidateService {
       }
     }, 5 * 60 * 1000);
     // Prevent the interval from keeping the process alive
-    if (this.janitorInterval.unref) {
-      this.janitorInterval.unref();
-    }
+    this.janitorInterval.unref();
   }
 
   destroy(): void {
@@ -206,6 +206,17 @@ export class ScamCandidateService {
       });
   }
 
+  private async safeEditMessage(msg: Message, options: MessageEditOptions): Promise<void> {
+    try {
+      await msg.edit(options);
+    } catch (err) {
+      if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+        return;
+      }
+      throw err;
+    }
+  }
+
   private async sendReview(opts: {
     userId: string;
     username: string;
@@ -217,7 +228,7 @@ export class ScamCandidateService {
   }): Promise<void> {
     const { userId, username, attachmentUrls, jumpUrl, channelCount, guildCount, entry } = opts;
 
-    const statusContainer = (suffix: string) => ({
+    const statusContainer = (suffix: string): MessageEditOptions => ({
       components: [
         new ContainerBuilder().addTextDisplayComponents(
           new TextDisplayBuilder().setContent(
@@ -225,236 +236,206 @@ export class ScamCandidateService {
           ),
         ),
       ],
-      flags: MessageFlags.IsComponentsV2 as MessageFlags.IsComponentsV2,
-      attachments: [] as [],
+      flags: MessageFlags.IsComponentsV2,
+      attachments: [],
     });
 
-    try {
-      // Download and hash all images in the set in parallel
-      const settled = await Promise.allSettled(
-        attachmentUrls.map(async (url, idx) => {
-          const resp = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-          if (!resp.ok) {
-            this.logger.warn({ url, status: resp.status }, "Failed to download candidate image");
-            throw new Error(`HTTP ${resp.status}`);
-          }
-
-          const buffer = Buffer.from(await resp.arrayBuffer());
-
-          // Dimension guard matching ScamImageHashService.downloadImage
-          const meta = await sharp(buffer).metadata();
-          if (
-            (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||
-            (meta.height && meta.height > SCAM_IMAGE_MAX_DIMENSION)
-          ) {
-            this.logger.debug({ url }, "Skipping oversized candidate image dimensions");
-            throw new Error("oversized dimensions");
-          }
-
-          const hash = await this.hashService.computeHash(buffer);
-          const closest = await this.repository.findClosest(hash);
-          const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
-          const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
-          const filename = `${idx}_${rawFilename}`;
-
-          const result: ImageResult = {
-            filename,
-            buffer,
-            hash,
-            closestId: closest?.entry.id ?? null,
-            closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
-            closestDistance: closest?.distance ?? null,
-            isNew,
-          };
-          return result;
-        }),
-      );
-
-      const results: ImageResult[] = [];
-      for (const r of settled) {
-        if (r.status === "rejected") {
-          this.logger.warn({ reason: r.reason }, "Failed to process candidate image");
-        } else {
-          results.push(r.value);
+    // Download and hash all images in the set in parallel
+    const settled = await Promise.allSettled(
+      attachmentUrls.map(async (url, idx) => {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+        if (!resp.ok) {
+          this.logger.warn({ url, status: resp.status }, "Failed to download candidate image");
+          throw new Error(`HTTP ${resp.status}`);
         }
-      }
 
-      if (results.length === 0) {
-        return;
-      }
+        const buffer = Buffer.from(await resp.arrayBuffer());
 
-      const newResults = results.filter((r) => r.isNew);
-
-      // Skip if entire set is already known
-      if (newResults.length === 0) {
-        this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
-        entry.nextNotifyChannelThreshold *= 2;
-        return;
-      }
-
-      const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
-      if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
-        this.logger.error(
-          { channelId: REVIEW_CHANNEL_ID },
-          "Review channel not found or not text-based",
-        );
-        return;
-      }
-      const reviewChannel = fetchedChannel as GuildTextBasedChannel;
-
-      const newCount = newResults.length;
-      const nearNotes = results
-        .filter((r) => !r.isNew)
-        .map(
-          (r) =>
-            `\`${r.filename}\` near-match #${r.closestId}${r.closestLabel ? ` ${r.closestLabel}` : ""} (dist ${r.closestDistance})`,
-        )
-        .join(", ");
-
-      const addLabel = newCount === 1 ? "Add 1 image" : `Add ${newCount} images`;
-
-      const textLines = [
-        `-# Scam Candidate`,
-        `**User:** ${username} (\`${userId}\`)`,
-        `**Seen in:** ${channelCount} channels across ${guildCount} public servers within 2 min`,
-        `[Jump to message](${jumpUrl})`,
-      ];
-      if (nearNotes) {
-        textLines.push(`-# Already known: ${nearNotes}`);
-      }
-
-      const gallery = new MediaGalleryBuilder().addItems(
-        ...results.map((r) => new MediaGalleryItemBuilder().setURL(`attachment://${r.filename}`)),
-      );
-
-      const container = new ContainerBuilder()
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(textLines.join("\n")))
-        .addMediaGalleryComponents(gallery)
-        .addSeparatorComponents(new SeparatorBuilder())
-        .addActionRowComponents(
-          new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(BUTTON_IGNORE)
-              .setLabel("Ignore")
-              .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-              .setCustomId(BUTTON_ADD)
-              .setLabel(addLabel)
-              .setStyle(ButtonStyle.Primary),
-          ),
-        );
-
-      const msg = await reviewChannel.send({
-        components: [container],
-        flags: MessageFlags.IsComponentsV2,
-        files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
-      });
-
-      // Double threshold only after message is successfully posted
-      entry.nextNotifyChannelThreshold *= 2;
-
-      let interaction: MessageComponentInteraction | undefined;
-      try {
-        interaction = await msg.awaitMessageComponent({
-          filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
-          time: BUTTON_AWAIT_MS,
-        });
-      } catch {
-        try {
-          await msg.edit(statusContainer("*timed out*"));
-        } catch (err) {
-          if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
-            return;
-          }
-          throw err;
+        // Dimension guard matching ScamImageHashService.downloadImage
+        const meta = await sharp(buffer).metadata();
+        if (
+          (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||
+          (meta.height && meta.height > SCAM_IMAGE_MAX_DIMENSION)
+        ) {
+          this.logger.debug({ url }, "Skipping oversized candidate image dimensions");
+          throw new Error("oversized dimensions");
         }
-        return;
+
+        const hash = await this.hashService.computeHash(buffer);
+        const closest = await this.repository.findClosest(hash);
+        const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
+        const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
+        const filename = `${idx}_${rawFilename}`;
+
+        const result: ImageResult = {
+          filename,
+          buffer,
+          hash,
+          closestId: closest?.entry.id ?? null,
+          closestLabel: closest?.entry.label ?? closest?.entry.category ?? null,
+          closestDistance: closest?.distance ?? null,
+          isNew,
+        };
+        return result;
+      }),
+    );
+
+    const results: ImageResult[] = [];
+    for (const r of settled) {
+      if (r.status === "rejected") {
+        this.logger.warn({ reason: r.reason }, "Failed to process candidate image");
+      } else {
+        results.push(r.value);
       }
-
-      if (interaction.customId === BUTTON_IGNORE) {
-        await interaction.update(statusContainer("ignored"));
-        entry.ignored = true;
-        return;
-      }
-
-      // Add flow
-      const modal = new ModalBuilder()
-        .setCustomId(MODAL_LABEL_ID)
-        .setTitle("Scam Hash Label")
-        .addComponents(
-          new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder()
-              .setCustomId(MODAL_LABEL_INPUT)
-              .setLabel("Label (optional)")
-              .setStyle(TextInputStyle.Short)
-              .setRequired(false)
-              .setPlaceholder("e.g. tezowin.com promo"),
-          ),
-        );
-
-      await interaction.showModal(modal);
-
-      let modalInteraction: ModalSubmitInteraction | undefined;
-      try {
-        modalInteraction = await interaction.awaitModalSubmit({
-          filter: (i) => i.customId === MODAL_LABEL_ID,
-          time: MODAL_AWAIT_MS,
-        });
-      } catch {
-        return;
-      }
-
-      await modalInteraction.deferUpdate();
-
-      const label =
-        (
-          (modalInteraction.fields.fields.get(MODAL_LABEL_INPUT) as { value?: string } | undefined)
-            ?.value ?? ""
-        ).trim() || undefined;
-
-      const added: { id: number; filename: string }[] = [];
-      const failed: string[] = [];
-      for (const r of newResults) {
-        try {
-          const id = await this.repository.add(r.hash, undefined, label);
-          added.push({ id, filename: r.filename });
-        } catch (err) {
-          this.logger.error(
-            { err, filename: r.filename },
-            "Failed to add scam hash from candidate review",
-          );
-          failed.push(r.filename);
-        }
-      }
-
-      if (added.length === 0) {
-        try {
-          await msg.edit(statusContainer("failed to add hashes"));
-        } catch (err) {
-          if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
-            return;
-          }
-          throw err;
-        }
-        return;
-      }
-
-      const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
-      const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
-      try {
-        await msg.edit(
-          statusContainer(
-            `added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`,
-          ),
-        );
-      } catch (err) {
-        if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
-          return;
-        }
-        throw err;
-      }
-    } finally {
-      entry.reviewing = false;
     }
+
+    if (results.length === 0) {
+      return;
+    }
+
+    const newResults = results.filter((r) => r.isNew);
+
+    // Skip if entire set is already known
+    if (newResults.length === 0) {
+      this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
+      entry.nextNotifyChannelThreshold *= 2;
+      return;
+    }
+
+    const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
+    if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
+      this.logger.error(
+        { channelId: REVIEW_CHANNEL_ID },
+        "Review channel not found or not text-based",
+      );
+      return;
+    }
+    const reviewChannel = fetchedChannel as GuildTextBasedChannel;
+
+    const newCount = newResults.length;
+    const nearNotes = results
+      .filter((r) => !r.isNew)
+      .map(
+        (r) =>
+          `\`${r.filename}\` near-match #${r.closestId}${r.closestLabel ? ` ${r.closestLabel}` : ""} (dist ${r.closestDistance})`,
+      )
+      .join(", ");
+
+    const addLabel = newCount === 1 ? "Add 1 image" : `Add ${newCount} images`;
+
+    const textLines = [
+      `-# Scam Candidate`,
+      `**User:** ${username} (\`${userId}\`)`,
+      `**Seen in:** ${channelCount} channels across ${guildCount} public servers within 2 min`,
+      `[Jump to message](${jumpUrl})`,
+    ];
+    if (nearNotes) {
+      textLines.push(`-# Already known: ${nearNotes}`);
+    }
+
+    const gallery = new MediaGalleryBuilder().addItems(
+      ...results.map((r) => new MediaGalleryItemBuilder().setURL(`attachment://${r.filename}`)),
+    );
+
+    const container = new ContainerBuilder()
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(textLines.join("\n")))
+      .addMediaGalleryComponents(gallery)
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(BUTTON_IGNORE)
+            .setLabel("Ignore")
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(BUTTON_ADD)
+            .setLabel(addLabel)
+            .setStyle(ButtonStyle.Primary),
+        ),
+      );
+
+    const msg = await reviewChannel.send({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
+    });
+
+    // Double threshold only after message is successfully posted
+    entry.nextNotifyChannelThreshold *= 2;
+
+    let interaction: MessageComponentInteraction | undefined;
+    try {
+      interaction = await msg.awaitMessageComponent({
+        filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
+        time: BUTTON_AWAIT_MS,
+      });
+    } catch {
+      await this.safeEditMessage(msg, statusContainer("*timed out*"));
+      return;
+    }
+
+    if (interaction.customId === BUTTON_IGNORE) {
+      await interaction.update(statusContainer("*ignored*"));
+      entry.ignored = true;
+      return;
+    }
+
+    // Add flow
+    const modal = new ModalBuilder()
+      .setCustomId(MODAL_LABEL_ID)
+      .setTitle("Scam Hash Label")
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder()
+            .setCustomId(MODAL_LABEL_INPUT)
+            .setLabel("Label (optional)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setPlaceholder("e.g. tezowin.com promo"),
+        ),
+      );
+
+    await interaction.showModal(modal);
+
+    let modalInteraction: ModalSubmitInteraction | undefined;
+    try {
+      modalInteraction = await interaction.awaitModalSubmit({
+        filter: (i) => i.customId === MODAL_LABEL_ID,
+        time: MODAL_AWAIT_MS,
+      });
+    } catch {
+      return;
+    }
+
+    await modalInteraction.deferUpdate();
+
+    const label = modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
+
+    const added: { id: number; filename: string }[] = [];
+    const failed: string[] = [];
+    for (const r of newResults) {
+      try {
+        const id = await this.repository.add(r.hash, undefined, label);
+        added.push({ id, filename: r.filename });
+      } catch (err) {
+        this.logger.error(
+          { err, filename: r.filename },
+          "Failed to add scam hash from candidate review",
+        );
+        failed.push(r.filename);
+      }
+    }
+
+    if (added.length === 0) {
+      await this.safeEditMessage(msg, statusContainer("*failed to add hashes*"));
+      return;
+    }
+
+    const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
+    const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
+    await this.safeEditMessage(
+      msg,
+      statusContainer(`added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`),
+    );
   }
 }

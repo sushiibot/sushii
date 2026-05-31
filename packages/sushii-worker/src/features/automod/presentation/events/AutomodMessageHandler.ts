@@ -163,8 +163,8 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         return;
       }
 
-      // Tier 1 candidate tracking: same user sending the same image set to many channels
-      // Key is userId + sorted file sizes; DB match check happens inside sendReview
+      // Candidate tracking: fire-and-forget sighting record — ScamCandidateService handles
+      // download/hash/review internally when the threshold is reached
       const candidateImages = imageAttachments
         .filter((a) => a.size != null)
         .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
