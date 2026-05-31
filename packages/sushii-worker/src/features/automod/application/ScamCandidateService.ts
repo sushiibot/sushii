@@ -28,6 +28,7 @@ import type { Logger } from "pino";
 import {
   SCAM_HASH_DEDUP_THRESHOLD,
   SCAM_IMAGE_MAX_DIMENSION,
+  SCAM_IMAGE_MAX_SIZE_BYTES,
   type ScamImageHashService,
 } from "./ScamImageHashService";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
@@ -186,6 +187,7 @@ export class ScamCandidateService {
     }
 
     entry.reviewing = true;
+    entry.nextNotifyChannelThreshold *= 2;
 
     const sample = entry.sightings[entry.sightings.length - 1];
 
@@ -207,10 +209,16 @@ export class ScamCandidateService {
   }
 
   private async safeEditMessage(msg: Message, options: MessageEditOptions): Promise<void> {
+    const SWALLOWED_EDIT_CODES = new Set([
+      RESTJSONErrorCodes.UnknownMessage,
+      RESTJSONErrorCodes.MissingPermissions,
+      RESTJSONErrorCodes.MissingAccess,
+    ]);
+
     try {
       await msg.edit(options);
     } catch (err) {
-      if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(err.code as number)) {
         return;
       }
       throw err;
@@ -249,7 +257,19 @@ export class ScamCandidateService {
           throw new Error(`HTTP ${resp.status}`);
         }
 
+        const contentLength = resp.headers.get("content-length");
+        const cl = Number(contentLength);
+        if (Number.isFinite(cl) && cl > SCAM_IMAGE_MAX_SIZE_BYTES) {
+          this.logger.debug({ url }, "Skipping oversized candidate image (content-length)");
+          throw new Error("oversized content-length");
+        }
+
         const buffer = Buffer.from(await resp.arrayBuffer());
+
+        if (buffer.byteLength > SCAM_IMAGE_MAX_SIZE_BYTES) {
+          this.logger.debug({ url }, "Skipping oversized candidate image (buffer)");
+          throw new Error("oversized buffer");
+        }
 
         // Dimension guard matching ScamImageHashService.downloadImage
         const meta = await sharp(buffer).metadata();
@@ -298,7 +318,6 @@ export class ScamCandidateService {
     // Skip if entire set is already known
     if (newResults.length === 0) {
       this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
-      entry.nextNotifyChannelThreshold *= 2;
       return;
     }
 
@@ -360,9 +379,6 @@ export class ScamCandidateService {
       files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
     });
 
-    // Double threshold only after message is successfully posted
-    entry.nextNotifyChannelThreshold *= 2;
-
     let interaction: MessageComponentInteraction | undefined;
     try {
       interaction = await msg.awaitMessageComponent({
@@ -375,8 +391,8 @@ export class ScamCandidateService {
     }
 
     if (interaction.customId === BUTTON_IGNORE) {
-      await interaction.update(statusContainer("*ignored*"));
       entry.ignored = true;
+      await interaction.update(statusContainer("*ignored*"));
       return;
     }
 
