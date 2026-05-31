@@ -45,6 +45,12 @@ const BUTTON_ADD = "scam_candidate:add";
 const MODAL_LABEL_ID = "scam_candidate:label";
 const MODAL_LABEL_INPUT = "label";
 
+const SWALLOWED_EDIT_CODES = new Set<number>([
+  RESTJSONErrorCodes.UnknownMessage,
+  RESTJSONErrorCodes.MissingPermissions,
+  RESTJSONErrorCodes.MissingAccess,
+]);
+
 interface Sighting {
   channelId: string;
   guildId: string;
@@ -187,7 +193,6 @@ export class ScamCandidateService {
     }
 
     entry.reviewing = true;
-    entry.nextNotifyChannelThreshold *= 2;
 
     const sample = entry.sightings[entry.sightings.length - 1];
 
@@ -209,16 +214,10 @@ export class ScamCandidateService {
   }
 
   private async safeEditMessage(msg: Message, options: MessageEditOptions): Promise<void> {
-    const SWALLOWED_EDIT_CODES = new Set([
-      RESTJSONErrorCodes.UnknownMessage,
-      RESTJSONErrorCodes.MissingPermissions,
-      RESTJSONErrorCodes.MissingAccess,
-    ]);
-
     try {
       await msg.edit(options);
     } catch (err) {
-      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(err.code as number)) {
+      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(Number(err.code))) {
         return;
       }
       throw err;
@@ -315,9 +314,10 @@ export class ScamCandidateService {
 
     const newResults = results.filter((r) => r.isNew);
 
-    // Skip if entire set is already known
+    // Skip if entire set is already known — double threshold so we don't re-hash on every sighting
     if (newResults.length === 0) {
       this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
+      entry.nextNotifyChannelThreshold *= 2;
       return;
     }
 
@@ -378,6 +378,7 @@ export class ScamCandidateService {
       flags: MessageFlags.IsComponentsV2,
       files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
     });
+    entry.nextNotifyChannelThreshold *= 2;
 
     let interaction: MessageComponentInteraction | undefined;
     try {
