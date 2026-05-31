@@ -1,17 +1,30 @@
 import { z } from "zod";
 import type { Logger } from "pino";
 
+export const MAX_LABEL_LENGTH = 100;
+
 const classificationSchema = z.object({
-  isScam: z.preprocess(
-    (v) => (v === "true" ? true : v === "false" ? false : v),
-    z.boolean(),
-  ),
+  isScam: z.preprocess((v) => {
+    if (typeof v === "string") {
+      const lower = v.toLowerCase();
+      if (lower === "true") {
+        return true;
+      }
+      if (lower === "false") {
+        return false;
+      }
+    }
+    return v;
+  }, z.boolean()),
   confidence: z.preprocess(
     (v) => (typeof v === "string" ? v.toLowerCase() : v),
     z.enum(["low", "medium", "high"]),
   ),
   reason: z.string(),
-  suggestedLabel: z.string().nullable(),
+  suggestedLabel: z
+    .string()
+    .nullable()
+    .transform((v) => (v === "null" ? null : v)),
 });
 
 export type ClassificationResult = z.infer<typeof classificationSchema>;

@@ -23,8 +23,8 @@ import {
   type MessageEditOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
-import type { Logger } from "pino";
 import opentelemetry, { SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import type { Logger } from "pino";
 
 import {
   SCAM_HASH_DEDUP_THRESHOLD,
@@ -33,6 +33,7 @@ import {
   type ScamImageHashService,
 } from "./ScamImageHashService";
 import {
+  MAX_LABEL_LENGTH,
   type ClassificationResult,
   type ScamImageClassifier,
 } from "./ScamImageClassifier";
@@ -47,6 +48,8 @@ const CHANNEL_THRESHOLD = 5;
 const GUILD_THRESHOLD = 2;
 const BUTTON_AWAIT_MS = 30 * 60 * 1000; // 30 minutes to review
 const MODAL_AWAIT_MS = 5 * 60 * 1000; // 5 minutes to submit the modal
+
+const MAX_REASON_DISPLAY_LENGTH = 200;
 
 const BUTTON_IGNORE = "scam_candidate:ignore";
 const BUTTON_ADD = "scam_candidate:add";
@@ -369,23 +372,26 @@ export class ScamCandidateService {
         kind: SpanKind.INTERNAL,
         attributes: { "user.id": userId, "candidate.images.new": newResults.length },
       });
-      classificationResult = await this.classifier.classify(
-        newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
-      );
-      if (classificationResult) {
-        classifySpan.setAttributes({
-          "classification.is_scam": classificationResult.isScam,
-          "classification.confidence": classificationResult.confidence,
-          "classification.has_label": classificationResult.suggestedLabel !== null,
-        });
-        this.logger.debug(
-          { isScam: classificationResult.isScam, confidence: classificationResult.confidence, label: classificationResult.suggestedLabel },
-          "Scam candidate classified",
+      try {
+        classificationResult = await this.classifier.classify(
+          newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
         );
-      } else {
-        classifySpan.addEvent("classification_failed");
+        if (classificationResult) {
+          classifySpan.setAttributes({
+            "classification.is_scam": classificationResult.isScam,
+            "classification.confidence": classificationResult.confidence,
+            "classification.has_suggested_label": classificationResult.suggestedLabel !== null,
+          });
+          this.logger.debug(
+            { isScam: classificationResult.isScam, confidence: classificationResult.confidence, label: classificationResult.suggestedLabel },
+            "Scam candidate classified",
+          );
+        } else {
+          classifySpan.addEvent("classification_failed", { reason: "classify returned null" });
+        }
+      } finally {
+        classifySpan.end();
       }
-      classifySpan.end();
     }
 
     const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
@@ -419,7 +425,8 @@ export class ScamCandidateService {
     if (classificationResult) {
       const icon = classificationResult.isScam ? "🔴" : "🟢";
       const labelPart = classificationResult.suggestedLabel ? ` · \`${classificationResult.suggestedLabel}\`` : "";
-      textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${classificationResult.reason}`);
+      const reason = classificationResult.reason.slice(0, MAX_REASON_DISPLAY_LENGTH);
+      textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${reason}`);
     }
     if (nearNotes) {
       textLines.push(`-# Already known: ${nearNotes}`);
@@ -504,7 +511,7 @@ export class ScamCandidateService {
             .setPlaceholder("e.g. tezowin.com promo");
 
           if (classificationResult?.suggestedLabel) {
-            labelInput.setValue(classificationResult.suggestedLabel.slice(0, 100));
+            labelInput.setValue(classificationResult.suggestedLabel.slice(0, MAX_LABEL_LENGTH));
           }
 
           const modal = new ModalBuilder()
