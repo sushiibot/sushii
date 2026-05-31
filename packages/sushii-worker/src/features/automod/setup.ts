@@ -136,6 +136,9 @@ export function setupAutomodFeature(
       spamAlertUpdateService,
     },
     commands: [scamHashCommand],
-    destroy: () => spamDetectionService.destroy(),
+    destroy: () => {
+      spamDetectionService.destroy();
+      scamCandidateService.destroy();
+    },
   };
 }

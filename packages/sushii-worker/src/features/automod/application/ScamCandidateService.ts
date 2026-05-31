@@ -4,12 +4,14 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  DiscordAPIError,
   GuildFeature,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  RESTJSONErrorCodes,
   SeparatorBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
@@ -32,7 +34,8 @@ const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
 const GUILD_THRESHOLD = 2;
-const AWAIT_TIMEOUT_MS = 30 * 60 * 1000;
+const BUTTON_AWAIT_MS = 30 * 60 * 1000; // 30 minutes to review
+const MODAL_AWAIT_MS = 5 * 60 * 1000; // 5 minutes to submit the modal
 
 const BUTTON_IGNORE = "scam_candidate:ignore";
 const BUTTON_ADD = "scam_candidate:add";
@@ -81,13 +84,35 @@ export interface CandidateInput {
 export class ScamCandidateService {
   // key: `${userId}:${sortedFileSizes}`
   private readonly candidates = new Map<string, CandidateEntry>();
+  private readonly janitorInterval: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly client: Client,
     private readonly hashService: ScamImageHashService,
     private readonly repository: ScamImageHashRepository,
     private readonly logger: Logger,
-  ) {}
+  ) {
+    this.janitorInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of this.candidates) {
+        if (entry.reviewing) {
+          continue;
+        }
+        const hasRecentSightings = entry.sightings.some((s) => now - s.timestamp <= WINDOW_MS);
+        if (!hasRecentSightings) {
+          this.candidates.delete(key);
+        }
+      }
+    }, 5 * 60 * 1000);
+    // Prevent the interval from keeping the process alive
+    if (this.janitorInterval.unref) {
+      this.janitorInterval.unref();
+    }
+  }
+
+  destroy(): void {
+    clearInterval(this.janitorInterval);
+  }
 
   async track(input: CandidateInput): Promise<void> {
     const { userId, username, guildId, channelId, messageId, images } = input;
@@ -97,8 +122,12 @@ export class ScamCandidateService {
     }
 
     const guild = this.client.guilds.cache.get(guildId);
-    if (!guild?.features.includes(GuildFeature.Discoverable)) {
-      this.logger.debug({ guildId }, "skip — guild not discoverable or not cached");
+    if (!guild) {
+      this.logger.debug({ guildId }, "skip — guild not in cache");
+      return;
+    }
+    if (!guild.features.includes(GuildFeature.Discoverable)) {
+      this.logger.debug({ guildId }, "skip — guild not discoverable");
       return;
     }
 
@@ -142,11 +171,6 @@ export class ScamCandidateService {
     });
     entry.sightings = entry.sightings.filter((s) => now - s.timestamp <= WINDOW_MS);
 
-    if (entry.sightings.length === 0 && !entry.reviewing && !entry.ignored) {
-      this.candidates.delete(key);
-      return;
-    }
-
     if (entry.reviewing || entry.ignored) {
       return;
     }
@@ -173,9 +197,13 @@ export class ScamCandidateService {
       channelCount: distinctChannels.size,
       guildCount: distinctGuilds.size,
       entry,
-    }).catch((err) => {
-      this.logger.error({ err, userId, key }, "Scam candidate review failed");
-    });
+    })
+      .catch((err) => {
+        this.logger.error({ err, userId, key }, "Scam candidate review failed");
+      })
+      .finally(() => {
+        entry.reviewing = false;
+      });
   }
 
   private async sendReview(opts: {
@@ -188,6 +216,18 @@ export class ScamCandidateService {
     entry: CandidateEntry;
   }): Promise<void> {
     const { userId, username, attachmentUrls, jumpUrl, channelCount, guildCount, entry } = opts;
+
+    const statusContainer = (suffix: string) => ({
+      components: [
+        new ContainerBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — ${suffix}`,
+          ),
+        ),
+      ],
+      flags: MessageFlags.IsComponentsV2 as MessageFlags.IsComponentsV2,
+      attachments: [] as [],
+    });
 
     try {
       // Download and hash all images in the set in parallel
@@ -230,23 +270,25 @@ export class ScamCandidateService {
         }),
       );
 
+      const results: ImageResult[] = [];
       for (const r of settled) {
         if (r.status === "rejected") {
           this.logger.warn({ reason: r.reason }, "Failed to process candidate image");
+        } else {
+          results.push(r.value);
         }
       }
-
-      const results: ImageResult[] = settled
-        .filter((r): r is PromiseFulfilledResult<ImageResult> => r.status === "fulfilled")
-        .map((r) => r.value);
 
       if (results.length === 0) {
         return;
       }
 
+      const newResults = results.filter((r) => r.isNew);
+
       // Skip if entire set is already known
-      if (results.every((r) => !r.isNew)) {
+      if (newResults.length === 0) {
         this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
+        entry.nextNotifyChannelThreshold *= 2;
         return;
       }
 
@@ -260,7 +302,7 @@ export class ScamCandidateService {
       }
       const reviewChannel = fetchedChannel as GuildTextBasedChannel;
 
-      const newCount = results.filter((r) => r.isNew).length;
+      const newCount = newResults.length;
       const nearNotes = results
         .filter((r) => !r.isNew)
         .map(
@@ -315,33 +357,22 @@ export class ScamCandidateService {
       try {
         interaction = await msg.awaitMessageComponent({
           filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
-          time: AWAIT_TIMEOUT_MS,
+          time: BUTTON_AWAIT_MS,
         });
       } catch {
-        await msg.edit({
-          components: [
-            new ContainerBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(
-                `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — *timed out*`,
-              ),
-            ),
-          ],
-          flags: MessageFlags.IsComponentsV2,
-        });
+        try {
+          await msg.edit(statusContainer("*timed out*"));
+        } catch (err) {
+          if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+            return;
+          }
+          throw err;
+        }
         return;
       }
 
       if (interaction.customId === BUTTON_IGNORE) {
-        await interaction.update({
-          components: [
-            new ContainerBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(
-                `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — ignored`,
-              ),
-            ),
-          ],
-          flags: MessageFlags.IsComponentsV2,
-        });
+        await interaction.update(statusContainer("ignored"));
         entry.ignored = true;
         return;
       }
@@ -367,7 +398,7 @@ export class ScamCandidateService {
       try {
         modalInteraction = await interaction.awaitModalSubmit({
           filter: (i) => i.customId === MODAL_LABEL_ID,
-          time: AWAIT_TIMEOUT_MS,
+          time: MODAL_AWAIT_MS,
         });
       } catch {
         return;
@@ -376,10 +407,14 @@ export class ScamCandidateService {
       await modalInteraction.deferUpdate();
 
       const label =
-        modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
+        (
+          (modalInteraction.fields.fields.get(MODAL_LABEL_INPUT) as { value?: string } | undefined)
+            ?.value ?? ""
+        ).trim() || undefined;
 
       const added: { id: number; filename: string }[] = [];
-      for (const r of results.filter((r) => r.isNew)) {
+      const failed: string[] = [];
+      for (const r of newResults) {
         try {
           const id = await this.repository.add(r.hash, undefined, label);
           added.push({ id, filename: r.filename });
@@ -388,34 +423,36 @@ export class ScamCandidateService {
             { err, filename: r.filename },
             "Failed to add scam hash from candidate review",
           );
+          failed.push(r.filename);
         }
       }
 
       if (added.length === 0) {
-        await msg.edit({
-          components: [
-            new ContainerBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(
-                `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — failed to add hashes`,
-              ),
-            ),
-          ],
-          flags: MessageFlags.IsComponentsV2,
-        });
+        try {
+          await msg.edit(statusContainer("failed to add hashes"));
+        } catch (err) {
+          if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+            return;
+          }
+          throw err;
+        }
         return;
       }
 
       const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
-      await msg.edit({
-        components: [
-          new ContainerBuilder().addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-              `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — added ${addedLines}${label ? ` · ${label}` : ""}`,
-            ),
+      const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
+      try {
+        await msg.edit(
+          statusContainer(
+            `added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`,
           ),
-        ],
-        flags: MessageFlags.IsComponentsV2,
-      });
+        );
+      } catch (err) {
+        if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+          return;
+        }
+        throw err;
+      }
     } finally {
       entry.reviewing = false;
     }

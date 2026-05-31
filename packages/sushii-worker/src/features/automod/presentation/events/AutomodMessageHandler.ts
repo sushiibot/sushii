@@ -170,14 +170,21 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
         .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
 
       if (candidateImages.length > 0) {
-        void this.scamCandidateService.track({
-          userId: payload.author.id,
-          username: payload.author.username,
-          guildId,
-          channelId: payload.channel_id,
-          messageId: payload.id,
-          images: candidateImages,
-        });
+        this.scamCandidateService
+          .track({
+            userId: payload.author.id,
+            username: payload.author.username,
+            guildId,
+            channelId: payload.channel_id,
+            messageId: payload.id,
+            images: candidateImages,
+          })
+          .catch((err) => {
+            this.logger.error(
+              { err, userId: payload.author.id },
+              "Scam candidate track failed",
+            );
+          });
       }
 
       // Check for spam
