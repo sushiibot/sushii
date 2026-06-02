@@ -302,6 +302,13 @@
       "when": 1780242175926,
       "tag": "0042_add_automod_scam_image_enabled",
       "breakpoints": false
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1780439095228,
+      "tag": "0043_scam_candidate_tracking",
+      "breakpoints": false
     }
   ]
 }

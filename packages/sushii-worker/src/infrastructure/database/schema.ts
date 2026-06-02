@@ -266,6 +266,47 @@ export const scamImageHashesInAppPublic = appPublic.table(
   ],
 );
 
+export const scamCandidateSightingsInAppPublic = appPublic.table(
+  "scam_candidate_sightings",
+  {
+    id: serial().primaryKey().notNull(),
+    key: text().notNull(),
+    guildId: text("guild_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    attachmentUrls: text("attachment_urls").array().notNull(),
+    seenAt: timestamp("seen_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("scam_candidate_sightings_key_seen_at_idx").on(table.key, table.seenAt),
+  ],
+);
+
+export const scamCandidateStateInAppPublic = appPublic.table(
+  "scam_candidate_state",
+  {
+    key: text().primaryKey().notNull(),
+    nextNotifyChannelThreshold: integer("next_notify_channel_threshold").notNull().default(5),
+    reviewing: boolean().notNull().default(false),
+    ignored: boolean().notNull().default(false),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+);
+
+export const scamCandidateReviewsInAppPublic = appPublic.table(
+  "scam_candidate_reviews",
+  {
+    reviewId: text("review_id").primaryKey().notNull(),
+    key: text().notNull(),
+    userId: text("user_id").notNull(),
+    username: text().notNull(),
+    reviewChannelId: text("review_channel_id").notNull(),
+    reviewMessageId: text("review_message_id").notNull(),
+    newImageResults: jsonb("new_image_results").notNull(),
+    classificationResult: jsonb("classification_result"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+);
+
 export const guildEmojisAndStickersInAppPublic = appPublic.table(
   "guild_emojis_and_stickers",
   {
