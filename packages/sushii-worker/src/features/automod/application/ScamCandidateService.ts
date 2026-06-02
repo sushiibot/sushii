@@ -16,10 +16,10 @@ import {
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
+  type ButtonInteraction,
   type Client,
   type GuildTextBasedChannel,
   type Message,
-  type MessageComponentInteraction,
   type MessageEditOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
@@ -39,6 +39,12 @@ import {
 } from "./ScamImageClassifier";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
 import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
+import {
+  buildAddId,
+  buildIgnoreId,
+  buildModalId,
+  SCAM_CANDIDATE_MODAL_LABEL_INPUT,
+} from "../presentation/handlers/scamCandidateCustomIds";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
@@ -47,14 +53,8 @@ const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
 const GUILD_THRESHOLD = 2;
 const BUTTON_AWAIT_MS = 30 * 60 * 1000; // 30 minutes to review
-const MODAL_AWAIT_MS = 5 * 60 * 1000; // 5 minutes to submit the modal
 
 const MAX_REASON_DISPLAY_LENGTH = 200;
-
-const BUTTON_IGNORE = "scam_candidate:ignore";
-const BUTTON_ADD = "scam_candidate:add";
-const MODAL_LABEL_ID = "scam_candidate:label";
-const MODAL_LABEL_INPUT = "label";
 
 const SWALLOWED_EDIT_CODES = new Set<number>([
   RESTJSONErrorCodes.UnknownMessage,
@@ -87,6 +87,17 @@ interface ImageResult {
   isNew: boolean;
 }
 
+interface PendingReview {
+  userId: string;
+  username: string;
+  jumpUrl: string;
+  entry: CandidateEntry;
+  newResults: ImageResult[];
+  classificationResult: ClassificationResult | null;
+  msg: Message;
+  cleanupTimer: ReturnType<typeof setTimeout>;
+}
+
 export interface CandidateImage {
   fileSize: number;
   attachmentUrl: string;
@@ -104,6 +115,7 @@ export interface CandidateInput {
 export class ScamCandidateService {
   // key: `${userId}:${sortedFileSizes}`
   private readonly candidates = new Map<string, CandidateEntry>();
+  private readonly pendingReviews = new Map<string, PendingReview>();
   private readonly janitorInterval: ReturnType<typeof setInterval>;
 
   constructor(
@@ -132,6 +144,10 @@ export class ScamCandidateService {
 
   destroy(): void {
     clearInterval(this.janitorInterval);
+    for (const [, review] of this.pendingReviews) {
+      clearTimeout(review.cleanupTimer);
+    }
+    this.pendingReviews.clear();
   }
 
   async track(input: CandidateInput): Promise<void> {
@@ -221,13 +237,113 @@ export class ScamCandidateService {
       channelCount: distinctChannels.size,
       guildCount: distinctGuilds.size,
       entry,
-    })
-      .catch((err) => {
-        this.logger.error({ err, userId, key }, "Scam candidate review failed");
-      })
-      .finally(() => {
-        entry.reviewing = false;
-      });
+    }).catch((err) => {
+      entry.reviewing = false;
+      this.logger.error({ err, userId, key }, "Scam candidate review failed");
+    });
+  }
+
+  async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+    const review = this.pendingReviews.get(reviewId);
+    if (!review) {
+      await interaction.reply({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    review.entry.ignored = true;
+    await interaction.update(this.reviewStatusMessage(review, "*ignored*"));
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
+    this.cleanupReview(reviewId);
+  }
+
+  async handleAdd(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+    const review = this.pendingReviews.get(reviewId);
+    if (!review) {
+      await interaction.reply({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const labelInput = new TextInputBuilder()
+      .setCustomId(SCAM_CANDIDATE_MODAL_LABEL_INPUT)
+      .setLabel("Label (optional)")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false)
+      .setPlaceholder("e.g. tezowin.com promo");
+
+    if (review.classificationResult?.suggestedLabel) {
+      labelInput.setValue(review.classificationResult.suggestedLabel.slice(0, MAX_LABEL_LENGTH));
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(buildModalId(reviewId))
+      .setTitle("Scam Hash Label")
+      .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(labelInput));
+
+    await interaction.showModal(modal);
+  }
+
+  async handleLabelModal(reviewId: string, interaction: ModalSubmitInteraction): Promise<void> {
+    const review = this.pendingReviews.get(reviewId);
+    if (!review) {
+      await interaction.reply({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    await interaction.deferUpdate();
+
+    const label =
+      interaction.fields.getTextInputValue(SCAM_CANDIDATE_MODAL_LABEL_INPUT).trim() || undefined;
+
+    const added: { id: number; filename: string }[] = [];
+    const failed: string[] = [];
+    for (const r of review.newResults) {
+      try {
+        const id = await this.repository.add(r.hash, label);
+        added.push({ id, filename: r.filename });
+      } catch (err) {
+        this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
+        failed.push(r.filename);
+      }
+    }
+
+    if (added.length === 0) {
+      await this.safeEditMessage(review.msg, this.reviewStatusMessage(review, "*failed to add hashes*"));
+      this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
+      this.cleanupReview(reviewId);
+      return;
+    }
+
+    const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
+    const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
+    await this.safeEditMessage(
+      review.msg,
+      this.reviewStatusMessage(review, `added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`),
+    );
+
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
+    this.cleanupReview(reviewId);
+  }
+
+  private cleanupReview(reviewId: string): void {
+    const review = this.pendingReviews.get(reviewId);
+    if (review) {
+      clearTimeout(review.cleanupTimer);
+      review.entry.reviewing = false;
+      this.pendingReviews.delete(reviewId);
+    }
+  }
+
+  private reviewStatusMessage(review: PendingReview, suffix: string): MessageEditOptions {
+    return {
+      components: [
+        new ContainerBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `-# Scam Candidate\n**User:** ${review.username} (\`${review.userId}\`) · [Jump](${review.jumpUrl}) — ${suffix}`,
+          ),
+        ),
+      ],
+      flags: MessageFlags.IsComponentsV2,
+      attachments: [],
+    };
   }
 
   private async safeEditMessage(msg: Message, options: MessageEditOptions): Promise<void> {
@@ -251,18 +367,6 @@ export class ScamCandidateService {
     entry: CandidateEntry;
   }): Promise<void> {
     const { userId, username, attachmentUrls, jumpUrl, channelCount, guildCount, entry } = opts;
-
-    const statusContainer = (suffix: string): MessageEditOptions => ({
-      components: [
-        new ContainerBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `-# Scam Candidate\n**User:** ${username} (\`${userId}\`) · [Jump](${jumpUrl}) — ${suffix}`,
-          ),
-        ),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-      attachments: [],
-    });
 
     let results: ImageResult[] = [];
     let newResults: ImageResult[] = [];
@@ -363,6 +467,7 @@ export class ScamCandidateService {
     if (newResults.length === 0) {
       this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
       entry.nextNotifyChannelThreshold *= 2;
+      entry.reviewing = false;
       this.metrics.reviewCounter.add(1, { outcome: "all_known" });
       return;
     }
@@ -418,6 +523,8 @@ export class ScamCandidateService {
 
     const addLabel = newCount === 1 ? "Add 1 image" : `Add ${newCount} images`;
 
+    const reviewId = crypto.randomUUID();
+
     const textLines = [
       `-# Scam Candidate`,
       `**User:** ${username} (\`${userId}\`)`,
@@ -445,11 +552,11 @@ export class ScamCandidateService {
       .addActionRowComponents(
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
-            .setCustomId(BUTTON_IGNORE)
+            .setCustomId(buildIgnoreId(reviewId))
             .setLabel("Ignore")
             .setStyle(ButtonStyle.Secondary),
           new ButtonBuilder()
-            .setCustomId(BUTTON_ADD)
+            .setCustomId(buildAddId(reviewId))
             .setLabel(addLabel)
             .setStyle(ButtonStyle.Primary),
         ),
@@ -463,128 +570,24 @@ export class ScamCandidateService {
     entry.nextNotifyChannelThreshold *= 2;
     this.metrics.reviewCounter.add(1, { outcome: "sent" });
 
-    let interaction: MessageComponentInteraction | undefined;
-    await tracer.startActiveSpan(
-      "automod.candidate.button_await",
-      { kind: SpanKind.INTERNAL, attributes: { "user.id": userId } },
-      async (span) => {
-        try {
-          interaction = await msg.awaitMessageComponent({
-            filter: (i) => i.customId === BUTTON_IGNORE || i.customId === BUTTON_ADD,
-            time: BUTTON_AWAIT_MS,
-          });
-          span.setAttribute(
-            "button.action",
-            interaction.customId === BUTTON_IGNORE ? "ignored" : "add",
-          );
-        } catch {
-          span.addEvent("timed_out");
-          await this.safeEditMessage(msg, statusContainer("*timed out*"));
-          this.metrics.reviewOutcomeCounter.add(1, { outcome: "timed_out" });
-        } finally {
-          span.end();
-        }
-      },
-    );
+    const cleanupTimer = setTimeout(async () => {
+      const review = this.pendingReviews.get(reviewId);
+      if (review) {
+        await this.safeEditMessage(review.msg, this.reviewStatusMessage(review, "*timed out*"));
+        this.metrics.reviewOutcomeCounter.add(1, { outcome: "timed_out" });
+        this.cleanupReview(reviewId);
+      }
+    }, BUTTON_AWAIT_MS);
 
-    if (!interaction) {
-      return;
-    }
-
-    if (interaction.customId === BUTTON_IGNORE) {
-      entry.ignored = true;
-      await interaction.update(statusContainer("*ignored*"));
-      this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
-      return;
-    }
-
-    // Add flow
-    const confirmedInteraction = interaction;
-    await tracer.startActiveSpan(
-      "automod.candidate.add",
-      { kind: SpanKind.INTERNAL, attributes: { "user.id": userId, "candidate.images.new": newResults.length } },
-      async (span) => {
-        try {
-          const labelInput = new TextInputBuilder()
-            .setCustomId(MODAL_LABEL_INPUT)
-            .setLabel("Label (optional)")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(false)
-            .setPlaceholder("e.g. tezowin.com promo");
-
-          if (classificationResult?.suggestedLabel) {
-            labelInput.setValue(classificationResult.suggestedLabel.slice(0, MAX_LABEL_LENGTH));
-          }
-
-          const modal = new ModalBuilder()
-            .setCustomId(MODAL_LABEL_ID)
-            .setTitle("Scam Hash Label")
-            .addComponents(
-              new ActionRowBuilder<TextInputBuilder>().addComponents(labelInput),
-            );
-
-          await confirmedInteraction.showModal(modal);
-
-          let modalInteraction: ModalSubmitInteraction | undefined;
-          try {
-            modalInteraction = await confirmedInteraction.awaitModalSubmit({
-              filter: (i) => i.customId === MODAL_LABEL_ID,
-              time: MODAL_AWAIT_MS,
-            });
-          } catch {
-            return;
-          }
-
-          await modalInteraction.deferUpdate();
-
-          const label =
-            modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
-
-          const added: { id: number; filename: string }[] = [];
-          const failed: string[] = [];
-          for (const r of newResults) {
-            try {
-              const id = await this.repository.add(r.hash, label);
-              added.push({ id, filename: r.filename });
-            } catch (err) {
-              this.logger.error(
-                { err, filename: r.filename },
-                "Failed to add scam hash from candidate review",
-              );
-              failed.push(r.filename);
-            }
-          }
-
-          span.setAttribute("hashes.added", added.length);
-          span.setAttribute("hashes.failed", failed.length);
-
-          if (added.length === 0) {
-            span.setStatus({ code: SpanStatusCode.ERROR, message: "All hash inserts failed" });
-            await this.safeEditMessage(msg, statusContainer("*failed to add hashes*"));
-            this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
-            return;
-          }
-
-          const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
-          const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
-          await this.safeEditMessage(
-            msg,
-            statusContainer(`added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`),
-          );
-
-          if (failed.length > 0) {
-            this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
-          } else {
-            this.metrics.reviewOutcomeCounter.add(1, { outcome: "added" });
-          }
-        } catch (err) {
-          span.recordException(err as Error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw err;
-        } finally {
-          span.end();
-        }
-      },
-    );
+    this.pendingReviews.set(reviewId, {
+      userId,
+      username,
+      jumpUrl,
+      entry,
+      newResults,
+      classificationResult,
+      msg,
+      cleanupTimer,
+    });
   }
 }

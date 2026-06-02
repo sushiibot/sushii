@@ -369,7 +369,11 @@ export function registerFeatures(
     ...giveawayFeature.buttonHandlers,
     ...emojiStatsFeature.buttonHandlers,
     ...promptsFeature.buttonHandlers,
+    ...automodFeature.buttonHandlers,
   );
+
+  // Modal handlers
+  interactionRouter.addModalHandlers(...automodFeature.modalHandlers);
 
   // Select menu handlers
   interactionRouter.addSelectMenus(...roleMenuFeature.selectMenuHandlers);

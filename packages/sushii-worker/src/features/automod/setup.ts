@@ -25,9 +25,13 @@ import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlert
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
 import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
+import { ScamCandidateButtonHandler } from "./presentation/handlers/ScamCandidateButtonHandler";
+import { ScamCandidateLabelModalHandler } from "./presentation/handlers/ScamCandidateLabelModalHandler";
 
 export interface AutomodFeature {
   eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler, ScamHashDMHandler];
+  buttonHandlers: [ScamCandidateButtonHandler];
+  modalHandlers: [ScamCandidateLabelModalHandler];
   services: {
     automodAlertReactionService: AutomodAlertReactionService;
     spamAlertUpdateService: SpamAlertUpdateService;
@@ -131,12 +135,18 @@ export function setupAutomodFeature(
     logger.child({ component: "ScamHashCommand" }),
   );
 
+  // Interaction handlers for scam candidate review buttons and modal
+  const scamCandidateButtonHandler = new ScamCandidateButtonHandler(scamCandidateService);
+  const scamCandidateLabelModalHandler = new ScamCandidateLabelModalHandler(scamCandidateService);
+
   client.once(Events.ClientReady, (readyClient) => {
     void scamHashDMHandler.primeOwnerDMChannel(readyClient);
   });
 
   return {
     eventHandlers: [automodMessageHandler, automodAlertExecutionHandler, scamHashDMHandler],
+    buttonHandlers: [scamCandidateButtonHandler],
+    modalHandlers: [scamCandidateLabelModalHandler],
     services: {
       automodAlertReactionService,
       spamAlertUpdateService,
