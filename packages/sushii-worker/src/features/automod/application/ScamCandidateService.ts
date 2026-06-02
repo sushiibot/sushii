@@ -143,25 +143,27 @@ export class ScamCandidateService {
 
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
-      this.logger.debug({ guildId }, "skip — guild not in cache");
+      this.logger.trace({ guildId }, "skip — guild not in cache");
       return;
     }
     if (!guild.features.includes(GuildFeature.Discoverable)) {
-      this.logger.debug({ guildId }, "skip — guild not discoverable");
+      this.logger.trace({ guildId }, "skip — guild not discoverable");
       return;
     }
 
     const channel = guild.channels.cache.get(channelId);
     if (!channel) {
-      this.logger.debug({ guildId, channelId }, "skip — channel not in cache");
+      this.logger.trace({ guildId, channelId }, "skip — channel not in cache");
       return;
     }
 
     const everyonePerms = channel.permissionsFor(guild.roles.everyone);
     if (!everyonePerms?.has(PermissionFlagsBits.ViewChannel)) {
-      this.logger.debug({ guildId, channelId }, "skip — channel not public");
+      this.logger.trace({ guildId, channelId }, "skip — channel not public");
       return;
     }
+
+    this.logger.debug({ guildId, channelId, userId, imageCount: images.length }, "Scam candidate sighting recorded");
 
     const sortedSizes = images
       .map((i) => i.fileSize)
