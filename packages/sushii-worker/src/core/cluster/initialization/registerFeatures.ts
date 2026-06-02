@@ -202,6 +202,7 @@ export function registerFeatures(
 
   const automodFeature = setupAutomodFeature({
     client,
+    deploymentService,
     logger,
     db,
     guildConfigRepository:
@@ -471,6 +472,7 @@ export function registerFeatures(
     ...remindersFeature.tasks,
     ...scheduleFeature.tasks,
     ...levelingFeature.tasks,
+    ...automodFeature.tasks,
   ];
 
   registerTasks(client, featureTasks);

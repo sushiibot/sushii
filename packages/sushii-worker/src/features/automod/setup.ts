@@ -5,6 +5,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
+import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -18,9 +19,11 @@ import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";
 import { SpamAlertUpdateService } from "./application/SpamAlertUpdateService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
+import { DrizzleScamCandidateRepository } from "./infrastructure/DrizzleScamCandidateRepository";
 import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImageHashRepository";
 import { ScamCandidateMetrics } from "./infrastructure/metrics/ScamCandidateMetrics";
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
+import { ScamCandidateJanitorTask } from "./infrastructure/tasks/ScamCandidateJanitorTask";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
@@ -37,6 +40,7 @@ export interface AutomodFeature {
     spamAlertUpdateService: SpamAlertUpdateService;
   };
   commands: [ScamHashCommand];
+  tasks: [ScamCandidateJanitorTask];
   destroy(): void;
 }
 
@@ -44,6 +48,7 @@ export interface AutomodFeatureOptions {
   guildConfigRepository: GuildConfigRepository;
   emojiRepository: BotEmojiRepository;
   client: Client;
+  deploymentService: DeploymentService;
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
   scamImageClassifier?: ScamImageClassifier;
@@ -52,7 +57,7 @@ export interface AutomodFeatureOptions {
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, logger, db, scamImageClassifier } =
+  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, scamImageClassifier } =
     options;
 
   // Services
@@ -83,6 +88,7 @@ export function setupAutomodFeature(
   );
 
   const scamImageHashRepository = new DrizzleScamImageHashRepository(db);
+  const scamCandidateRepository = new DrizzleScamCandidateRepository(db);
   const scamImageMetrics = new ScamImageMetrics();
 
   const scamImageHashService = new ScamImageHashService(
@@ -96,6 +102,7 @@ export function setupAutomodFeature(
     client,
     scamImageHashService,
     scamImageHashRepository,
+    scamCandidateRepository,
     scamCandidateMetrics,
     logger.child({ component: "ScamCandidateService" }),
     scamImageClassifier,
@@ -139,6 +146,14 @@ export function setupAutomodFeature(
   const scamCandidateButtonHandler = new ScamCandidateButtonHandler(scamCandidateService);
   const scamCandidateLabelModalHandler = new ScamCandidateLabelModalHandler(scamCandidateService);
 
+  // Background tasks
+  const scamCandidateJanitorTask = new ScamCandidateJanitorTask(
+    client,
+    deploymentService,
+    logger.child({ component: "ScamCandidateJanitorTask" }),
+    scamCandidateService,
+  );
+
   client.once(Events.ClientReady, (readyClient) => {
     void scamHashDMHandler.primeOwnerDMChannel(readyClient);
   });
@@ -152,6 +167,7 @@ export function setupAutomodFeature(
       spamAlertUpdateService,
     },
     commands: [scamHashCommand],
+    tasks: [scamCandidateJanitorTask],
     destroy: () => {
       spamDetectionService.destroy();
       scamCandidateService.destroy();
