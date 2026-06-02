@@ -79,7 +79,7 @@ export function addAutomodContent(
   addToggleSetting(
     container,
     `${emojis.shield} Known Scam Images`,
-    "Times out users who post images matching the known scam hash database. Enabled servers also contribute to cross-server scam image detection for review.",
+    "Times out users who post known scam images.",
     config.moderationSettings.automodScamImageEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SCAM_IMAGE,
     disabled,

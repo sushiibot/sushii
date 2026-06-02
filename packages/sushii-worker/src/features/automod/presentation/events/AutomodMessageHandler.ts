@@ -101,17 +101,10 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       const scamImageEnabled =
         guildConfig.moderationSettings.automodScamImageEnabled;
 
-      if (!spamEnabled && !scamImageEnabled) {
-        return;
-      }
-
       const exemptRoles = guildConfig.moderationSettings.automodExemptRoleIds;
-      if (
+      const isExempt =
         exemptRoles.length > 0 &&
-        payload.member?.roles?.some((r) => exemptRoles.includes(r))
-      ) {
-        return;
-      }
+        payload.member?.roles?.some((r) => exemptRoles.includes(r));
 
       const spamAttachments: SpamAttachment[] = (payload.attachments ?? []).map(
         (a) => ({
@@ -137,7 +130,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       // user is timed out, they can no longer send messages, so the spam
       // threshold cannot be reached and we avoid a duplicate action.
       let scamActed = false;
-      if (scamImageEnabled) {
+      if (scamImageEnabled && !isExempt) {
         const userKey = `${guildId}:${payload.author.id}`;
         if (imageUrls.length > 0) {
           if (this.inProgressImageChecks.has(userKey)) {
@@ -163,35 +156,36 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             }
           }
         }
+      }
 
-        if (!scamActed) {
-          // Candidate tracking: fire-and-forget sighting record — ScamCandidateService handles
-          // download/hash/review internally when the threshold is reached
-          const candidateImages = imageAttachments
-            .filter((a) => a.size != null)
-            .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
+      // Candidate tracking runs for all discoverable servers regardless of scamImageEnabled —
+      // ScamCandidateService filters to discoverable guilds internally.
+      // Skip exempt users (e.g. mods testing images).
+      if (!scamActed && !isExempt && imageAttachments.length > 0) {
+        const candidateImages = imageAttachments
+          .filter((a) => a.size != null)
+          .map((a) => ({ fileSize: a.size!, attachmentUrl: a.proxy_url ?? a.url }));
 
-          if (candidateImages.length > 0) {
-            this.scamCandidateService
-              .track({
-                userId: payload.author.id,
-                username: payload.author.username,
-                guildId,
-                channelId: payload.channel_id,
-                messageId: payload.id,
-                images: candidateImages,
-              })
-              .catch((err) => {
-                this.logger.error(
-                  { err, userId: payload.author.id },
-                  "Scam candidate track failed",
-                );
-              });
-          }
+        if (candidateImages.length > 0) {
+          this.scamCandidateService
+            .track({
+              userId: payload.author.id,
+              username: payload.author.username,
+              guildId,
+              channelId: payload.channel_id,
+              messageId: payload.id,
+              images: candidateImages,
+            })
+            .catch((err) => {
+              this.logger.error(
+                { err, userId: payload.author.id },
+                "Scam candidate track failed",
+              );
+            });
         }
       }
 
-      if (scamActed || !spamEnabled) {
+      if (scamActed || !spamEnabled || isExempt) {
         return;
       }
 
