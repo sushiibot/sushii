@@ -42,7 +42,6 @@ const tracer = opentelemetry.trace.getTracer("automod");
 const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
-const GUILD_THRESHOLD = 2;
 
 
 interface ImageResult {
@@ -131,7 +130,6 @@ export class ScamCandidateService {
       claimed = await this.candidateRepository.trackAndMaybeClaim(
         { key, guildId, channelId, attachmentUrls },
         WINDOW_MS,
-        GUILD_THRESHOLD,
       );
     } catch (err) {
       this.logger.error({ err, userId, key }, "Failed to track scam candidate sighting");

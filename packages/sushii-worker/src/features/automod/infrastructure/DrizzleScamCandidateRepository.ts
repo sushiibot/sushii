@@ -23,7 +23,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
   async trackAndMaybeClaim(
     sighting: NewScamCandidateSighting,
     windowMs: number,
-    guildThreshold: number,
   ): Promise<ScamCandidateClaimResult | null> {
     const { key, guildId, channelId, attachmentUrls } = sighting;
     const cutoff = new Date(Date.now() - windowMs);
@@ -57,7 +56,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
           ),
         );
 
-      if (!counts || counts.guilds < guildThreshold) {
+      if (!counts) {
         return null;
       }
 

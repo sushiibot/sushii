@@ -54,7 +54,6 @@ export interface ScamCandidateRepository {
   trackAndMaybeClaim(
     sighting: NewScamCandidateSighting,
     windowMs: number,
-    guildThreshold: number,
   ): Promise<ScamCandidateClaimResult | null>;
 
   /**
