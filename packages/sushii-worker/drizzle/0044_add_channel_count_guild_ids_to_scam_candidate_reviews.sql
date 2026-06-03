@@ -1,0 +1,2 @@
+ALTER TABLE "app_public"."scam_candidate_reviews" ADD COLUMN "channel_count" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "app_public"."scam_candidate_reviews" ADD COLUMN "guild_ids" text[] DEFAULT '{}'::text[] NOT NULL;

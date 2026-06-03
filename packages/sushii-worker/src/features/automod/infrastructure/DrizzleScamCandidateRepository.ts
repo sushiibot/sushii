@@ -134,7 +134,9 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       username: review.username,
       reviewChannelId: review.reviewChannelId,
       reviewMessageId: review.reviewMessageId,
-      newImageResults: review.newImageResults,
+      channelCount: review.channelCount,
+      guildIds: review.guildIds,
+      newImageResults: review.imageResults,
       classificationResult: review.classificationResult,
     });
   }
@@ -197,6 +199,8 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     username: string;
     reviewChannelId: string;
     reviewMessageId: string;
+    channelCount: number;
+    guildIds: string[];
     newImageResults: unknown;
     classificationResult: unknown;
     createdAt: Date;
@@ -208,7 +212,9 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       username: row.username,
       reviewChannelId: row.reviewChannelId,
       reviewMessageId: row.reviewMessageId,
-      newImageResults: row.newImageResults as StoredImageResult[],
+      channelCount: row.channelCount,
+      guildIds: row.guildIds,
+      imageResults: row.newImageResults as StoredImageResult[],
       classificationResult: row.classificationResult as StoredClassificationResult | null,
       createdAt: row.createdAt,
     };

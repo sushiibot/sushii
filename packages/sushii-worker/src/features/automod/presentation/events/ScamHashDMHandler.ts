@@ -5,7 +5,7 @@ import {
   ComponentType,
   ContainerBuilder,
   Events,
-  MediaGalleryComponent,
+  type MediaGalleryComponent,
   MessageFlags,
   ModalBuilder,
   SeparatorBuilder,
@@ -114,11 +114,33 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     }
 
     for (const snapshot of message.messageSnapshots.values()) {
+      this.logger.debug(
+        {
+          snapshotAttachmentCount: snapshot.attachments.size,
+          snapshotAttachments: [...snapshot.attachments.values()].map((a) => ({
+            name: a.name,
+            contentType: a.contentType,
+            size: a.size,
+            url: a.url,
+            proxyURL: a.proxyURL,
+          })),
+          snapshotComponentCount: snapshot.components.length,
+          snapshotComponents: snapshot.components.map((c) => ({
+            type: c.type,
+            // @ts-expect-error components may not exist on all types
+            subComponentTypes: c.components?.map((sub: { type: number }) => sub.type) ?? [],
+          })),
+        },
+        "Snapshot debug info",
+      );
+
       // Source 1: snapshot.attachments (standard and non-CV2 messages)
+      // Note: snapshot attachments may omit `size` (partial message object from Discord API),
+      // so treat missing size as acceptable — download step does its own size validation.
       for (const a of snapshot.attachments.values()) {
         if (
           isImageAttachment({ filename: a.name, contentType: a.contentType ?? undefined }) &&
-          a.size <= SCAM_IMAGE_MAX_SIZE_BYTES
+          (a.size == null || a.size <= SCAM_IMAGE_MAX_SIZE_BYTES)
         ) {
           collected.push({ filename: a.name, url: a.proxyURL ?? a.url, source: "snapshot_attachment" });
         }
@@ -135,6 +157,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
         for (const gallery of galleries) {
           for (const item of gallery.items) {
             const url = item.media.data.proxy_url ?? item.media.url;
+            this.logger.debug({ url }, "MediaGallery item URL");
             // Skip unresolved attachment:// references — no CDN URL available
             if (!url || url.startsWith("attachment://")) {
               continue;
@@ -154,6 +177,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     );
 
     if (collected.length === 0) {
+      await message.reply("No images found. Send a DM with an image attachment to add a scam hash.");
       return;
     }
 

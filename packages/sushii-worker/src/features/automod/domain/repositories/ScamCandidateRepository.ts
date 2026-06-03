@@ -5,6 +5,7 @@ export interface StoredImageResult {
   closestId: number | null;
   closestLabel: string | null;
   closestDistance: number | null;
+  isNew: boolean;
 }
 
 export interface StoredClassificationResult {
@@ -21,7 +22,9 @@ export interface ScamCandidateReview {
   username: string;
   reviewChannelId: string;
   reviewMessageId: string;
-  newImageResults: StoredImageResult[];
+  channelCount: number;
+  guildIds: string[];
+  imageResults: StoredImageResult[];
   classificationResult: StoredClassificationResult | null;
   createdAt: Date;
 }

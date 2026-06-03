@@ -301,6 +301,8 @@ export const scamCandidateReviewsInAppPublic = appPublic.table(
     username: text().notNull(),
     reviewChannelId: text("review_channel_id").notNull(),
     reviewMessageId: text("review_message_id").notNull(),
+    channelCount: integer("channel_count").notNull().default(0),
+    guildIds: text("guild_ids").array().notNull().default(sql`'{}'::text[]`),
     newImageResults: jsonb("new_image_results").notNull(),
     classificationResult: jsonb("classification_result"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),

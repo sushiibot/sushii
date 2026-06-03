@@ -1,28 +1,18 @@
 import sharp from "sharp";
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-  DiscordAPIError,
   GuildFeature,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
-  RESTJSONErrorCodes,
-  SeparatorBuilder,
-  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
   type Client,
   type GuildTextBasedChannel,
-  type Message,
-  type MessageEditOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
+import { buildScamCandidateReviewMessage } from "../presentation/views/ScamCandidateReviewView";
 import opentelemetry, { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { Logger } from "pino";
 
@@ -54,13 +44,6 @@ const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
 const GUILD_THRESHOLD = 2;
 
-const MAX_REASON_DISPLAY_LENGTH = 200;
-
-const SWALLOWED_EDIT_CODES = new Set<number>([
-  RESTJSONErrorCodes.UnknownMessage,
-  RESTJSONErrorCodes.MissingPermissions,
-  RESTJSONErrorCodes.MissingAccess,
-]);
 
 interface ImageResult {
   filename: string;
@@ -180,16 +163,33 @@ export class ScamCandidateService {
   }
 
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
-    const resolved = await this.candidateRepository.resolveReview(reviewId, { ignored: true });
-    if (!resolved) {
-      await interaction.reply({
-        content: "This review has already been resolved.",
-        flags: MessageFlags.Ephemeral,
-      });
+    await interaction.deferUpdate();
+
+    const review = await this.candidateRepository.getReview(reviewId);
+    if (!review) {
+      await interaction.followUp({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
       return;
     }
 
-    await interaction.update(this.resolvedStatusMessage(interaction.message, "*ignored*"));
+    const resolved = await this.candidateRepository.resolveReview(reviewId, { ignored: true });
+    if (!resolved) {
+      await interaction.followUp({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    await interaction.editReply(
+      buildScamCandidateReviewMessage({
+        userId: review.userId,
+        username: review.username,
+        channelCount: review.channelCount,
+        guildNames,
+        imageResults: review.imageResults,
+        classificationResult: review.classificationResult,
+        reviewId,
+        resolved: { statusLine: "*ignored*", buttonLabel: "Ignored" },
+      }),
+    );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
   }
 
@@ -241,7 +241,7 @@ export class ScamCandidateService {
     const added: { id: number; filename: string }[] = [];
     const failed: string[] = [];
 
-    for (const r of review.newImageResults) {
+    for (const r of review.imageResults.filter((r) => r.isNew)) {
       try {
         const hash = BigInt(r.hash);
         const id = await this.hashRepository.add(hash, label);
@@ -252,12 +252,21 @@ export class ScamCandidateService {
       }
     }
 
-    const msg = await this.fetchReviewMessage(review.reviewChannelId, review.reviewMessageId);
+    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
 
     if (added.length === 0) {
-      if (msg) {
-        await this.safeEditMessage(msg, this.storedReviewStatusMessage(review, "*failed to add hashes*"));
-      }
+      await interaction.editReply(
+        buildScamCandidateReviewMessage({
+          userId: review.userId,
+          username: review.username,
+          channelCount: review.channelCount,
+          guildNames,
+          imageResults: review.imageResults,
+          classificationResult: review.classificationResult,
+          reviewId,
+          resolved: { statusLine: "*failed to add hashes*", buttonLabel: "Failed" },
+        }),
+      );
       this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
       await this.candidateRepository.resolveReview(reviewId);
       return;
@@ -266,10 +275,20 @@ export class ScamCandidateService {
     const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
     const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
     const statusSuffix = `added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`;
+    const addedLabel = added.length === 1 ? "Added 1 image" : `Added ${added.length} images`;
 
-    if (msg) {
-      await this.safeEditMessage(msg, this.storedReviewStatusMessage(review, statusSuffix));
-    }
+    await interaction.editReply(
+      buildScamCandidateReviewMessage({
+        userId: review.userId,
+        username: review.username,
+        channelCount: review.channelCount,
+        guildNames,
+        imageResults: review.imageResults,
+        classificationResult: review.classificationResult,
+        reviewId,
+        resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
+      }),
+    );
 
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
     await this.candidateRepository.resolveReview(reviewId);
@@ -284,64 +303,6 @@ export class ScamCandidateService {
     }
   }
 
-  private resolvedStatusMessage(originalMessage: Message, suffix: string): MessageEditOptions {
-    return {
-      components: [
-        new ContainerBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `-# Scam Candidate\n${suffix}`,
-          ),
-        ),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-      attachments: [],
-    };
-  }
-
-  private storedReviewStatusMessage(
-    review: { userId: string; username: string },
-    suffix: string,
-  ): MessageEditOptions {
-    return {
-      components: [
-        new ContainerBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `-# Scam Candidate\n**User:** ${review.username} (\`${review.userId}\`) — ${suffix}`,
-          ),
-        ),
-      ],
-      flags: MessageFlags.IsComponentsV2,
-      attachments: [],
-    };
-  }
-
-  private async fetchReviewMessage(
-    channelId: string,
-    messageId: string,
-  ): Promise<Message | null> {
-    try {
-      const channel = await this.client.channels.fetch(channelId);
-      if (!channel?.isTextBased() || channel.isDMBased()) {
-        return null;
-      }
-      return await (channel as GuildTextBasedChannel).messages.fetch(messageId);
-    } catch (err) {
-      this.logger.warn({ err, channelId, messageId }, "Failed to fetch review message");
-      return null;
-    }
-  }
-
-  private async safeEditMessage(msg: Message, options: MessageEditOptions): Promise<void> {
-    try {
-      await msg.edit(options);
-    } catch (err) {
-      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(Number(err.code))) {
-        return;
-      }
-      throw err;
-    }
-  }
-
   private async sendReview(opts: {
     key: string;
     userId: string;
@@ -353,7 +314,7 @@ export class ScamCandidateService {
   }): Promise<void> {
     const { key, userId, username, attachmentUrls, channelCount, guildIds } = opts;
 
-    let results: ImageResult[] = [];
+    const results: ImageResult[] = [];
     let newResults: ImageResult[] = [];
 
     await tracer.startActiveSpan(
@@ -502,68 +463,32 @@ export class ScamCandidateService {
     }
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
 
-    const newCount = newResults.length;
-    const nearNotes = results
-      .filter((r) => !r.isNew)
-      .map(
-        (r) =>
-          `\`${r.filename}\` near-match #${r.closestId}${r.closestLabel ? ` ${r.closestLabel}` : ""} (dist ${r.closestDistance})`,
-      )
-      .join(", ");
-
-    const addLabel = newCount === 1 ? "Add 1 image" : `Add ${newCount} images`;
-
     const reviewId = crypto.randomUUID();
+    const guildIdsArray = [...guildIds];
+    const guildNames = guildIdsArray.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
 
-    const guildNames = [...guildIds].map((id) => {
-      const name = this.client.guilds.cache.get(id)?.name;
-      return `- ${name ?? id}`;
+    const imageResults = results.map((r) => ({
+      filename: r.filename,
+      hash: r.hash.toString(),
+      closestId: r.closestId,
+      closestLabel: r.closestLabel,
+      closestDistance: r.closestDistance,
+      isNew: r.isNew,
+    }));
+
+    const { components, flags } = buildScamCandidateReviewMessage({
+      userId,
+      username,
+      channelCount,
+      guildNames,
+      imageResults,
+      classificationResult,
+      reviewId,
     });
 
-    const textLines = [
-      `-# Scam Candidate`,
-      `**User:** ${username} (\`${userId}\`)`,
-      `**Seen in:** ${channelCount} channels across ${guildIds.size} public servers within 2 min`,
-      ...guildNames,
-    ];
-    if (classificationResult) {
-      const icon = classificationResult.isScam ? "🔴" : "🟢";
-      const labelPart = classificationResult.suggestedLabel
-        ? ` · \`${classificationResult.suggestedLabel}\``
-        : "";
-      const reason = classificationResult.reason.slice(0, MAX_REASON_DISPLAY_LENGTH);
-      textLines.push(
-        `-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${reason}`,
-      );
-    }
-    if (nearNotes) {
-      textLines.push(`-# Already known: ${nearNotes}`);
-    }
-
-    const gallery = new MediaGalleryBuilder().addItems(
-      ...results.map((r) => new MediaGalleryItemBuilder().setURL(`attachment://${r.filename}`)),
-    );
-
-    const container = new ContainerBuilder()
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(textLines.join("\n")))
-      .addMediaGalleryComponents(gallery)
-      .addSeparatorComponents(new SeparatorBuilder())
-      .addActionRowComponents(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(buildIgnoreId(reviewId))
-            .setLabel("Ignore")
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(buildAddId(reviewId))
-            .setLabel(addLabel)
-            .setStyle(ButtonStyle.Primary),
-        ),
-      );
-
     const msg = await reviewChannel.send({
-      components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      components,
+      flags,
       files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
     });
 
@@ -574,13 +499,9 @@ export class ScamCandidateService {
       username,
       reviewChannelId: REVIEW_CHANNEL_ID,
       reviewMessageId: msg.id,
-      newImageResults: newResults.map((r) => ({
-        filename: r.filename,
-        hash: r.hash.toString(),
-        closestId: r.closestId,
-        closestLabel: r.closestLabel,
-        closestDistance: r.closestDistance,
-      })),
+      channelCount,
+      guildIds: guildIdsArray,
+      imageResults,
       classificationResult: classificationResult
         ? {
             isScam: classificationResult.isScam,
