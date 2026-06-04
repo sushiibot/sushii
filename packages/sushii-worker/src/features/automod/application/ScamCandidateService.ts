@@ -1,15 +1,18 @@
 import sharp from "sharp";
 import {
   ActionRowBuilder,
+  DiscordAPIError,
   GuildFeature,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  RESTJSONErrorCodes,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
   type Client,
   type GuildTextBasedChannel,
+  type MessageEditOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
 import { buildScamCandidateReviewMessage } from "../presentation/views/ScamCandidateReviewView";
@@ -43,6 +46,11 @@ const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
 
+const SWALLOWED_EDIT_CODES = new Set<number>([
+  RESTJSONErrorCodes.UnknownMessage,
+  RESTJSONErrorCodes.MissingPermissions,
+  RESTJSONErrorCodes.MissingAccess,
+]);
 
 interface ImageResult {
   filename: string;
@@ -185,6 +193,7 @@ export class ScamCandidateService {
         imageResults: review.imageResults,
         classificationResult: review.classificationResult,
         reviewId,
+        seenByUserCount: review.seenByUserIds.length,
         resolved: { statusLine: "*ignored*", buttonLabel: "Ignored" },
       }),
     );
@@ -252,6 +261,8 @@ export class ScamCandidateService {
 
     const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
 
+    const seenByUserCount = review.seenByUserIds.length;
+
     if (added.length === 0) {
       await interaction.editReply(
         buildScamCandidateReviewMessage({
@@ -262,6 +273,7 @@ export class ScamCandidateService {
           imageResults: review.imageResults,
           classificationResult: review.classificationResult,
           reviewId,
+          seenByUserCount,
           resolved: { statusLine: "*failed to add hashes*", buttonLabel: "Failed" },
         }),
       );
@@ -284,6 +296,7 @@ export class ScamCandidateService {
         imageResults: review.imageResults,
         classificationResult: review.classificationResult,
         reviewId,
+        seenByUserCount,
         resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
       }),
     );
@@ -298,6 +311,33 @@ export class ScamCandidateService {
     const deleted = await this.candidateRepository.deleteOldSightings(cutoff);
     if (deleted > 0) {
       this.logger.debug({ deleted }, "Deleted old scam candidate sightings");
+    }
+  }
+
+  private async editReviewMessage(review: import("../domain/repositories/ScamCandidateRepository").ScamCandidateReview): Promise<void> {
+    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const options = buildScamCandidateReviewMessage({
+      userId: review.userId,
+      username: review.username,
+      channelCount: review.channelCount,
+      guildNames,
+      imageResults: review.imageResults,
+      classificationResult: review.classificationResult,
+      reviewId: review.reviewId,
+      seenByUserCount: review.seenByUserIds.length,
+    });
+    try {
+      const channel = await this.client.channels.fetch(review.reviewChannelId);
+      if (!channel?.isTextBased() || channel.isDMBased()) {
+        return;
+      }
+      const msg = await (channel as GuildTextBasedChannel).messages.fetch(review.reviewMessageId);
+      await msg.edit(options as MessageEditOptions);
+    } catch (err) {
+      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(Number(err.code))) {
+        return;
+      }
+      this.logger.warn({ err, reviewId: review.reviewId }, "Failed to edit review message for user count update");
     }
   }
 
@@ -417,8 +457,10 @@ export class ScamCandidateService {
     }
 
     const newHashes = newResults.map((r) => r.hash.toString());
-    if (await this.candidateRepository.allHashesHavePendingReview(newHashes)) {
-      this.logger.debug({ userId }, "All new image hashes already in a pending review, skipping duplicate");
+    const existingReview = await this.candidateRepository.incrementPendingReviewForHashes(newHashes, userId);
+    if (existingReview) {
+      this.logger.debug({ userId, reviewId: existingReview.reviewId }, "Incrementing user count on existing pending review");
+      await this.editReviewMessage(existingReview);
       await this.candidateRepository.updateStateAfterReview(key, { releaseReviewing: true });
       this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
       return;
@@ -490,6 +532,7 @@ export class ScamCandidateService {
       imageResults,
       classificationResult,
       reviewId,
+      seenByUserCount: 1,
     });
 
     const msg = await reviewChannel.send({
@@ -507,6 +550,7 @@ export class ScamCandidateService {
       reviewMessageId: msg.id,
       channelCount,
       guildIds: guildIdsArray,
+      seenByUserIds: [userId],
       imageResults,
       classificationResult: classificationResult
         ? {

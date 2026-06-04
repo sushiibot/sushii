@@ -24,6 +24,8 @@ export interface ScamCandidateReview {
   reviewMessageId: string;
   channelCount: number;
   guildIds: string[];
+  /** All user IDs that triggered a sighting matching this review's hashes. */
+  seenByUserIds: string[];
   imageResults: StoredImageResult[];
   classificationResult: StoredClassificationResult | null;
   createdAt: Date;
@@ -68,11 +70,14 @@ export interface ScamCandidateRepository {
   releaseReview(key: string): Promise<void>;
 
   /**
-   * Returns true if every supplied hash already appears in some pending review's
-   * imageResults. Used to suppress duplicate reviews when different users send
-   * the same images.
+   * Finds a pending review that contains all of the supplied hashes, appends
+   * userId to its seenByUserIds (no-op if already present), and returns the
+   * updated review. Returns null if no matching pending review exists.
    */
-  allHashesHavePendingReview(hashes: string[]): Promise<boolean>;
+  incrementPendingReviewForHashes(
+    hashes: string[],
+    userId: string,
+  ): Promise<ScamCandidateReview | null>;
 
   saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void>;
   getReview(reviewId: string): Promise<ScamCandidateReview | null>;

@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."scam_candidate_reviews" ADD COLUMN "seen_by_user_ids" text[] DEFAULT '{}'::text[] NOT NULL;

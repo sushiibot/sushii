@@ -316,6 +316,13 @@
       "when": 1780515951688,
       "tag": "0044_add_channel_count_guild_ids_to_scam_candidate_reviews",
       "breakpoints": false
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1780608685923,
+      "tag": "0045_add_seen_by_user_ids_to_scam_candidate_reviews",
+      "breakpoints": false
     }
   ]
 }

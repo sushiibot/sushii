@@ -125,18 +125,49 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(eq(scamCandidateStateInAppPublic.key, key));
   }
 
-  async allHashesHavePendingReview(hashes: string[]): Promise<boolean> {
+  async incrementPendingReviewForHashes(
+    hashes: string[],
+    userId: string,
+  ): Promise<ScamCandidateReview | null> {
     if (hashes.length === 0) {
-      return false;
+      return null;
     }
-    const result = await this.db.execute<{ covered: number }>(sql`
-      SELECT COUNT(DISTINCT elem->>'hash')::int AS covered
-      FROM ${scamCandidateReviewsInAppPublic},
-      LATERAL jsonb_array_elements(${scamCandidateReviewsInAppPublic.newImageResults}) AS elem
+
+    // Find a pending review whose new_image_results contains ALL supplied hashes
+    const found = await this.db.execute<{ review_id: string }>(sql`
+      SELECT review_id
+      FROM app_public.scam_candidate_reviews,
+      LATERAL jsonb_array_elements(new_image_results) AS elem
       WHERE elem->>'hash' = ANY(${hashes}::text[])
+      GROUP BY review_id
+      HAVING COUNT(DISTINCT elem->>'hash') >= ${hashes.length}
+      LIMIT 1
     `);
-    const covered = result.rows[0]?.covered ?? 0;
-    return covered >= hashes.length;
+
+    const reviewId = found.rows[0]?.review_id;
+    if (!reviewId) {
+      return null;
+    }
+
+    // Append userId only if not already present
+    await this.db
+      .update(scamCandidateReviewsInAppPublic)
+      .set({
+        seenByUserIds: sql`array_append(${scamCandidateReviewsInAppPublic.seenByUserIds}, ${userId})`,
+      })
+      .where(
+        and(
+          eq(scamCandidateReviewsInAppPublic.reviewId, reviewId),
+          sql`NOT (${userId} = ANY(${scamCandidateReviewsInAppPublic.seenByUserIds}))`,
+        ),
+      );
+
+    const rows = await this.db
+      .select()
+      .from(scamCandidateReviewsInAppPublic)
+      .where(eq(scamCandidateReviewsInAppPublic.reviewId, reviewId));
+
+    return rows[0] ? this.rowToReview(rows[0]) : null;
   }
 
   async saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void> {
@@ -149,6 +180,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       reviewMessageId: review.reviewMessageId,
       channelCount: review.channelCount,
       guildIds: review.guildIds,
+      seenByUserIds: review.seenByUserIds,
       newImageResults: review.imageResults,
       classificationResult: review.classificationResult,
     });
@@ -214,6 +246,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     reviewMessageId: string;
     channelCount: number;
     guildIds: string[];
+    seenByUserIds: string[];
     newImageResults: unknown;
     classificationResult: unknown;
     createdAt: Date;
@@ -227,6 +260,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       reviewMessageId: row.reviewMessageId,
       channelCount: row.channelCount,
       guildIds: row.guildIds,
+      seenByUserIds: row.seenByUserIds,
       imageResults: row.newImageResults as StoredImageResult[],
       classificationResult: row.classificationResult as StoredClassificationResult | null,
       createdAt: row.createdAt,
