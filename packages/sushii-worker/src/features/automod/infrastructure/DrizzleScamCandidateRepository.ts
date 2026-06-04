@@ -125,6 +125,20 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(eq(scamCandidateStateInAppPublic.key, key));
   }
 
+  async allHashesHavePendingReview(hashes: string[]): Promise<boolean> {
+    if (hashes.length === 0) {
+      return false;
+    }
+    const result = await this.db.execute<{ covered: number }>(sql`
+      SELECT COUNT(DISTINCT elem->>'hash')::int AS covered
+      FROM ${scamCandidateReviewsInAppPublic},
+      LATERAL jsonb_array_elements(${scamCandidateReviewsInAppPublic.newImageResults}) AS elem
+      WHERE elem->>'hash' = ANY(${hashes}::text[])
+    `);
+    const covered = result.rows[0]?.covered ?? 0;
+    return covered >= hashes.length;
+  }
+
   async saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void> {
     await this.db.insert(scamCandidateReviewsInAppPublic).values({
       reviewId: review.reviewId,

@@ -416,6 +416,14 @@ export class ScamCandidateService {
       return;
     }
 
+    const newHashes = newResults.map((r) => r.hash.toString());
+    if (await this.candidateRepository.allHashesHavePendingReview(newHashes)) {
+      this.logger.debug({ userId }, "All new image hashes already in a pending review, skipping duplicate");
+      await this.candidateRepository.updateStateAfterReview(key, { releaseReviewing: true });
+      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
+      return;
+    }
+
     // Classify new images with AI (best-effort, non-blocking on failure)
     let classificationResult: ClassificationResult | null = null;
     if (this.classifier) {

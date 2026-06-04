@@ -67,6 +67,13 @@ export interface ScamCandidateRepository {
    */
   releaseReview(key: string): Promise<void>;
 
+  /**
+   * Returns true if every supplied hash already appears in some pending review's
+   * imageResults. Used to suppress duplicate reviews when different users send
+   * the same images.
+   */
+  allHashesHavePendingReview(hashes: string[]): Promise<boolean>;
+
   saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void>;
   getReview(reviewId: string): Promise<ScamCandidateReview | null>;
 
