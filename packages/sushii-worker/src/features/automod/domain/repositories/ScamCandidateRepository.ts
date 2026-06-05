@@ -17,6 +17,8 @@ export interface StoredClassificationResult {
 
 export type ScamCandidateReviewStatus = "claimed" | "reviewing" | "ignored" | "added";
 
+export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added">;
+
 export interface ScamCandidateState {
   key: string;
   status: ScamCandidateReviewStatus;
@@ -55,6 +57,7 @@ export interface ScamCandidateRepository {
   recordSightingAndCheckThreshold(
     sighting: NewScamCandidateSighting,
     windowMs: number,
+    channelThreshold: number,
   ): Promise<SightingThresholdResult | null>;
 
   /**
@@ -67,7 +70,6 @@ export interface ScamCandidateRepository {
     triggeredByUserId: string,
     channelCount: number,
     guildIds: string[],
-    seenByUserIds: string[],
   ): Promise<ScamCandidateState | null>;
 
   /**
@@ -86,9 +88,9 @@ export interface ScamCandidateRepository {
 
   /**
    * Appends userId to seen_by_user_ids (guarded against duplicates) and updates
-   * channel_count and guild_ids. Only applies when status is `'reviewing'`; no-op
-   * if claimed, ignored, added, or user already present. Returns updated row or
-   * null if not found.
+   * channel_count and guild_ids. Only applies when status is `'claimed'` or
+   * `'reviewing'`; no-op if ignored or added. Returns updated row or null if not
+   * found.
    */
   appendSeenUser(
     key: string,
@@ -103,7 +105,7 @@ export interface ScamCandidateRepository {
    */
   resolveReview(
     reviewId: string,
-    status: "ignored" | "added",
+    status: ResolvedStatus,
   ): Promise<ScamCandidateState | null>;
 
   /** Looks up a state row by its review_id column. */

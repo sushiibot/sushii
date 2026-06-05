@@ -9,6 +9,7 @@ import {
 
 import type {
   NewScamCandidateSighting,
+  ResolvedStatus,
   ScamCandidateRepository,
   ScamCandidateState,
   SightingThresholdResult,
@@ -16,14 +17,13 @@ import type {
   StoredImageResult,
 } from "../domain/repositories/ScamCandidateRepository";
 
-const CHANNEL_THRESHOLD = 5;
-
 export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
   async recordSightingAndCheckThreshold(
     sighting: NewScamCandidateSighting,
     windowMs: number,
+    channelThreshold: number,
   ): Promise<SightingThresholdResult | null> {
     const { key, guildId, channelId, attachmentUrls } = sighting;
     const cutoff = new Date(Date.now() - windowMs);
@@ -48,7 +48,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
           ),
         );
 
-      if (!counts || counts.channels < CHANNEL_THRESHOLD) {
+      if (!counts || counts.channels < channelThreshold) {
         return null;
       }
 
@@ -86,7 +86,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     triggeredByUserId: string,
     channelCount: number,
     guildIds: string[],
-    seenByUserIds: string[],
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .insert(scamCandidateStateInAppPublic)
@@ -97,7 +96,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         triggeredByUserId,
         channelCount,
         guildIds,
-        seenByUserIds,
+        seenByUserIds: [triggeredByUserId],
       })
       .onConflictDoNothing()
       .returning();
@@ -144,7 +143,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     const rows = await this.db
       .update(scamCandidateStateInAppPublic)
       .set({
-        seenByUserIds: sql`array_append(${scamCandidateStateInAppPublic.seenByUserIds}, ${userId})`,
+        seenByUserIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.seenByUserIds} || ARRAY[${userId}::text]))`,
         channelCount: sql`GREATEST(${scamCandidateStateInAppPublic.channelCount}, ${channelCount})`,
         guildIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.guildIds} || ${guildIds}::text[]))`,
         updatedAt: new Date(),
@@ -152,7 +151,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(
         and(
           eq(scamCandidateStateInAppPublic.key, key),
-          sql`NOT (${userId} = ANY(${scamCandidateStateInAppPublic.seenByUserIds}))`,
           sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'reviewing')`,
         ),
       )
@@ -163,7 +161,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
 
   async resolveReview(
     reviewId: string,
-    status: "ignored" | "added",
+    status: ResolvedStatus,
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .update(scamCandidateStateInAppPublic)

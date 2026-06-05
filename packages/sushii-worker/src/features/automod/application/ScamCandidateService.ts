@@ -43,9 +43,10 @@ const tracer = opentelemetry.trace.getTracer("automod");
 
 const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
+const CHANNEL_THRESHOLD = 5;
 const CLAIMED_ORPHAN_TTL_MS = 15 * 60 * 1000;
 
-// UnknownMessage is handled explicitly above — it transitions state to 'ignored'.
+// UnknownMessage is handled in editReviewMessage — it transitions state to 'ignored'.
 // MissingPermissions/MissingAccess are swallowed silently since they reflect channel config.
 const SWALLOWED_EDIT_CODES = new Set<number>([
   RESTJSONErrorCodes.MissingPermissions,
@@ -135,6 +136,7 @@ export class ScamCandidateService {
       thresholdResult = await this.candidateRepository.recordSightingAndCheckThreshold(
         { key: sightingKey, guildId, channelId, attachmentUrls },
         WINDOW_MS,
+        CHANNEL_THRESHOLD,
       );
     } catch (err) {
       this.logger.error({ err, userId, key: sightingKey }, "Failed to record scam candidate sighting");
@@ -175,7 +177,7 @@ export class ScamCandidateService {
     }
 
     await interaction.editReply(
-      await this.buildReviewFromState(state, reviewId, { statusLine: "*ignored*", buttonLabel: "Ignored" }),
+      await this.buildReviewFromState(state, { statusLine: "*ignored*", buttonLabel: "Ignored" }),
     );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
   }
@@ -185,6 +187,14 @@ export class ScamCandidateService {
     if (!state) {
       await interaction.reply({
         content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (state.status === "claimed") {
+      await interaction.reply({
+        content: "This review is still being set up — please try again in a moment.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -229,15 +239,6 @@ export class ScamCandidateService {
       return;
     }
 
-    // Should not happen — resolveReview only updates non-terminal rows
-    if (state.status !== "added") {
-      await interaction.reply({
-        content: "This review has already been resolved.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
     await interaction.deferUpdate();
 
     const label =
@@ -260,7 +261,7 @@ export class ScamCandidateService {
 
     if (added.length === 0) {
       await interaction.editReply(
-        await this.buildReviewFromState(state, reviewId, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
+        await this.buildReviewFromState(state, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
       this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
       return;
@@ -274,7 +275,7 @@ export class ScamCandidateService {
     ].join("\n");
 
     await interaction.editReply(
-      await this.buildReviewFromState(state, reviewId, { statusLine: statusSuffix, buttonLabel: addedLabel }),
+      await this.buildReviewFromState(state, { statusLine: statusSuffix, buttonLabel: addedLabel }),
     );
 
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
@@ -300,7 +301,7 @@ export class ScamCandidateService {
       return;
     }
 
-    const options = await this.buildReviewFromState(state, state.reviewId);
+    const options = await this.buildReviewFromState(state);
 
     try {
       const channel = await this.client.channels.fetch(state.reviewChannelId);
@@ -435,7 +436,6 @@ export class ScamCandidateService {
       userId,
       channelCount,
       guildIdsArray,
-      [userId],
     );
 
     if (!claimed) {
@@ -510,7 +510,7 @@ export class ScamCandidateService {
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
 
     const guildNames = guildIdsArray.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
-    const displayUsername = await this.fetchUsername(userId);
+    const username = await this.fetchUsername(userId);
 
     const imageResults = results.map((r) => ({
       filename: r.filename,
@@ -523,7 +523,7 @@ export class ScamCandidateService {
 
     const { components, flags } = buildScamCandidateReviewMessage({
       userId,
-      username: displayUsername,
+      username,
       channelCount,
       guildNames,
       imageResults,
@@ -554,10 +554,15 @@ export class ScamCandidateService {
       classificationResult: storedClassification,
     });
     if (!reviewing) {
-      this.logger.error(
-        { reviewId, hashKey, messageId: msg.id },
-        "State resolved before transitionToReviewing — deleting orphaned Discord message",
-      );
+      const current = await this.candidateRepository.getByReviewId(reviewId);
+      if (current?.status === "ignored" || current?.status === "added") {
+        // Moderator resolved during send→transition window; message is already updated
+        this.logger.info({ reviewId, hashKey, status: current.status }, "Review resolved by moderator during transition");
+        this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition" });
+        return;
+      }
+      // Genuine orphan — state was deleted; clean up the Discord message
+      this.logger.error({ reviewId, hashKey, messageId: msg.id }, "Orphaned review message: state missing after send");
       await msg.delete().catch((deleteErr) => {
         this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
       });
@@ -565,12 +570,15 @@ export class ScamCandidateService {
       return;
     }
 
+    if (reviewing.seenByUserIds.length > 1) {
+      await this.editReviewMessage(reviewing);
+    }
+
     this.metrics.reviewCounter.add(1, { outcome: "sent" });
   }
 
   private async buildReviewFromState(
     state: ScamCandidateState,
-    reviewId: string,
     resolved?: { statusLine: string; buttonLabel: string },
   ): Promise<ReturnType<typeof buildScamCandidateReviewMessage>> {
     const guildNames = state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
@@ -582,7 +590,7 @@ export class ScamCandidateService {
       guildNames,
       imageResults: state.newImageResults ?? [],
       classificationResult: state.classificationResult,
-      reviewId,
+      reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,
       resolved,
     });
