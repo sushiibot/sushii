@@ -64,7 +64,10 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
             gte(scamCandidateSightingsInAppPublic.seenAt, cutoff),
           ),
         )
-        .orderBy(sql`${scamCandidateSightingsInAppPublic.seenAt} desc`);
+        .orderBy(
+          sql`${scamCandidateSightingsInAppPublic.seenAt} desc`,
+          sql`${scamCandidateSightingsInAppPublic.id} desc`,
+        );
 
       const guildIds = [...new Set(recentSightings.map((s) => s.guildId))];
       const latestAttachmentUrls = recentSightings[0]?.attachmentUrls ?? [];
@@ -150,7 +153,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         and(
           eq(scamCandidateStateInAppPublic.key, key),
           sql`NOT (${userId} = ANY(${scamCandidateStateInAppPublic.seenByUserIds}))`,
-          eq(scamCandidateStateInAppPublic.status, "reviewing"),
+          sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'reviewing')`,
         ),
       )
       .returning();

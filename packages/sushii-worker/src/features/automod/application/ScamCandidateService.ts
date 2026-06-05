@@ -219,7 +219,8 @@ export class ScamCandidateService {
   }
 
   async handleLabelModal(reviewId: string, interaction: ModalSubmitInteraction): Promise<void> {
-    const state = await this.candidateRepository.getByReviewId(reviewId);
+    // Claim "added" first — gates concurrent Ignore races before any hash inserts
+    const state = await this.candidateRepository.resolveReview(reviewId, "added");
     if (!state) {
       await interaction.reply({
         content: "This review has expired — a new review will appear automatically.",
@@ -228,7 +229,8 @@ export class ScamCandidateService {
       return;
     }
 
-    if (state.status === "ignored" || state.status === "added") {
+    // Should not happen — resolveReview only updates non-terminal rows
+    if (state.status !== "added") {
       await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
@@ -261,7 +263,6 @@ export class ScamCandidateService {
         await this.buildReviewFromState(state, reviewId, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
       this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
-      await this.candidateRepository.resolveReview(reviewId, "added");
       return;
     }
 
@@ -277,7 +278,6 @@ export class ScamCandidateService {
     );
 
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
-    await this.candidateRepository.resolveReview(reviewId, "added");
   }
 
   /** Periodic janitor: delete sightings and orphaned claimed rows. */
@@ -561,6 +561,7 @@ export class ScamCandidateService {
       await msg.delete().catch((deleteErr) => {
         this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
       });
+      this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition" });
       return;
     }
 
