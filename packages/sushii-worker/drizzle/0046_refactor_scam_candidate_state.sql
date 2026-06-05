@@ -16,3 +16,4 @@ ALTER TABLE "app_public"."scam_candidate_state" ADD COLUMN "claimed_at" timestam
 ALTER TABLE "app_public"."scam_candidate_state" DROP COLUMN "next_notify_channel_threshold";
 ALTER TABLE "app_public"."scam_candidate_state" DROP COLUMN "reviewing";
 ALTER TABLE "app_public"."scam_candidate_state" DROP COLUMN "ignored";
+CREATE UNIQUE INDEX "scam_candidate_state_review_id_idx" ON "app_public"."scam_candidate_state" ("review_id");

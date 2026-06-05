@@ -15,6 +15,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -303,6 +304,9 @@ export const scamCandidateStateInAppPublic = appPublic.table(
     claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
+  (table) => [
+    uniqueIndex("scam_candidate_state_review_id_idx").on(table.reviewId),
+  ],
 );
 
 export const guildEmojisAndStickersInAppPublic = appPublic.table(

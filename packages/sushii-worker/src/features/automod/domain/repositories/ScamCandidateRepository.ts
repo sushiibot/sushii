@@ -86,8 +86,9 @@ export interface ScamCandidateRepository {
 
   /**
    * Appends userId to seen_by_user_ids (guarded against duplicates) and updates
-   * channel_count and guild_ids. Skips if status is terminal. Returns updated
-   * row or null if not found.
+   * channel_count and guild_ids. Only applies when status is `'reviewing'`; no-op
+   * if claimed, ignored, added, or user already present. Returns updated row or
+   * null if not found.
    */
   appendSeenUser(
     key: string,
@@ -98,12 +99,12 @@ export interface ScamCandidateRepository {
 
   /**
    * Sets status to 'ignored' or 'added' on the row identified by review_id.
-   * Returns { key } on success, null if not found.
+   * Returns the full updated state on success, null if not found.
    */
   resolveReview(
     reviewId: string,
     status: "ignored" | "added",
-  ): Promise<{ key: string } | null>;
+  ): Promise<ScamCandidateState | null>;
 
   /** Looks up a state row by its review_id column. */
   getByReviewId(reviewId: string): Promise<ScamCandidateState | null>;

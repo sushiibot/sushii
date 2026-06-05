@@ -43,8 +43,10 @@ const tracer = opentelemetry.trace.getTracer("automod");
 
 const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
-const CLAIMED_ORPHAN_TTL_MS = 5 * 60 * 1000;
+const CLAIMED_ORPHAN_TTL_MS = 15 * 60 * 1000;
 
+// UnknownMessage is handled explicitly above — it transitions state to 'ignored'.
+// MissingPermissions/MissingAccess are swallowed silently since they reflect channel config.
 const SWALLOWED_EDIT_CODES = new Set<number>([
   RESTJSONErrorCodes.MissingPermissions,
   RESTJSONErrorCodes.MissingAccess,
@@ -67,10 +69,8 @@ export interface CandidateImage {
 
 export interface CandidateInput {
   userId: string;
-  username: string;
   guildId: string;
   channelId: string;
-  messageId: string;
   images: CandidateImage[];
 }
 
@@ -90,7 +90,7 @@ export class ScamCandidateService {
   }
 
   async track(input: CandidateInput): Promise<void> {
-    const { userId, guildId, channelId, messageId, images } = input;
+    const { userId, guildId, channelId, images } = input;
 
     if (images.length === 0) {
       return;
@@ -129,7 +129,6 @@ export class ScamCandidateService {
       .join(",");
     const sightingKey = `${userId}:${sortedSizes}`;
     const attachmentUrls = images.map((i) => i.attachmentUrl);
-    const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
     let thresholdResult;
     try {
@@ -158,7 +157,6 @@ export class ScamCandidateService {
       attachmentUrls: thresholdResult.attachmentUrls,
       channelCount: thresholdResult.channelCount,
       guildIds: new Set(thresholdResult.guildIds),
-      messageUrl,
     }).catch((err) => {
       this.logger.error({ err, userId }, "Scam candidate review failed");
     });
@@ -167,20 +165,10 @@ export class ScamCandidateService {
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
 
-    const resolved = await this.candidateRepository.resolveReview(reviewId, "ignored");
-    if (!resolved) {
+    const state = await this.candidateRepository.resolveReview(reviewId, "ignored");
+    if (!state) {
       await interaction.followUp({
         content: "This review has expired — a new review will appear automatically.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const state = await this.candidateRepository.getByHashKey(resolved.key);
-    if (!state) {
-      this.logger.warn({ reviewId, key: resolved.key }, "State missing after resolveReview succeeded");
-      await interaction.followUp({
-        content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -340,7 +328,6 @@ export class ScamCandidateService {
     attachmentUrls: string[];
     channelCount: number;
     guildIds: Set<string>;
-    messageUrl: string;
   }): Promise<void> {
     const { userId, attachmentUrls, channelCount, guildIds } = opts;
 
@@ -560,12 +547,22 @@ export class ScamCandidateService {
         }
       : null;
 
-    await this.candidateRepository.transitionToReviewing(hashKey, {
+    const reviewing = await this.candidateRepository.transitionToReviewing(hashKey, {
       reviewChannelId: REVIEW_CHANNEL_ID,
       reviewMessageId: msg.id,
       newImageResults: imageResults,
       classificationResult: storedClassification,
     });
+    if (!reviewing) {
+      this.logger.error(
+        { reviewId, hashKey, messageId: msg.id },
+        "State resolved before transitionToReviewing — deleting orphaned Discord message",
+      );
+      await msg.delete().catch((deleteErr) => {
+        this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
+      });
+      return;
+    }
 
     this.metrics.reviewCounter.add(1, { outcome: "sent" });
   }
@@ -591,6 +588,10 @@ export class ScamCandidateService {
   }
 
   private async fetchUsername(userId: string): Promise<string> {
+    const cached = this.client.users.cache.get(userId)?.username;
+    if (cached) {
+      return cached;
+    }
     try {
       const user = await this.client.users.fetch(userId);
       return user.username;

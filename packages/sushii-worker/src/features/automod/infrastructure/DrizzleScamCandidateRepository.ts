@@ -150,7 +150,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         and(
           eq(scamCandidateStateInAppPublic.key, key),
           sql`NOT (${userId} = ANY(${scamCandidateStateInAppPublic.seenByUserIds}))`,
-          sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added')`,
+          eq(scamCandidateStateInAppPublic.status, "reviewing"),
         ),
       )
       .returning();
@@ -161,7 +161,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
   async resolveReview(
     reviewId: string,
     status: "ignored" | "added",
-  ): Promise<{ key: string } | null> {
+  ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .update(scamCandidateStateInAppPublic)
       .set({ status, updatedAt: new Date() })
@@ -171,9 +171,9 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
           sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added')`,
         ),
       )
-      .returning({ key: scamCandidateStateInAppPublic.key });
+      .returning();
 
-    return rows[0] ?? null;
+    return rows[0] ? this.rowToState(rows[0]) : null;
   }
 
   async getByReviewId(reviewId: string): Promise<ScamCandidateState | null> {

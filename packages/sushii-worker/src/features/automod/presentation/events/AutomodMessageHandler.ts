@@ -21,7 +21,7 @@ const tracer = opentelemetry.trace.getTracer("automod");
 
 const TEST_GUILD_ID = "167058919611564043";
 const TEST_TRIGGER = "__automod_test__";
-const MAX_IMAGE_ATTACHMENTS_PER_CHECK = 3;
+const MAX_IMAGE_ATTACHMENTS_PER_CHECK = 4;
 
 export class AutomodMessageHandler extends EventHandler<Events.Raw> {
   private readonly inProgressImageChecks = new Set<string>();
@@ -170,10 +170,8 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           this.scamCandidateService
             .track({
               userId: payload.author.id,
-              username: payload.author.username,
               guildId,
               channelId: payload.channel_id,
-              messageId: payload.id,
               images: candidateImages,
             })
             .catch((err) => {
