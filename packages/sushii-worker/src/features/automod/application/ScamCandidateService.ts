@@ -282,10 +282,12 @@ export class ScamCandidateService {
       return;
     }
 
-    const addedLines = added.map((a) => `**#${a.id}** \`${a.filename}\``).join(", ");
     const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
-    const statusSuffix = `added ${addedLines}${label ? ` · ${label}` : ""}${failedSuffix}`;
     const addedLabel = added.length === 1 ? "Added 1 image" : `Added ${added.length} images`;
+    const statusSuffix = [
+      `**${addedLabel}**${label ? ` · ${label}` : ""}${failedSuffix}`,
+      ...added.map((a) => `• **#${a.id}** \`${a.filename}\``),
+    ].join("\n");
 
     await interaction.editReply(
       buildScamCandidateReviewMessage({

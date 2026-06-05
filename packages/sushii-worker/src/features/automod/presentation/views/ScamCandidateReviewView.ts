@@ -59,8 +59,10 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
 
   const textLines = [
     `-# Scam Candidate`,
-    `**User:** ${username} (\`${userId}\`)`,
-    `**Seen in:** ${channelCount} channels across ${guildNames.length} public servers within 2 min`,
+    `**User**`,
+    `${username} (\`${userId}\`)`,
+    `**Seen in**`,
+    `${channelCount} channels across ${guildNames.length} public servers within 2 min`,
     ...guildNames.map((name) => `- ${name}`),
   ];
 
