@@ -55,7 +55,6 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
   } = opts;
 
   const newResults = imageResults.filter((r) => r.isNew);
-  const nearResults = imageResults.filter((r) => !r.isNew);
 
   const textLines = [
     `-# Scam Candidate`,

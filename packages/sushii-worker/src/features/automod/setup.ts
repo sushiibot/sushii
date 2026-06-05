@@ -13,7 +13,7 @@ import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
 import { ScamCandidateService } from "./application/ScamCandidateService";
-import { ScamImageClassifier } from "./application/ScamImageClassifier";
+import type { ScamImageClassifier } from "./application/ScamImageClassifier";
 import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";

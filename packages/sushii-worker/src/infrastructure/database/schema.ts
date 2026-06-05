@@ -281,32 +281,27 @@ export const scamCandidateSightingsInAppPublic = appPublic.table(
   ],
 );
 
+export const scamCandidateReviewStatusInAppPublic = appPublic.enum(
+  "scam_candidate_review_status",
+  ["claimed", "reviewing", "ignored", "added"],
+);
+
 export const scamCandidateStateInAppPublic = appPublic.table(
   "scam_candidate_state",
   {
     key: text().primaryKey().notNull(),
-    nextNotifyChannelThreshold: integer("next_notify_channel_threshold").notNull().default(5),
-    reviewing: boolean().notNull().default(false),
-    ignored: boolean().notNull().default(false),
-    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
-  },
-);
-
-export const scamCandidateReviewsInAppPublic = appPublic.table(
-  "scam_candidate_reviews",
-  {
-    reviewId: text("review_id").primaryKey().notNull(),
-    key: text().notNull(),
-    userId: text("user_id").notNull(),
-    username: text().notNull(),
-    reviewChannelId: text("review_channel_id").notNull(),
-    reviewMessageId: text("review_message_id").notNull(),
+    status: scamCandidateReviewStatusInAppPublic().notNull().default("claimed"),
+    reviewId: text("review_id").notNull(),
+    triggeredByUserId: text("triggered_by_user_id").notNull(),
+    reviewChannelId: text("review_channel_id"),
+    reviewMessageId: text("review_message_id"),
     channelCount: integer("channel_count").notNull().default(0),
     guildIds: text("guild_ids").array().notNull().default(sql`'{}'::text[]`),
     seenByUserIds: text("seen_by_user_ids").array().notNull().default(sql`'{}'::text[]`),
-    newImageResults: jsonb("new_image_results").notNull(),
+    newImageResults: jsonb("new_image_results"),
     classificationResult: jsonb("classification_result"),
-    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
 );
 

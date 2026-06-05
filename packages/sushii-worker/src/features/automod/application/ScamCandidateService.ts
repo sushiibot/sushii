@@ -1,10 +1,10 @@
 import sharp from "sharp";
 import {
-  ActionRowBuilder,
   DiscordAPIError,
   GuildFeature,
   MessageFlags,
   ModalBuilder,
+  ActionRowBuilder,
   PermissionFlagsBits,
   RESTJSONErrorCodes,
   TextInputBuilder,
@@ -31,23 +31,21 @@ import {
   type ScamImageClassifier,
 } from "./ScamImageClassifier";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
-import type { ScamCandidateRepository } from "../domain/repositories/ScamCandidateRepository";
+import type { ScamCandidateRepository, ScamCandidateState } from "../domain/repositories/ScamCandidateRepository";
 import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
 import {
-  buildAddId,
-  buildIgnoreId,
   buildModalId,
   SCAM_CANDIDATE_MODAL_LABEL_INPUT,
 } from "../presentation/handlers/scamCandidateCustomIds";
+import { buildHashKey } from "../utils/bigintUtils";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
 const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
-const CHANNEL_THRESHOLD = 5;
+const CLAIMED_ORPHAN_TTL_MS = 5 * 60 * 1000;
 
 const SWALLOWED_EDIT_CODES = new Set<number>([
-  RESTJSONErrorCodes.UnknownMessage,
   RESTJSONErrorCodes.MissingPermissions,
   RESTJSONErrorCodes.MissingAccess,
 ]);
@@ -92,7 +90,7 @@ export class ScamCandidateService {
   }
 
   async track(input: CandidateInput): Promise<void> {
-    const { userId, username, guildId, channelId, messageId, images } = input;
+    const { userId, guildId, channelId, messageId, images } = input;
 
     if (images.length === 0) {
       return;
@@ -129,80 +127,82 @@ export class ScamCandidateService {
       .map((i) => i.fileSize)
       .sort((a, b) => a - b)
       .join(",");
-    const key = `${userId}:${sortedSizes}`;
+    const sightingKey = `${userId}:${sortedSizes}`;
     const attachmentUrls = images.map((i) => i.attachmentUrl);
     const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
-    let claimed;
+    let thresholdResult;
     try {
-      claimed = await this.candidateRepository.trackAndMaybeClaim(
-        { key, guildId, channelId, attachmentUrls },
+      thresholdResult = await this.candidateRepository.recordSightingAndCheckThreshold(
+        { key: sightingKey, guildId, channelId, attachmentUrls },
         WINDOW_MS,
       );
     } catch (err) {
-      this.logger.error({ err, userId, key }, "Failed to track scam candidate sighting");
+      this.logger.error({ err, userId, key: sightingKey }, "Failed to record scam candidate sighting");
       return;
     }
 
-    if (!claimed) {
+    if (!thresholdResult) {
       this.metrics.sightingCounter.add(1, { outcome: "recorded" });
       return;
     }
 
     this.metrics.sightingCounter.add(1, { outcome: "threshold_reached" });
-    this.logger.debug({ userId, key, guildCount: claimed.guildIds.length }, "Scam candidate threshold reached, starting review");
+    this.logger.debug(
+      { userId, key: sightingKey, guildCount: thresholdResult.guildIds.length },
+      "Scam candidate threshold reached, starting review",
+    );
 
-    this.sendReview({
-      key,
+    this.processCandidate({
       userId,
-      username,
-      attachmentUrls: claimed.attachmentUrls,
-      channelCount: claimed.channelCount,
-      guildIds: new Set(claimed.guildIds),
+      attachmentUrls: thresholdResult.attachmentUrls,
+      channelCount: thresholdResult.channelCount,
+      guildIds: new Set(thresholdResult.guildIds),
       messageUrl,
     }).catch((err) => {
-      this.logger.error({ err, userId, key }, "Scam candidate review failed");
-      this.candidateRepository.releaseReview(key).catch((releaseErr) => {
-        this.logger.error({ err: releaseErr, key }, "Failed to release review after error");
-      });
+      this.logger.error({ err, userId }, "Scam candidate review failed");
     });
   }
 
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
 
-    const review = await this.candidateRepository.getReview(reviewId);
-    if (!review) {
-      await interaction.followUp({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    const resolved = await this.candidateRepository.resolveReview(reviewId, { ignored: true });
+    const resolved = await this.candidateRepository.resolveReview(reviewId, "ignored");
     if (!resolved) {
-      await interaction.followUp({ content: "This review has already been resolved.", flags: MessageFlags.Ephemeral });
+      await interaction.followUp({
+        content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
-    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const state = await this.candidateRepository.getByHashKey(resolved.key);
+    if (!state) {
+      this.logger.warn({ reviewId, key: resolved.key }, "State missing after resolveReview succeeded");
+      await interaction.followUp({
+        content: "This review has already been resolved.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     await interaction.editReply(
-      buildScamCandidateReviewMessage({
-        userId: review.userId,
-        username: review.username,
-        channelCount: review.channelCount,
-        guildNames,
-        imageResults: review.imageResults,
-        classificationResult: review.classificationResult,
-        reviewId,
-        seenByUserCount: review.seenByUserIds.length,
-        resolved: { statusLine: "*ignored*", buttonLabel: "Ignored" },
-      }),
+      await this.buildReviewFromState(state, reviewId, { statusLine: "*ignored*", buttonLabel: "Ignored" }),
     );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
   }
 
   async handleAdd(reviewId: string, interaction: ButtonInteraction): Promise<void> {
-    const review = await this.candidateRepository.getReview(reviewId);
-    if (!review) {
+    const state = await this.candidateRepository.getByReviewId(reviewId);
+    if (!state) {
+      await interaction.reply({
+        content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (state.status === "ignored" || state.status === "added") {
       await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
@@ -217,7 +217,7 @@ export class ScamCandidateService {
       .setRequired(false)
       .setPlaceholder("e.g. tezowin.com promo");
 
-    const suggestedLabel = review.classificationResult?.suggestedLabel;
+    const suggestedLabel = state.classificationResult?.suggestedLabel;
     if (suggestedLabel) {
       labelInput.setValue(suggestedLabel.slice(0, MAX_LABEL_LENGTH));
     }
@@ -231,8 +231,16 @@ export class ScamCandidateService {
   }
 
   async handleLabelModal(reviewId: string, interaction: ModalSubmitInteraction): Promise<void> {
-    const review = await this.candidateRepository.getReview(reviewId);
-    if (!review) {
+    const state = await this.candidateRepository.getByReviewId(reviewId);
+    if (!state) {
+      await interaction.reply({
+        content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (state.status === "ignored" || state.status === "added") {
       await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
@@ -245,10 +253,11 @@ export class ScamCandidateService {
     const label =
       interaction.fields.getTextInputValue(SCAM_CANDIDATE_MODAL_LABEL_INPUT).trim() || undefined;
 
+    const imageResults = state.newImageResults ?? [];
     const added: { id: number; filename: string }[] = [];
     const failed: string[] = [];
 
-    for (const r of review.imageResults.filter((r) => r.isNew)) {
+    for (const r of imageResults.filter((r) => r.isNew)) {
       try {
         const hash = BigInt(r.hash);
         const id = await this.hashRepository.add(hash, label);
@@ -259,26 +268,12 @@ export class ScamCandidateService {
       }
     }
 
-    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
-
-    const seenByUserCount = review.seenByUserIds.length;
-
     if (added.length === 0) {
       await interaction.editReply(
-        buildScamCandidateReviewMessage({
-          userId: review.userId,
-          username: review.username,
-          channelCount: review.channelCount,
-          guildNames,
-          imageResults: review.imageResults,
-          classificationResult: review.classificationResult,
-          reviewId,
-          seenByUserCount,
-          resolved: { statusLine: "*failed to add hashes*", buttonLabel: "Failed" },
-        }),
+        await this.buildReviewFromState(state, reviewId, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
       this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
-      await this.candidateRepository.resolveReview(reviewId);
+      await this.candidateRepository.resolveReview(reviewId, "added");
       return;
     }
 
@@ -290,72 +285,66 @@ export class ScamCandidateService {
     ].join("\n");
 
     await interaction.editReply(
-      buildScamCandidateReviewMessage({
-        userId: review.userId,
-        username: review.username,
-        channelCount: review.channelCount,
-        guildNames,
-        imageResults: review.imageResults,
-        classificationResult: review.classificationResult,
-        reviewId,
-        seenByUserCount,
-        resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
-      }),
+      await this.buildReviewFromState(state, reviewId, { statusLine: statusSuffix, buttonLabel: addedLabel }),
     );
 
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
-    await this.candidateRepository.resolveReview(reviewId);
+    await this.candidateRepository.resolveReview(reviewId, "added");
   }
 
-  /** Periodic janitor: delete sightings outside the tracking window. */
+  /** Periodic janitor: delete sightings and orphaned claimed rows. */
   async deleteOldSightings(): Promise<void> {
     const cutoff = new Date(Date.now() - WINDOW_MS);
     const deleted = await this.candidateRepository.deleteOldSightings(cutoff);
     if (deleted > 0) {
       this.logger.debug({ deleted }, "Deleted old scam candidate sightings");
     }
-  }
 
-  private async editReviewMessage(review: import("../domain/repositories/ScamCandidateRepository").ScamCandidateReview): Promise<void> {
-    const guildNames = review.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
-    const options = buildScamCandidateReviewMessage({
-      userId: review.userId,
-      username: review.username,
-      channelCount: review.channelCount,
-      guildNames,
-      imageResults: review.imageResults,
-      classificationResult: review.classificationResult,
-      reviewId: review.reviewId,
-      seenByUserCount: review.seenByUserIds.length,
-    });
-    try {
-      const channel = await this.client.channels.fetch(review.reviewChannelId);
-      if (!channel?.isTextBased() || channel.isDMBased()) {
-        return;
-      }
-      const msg = await (channel as GuildTextBasedChannel).messages.fetch(review.reviewMessageId);
-      await msg.edit(options as MessageEditOptions);
-    } catch (err) {
-      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(Number(err.code))) {
-        return;
-      }
-      this.logger.warn({ err, reviewId: review.reviewId }, "Failed to edit review message for user count update");
+    const claimedCutoff = new Date(Date.now() - CLAIMED_ORPHAN_TTL_MS);
+    const deletedClaimed = await this.candidateRepository.deleteOrphanedClaimedRows(claimedCutoff);
+    if (deletedClaimed > 0) {
+      this.logger.debug({ deleted: deletedClaimed }, "Deleted orphaned claimed scam candidate rows");
     }
   }
 
-  private async sendReview(opts: {
-    key: string;
+  private async editReviewMessage(state: ScamCandidateState): Promise<void> {
+    if (!state.reviewChannelId || !state.reviewMessageId) {
+      return;
+    }
+
+    const options = await this.buildReviewFromState(state, state.reviewId);
+
+    try {
+      const channel = await this.client.channels.fetch(state.reviewChannelId);
+      if (!channel?.isTextBased() || channel.isDMBased()) {
+        return;
+      }
+      const msg = await (channel as GuildTextBasedChannel).messages.fetch(state.reviewMessageId);
+      await msg.edit(options as MessageEditOptions);
+    } catch (err) {
+      if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage) {
+        await this.candidateRepository.resolveReview(state.reviewId, "ignored").catch((resolveErr) => {
+          this.logger.error({ err: resolveErr, reviewId: state.reviewId }, "Failed to resolve review after UnknownMessage");
+        });
+        return;
+      }
+      if (err instanceof DiscordAPIError && SWALLOWED_EDIT_CODES.has(Number(err.code))) {
+        return;
+      }
+      this.logger.warn({ err, reviewId: state.reviewId }, "Failed to edit review message");
+    }
+  }
+
+  private async processCandidate(opts: {
     userId: string;
-    username: string;
     attachmentUrls: string[];
     channelCount: number;
     guildIds: Set<string>;
     messageUrl: string;
   }): Promise<void> {
-    const { key, userId, username, attachmentUrls, channelCount, guildIds } = opts;
+    const { userId, attachmentUrls, channelCount, guildIds } = opts;
 
     const results: ImageResult[] = [];
-    let newResults: ImageResult[] = [];
 
     await tracer.startActiveSpan(
       "automod.candidate.process",
@@ -402,7 +391,7 @@ export class ScamCandidateService {
               const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
               const filename = `${idx}_${rawFilename}`;
 
-              const result: ImageResult = {
+              return {
                 filename,
                 buffer,
                 hash,
@@ -410,8 +399,7 @@ export class ScamCandidateService {
                 closestLabel: closest?.entry.label ?? null,
                 closestDistance: closest?.distance ?? null,
                 isNew,
-              };
-              return result;
+              } satisfies ImageResult;
             }),
           );
 
@@ -431,8 +419,7 @@ export class ScamCandidateService {
             span.addEvent("all_downloads_failed");
           }
 
-          newResults = results.filter((r) => r.isNew);
-          if (results.length > 0 && newResults.length === 0) {
+          if (results.length > 0 && results.every((r) => !r.isNew)) {
             span.addEvent("all_images_known");
           }
         } catch (err) {
@@ -447,24 +434,46 @@ export class ScamCandidateService {
 
     if (results.length === 0) {
       this.metrics.reviewCounter.add(1, { outcome: "download_failed" });
-      await this.candidateRepository.releaseReview(key);
       return;
     }
+
+    const hashes = results.map((r) => r.hash);
+    const hashKey = buildHashKey(hashes);
+    const guildIdsArray = [...guildIds];
+    const reviewId = crypto.randomUUID();
+
+    const claimed = await this.candidateRepository.claimByHashKey(
+      hashKey,
+      reviewId,
+      userId,
+      channelCount,
+      guildIdsArray,
+      [userId],
+    );
+
+    if (!claimed) {
+      // Lost the claim race — append seen user and maybe update the review message
+      const updated = await this.candidateRepository.appendSeenUser(
+        hashKey,
+        userId,
+        channelCount,
+        guildIdsArray,
+      );
+
+      if (updated?.status === "reviewing") {
+        await this.editReviewMessage(updated);
+      }
+
+      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
+      return;
+    }
+
+    const newResults = results.filter((r) => r.isNew);
 
     if (newResults.length === 0) {
-      this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
-      await this.candidateRepository.updateStateAfterReview(key, { releaseReviewing: true });
+      this.logger.debug({ userId }, "All candidate images already in DB, releasing claim");
+      await this.candidateRepository.deleteByKey(hashKey);
       this.metrics.reviewCounter.add(1, { outcome: "all_known" });
-      return;
-    }
-
-    const newHashes = newResults.map((r) => r.hash.toString());
-    const existingReview = await this.candidateRepository.incrementPendingReviewForHashes(newHashes, userId);
-    if (existingReview) {
-      this.logger.debug({ userId, reviewId: existingReview.reviewId }, "Incrementing user count on existing pending review");
-      await this.editReviewMessage(existingReview);
-      await this.candidateRepository.updateStateAfterReview(key, { releaseReviewing: true });
-      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
       return;
     }
 
@@ -508,14 +517,13 @@ export class ScamCandidateService {
         "Review channel not found or not text-based",
       );
       this.metrics.reviewCounter.add(1, { outcome: "channel_error" });
-      await this.candidateRepository.releaseReview(key);
+      await this.candidateRepository.deleteByKey(hashKey);
       return;
     }
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
 
-    const reviewId = crypto.randomUUID();
-    const guildIdsArray = [...guildIds];
     const guildNames = guildIdsArray.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const displayUsername = await this.fetchUsername(userId);
 
     const imageResults = results.map((r) => ({
       filename: r.filename,
@@ -528,7 +536,7 @@ export class ScamCandidateService {
 
     const { components, flags } = buildScamCandidateReviewMessage({
       userId,
-      username,
+      username: displayUsername,
       channelCount,
       guildNames,
       imageResults,
@@ -543,29 +551,52 @@ export class ScamCandidateService {
       files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
     });
 
-    await this.candidateRepository.saveReview({
-      reviewId,
-      key,
-      userId,
-      username,
+    const storedClassification = classificationResult
+      ? {
+          isScam: classificationResult.isScam,
+          confidence: classificationResult.confidence,
+          suggestedLabel: classificationResult.suggestedLabel,
+          reason: classificationResult.reason,
+        }
+      : null;
+
+    await this.candidateRepository.transitionToReviewing(hashKey, {
       reviewChannelId: REVIEW_CHANNEL_ID,
       reviewMessageId: msg.id,
-      channelCount,
-      guildIds: guildIdsArray,
-      seenByUserIds: [userId],
-      imageResults,
-      classificationResult: classificationResult
-        ? {
-            isScam: classificationResult.isScam,
-            confidence: classificationResult.confidence,
-            suggestedLabel: classificationResult.suggestedLabel,
-            reason: classificationResult.reason,
-          }
-        : null,
+      newImageResults: imageResults,
+      classificationResult: storedClassification,
     });
 
-    await this.candidateRepository.updateStateAfterReview(key, { releaseReviewing: false });
-
     this.metrics.reviewCounter.add(1, { outcome: "sent" });
+  }
+
+  private async buildReviewFromState(
+    state: ScamCandidateState,
+    reviewId: string,
+    resolved?: { statusLine: string; buttonLabel: string },
+  ): Promise<ReturnType<typeof buildScamCandidateReviewMessage>> {
+    const guildNames = state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const username = await this.fetchUsername(state.triggeredByUserId);
+    return buildScamCandidateReviewMessage({
+      userId: state.triggeredByUserId,
+      username,
+      channelCount: state.channelCount,
+      guildNames,
+      imageResults: state.newImageResults ?? [],
+      classificationResult: state.classificationResult,
+      reviewId,
+      seenByUserCount: state.seenByUserIds.length,
+      resolved,
+    });
+  }
+
+  private async fetchUsername(userId: string): Promise<string> {
+    try {
+      const user = await this.client.users.fetch(userId);
+      return user.username;
+    } catch {
+      this.logger.debug({ userId }, "Failed to fetch username, falling back to user ID");
+      return userId;
+    }
   }
 }

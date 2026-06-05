@@ -3,32 +3,32 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";
 import {
-  scamCandidateReviewsInAppPublic,
   scamCandidateSightingsInAppPublic,
   scamCandidateStateInAppPublic,
 } from "@/infrastructure/database/schema";
 
 import type {
   NewScamCandidateSighting,
-  ScamCandidateClaimResult,
   ScamCandidateRepository,
-  ScamCandidateReview,
+  ScamCandidateState,
+  SightingThresholdResult,
   StoredClassificationResult,
   StoredImageResult,
 } from "../domain/repositories/ScamCandidateRepository";
 
+const CHANNEL_THRESHOLD = 5;
+
 export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  async trackAndMaybeClaim(
+  async recordSightingAndCheckThreshold(
     sighting: NewScamCandidateSighting,
     windowMs: number,
-  ): Promise<ScamCandidateClaimResult | null> {
+  ): Promise<SightingThresholdResult | null> {
     const { key, guildId, channelId, attachmentUrls } = sighting;
     const cutoff = new Date(Date.now() - windowMs);
 
     return this.db.transaction(async (tx) => {
-      // Record sighting
       await tx.insert(scamCandidateSightingsInAppPublic).values({
         key,
         guildId,
@@ -36,16 +36,8 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         attachmentUrls,
       });
 
-      // Ensure state row exists
-      await tx
-        .insert(scamCandidateStateInAppPublic)
-        .values({ key })
-        .onConflictDoNothing();
-
-      // Count distinct guilds and channels in the window
       const [counts] = await tx
         .select({
-          guilds: sql<number>`count(distinct ${scamCandidateSightingsInAppPublic.guildId})::int`,
           channels: sql<number>`count(distinct ${scamCandidateSightingsInAppPublic.channelId})::int`,
         })
         .from(scamCandidateSightingsInAppPublic)
@@ -56,35 +48,14 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
           ),
         );
 
-      if (!counts) {
+      if (!counts || counts.channels < CHANNEL_THRESHOLD) {
         return null;
       }
 
-      // Atomically claim the review slot — only succeeds if not reviewing/ignored
-      // and channel count meets the threshold
-      const claimed = await tx
-        .update(scamCandidateStateInAppPublic)
-        .set({ reviewing: true, updatedAt: new Date() })
-        .where(
-          and(
-            eq(scamCandidateStateInAppPublic.key, key),
-            eq(scamCandidateStateInAppPublic.reviewing, false),
-            eq(scamCandidateStateInAppPublic.ignored, false),
-            sql`${counts.channels} >= ${scamCandidateStateInAppPublic.nextNotifyChannelThreshold}`,
-          ),
-        )
-        .returning();
-
-      if (claimed.length === 0) {
-        return null;
-      }
-
-      // Fetch all recent sightings to build guild list and get attachment URLs
       const recentSightings = await tx
         .select({
           guildId: scamCandidateSightingsInAppPublic.guildId,
           attachmentUrls: scamCandidateSightingsInAppPublic.attachmentUrls,
-          seenAt: scamCandidateSightingsInAppPublic.seenAt,
         })
         .from(scamCandidateSightingsInAppPublic)
         .where(
@@ -96,7 +67,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         .orderBy(sql`${scamCandidateSightingsInAppPublic.seenAt} desc`);
 
       const guildIds = [...new Set(recentSightings.map((s) => s.guildId))];
-      // Use attachment URLs from the most recent sighting
       const latestAttachmentUrls = recentSightings[0]?.attachmentUrls ?? [];
 
       return {
@@ -107,125 +77,127 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     });
   }
 
-  async updateStateAfterReview(key: string, opts: { releaseReviewing: boolean }): Promise<void> {
-    await this.db
-      .update(scamCandidateStateInAppPublic)
-      .set({
-        reviewing: opts.releaseReviewing ? false : undefined,
-        nextNotifyChannelThreshold: sql`${scamCandidateStateInAppPublic.nextNotifyChannelThreshold} * 2`,
-        updatedAt: new Date(),
+  async claimByHashKey(
+    key: string,
+    reviewId: string,
+    triggeredByUserId: string,
+    channelCount: number,
+    guildIds: string[],
+    seenByUserIds: string[],
+  ): Promise<ScamCandidateState | null> {
+    const rows = await this.db
+      .insert(scamCandidateStateInAppPublic)
+      .values({
+        key,
+        status: "claimed",
+        reviewId,
+        triggeredByUserId,
+        channelCount,
+        guildIds,
+        seenByUserIds,
       })
-      .where(eq(scamCandidateStateInAppPublic.key, key));
+      .onConflictDoNothing()
+      .returning();
+
+    return rows[0] ? this.rowToState(rows[0]) : null;
   }
 
-  async releaseReview(key: string): Promise<void> {
-    await this.db
+  async transitionToReviewing(
+    key: string,
+    opts: {
+      reviewChannelId: string;
+      reviewMessageId: string;
+      newImageResults: StoredImageResult[];
+      classificationResult: StoredClassificationResult | null;
+    },
+  ): Promise<ScamCandidateState | null> {
+    const rows = await this.db
       .update(scamCandidateStateInAppPublic)
-      .set({ reviewing: false, updatedAt: new Date() })
-      .where(eq(scamCandidateStateInAppPublic.key, key));
-  }
-
-  async incrementPendingReviewForHashes(
-    hashes: string[],
-    userId: string,
-  ): Promise<ScamCandidateReview | null> {
-    if (hashes.length === 0) {
-      return null;
-    }
-
-    // Find a pending review whose new_image_results contains ALL supplied hashes
-    const found = await this.db.execute<{ review_id: string }>(sql`
-      SELECT review_id
-      FROM app_public.scam_candidate_reviews,
-      LATERAL jsonb_array_elements(new_image_results) AS elem
-      WHERE elem->>'hash' = ANY(${hashes}::text[])
-      GROUP BY review_id
-      HAVING COUNT(DISTINCT elem->>'hash') >= ${hashes.length}
-      LIMIT 1
-    `);
-
-    const reviewId = found.rows[0]?.review_id;
-    if (!reviewId) {
-      return null;
-    }
-
-    // Append userId only if not already present
-    await this.db
-      .update(scamCandidateReviewsInAppPublic)
       .set({
-        seenByUserIds: sql`array_append(${scamCandidateReviewsInAppPublic.seenByUserIds}, ${userId})`,
+        status: "reviewing",
+        reviewChannelId: opts.reviewChannelId,
+        reviewMessageId: opts.reviewMessageId,
+        newImageResults: opts.newImageResults,
+        classificationResult: opts.classificationResult,
+        updatedAt: new Date(),
       })
       .where(
         and(
-          eq(scamCandidateReviewsInAppPublic.reviewId, reviewId),
-          sql`NOT (${userId} = ANY(${scamCandidateReviewsInAppPublic.seenByUserIds}))`,
+          eq(scamCandidateStateInAppPublic.key, key),
+          eq(scamCandidateStateInAppPublic.status, "claimed"),
         ),
-      );
+      )
+      .returning();
 
-    const rows = await this.db
-      .select()
-      .from(scamCandidateReviewsInAppPublic)
-      .where(eq(scamCandidateReviewsInAppPublic.reviewId, reviewId));
-
-    return rows[0] ? this.rowToReview(rows[0]) : null;
+    return rows[0] ? this.rowToState(rows[0]) : null;
   }
 
-  async saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void> {
-    await this.db.insert(scamCandidateReviewsInAppPublic).values({
-      reviewId: review.reviewId,
-      key: review.key,
-      userId: review.userId,
-      username: review.username,
-      reviewChannelId: review.reviewChannelId,
-      reviewMessageId: review.reviewMessageId,
-      channelCount: review.channelCount,
-      guildIds: review.guildIds,
-      seenByUserIds: review.seenByUserIds,
-      newImageResults: review.imageResults,
-      classificationResult: review.classificationResult,
-    });
-  }
-
-  async getReview(reviewId: string): Promise<ScamCandidateReview | null> {
+  async appendSeenUser(
+    key: string,
+    userId: string,
+    channelCount: number,
+    guildIds: string[],
+  ): Promise<ScamCandidateState | null> {
     const rows = await this.db
-      .select()
-      .from(scamCandidateReviewsInAppPublic)
-      .where(eq(scamCandidateReviewsInAppPublic.reviewId, reviewId));
+      .update(scamCandidateStateInAppPublic)
+      .set({
+        seenByUserIds: sql`array_append(${scamCandidateStateInAppPublic.seenByUserIds}, ${userId})`,
+        channelCount: sql`GREATEST(${scamCandidateStateInAppPublic.channelCount}, ${channelCount})`,
+        guildIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.guildIds} || ${guildIds}::text[]))`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(scamCandidateStateInAppPublic.key, key),
+          sql`NOT (${userId} = ANY(${scamCandidateStateInAppPublic.seenByUserIds}))`,
+          sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added')`,
+        ),
+      )
+      .returning();
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return this.rowToReview(rows[0]);
+    return rows[0] ? this.rowToState(rows[0]) : null;
   }
 
   async resolveReview(
     reviewId: string,
-    opts?: { ignored?: boolean },
+    status: "ignored" | "added",
   ): Promise<{ key: string } | null> {
-    return this.db.transaction(async (tx) => {
-      const deleted = await tx
-        .delete(scamCandidateReviewsInAppPublic)
-        .where(eq(scamCandidateReviewsInAppPublic.reviewId, reviewId))
-        .returning({ key: scamCandidateReviewsInAppPublic.key });
+    const rows = await this.db
+      .update(scamCandidateStateInAppPublic)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(scamCandidateStateInAppPublic.reviewId, reviewId),
+          sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added')`,
+        ),
+      )
+      .returning({ key: scamCandidateStateInAppPublic.key });
 
-      if (deleted.length === 0) {
-        return null;
-      }
+    return rows[0] ?? null;
+  }
 
-      const { key } = deleted[0];
+  async getByReviewId(reviewId: string): Promise<ScamCandidateState | null> {
+    const rows = await this.db
+      .select()
+      .from(scamCandidateStateInAppPublic)
+      .where(eq(scamCandidateStateInAppPublic.reviewId, reviewId));
 
-      await tx
-        .update(scamCandidateStateInAppPublic)
-        .set({
-          reviewing: false,
-          ignored: opts?.ignored ?? false,
-          updatedAt: new Date(),
-        })
-        .where(eq(scamCandidateStateInAppPublic.key, key));
+    return rows[0] ? this.rowToState(rows[0]) : null;
+  }
 
-      return { key };
-    });
+  async getByHashKey(key: string): Promise<ScamCandidateState | null> {
+    const rows = await this.db
+      .select()
+      .from(scamCandidateStateInAppPublic)
+      .where(eq(scamCandidateStateInAppPublic.key, key));
+
+    return rows[0] ? this.rowToState(rows[0]) : null;
+  }
+
+  async deleteByKey(key: string): Promise<void> {
+    await this.db
+      .delete(scamCandidateStateInAppPublic)
+      .where(eq(scamCandidateStateInAppPublic.key, key));
   }
 
   async deleteOldSightings(cutoff: Date): Promise<number> {
@@ -237,33 +209,35 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     return deleted.length;
   }
 
-  private rowToReview(row: {
-    reviewId: string;
-    key: string;
-    userId: string;
-    username: string;
-    reviewChannelId: string;
-    reviewMessageId: string;
-    channelCount: number;
-    guildIds: string[];
-    seenByUserIds: string[];
-    newImageResults: unknown;
-    classificationResult: unknown;
-    createdAt: Date;
-  }): ScamCandidateReview {
+  async deleteOrphanedClaimedRows(cutoff: Date): Promise<number> {
+    const deleted = await this.db
+      .delete(scamCandidateStateInAppPublic)
+      .where(
+        and(
+          eq(scamCandidateStateInAppPublic.status, "claimed"),
+          lt(scamCandidateStateInAppPublic.claimedAt, cutoff),
+        ),
+      )
+      .returning({ key: scamCandidateStateInAppPublic.key });
+
+    return deleted.length;
+  }
+
+  private rowToState(row: typeof scamCandidateStateInAppPublic.$inferSelect): ScamCandidateState {
     return {
-      reviewId: row.reviewId,
       key: row.key,
-      userId: row.userId,
-      username: row.username,
+      status: row.status,
+      reviewId: row.reviewId,
+      triggeredByUserId: row.triggeredByUserId,
       reviewChannelId: row.reviewChannelId,
       reviewMessageId: row.reviewMessageId,
       channelCount: row.channelCount,
       guildIds: row.guildIds,
       seenByUserIds: row.seenByUserIds,
-      imageResults: row.newImageResults as StoredImageResult[],
+      newImageResults: row.newImageResults as StoredImageResult[] | null,
       classificationResult: row.classificationResult as StoredClassificationResult | null,
-      createdAt: row.createdAt,
+      claimedAt: row.claimedAt,
+      updatedAt: row.updatedAt,
     };
   }
 }

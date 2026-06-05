@@ -18,3 +18,16 @@ export function toUnsignedBigint(s64: bigint): bigint {
 export function formatDhash(hash: bigint): string {
   return hash.toString(16).padStart(16, "0");
 }
+
+/**
+ * Builds a stable key from a set of dHashes for use as scam_candidate_state.key.
+ * Each hash is converted to a signed decimal string, sorted numerically ascending,
+ * and joined with "|".
+ */
+export function buildHashKey(hashes: bigint[]): string {
+  return [...hashes]
+    .map((h) => toSignedBigint(h))
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((h) => h.toString(10))
+    .join("|");
+}

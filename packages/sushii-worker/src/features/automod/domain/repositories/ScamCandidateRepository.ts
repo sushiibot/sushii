@@ -15,20 +15,22 @@ export interface StoredClassificationResult {
   reason: string;
 }
 
-export interface ScamCandidateReview {
-  reviewId: string;
+export type ScamCandidateReviewStatus = "claimed" | "reviewing" | "ignored" | "added";
+
+export interface ScamCandidateState {
   key: string;
-  userId: string;
-  username: string;
-  reviewChannelId: string;
-  reviewMessageId: string;
+  status: ScamCandidateReviewStatus;
+  reviewId: string;
+  triggeredByUserId: string;
+  reviewChannelId: string | null;
+  reviewMessageId: string | null;
   channelCount: number;
   guildIds: string[];
-  /** All user IDs that triggered a sighting matching this review's hashes. */
   seenByUserIds: string[];
-  imageResults: StoredImageResult[];
+  newImageResults: StoredImageResult[] | null;
   classificationResult: StoredClassificationResult | null;
-  createdAt: Date;
+  claimedAt: Date;
+  updatedAt: Date;
 }
 
 export interface NewScamCandidateSighting {
@@ -38,7 +40,7 @@ export interface NewScamCandidateSighting {
   attachmentUrls: string[];
 }
 
-export interface ScamCandidateClaimResult {
+export interface SightingThresholdResult {
   guildIds: string[];
   channelCount: number;
   attachmentUrls: string[];
@@ -46,47 +48,78 @@ export interface ScamCandidateClaimResult {
 
 export interface ScamCandidateRepository {
   /**
-   * Records a new sighting, then atomically checks thresholds and claims the
-   * review slot for this shard if they are met.
-   *
-   * Returns non-null only when this call wins the claim and should proceed to
-   * send a review message. Returns null when thresholds are not yet met, the
-   * candidate is already being reviewed, or it has been ignored.
+   * Records a sighting and checks whether the channel threshold is crossed
+   * within the detection window. Returns guild/channel counts if threshold is
+   * met, null if not yet reached.
    */
-  trackAndMaybeClaim(
+  recordSightingAndCheckThreshold(
     sighting: NewScamCandidateSighting,
     windowMs: number,
-  ): Promise<ScamCandidateClaimResult | null>;
+  ): Promise<SightingThresholdResult | null>;
 
   /**
-   * Doubles the channel threshold. Call after sending a review (reviewing stays true)
-   * or after the all-known path (pass releaseReviewing=true).
+   * Attempts to INSERT a state row with status='claimed' using ON CONFLICT DO NOTHING.
+   * Returns the new row if this caller won the claim, null if a row already existed.
    */
-  updateStateAfterReview(key: string, opts: { releaseReviewing: boolean }): Promise<void>;
+  claimByHashKey(
+    key: string,
+    reviewId: string,
+    triggeredByUserId: string,
+    channelCount: number,
+    guildIds: string[],
+    seenByUserIds: string[],
+  ): Promise<ScamCandidateState | null>;
 
   /**
-   * Resets reviewing=false without touching the threshold. Call when downloads fail.
+   * Transitions a claimed row to 'reviewing' and populates the nullable columns
+   * that become available after the Discord message is sent.
    */
-  releaseReview(key: string): Promise<void>;
+  transitionToReviewing(
+    key: string,
+    opts: {
+      reviewChannelId: string;
+      reviewMessageId: string;
+      newImageResults: StoredImageResult[];
+      classificationResult: StoredClassificationResult | null;
+    },
+  ): Promise<ScamCandidateState | null>;
 
   /**
-   * Finds a pending review that contains all of the supplied hashes, appends
-   * userId to its seenByUserIds (no-op if already present), and returns the
-   * updated review. Returns null if no matching pending review exists.
+   * Appends userId to seen_by_user_ids (guarded against duplicates) and updates
+   * channel_count and guild_ids. Skips if status is terminal. Returns updated
+   * row or null if not found.
    */
-  incrementPendingReviewForHashes(
-    hashes: string[],
+  appendSeenUser(
+    key: string,
     userId: string,
-  ): Promise<ScamCandidateReview | null>;
-
-  saveReview(review: Omit<ScamCandidateReview, "createdAt">): Promise<void>;
-  getReview(reviewId: string): Promise<ScamCandidateReview | null>;
+    channelCount: number,
+    guildIds: string[],
+  ): Promise<ScamCandidateState | null>;
 
   /**
-   * Deletes the review row and updates state (reviewing=false, optionally ignored=true).
-   * Returns the key so the caller can react; returns null if the review was not found.
+   * Sets status to 'ignored' or 'added' on the row identified by review_id.
+   * Returns { key } on success, null if not found.
    */
-  resolveReview(reviewId: string, opts?: { ignored?: boolean }): Promise<{ key: string } | null>;
+  resolveReview(
+    reviewId: string,
+    status: "ignored" | "added",
+  ): Promise<{ key: string } | null>;
 
+  /** Looks up a state row by its review_id column. */
+  getByReviewId(reviewId: string): Promise<ScamCandidateState | null>;
+
+  /** Looks up a state row by its hash key. */
+  getByHashKey(key: string): Promise<ScamCandidateState | null>;
+
+  /** Deletes the row for the given key (used on the all-images-known path). */
+  deleteByKey(key: string): Promise<void>;
+
+  /** Deletes old sighting rows before the given cutoff. Returns deleted count. */
   deleteOldSightings(cutoff: Date): Promise<number>;
+
+  /**
+   * Deletes orphaned claimed rows stuck longer than the given timeout.
+   * Returns deleted count.
+   */
+  deleteOrphanedClaimedRows(cutoff: Date): Promise<number>;
 }
