@@ -167,10 +167,34 @@ export class ScamCandidateService {
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
 
-    const state = await this.candidateRepository.resolveReview(reviewId, "ignored");
-    if (!state) {
+    const current = await this.candidateRepository.getByReviewId(reviewId);
+    if (!current) {
       await interaction.followUp({
         content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (current.status === "claimed") {
+      await interaction.followUp({
+        content: "This review is still being set up — please try again in a moment.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (current.status === "ignored" || current.status === "added") {
+      await interaction.followUp({
+        content: "This review has already been resolved.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const state = await this.candidateRepository.resolveReview(reviewId, "ignored");
+    if (!state) {
+      // Race: another moderator resolved it between check and resolveReview
+      await interaction.followUp({
+        content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -555,17 +579,28 @@ export class ScamCandidateService {
     });
     if (!reviewing) {
       const current = await this.candidateRepository.getByReviewId(reviewId);
-      if (current?.status === "ignored" || current?.status === "added") {
-        // Moderator resolved during send→transition window; message is already updated
-        this.logger.info({ reviewId, hashKey, status: current.status }, "Review resolved by moderator during transition");
-        this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition" });
-        return;
+      if (!current) {
+        // Genuine orphan — state was deleted; clean up the Discord message
+        this.logger.error(
+          { reviewId, hashKey, messageId: msg.id },
+          "Orphaned review message: state missing after send",
+        );
+        await msg.delete().catch((deleteErr) => {
+          this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
+        });
+      } else if (current.status === "ignored" || current.status === "added") {
+        // Moderator resolved during send→transition window; message already updated
+        this.logger.info(
+          { reviewId, hashKey, status: current.status },
+          "Review resolved by moderator during transition",
+        );
+      } else {
+        // Unexpected: row exists in non-terminal state but transitionToReviewing failed
+        this.logger.error(
+          { reviewId, hashKey, status: current.status, messageId: msg.id },
+          "transitionToReviewing returned null for non-terminal row — leaving message",
+        );
       }
-      // Genuine orphan — state was deleted; clean up the Discord message
-      this.logger.error({ reviewId, hashKey, messageId: msg.id }, "Orphaned review message: state missing after send");
-      await msg.delete().catch((deleteErr) => {
-        this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
-      });
       this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition" });
       return;
     }
