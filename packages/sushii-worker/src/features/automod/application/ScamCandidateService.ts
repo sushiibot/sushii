@@ -449,6 +449,14 @@ export class ScamCandidateService {
       return;
     }
 
+    const newResults = results.filter((r) => r.isNew);
+
+    if (newResults.length === 0) {
+      this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
+      this.metrics.reviewCounter.add(1, { outcome: "all_known" });
+      return;
+    }
+
     const hashes = results.map((r) => r.hash);
     const hashKey = buildHashKey(hashes);
     const guildIdsArray = [...guildIds];
@@ -476,15 +484,6 @@ export class ScamCandidateService {
       }
 
       this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
-      return;
-    }
-
-    const newResults = results.filter((r) => r.isNew);
-
-    if (newResults.length === 0) {
-      this.logger.debug({ userId }, "All candidate images already in DB, releasing claim");
-      await this.candidateRepository.deleteByKey(hashKey);
-      this.metrics.reviewCounter.add(1, { outcome: "all_known" });
       return;
     }
 
