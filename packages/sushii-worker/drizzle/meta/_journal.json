@@ -323,6 +323,13 @@
       "when": 1780608685923,
       "tag": "0045_add_seen_by_user_ids_to_scam_candidate_reviews",
       "breakpoints": false
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1780689264215,
+      "tag": "0046_refactor_scam_candidate_state",
+      "breakpoints": false
     }
   ]
 }
