@@ -75,9 +75,10 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${reason}`);
   }
 
+  textLines.push("**Images**");
   for (const r of imageResults) {
     const hashHex = formatDhash(BigInt(r.hash));
-    let line = `-# ${r.filename} \`${hashHex}\``;
+    let line = `• \`${hashHex}\``;
     if (r.closestId !== null) {
       const label = r.closestLabel ? ` "${r.closestLabel}"` : "";
       const prefix = r.isNew ? "nearest" : "≈";
