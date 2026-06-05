@@ -14,6 +14,7 @@ import {
   buildAddId,
   buildIgnoreId,
 } from "../handlers/scamCandidateCustomIds";
+import { formatDhash } from "../../utils/bigintUtils";
 import type {
   StoredClassificationResult,
   StoredImageResult,
@@ -72,14 +73,15 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${reason}`);
   }
 
-  if (nearResults.length > 0) {
-    const nearNotes = nearResults
-      .map(
-        (r) =>
-          `\`${r.filename}\` near-match #${r.closestId}${r.closestLabel ? ` ${r.closestLabel}` : ""} (dist ${r.closestDistance})`,
-      )
-      .join(", ");
-    textLines.push(`-# Already known: ${nearNotes}`);
+  for (const r of imageResults) {
+    const hashHex = formatDhash(BigInt(r.hash));
+    let line = `-# ${r.filename} \`${hashHex}\``;
+    if (r.closestId !== null) {
+      const label = r.closestLabel ? ` "${r.closestLabel}"` : "";
+      const prefix = r.isNew ? "nearest" : "≈";
+      line += ` · ${prefix} #${r.closestId}${label} dist ${r.closestDistance}`;
+    }
+    textLines.push(line);
   }
 
   if (resolved) {
