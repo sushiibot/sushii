@@ -50,14 +50,15 @@ export function createVerificationLookupMessage(
     `**Content**\n`,
   ].join("");
 
+  const updatedTs = Math.floor(record.updatedAt.getTime() / 1000);
+
   const suffix = [
     `\n\n**Attachments**\n${attachmentsText}\n\n`,
     `**Submitted At**\n<t:${submittedTs}:F>`,
-    wasRefreshed
-      ? `\n\n**Last Refreshed**\n<t:${Math.floor(record.updatedAt.getTime() / 1000)}:F>`
-      : "",
+    wasRefreshed ? `\n\n**Last Refreshed**\n<t:${updatedTs}:F>` : "",
   ].join("");
 
+  const TRUNCATION_SUFFIX = "… (truncated)";
   const FENCE_CHARS = 8;
   const DISCORD_LIMIT = 3950;
   const contentBudget = DISCORD_LIMIT - prefix.length - suffix.length - FENCE_CHARS;
@@ -69,8 +70,8 @@ export function createVerificationLookupMessage(
   } else {
     const escaped = escapeCodeFence(rawContent);
     const truncated =
-      contentBudget > 14 && escaped.length > contentBudget
-        ? escaped.slice(0, contentBudget - 14) + "… (truncated)"
+      contentBudget > TRUNCATION_SUFFIX.length && escaped.length > contentBudget
+        ? escaped.slice(0, contentBudget - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX
         : escaped;
     displayContent = `\`\`\`\n${truncated}\n\`\`\``;
   }
