@@ -1190,3 +1190,41 @@ export const globalUserLevelRankingsMonth = appPublic.materializedView(
   "global_user_level_rankings_month",
   globalRankingViewColumns,
 ).as(buildPeriodRankingView("month"));
+
+export const messageVerificationsInAppPublic = appPublic.table(
+  "message_verifications",
+  {
+    code: text().primaryKey(),
+    submitterUserId: text("submitter_user_id").notNull(),
+    messageId: text("message_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    authorId: text("author_id").notNull(),
+    authorUsername: text("author_username").notNull(),
+    content: text().notNull(),
+    messageTimestamp: timestamp("message_timestamp", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    attachments: jsonb().notNull().$type<
+      { filename: string; contentType: string | null; size: number }[]
+    >(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    unique("message_verifications_submitter_message_unique").on(
+      table.submitterUserId,
+      table.messageId,
+    ),
+  ],
+);

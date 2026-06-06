@@ -330,6 +330,13 @@
       "when": 1780689264215,
       "tag": "0046_refactor_scam_candidate_state",
       "breakpoints": false
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1780727154961,
+      "tag": "0047_add_message_verifications",
+      "breakpoints": false
     }
   ]
 }

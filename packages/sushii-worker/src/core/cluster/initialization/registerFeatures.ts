@@ -20,6 +20,7 @@ import { setupLegacyCommandFeature } from "@/features/legacy-commands/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupMemberEventsFeature } from "@/features/member-events/setup";
 import { setupMessageLog } from "@/features/message-log/setup";
+import { setupMessageVerificationFeature } from "@/features/message-verification/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
@@ -229,6 +230,11 @@ export function registerFeatures(
   const notificationFeature = setupNotificationFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
   const statusFeature = setupStatusFeature({ db });
+  const messageVerificationFeature = setupMessageVerificationFeature({
+    db,
+    logger: logger.child({ feature: "MessageVerification" }),
+  });
+
   const remindersFeature = setupRemindersFeature({
     db,
     client,
@@ -333,6 +339,7 @@ export function registerFeatures(
     ...emojiStatsFeature.commands,
     ...statusFeature.commands,
     ...automodFeature.commands,
+    ...messageVerificationFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
@@ -353,6 +360,7 @@ export function registerFeatures(
   interactionRouter.addContextMenus(
     ...moderationFeature.contextMenuHandlers,
     ...reactionLogFeature.contextMenuHandlers,
+    ...messageVerificationFeature.contextMenuHandlers,
   );
 
   // Button handlers
