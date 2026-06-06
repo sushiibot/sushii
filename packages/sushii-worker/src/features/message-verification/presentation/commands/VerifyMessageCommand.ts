@@ -18,7 +18,9 @@ import {
 export class VerifyMessageCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("verify-message")
-    .setDescription("Look up a message verification record by code.")
+    .setDescription(
+      "Look up a verified message record by code. Use /verify-message-guide to learn how this works.",
+    )
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addStringOption((o) =>

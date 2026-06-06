@@ -8,6 +8,7 @@ import { MessageVerificationService } from "./application/MessageVerificationSer
 import { DrizzleMessageVerificationRepository } from "./infrastructure/DrizzleMessageVerificationRepository";
 import { SubmitToModsContextMenuHandler } from "./presentation/commands/SubmitToModsContextMenuHandler";
 import { VerifyMessageCommand } from "./presentation/commands/VerifyMessageCommand";
+import { VerifyMessageGuideCommand } from "./presentation/commands/VerifyMessageGuideCommand";
 
 interface SetupMessageVerificationDeps {
   db: NodePgDatabase<typeof schema>;
@@ -33,8 +34,10 @@ export function setupMessageVerificationFeature(
     logger.child({ component: "VerifyMessageCommand" }),
   );
 
+  const guideCommand = new VerifyMessageGuideCommand();
+
   return {
-    commands: [verifyCommand],
+    commands: [verifyCommand, guideCommand],
     autocompletes: [],
     contextMenuHandlers: [submitHandler],
     buttonHandlers: [],
