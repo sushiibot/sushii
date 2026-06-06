@@ -100,7 +100,7 @@ export class ScamImageClassifier {
             ],
           },
         ],
-        max_tokens: 150,
+        max_tokens: 5000,
         temperature: 0,
       };
 
