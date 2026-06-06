@@ -2,6 +2,8 @@ export interface StoredImageResult {
   filename: string;
   /** bigint serialized as decimal string */
   hash: string;
+  /** pHash bigint serialized as decimal string */
+  phash: string;
   closestId: number | null;
   closestLabel: string | null;
   closestDistance: number | null;

@@ -14,15 +14,22 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
   async findClosest(
-    hashValue: bigint,
+    dhash: bigint,
+    phash: bigint,
   ): Promise<{ entry: ScamImageHash; distance: number } | null> {
-    const signed = toSignedBigint(hashValue);
-    const distanceExpr = sql<number>`bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signed}::bigint::bit(64))`;
+    const signedDhash = toSignedBigint(dhash);
+    const signedPhash = toSignedBigint(phash);
+
+    const distanceExpr = sql<number>`LEAST(
+      bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signedDhash}::bigint::bit(64)),
+      COALESCE(bit_count(${scamImageHashesInAppPublic.phash}::bit(64) # ${signedPhash}::bigint::bit(64)), 64)
+    )`;
 
     const rows = await this.db
       .select({
         id: scamImageHashesInAppPublic.id,
         hash: scamImageHashesInAppPublic.hash,
+        phash: scamImageHashesInAppPublic.phash,
         label: scamImageHashesInAppPublic.label,
         addedAt: scamImageHashesInAppPublic.addedAt,
         distance: distanceExpr,
@@ -38,13 +45,15 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
     return { entry: this.rowToEntity(rows[0]), distance: rows[0].distance };
   }
 
-  async add(hashValue: bigint, label?: string): Promise<number> {
-    const signed = toSignedBigint(hashValue);
+  async add(dhash: bigint, phash: bigint, label?: string): Promise<number> {
+    const signedDhash = toSignedBigint(dhash);
+    const signedPhash = toSignedBigint(phash);
 
     const rows = await this.db
       .insert(scamImageHashesInAppPublic)
       .values({
-        hash: signed,
+        hash: signedDhash,
+        phash: signedPhash,
         label: label ?? null,
       })
       .returning({ id: scamImageHashesInAppPublic.id });
@@ -73,12 +82,14 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   private rowToEntity(row: {
     id: number;
     hash: bigint;
+    phash: bigint | null;
     label: string | null;
     addedAt: Date;
   }): ScamImageHash {
     return {
       id: row.id,
       hash: toUnsignedBigint(row.hash),
+      phash: row.phash !== null ? toUnsignedBigint(row.phash) : null,
       label: row.label,
       addedAt: row.addedAt,
     };

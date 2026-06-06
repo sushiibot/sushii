@@ -254,6 +254,7 @@ export const scamImageHashesInAppPublic = appPublic.table(
   {
     id: serial().primaryKey().notNull(),
     hash: bigint({ mode: "bigint" }).notNull(),
+    phash: bigint({ mode: "bigint" }),
     label: text(),
     addedAt: timestamp("added_at", { mode: "date" }).defaultNow().notNull(),
   },

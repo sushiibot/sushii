@@ -351,6 +351,13 @@
       "when": 1780763170203,
       "tag": "0049_add_trigger_to_scam_candidate_state",
       "breakpoints": false
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1780770244966,
+      "tag": "0050_add_phash_to_scam_image_hashes",
+      "breakpoints": false
     }
   ]
 }

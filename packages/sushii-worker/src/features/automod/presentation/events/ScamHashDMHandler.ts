@@ -44,6 +44,7 @@ interface ImageCandidate {
   filename: string;
   url: string;
   hash: bigint;
+  phash: bigint;
   closestId: number | null;
   closestLabel: string | null;
   closestDistance: number | null;
@@ -196,13 +197,17 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
         }
 
         const buffer = Buffer.from(await resp.arrayBuffer());
-        const hash = await this.hashService.computeHash(buffer);
-        const closest = await this.repository.findClosest(hash);
+        const [hash, phash] = await Promise.all([
+          this.hashService.computeHash(buffer),
+          this.hashService.computePHash(buffer),
+        ]);
+        const closest = await this.repository.findClosest(hash, phash);
 
         candidates.push({
           filename: attachment.filename,
           url: attachment.url,
           hash,
+          phash,
           closestId: closest?.entry.id ?? null,
           closestLabel: closest?.entry.label ?? null,
           closestDistance: closest?.distance ?? null,
@@ -350,7 +355,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
 
     for (const c of toAdd) {
       try {
-        const id = await this.repository.add(c.hash, label);
+        const id = await this.repository.add(c.hash, c.phash, label);
         added.push({ id, filename: c.filename, hash: c.hash });
       } catch (err) {
         this.logger.error({ err, filename: c.filename }, "Failed to add scam hash from DM");

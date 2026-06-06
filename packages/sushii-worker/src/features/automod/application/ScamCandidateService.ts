@@ -58,6 +58,7 @@ interface ImageResult {
   filename: string;
   buffer: Buffer;
   hash: bigint;
+  phash: bigint;
   closestId: number | null;
   closestLabel: string | null;
   closestDistance: number | null;
@@ -305,7 +306,8 @@ export class ScamCandidateService {
     for (const r of imageResults.filter((r) => r.isNew)) {
       try {
         const hash = BigInt(r.hash);
-        const id = await this.hashRepository.add(hash, label);
+        const phash = BigInt(r.phash);
+        const id = await this.hashRepository.add(hash, phash, label);
         added.push({ id, filename: r.filename });
       } catch (err) {
         this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
@@ -428,8 +430,11 @@ export class ScamCandidateService {
                 throw new Error("oversized dimensions");
               }
 
-              const hash = await this.hashService.computeHash(buffer);
-              const closest = await this.hashRepository.findClosest(hash);
+              const [hash, phash] = await Promise.all([
+                this.hashService.computeHash(buffer),
+                this.hashService.computePHash(buffer),
+              ]);
+              const closest = await this.hashRepository.findClosest(hash, phash);
               const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
               const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
               const filename = `${idx}_${rawFilename}`;
@@ -438,6 +443,7 @@ export class ScamCandidateService {
                 filename,
                 buffer,
                 hash,
+                phash,
                 closestId: closest?.entry.id ?? null,
                 closestLabel: closest?.entry.label ?? null,
                 closestDistance: closest?.distance ?? null,
@@ -570,6 +576,7 @@ export class ScamCandidateService {
     const imageResults = results.map((r) => ({
       filename: r.filename,
       hash: r.hash.toString(),
+      phash: r.phash.toString(),
       closestId: r.closestId,
       closestLabel: r.closestLabel,
       closestDistance: r.closestDistance,

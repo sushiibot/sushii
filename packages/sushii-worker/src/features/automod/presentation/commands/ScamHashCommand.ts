@@ -127,9 +127,12 @@ export class ScamHashCommand extends SlashCommandHandler {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    const hash = await this.hashService.computeHash(buffer);
+    const [hash, phash] = await Promise.all([
+      this.hashService.computeHash(buffer),
+      this.hashService.computePHash(buffer),
+    ]);
 
-    const closest = await this.repository.findClosest(hash);
+    const closest = await this.repository.findClosest(hash, phash);
     if (closest && closest.distance <= SCAM_HASH_DEDUP_THRESHOLD) {
       const dupeLabel = closest.entry.label ?? "unlabeled";
       await interaction.editReply(
@@ -138,7 +141,7 @@ export class ScamHashCommand extends SlashCommandHandler {
       return;
     }
 
-    const id = await this.repository.add(hash, label);
+    const id = await this.repository.add(hash, phash, label);
     const hexHash = formatDhash(hash);
 
     await interaction.editReply(

@@ -20,12 +20,75 @@ export const SCAM_IMAGE_MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — Discord bas
 export const SCAM_IMAGE_MAX_DIMENSION = 4000;
 const DOWNLOAD_TIMEOUT_MS = 3000;
 
+function dct1d(signal: Float64Array): Float64Array {
+  const N = signal.length;
+  const out = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    let sum = 0;
+    for (let n = 0; n < N; n++) {
+      sum += signal[n] * Math.cos((Math.PI / N) * (n + 0.5) * k);
+    }
+    out[k] = sum;
+  }
+  return out;
+}
+
+function dct2d(pixels: Float64Array[], size: number): Float64Array[] {
+  // Apply DCT to each row
+  const rowDct = pixels.map((row) => dct1d(row));
+  // Apply DCT to each column
+  const result: Float64Array[] = Array.from({ length: size }, () => new Float64Array(size));
+  for (let col = 0; col < size; col++) {
+    const column = new Float64Array(size);
+    for (let row = 0; row < size; row++) {
+      column[row] = rowDct[row][col];
+    }
+    const colDct = dct1d(column);
+    for (let row = 0; row < size; row++) {
+      result[row][col] = colDct[row];
+    }
+  }
+  return result;
+}
+
 export class ScamImageHashService {
   constructor(
     private readonly repository: ScamImageHashRepository,
     private readonly logger: Logger,
     private readonly metrics: ScamImageMetrics,
   ) {}
+
+  async computePHash(buffer: Buffer): Promise<bigint> {
+    const { data } = await sharp(buffer)
+      .flatten({ background: { r: 0, g: 0, b: 0 } })
+      .greyscale()
+      .resize(32, 32, { fit: "fill", kernel: "nearest" })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const pixels: Float64Array[] = Array.from({ length: 32 }, (_, row) =>
+      Float64Array.from({ length: 32 }, (_, col) => data[row * 32 + col]),
+    );
+
+    const dct = dct2d(pixels, 32);
+
+    const low: number[] = [];
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        low.push(dct[row][col]);
+      }
+    }
+
+    const mean = low.reduce((a, b) => a + b, 0) / 64;
+
+    let hash = 0n;
+    for (let i = 0; i < 64; i++) {
+      if (low[i] > mean) {
+        hash |= 1n << BigInt(i);
+      }
+    }
+    return hash;
+  }
 
   async computeHash(buffer: Buffer): Promise<bigint> {
     const { data, info } = await sharp(buffer)
@@ -64,34 +127,27 @@ export class ScamImageHashService {
         const downloadStart = Date.now();
         const buffer = await this.downloadImage(url);
         if (!buffer) {
-          this.metrics.checkCounter.add(1, {
-            guild_id: guildId,
-            outcome: "skip_size",
-          });
+          this.metrics.checkCounter.add(1, { outcome: "skip_size" });
           continue;
         }
-        this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart, {
-          guild_id: guildId,
-        });
+        this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart);
 
         const hashStart = Date.now();
-        const hash = await this.computeHash(buffer);
-        this.metrics.hashDurationHistogram.record(Date.now() - hashStart, {
-          guild_id: guildId,
-        });
+        const [hash, phash] = await Promise.all([
+          this.computeHash(buffer),
+          this.computePHash(buffer),
+        ]);
+        this.metrics.hashDurationHistogram.record(Date.now() - hashStart);
 
-        const closest = await this.repository.findClosest(hash);
+        const closest = await this.repository.findClosest(hash, phash);
 
         if (closest) {
-          this.metrics.nearestDistanceHistogram.record(closest.distance, { guild_id: guildId });
+          this.metrics.nearestDistanceHistogram.record(closest.distance);
         }
 
         if (closest && closest.distance <= SCAM_HASH_MATCH_THRESHOLD) {
-          this.metrics.checkCounter.add(1, {
-            guild_id: guildId,
-            outcome: "match",
-          });
-          this.metrics.matchCounter.add(1, { guild_id: guildId });
+          this.metrics.checkCounter.add(1, { outcome: "match" });
+          this.metrics.matchCounter.add(1);
           return { matched: closest.entry, nearMissUrls: [] };
         }
 
@@ -111,18 +167,12 @@ export class ScamImageHashService {
           "Scam image no_match",
         );
       } catch (err) {
-        this.metrics.checkCounter.add(1, {
-          guild_id: guildId,
-          outcome: "error",
-        });
+        this.metrics.checkCounter.add(1, { outcome: "error" });
         this.logger.debug({ err, url }, "Failed to check attachment for scam image");
       }
     }
 
-    this.metrics.checkCounter.add(1, {
-      guild_id: guildId,
-      outcome: "no_match",
-    });
+    this.metrics.checkCounter.add(1, { outcome: "no_match" });
 
     return { matched: null, nearMissUrls };
   }
