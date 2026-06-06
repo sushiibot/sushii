@@ -9,9 +9,11 @@ import {
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import {
+  AggregationType,
   MeterProvider,
   PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
+import type { ViewOptions } from "@opentelemetry/sdk-metrics";
 import {
   BasicTracerProvider,
   BatchSpanProcessor,
@@ -119,6 +121,15 @@ export function initializeOtel(logger: Logger, clusterId: number) {
 
   const meterProvider = new MeterProvider({
     resource,
+    views: [
+      {
+        instrumentName: "automod.scam_image.nearest_distance",
+        aggregation: {
+          type: AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
+          options: { boundaries: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 64] },
+        },
+      } satisfies ViewOptions,
+    ],
     readers: [
       new PeriodicExportingMetricReader({
         exporter: new OTLPMetricExporter(),

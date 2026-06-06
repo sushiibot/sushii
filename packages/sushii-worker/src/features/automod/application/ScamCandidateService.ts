@@ -25,6 +25,7 @@ import {
   SCAM_IMAGE_MAX_SIZE_BYTES,
   type ScamImageHashService,
 } from "./ScamImageHashService";
+import type { ScamCandidateTrigger } from "../domain/repositories/ScamCandidateRepository";
 import {
   MAX_LABEL_LENGTH,
   type ClassificationResult,
@@ -159,8 +160,37 @@ export class ScamCandidateService {
       attachmentUrls: thresholdResult.attachmentUrls,
       channelCount: thresholdResult.channelCount,
       guildIds: new Set(thresholdResult.guildIds),
+      trigger: "threshold",
     }).catch((err) => {
       this.logger.error({ err, userId }, "Scam candidate review failed");
+    });
+  }
+
+  async triggerNearMissReview(input: {
+    userId: string;
+    guildId: string;
+    attachmentUrls: string[];
+  }): Promise<void> {
+    const { userId, guildId, attachmentUrls } = input;
+
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      this.logger.trace({ guildId }, "near-miss skip — guild not in cache");
+      return;
+    }
+    if (!guild.features.includes(GuildFeature.Discoverable)) {
+      this.logger.trace({ guildId }, "near-miss skip — guild not discoverable");
+      return;
+    }
+
+    this.processCandidate({
+      userId,
+      attachmentUrls,
+      channelCount: 1,
+      guildIds: new Set([guildId]),
+      trigger: "near_miss",
+    }).catch((err) => {
+      this.logger.error({ err, userId }, "Near-miss candidate review failed");
     });
   }
 
@@ -203,7 +233,7 @@ export class ScamCandidateService {
     await interaction.editReply(
       await this.buildReviewFromState(state, { statusLine: "*ignored*", buttonLabel: "Ignored" }),
     );
-    this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored" });
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored", trigger: state.trigger });
   }
 
   async handleAdd(reviewId: string, interaction: ButtonInteraction): Promise<void> {
@@ -287,7 +317,7 @@ export class ScamCandidateService {
       await interaction.editReply(
         await this.buildReviewFromState(state, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
-      this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed" });
+      this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed", trigger: state.trigger });
       return;
     }
 
@@ -302,7 +332,7 @@ export class ScamCandidateService {
       await this.buildReviewFromState(state, { statusLine: statusSuffix, buttonLabel: addedLabel }),
     );
 
-    this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added" });
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added", trigger: state.trigger });
   }
 
   /** Periodic janitor: delete sightings and orphaned claimed rows. */
@@ -353,8 +383,9 @@ export class ScamCandidateService {
     attachmentUrls: string[];
     channelCount: number;
     guildIds: Set<string>;
+    trigger: ScamCandidateTrigger;
   }): Promise<void> {
-    const { userId, attachmentUrls, channelCount, guildIds } = opts;
+    const { userId, attachmentUrls, channelCount, guildIds, trigger } = opts;
 
     const results: ImageResult[] = [];
 
@@ -445,7 +476,7 @@ export class ScamCandidateService {
     );
 
     if (results.length === 0) {
-      this.metrics.reviewCounter.add(1, { outcome: "download_failed" });
+      this.metrics.reviewCounter.add(1, { outcome: "download_failed", trigger });
       return;
     }
 
@@ -453,7 +484,7 @@ export class ScamCandidateService {
 
     if (newResults.length === 0) {
       this.logger.debug({ userId }, "All candidate images already in DB, skipping review");
-      this.metrics.reviewCounter.add(1, { outcome: "all_known" });
+      this.metrics.reviewCounter.add(1, { outcome: "all_known", trigger });
       return;
     }
 
@@ -468,6 +499,7 @@ export class ScamCandidateService {
       userId,
       channelCount,
       guildIdsArray,
+      trigger,
     );
 
     if (!claimed) {
@@ -483,7 +515,7 @@ export class ScamCandidateService {
         await this.editReviewMessage(updated);
       }
 
-      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending" });
+      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending", trigger });
       return;
     }
 
@@ -526,7 +558,7 @@ export class ScamCandidateService {
         { channelId: REVIEW_CHANNEL_ID },
         "Review channel not found or not text-based",
       );
-      this.metrics.reviewCounter.add(1, { outcome: "channel_error" });
+      this.metrics.reviewCounter.add(1, { outcome: "channel_error", trigger });
       await this.candidateRepository.deleteByKey(hashKey);
       return;
     }
@@ -600,7 +632,7 @@ export class ScamCandidateService {
           "transitionToReviewing returned null for non-terminal row — leaving message",
         );
       }
-      this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition" });
+      this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition", trigger });
       return;
     }
 
@@ -608,7 +640,7 @@ export class ScamCandidateService {
       await this.editReviewMessage(reviewing);
     }
 
-    this.metrics.reviewCounter.add(1, { outcome: "sent" });
+    this.metrics.reviewCounter.add(1, { outcome: "sent", trigger });
   }
 
   private async buildReviewFromState(

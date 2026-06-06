@@ -5,9 +5,15 @@ import type {
   ScamImageHash,
   ScamImageHashRepository,
 } from "../domain/repositories/ScamImageHashRepository";
+
+export interface AttachmentCheckResult {
+  matched: ScamImageHash | null;
+  nearMissUrls: string[];
+}
 import type { ScamImageMetrics } from "../infrastructure/metrics/ScamImageMetrics";
 
 export const SCAM_HASH_MATCH_THRESHOLD = 10;
+export const SCAM_HASH_NEAR_MISS_THRESHOLD = 20;
 export const SCAM_HASH_DEDUP_THRESHOLD = 5;
 
 export const SCAM_IMAGE_MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — Discord base upload limit
@@ -50,7 +56,9 @@ export class ScamImageHashService {
   async checkAttachments(
     attachmentUrls: string[],
     guildId: string,
-  ): Promise<ScamImageHash | null> {
+  ): Promise<AttachmentCheckResult> {
+    const nearMissUrls: string[] = [];
+
     for (const url of attachmentUrls) {
       try {
         const downloadStart = Date.now();
@@ -74,13 +82,21 @@ export class ScamImageHashService {
 
         const closest = await this.repository.findClosest(hash);
 
+        if (closest) {
+          this.metrics.nearestDistanceHistogram.record(closest.distance, { guild_id: guildId });
+        }
+
         if (closest && closest.distance <= SCAM_HASH_MATCH_THRESHOLD) {
           this.metrics.checkCounter.add(1, {
             guild_id: guildId,
             outcome: "match",
           });
           this.metrics.matchCounter.add(1, { guild_id: guildId });
-          return closest.entry;
+          return { matched: closest.entry, nearMissUrls: [] };
+        }
+
+        if (closest && closest.distance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
+          nearMissUrls.push(url);
         }
 
         this.logger.debug(
@@ -89,7 +105,8 @@ export class ScamImageHashService {
             guildId,
             closestId: closest?.entry.id,
             closestDistance: closest?.distance,
-            threshold: SCAM_HASH_MATCH_THRESHOLD,
+            matchThreshold: SCAM_HASH_MATCH_THRESHOLD,
+            nearMissThreshold: SCAM_HASH_NEAR_MISS_THRESHOLD,
           },
           "Scam image no_match",
         );
@@ -107,7 +124,7 @@ export class ScamImageHashService {
       outcome: "no_match",
     });
 
-    return null;
+    return { matched: null, nearMissUrls };
   }
 
   private async downloadImage(url: string): Promise<Buffer | null> {

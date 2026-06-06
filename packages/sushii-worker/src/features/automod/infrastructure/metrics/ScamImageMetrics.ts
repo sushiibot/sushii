@@ -10,6 +10,7 @@ export class ScamImageMetrics {
   readonly matchCounter: Counter;
   readonly downloadDurationHistogram: Histogram;
   readonly hashDurationHistogram: Histogram;
+  readonly nearestDistanceHistogram: Histogram;
 
   constructor() {
     const meter = metrics.getMeter("automod", "1.0");
@@ -39,6 +40,15 @@ export class ScamImageMetrics {
         description: "Time to compute dHash for an image buffer (ms)",
         valueType: ValueType.DOUBLE,
         unit: "ms",
+      },
+    );
+
+    // Bucket boundaries configured in otel.ts via View (0–64 integer range)
+    this.nearestDistanceHistogram = meter.createHistogram(
+      "automod.scam_image.nearest_distance",
+      {
+        description: "Hamming distance to the nearest known scam hash per image checked",
+        valueType: ValueType.INT,
       },
     );
 
