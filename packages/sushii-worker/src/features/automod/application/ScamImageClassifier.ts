@@ -38,8 +38,15 @@ Common Discord scam types include:
 - Hacked account promotion spam with referral links
 - Social media spam with referral codes
 
+For suggestedLabel, use the format: "[platform] [impersonated account] - [scam site domain]"
+Examples:
+- "twitter Andrew Tate - tasowin.com"
+- "twitter MrBeast - xoergamb.com"
+- "discord nitro - free-nitro.gg"
+Omit parts that are not present. Use null if not a scam.
+
 Respond with ONLY a JSON object, no markdown fences, no explanation:
-{"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "one sentence", "suggestedLabel": "short descriptive label or null if not a scam"}`;
+{"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "one sentence", "suggestedLabel": "[platform] [impersonated account] - [scam site domain] or null if not a scam"}`;
 
 function mimeTypeFromFilename(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase();
