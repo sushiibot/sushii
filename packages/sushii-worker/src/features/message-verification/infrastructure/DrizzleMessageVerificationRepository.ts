@@ -49,6 +49,7 @@ export class DrizzleMessageVerificationRepository {
             submitterUserId: data.submitterUserId,
             messageId: data.messageId,
             channelId: data.channelId,
+            channelContext: data.channelContext,
             authorId: data.authorId,
             authorUsername: data.authorUsername,
             content: data.content,
@@ -62,6 +63,7 @@ export class DrizzleMessageVerificationRepository {
             ],
             set: {
               channelId: data.channelId,
+              channelContext: data.channelContext,
               authorId: data.authorId,
               authorUsername: data.authorUsername,
               content: data.content,
@@ -112,6 +114,7 @@ export class DrizzleMessageVerificationRepository {
       submitterUserId: row.submitterUserId,
       messageId: row.messageId,
       channelId: row.channelId,
+      channelContext: row.channelContext ?? null,
       authorId: row.authorId,
       authorUsername: row.authorUsername,
       content: row.content,

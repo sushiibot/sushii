@@ -2,6 +2,7 @@ import type { ContextMenuCommandInteraction } from "discord.js";
 import {
   ApplicationCommandType,
   ApplicationIntegrationType,
+  ChannelType,
   ContextMenuCommandBuilder,
   InteractionContextType,
 } from "discord.js";
@@ -10,11 +11,41 @@ import type { Logger } from "pino";
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
 import type { MessageVerificationService } from "../../application/MessageVerificationService";
-import type { AttachmentMetadata } from "../../application/types";
+import type { AttachmentMetadata, ChannelContext } from "../../application/types";
 import {
   createVerificationSubmitErrorMessage,
   createVerificationSubmitMessage,
 } from "../views/VerificationSubmitView";
+
+function extractChannelContext(
+  interaction: ContextMenuCommandInteraction,
+): ChannelContext | null {
+  const channel = interaction.channel;
+  if (!channel) {
+    return null;
+  }
+
+  if (channel.type === ChannelType.DM) {
+    return { type: "dm" };
+  }
+
+  if (channel.type === ChannelType.GroupDM) {
+    return {
+      type: "group_dm",
+      name: channel.name || null,
+      recipients: channel.recipients.map((r) => r.username),
+    };
+  }
+
+  const guild = interaction.guild;
+  return {
+    type: "guild",
+    guildId: guild?.id ?? channel.guildId,
+    guildName: guild?.name ?? "Unknown Server",
+    memberCount: guild?.memberCount ?? 0,
+    channelName: "name" in channel ? (channel.name ?? null) : null,
+  };
+}
 
 export class SubmitToModsContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
@@ -50,7 +81,10 @@ export class SubmitToModsContextMenuHandler extends ContextMenuHandler {
       filename: a.name,
       contentType: a.contentType,
       size: a.size,
+      url: a.url,
     }));
+
+    const channelContext = extractChannelContext(interaction);
 
     try {
       const result = await this.verificationService.submitMessage(
@@ -58,6 +92,7 @@ export class SubmitToModsContextMenuHandler extends ContextMenuHandler {
         {
           messageId: message.id,
           channelId: message.channelId,
+          channelContext,
           authorId: message.author.id,
           authorUsername: message.author.username,
           content: message.content,

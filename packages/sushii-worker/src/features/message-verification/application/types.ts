@@ -2,11 +2,24 @@ export interface AttachmentMetadata {
   filename: string;
   contentType: string | null;
   size: number;
+  url?: string;
 }
+
+export type ChannelContext =
+  | { type: "dm" }
+  | { type: "group_dm"; name: string | null; recipients: string[] }
+  | {
+      type: "guild";
+      guildId: string;
+      guildName: string;
+      memberCount: number;
+      channelName: string | null;
+    };
 
 export interface SubmitMessageData {
   messageId: string;
   channelId: string;
+  channelContext: ChannelContext | null;
   authorId: string;
   authorUsername: string;
   content: string;

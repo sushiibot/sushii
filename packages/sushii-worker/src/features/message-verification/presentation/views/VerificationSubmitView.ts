@@ -17,7 +17,7 @@ export function createVerificationSubmitMessage(
     : `## Message Submitted\n\n`;
 
   text += `**Lookup Code**\n\`${code}\`\n\n`;
-  text += `-# This code is only useful if a moderator explicitly requested it for report verification. Nothing will happen if you share it with anyone else.`;
+  text += `-# This code is only useful if a moderator explicitly requested it for report verification.`;
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(text),

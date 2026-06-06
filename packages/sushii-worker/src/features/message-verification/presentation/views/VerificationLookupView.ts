@@ -1,16 +1,50 @@
 import type { InteractionReplyOptions } from "discord.js";
 import {
   ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   SeparatorBuilder,
   TextDisplayBuilder,
 } from "discord.js";
 import Color from "@/utils/colors";
+import { quoteMarkdownString } from "@/utils/markdown";
 
-import type { MessageVerificationRecord } from "../../application/types";
+import type { ChannelContext, MessageVerificationRecord } from "../../application/types";
 import { isVerificationRefreshed } from "../../application/types";
 
-function formatAttachments(
+function formatChannelContext(
+  channelContext: ChannelContext | null,
+  channelId: string,
+): string[] {
+  if (!channelContext) {
+    return [`**In**: <#${channelId}> (\`${channelId}\`)`];
+  }
+
+  if (channelContext.type === "dm") {
+    return [`**In**: Direct Message`];
+  }
+
+  if (channelContext.type === "group_dm") {
+    const name = channelContext.name ? `"${channelContext.name}" ` : "";
+    const memberList = channelContext.recipients.map((u) => `\`@${u}\``).join(", ");
+    return [
+      `**In**: Group DM ${name}(\`${channelId}\`)`,
+      `${channelContext.recipients.length} members: ${memberList}`,
+    ];
+  }
+
+  const channelPart = channelContext.channelName
+    ? `#${channelContext.channelName} (\`${channelId}\`)`
+    : `\`${channelId}\``;
+
+  return [
+    `**In**: **${channelContext.guildName}** (\`${channelContext.guildId}\`)`,
+    `${channelContext.memberCount.toLocaleString()} members · ${channelPart}`,
+  ];
+}
+
+function formatAttachmentList(
   attachments: MessageVerificationRecord["attachments"],
 ): string {
   if (attachments.length === 0) {
@@ -26,10 +60,6 @@ function formatAttachments(
     .join("\n");
 }
 
-function escapeCodeFence(text: string): string {
-  return text.replace(/`{3}/g, "` `` `");
-}
-
 export function createVerificationLookupMessage(
   record: MessageVerificationRecord,
 ): InteractionReplyOptions & { flags: number } {
@@ -38,47 +68,60 @@ export function createVerificationLookupMessage(
   const submittedTs = Math.floor(record.createdAt.getTime() / 1000);
   const messageTs = Math.floor(record.messageTimestamp.getTime() / 1000);
   const wasRefreshed = isVerificationRefreshed(record);
-
-  const attachmentsText = formatAttachments(record.attachments);
-
-  const prefix = [
-    `## Verification Record \`${record.code}\`\n`,
-    `**Submitter**\n<@${record.submitterUserId}> (${record.submitterUserId})\n\n`,
-    `**Message Author**\n${record.authorUsername} (${record.authorId})\n\n`,
-    `**Original Timestamp**\n<t:${messageTs}:F>\n\n`,
-    `**Channel**\n<#${record.channelId}> (\`${record.channelId}\`)\n\n`,
-    `**Content**\n`,
-  ].join("");
-
   const updatedTs = Math.floor(record.updatedAt.getTime() / 1000);
 
-  const suffix = [
-    `\n\n**Attachments**\n${attachmentsText}\n\n`,
-    `**Submitted At**\n<t:${submittedTs}:F>`,
-    wasRefreshed ? `\n\n**Last Refreshed**\n<t:${updatedTs}:F>` : "",
-  ].join("");
-
-  const TRUNCATION_SUFFIX = "… (truncated)";
-  const FENCE_CHARS = 8;
-  const DISCORD_LIMIT = 3950;
-  const contentBudget = DISCORD_LIMIT - prefix.length - suffix.length - FENCE_CHARS;
+  const channelText = formatChannelContext(record.channelContext, record.channelId);
+  const attachmentsText = formatAttachmentList(record.attachments);
 
   const rawContent = record.content.trim();
-  let displayContent: string;
+  let contentSection: string;
   if (rawContent.length === 0) {
-    displayContent = "*No text content*";
+    contentSection = "*No text content*";
   } else {
-    const escaped = escapeCodeFence(rawContent);
+    const TRUNCATION_SUFFIX = "… (truncated)";
+    const MAX_CONTENT = 1800;
     const truncated =
-      contentBudget > TRUNCATION_SUFFIX.length && escaped.length > contentBudget
-        ? escaped.slice(0, contentBudget - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX
-        : escaped;
-    displayContent = `\`\`\`\n${truncated}\n\`\`\``;
+      rawContent.length > MAX_CONTENT
+        ? rawContent.slice(0, MAX_CONTENT - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX
+        : rawContent;
+    contentSection = quoteMarkdownString(truncated);
   }
 
-  const text = prefix + displayContent + suffix;
+  const channelLines = formatChannelContext(record.channelContext, record.channelId);
 
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+  const lines = [
+    `## Verified Message`,
+    `Submitted by <@${record.submitterUserId}> (\`${record.submitterUserId}\`)`,
+    "",
+    `**Author**: <@${record.authorId}> \`@${record.authorUsername}\` (\`${record.authorId}\`) · <t:${messageTs}:F>`,
+    ...channelLines,
+    "",
+    `**Message**`,
+    contentSection,
+    "",
+    `**Attachments**`,
+    attachmentsText,
+    "",
+    `**Submitted**: <t:${submittedTs}:f>`,
+    ...(wasRefreshed ? [`**Updated**: <t:${updatedTs}:f>`] : []),
+  ];
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(lines.join("\n")),
+  );
+
+  const imageAttachments = record.attachments.filter(
+    (a) => a.url && a.contentType?.startsWith("image/"),
+  );
+  if (imageAttachments.length > 0) {
+    const gallery = new MediaGalleryBuilder().addItems(
+      ...imageAttachments.map((a) =>
+        new MediaGalleryItemBuilder().setURL(a.url!),
+      ),
+    );
+    container.addMediaGalleryComponents(gallery);
+  }
+
   container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
