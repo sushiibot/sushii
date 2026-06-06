@@ -33,8 +33,8 @@ function dct1d(signal: Float64Array): Float64Array {
   return out;
 }
 
-function dct2d(pixels: Float64Array[], size: number): Float64Array[] {
-  // Apply DCT to each row
+function dct2d(pixels: Float64Array[]): Float64Array[] {
+  const size = pixels.length;
   const rowDct = pixels.map((row) => dct1d(row));
   // Apply DCT to each column
   const result: Float64Array[] = Array.from({ length: size }, () => new Float64Array(size));
@@ -59,18 +59,24 @@ export class ScamImageHashService {
   ) {}
 
   async computePHash(buffer: Buffer): Promise<bigint> {
-    const { data } = await sharp(buffer)
+    const { data, info } = await sharp(buffer)
       .flatten({ background: { r: 0, g: 0, b: 0 } })
       .greyscale()
       .resize(32, 32, { fit: "fill", kernel: "nearest" })
       .raw()
       .toBuffer({ resolveWithObject: true });
 
+    if (info.channels !== 1 || data.length !== 1024) {
+      throw new Error(
+        `Unexpected raw buffer shape: channels=${info.channels}, length=${data.length}`,
+      );
+    }
+
     const pixels: Float64Array[] = Array.from({ length: 32 }, (_, row) =>
       Float64Array.from({ length: 32 }, (_, col) => data[row * 32 + col]),
     );
 
-    const dct = dct2d(pixels, 32);
+    const dct = dct2d(pixels);
 
     const low: number[] = [];
     for (let row = 0; row < 8; row++) {
@@ -79,7 +85,7 @@ export class ScamImageHashService {
       }
     }
 
-    const mean = low.reduce((a, b) => a + b, 0) / 64;
+    const mean = low.slice(1).reduce((a, b) => a + b, 0) / 63;
 
     let hash = 0n;
     for (let i = 0; i < 64; i++) {
@@ -88,6 +94,14 @@ export class ScamImageHashService {
       }
     }
     return hash;
+  }
+
+  async computeHashes(buffer: Buffer): Promise<{ hash: bigint; phash: bigint }> {
+    const [hash, phash] = await Promise.all([
+      this.computeHash(buffer),
+      this.computePHash(buffer),
+    ]);
+    return { hash, phash };
   }
 
   async computeHash(buffer: Buffer): Promise<bigint> {
@@ -133,10 +147,7 @@ export class ScamImageHashService {
         this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart);
 
         const hashStart = Date.now();
-        const [hash, phash] = await Promise.all([
-          this.computeHash(buffer),
-          this.computePHash(buffer),
-        ]);
+        const { hash, phash } = await this.computeHashes(buffer);
         this.metrics.hashDurationHistogram.record(Date.now() - hashStart);
 
         const closest = await this.repository.findClosest(hash, phash);

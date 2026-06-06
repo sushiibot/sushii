@@ -306,7 +306,7 @@ export class ScamCandidateService {
     for (const r of imageResults.filter((r) => r.isNew)) {
       try {
         const hash = BigInt(r.hash);
-        const phash = BigInt(r.phash);
+        const phash = r.phash != null ? BigInt(r.phash) : null;
         const id = await this.hashRepository.add(hash, phash, label);
         added.push({ id, filename: r.filename });
       } catch (err) {
@@ -430,10 +430,7 @@ export class ScamCandidateService {
                 throw new Error("oversized dimensions");
               }
 
-              const [hash, phash] = await Promise.all([
-                this.hashService.computeHash(buffer),
-                this.hashService.computePHash(buffer),
-              ]);
+              const { hash, phash } = await this.hashService.computeHashes(buffer);
               const closest = await this.hashRepository.findClosest(hash, phash);
               const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
               const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";

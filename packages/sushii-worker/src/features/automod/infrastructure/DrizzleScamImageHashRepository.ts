@@ -45,9 +45,9 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
     return { entry: this.rowToEntity(rows[0]), distance: rows[0].distance };
   }
 
-  async add(dhash: bigint, phash: bigint, label?: string): Promise<number> {
+  async add(dhash: bigint, phash: bigint | null, label?: string): Promise<number> {
     const signedDhash = toSignedBigint(dhash);
-    const signedPhash = toSignedBigint(phash);
+    const signedPhash = phash !== null ? toSignedBigint(phash) : null;
 
     const rows = await this.db
       .insert(scamImageHashesInAppPublic)

@@ -197,10 +197,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
         }
 
         const buffer = Buffer.from(await resp.arrayBuffer());
-        const [hash, phash] = await Promise.all([
-          this.hashService.computeHash(buffer),
-          this.hashService.computePHash(buffer),
-        ]);
+        const { hash, phash } = await this.hashService.computeHashes(buffer);
         const closest = await this.repository.findClosest(hash, phash);
 
         candidates.push({

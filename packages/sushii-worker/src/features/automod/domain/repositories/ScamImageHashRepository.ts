@@ -11,7 +11,7 @@ export interface ScamImageHashRepository {
     dhash: bigint,
     phash: bigint,
   ): Promise<{ entry: ScamImageHash; distance: number } | null>;
-  add(dhash: bigint, phash: bigint, label?: string): Promise<number>;
+  add(dhash: bigint, phash: bigint | null, label?: string): Promise<number>;
   delete(id: number): Promise<boolean>;
   list(): Promise<ScamImageHash[]>;
 }
