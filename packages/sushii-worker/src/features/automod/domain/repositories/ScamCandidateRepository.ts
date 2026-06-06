@@ -16,12 +16,14 @@ export interface StoredClassificationResult {
 }
 
 export type ScamCandidateReviewStatus = "claimed" | "reviewing" | "ignored" | "added";
+export type ScamCandidateTrigger = "threshold" | "near_miss";
 
 export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added">;
 
 export interface ScamCandidateState {
   key: string;
   status: ScamCandidateReviewStatus;
+  trigger: ScamCandidateTrigger;
   reviewId: string;
   triggeredByUserId: string;
   reviewChannelId: string | null;
@@ -70,6 +72,7 @@ export interface ScamCandidateRepository {
     triggeredByUserId: string,
     channelCount: number,
     guildIds: string[],
+    trigger: ScamCandidateTrigger,
   ): Promise<ScamCandidateState | null>;
 
   /**

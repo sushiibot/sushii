@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."scam_candidate_state" ADD COLUMN "trigger" text DEFAULT 'threshold' NOT NULL;

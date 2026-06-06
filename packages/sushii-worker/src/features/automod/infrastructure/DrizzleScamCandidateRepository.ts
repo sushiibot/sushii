@@ -10,6 +10,7 @@ import {
 import type {
   NewScamCandidateSighting,
   ResolvedStatus,
+  ScamCandidateTrigger,
   ScamCandidateRepository,
   ScamCandidateState,
   SightingThresholdResult,
@@ -86,12 +87,14 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     triggeredByUserId: string,
     channelCount: number,
     guildIds: string[],
+    trigger: ScamCandidateTrigger,
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .insert(scamCandidateStateInAppPublic)
       .values({
         key,
         status: "claimed",
+        trigger,
         reviewId,
         triggeredByUserId,
         channelCount,
@@ -228,6 +231,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     return {
       key: row.key,
       status: row.status,
+      trigger: (row.trigger ?? "threshold") as ScamCandidateTrigger,
       reviewId: row.reviewId,
       triggeredByUserId: row.triggeredByUserId,
       reviewChannelId: row.reviewChannelId,
