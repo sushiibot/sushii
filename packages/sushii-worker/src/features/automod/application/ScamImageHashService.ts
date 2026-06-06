@@ -58,7 +58,7 @@ export class ScamImageHashService {
     private readonly metrics: ScamImageMetrics,
   ) {}
 
-  async computeHash(buffer: Buffer): Promise<bigint> {
+  private async computeHash(buffer: Buffer): Promise<bigint> {
     const data = await this.toGreyscaleRaw(buffer, 9, 8);
 
     let hash = 0n;
@@ -73,7 +73,7 @@ export class ScamImageHashService {
     return hash;
   }
 
-  async computePHash(buffer: Buffer): Promise<bigint> {
+  private async computePHash(buffer: Buffer): Promise<bigint> {
     const data = await this.toGreyscaleRaw(buffer, 32, 32);
 
     const pixels: Float64Array[] = Array.from({ length: 32 }, (_, row) =>
