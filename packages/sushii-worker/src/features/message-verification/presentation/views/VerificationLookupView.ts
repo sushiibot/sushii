@@ -13,51 +13,31 @@ import { quoteMarkdownString } from "@/utils/markdown";
 import type { ChannelContext, MessageVerificationRecord } from "../../application/types";
 import { isVerificationRefreshed } from "../../application/types";
 
-function formatChannelContext(
+// Returns a single-line location string — never uses <#id> since it only
+// resolves when the viewer is in that specific guild.
+function formatLocation(
   channelContext: ChannelContext | null,
   channelId: string,
-): string[] {
+): string {
   if (!channelContext) {
-    return [`**In**: <#${channelId}> (\`${channelId}\`)`];
+    return `\`${channelId}\``;
   }
 
   if (channelContext.type === "dm") {
-    return [`**In**: Direct Message`];
+    return "Direct Message";
   }
 
   if (channelContext.type === "group_dm") {
-    const name = channelContext.name ? `"${channelContext.name}" ` : "";
-    const memberList = channelContext.recipients.map((u) => `\`@${u}\``).join(", ");
-    return [
-      `**In**: Group DM ${name}(\`${channelId}\`)`,
-      `${channelContext.recipients.length} members: ${memberList}`,
-    ];
+    const name = channelContext.name ? `"${channelContext.name}"` : "Group DM";
+    const members = channelContext.recipients.map((u) => `\`@${u}\``).join(", ");
+    return `${name} · ${members}`;
   }
 
   const channelPart = channelContext.channelName
-    ? `#${channelContext.channelName} (\`${channelId}\`)`
+    ? `#${channelContext.channelName}`
     : `\`${channelId}\``;
 
-  return [
-    `**In**: **${channelContext.guildName}** (\`${channelContext.guildId}\`)`,
-    `${channelContext.memberCount.toLocaleString()} members · ${channelPart}`,
-  ];
-}
-
-function formatAttachmentList(
-  attachments: MessageVerificationRecord["attachments"],
-): string {
-  if (attachments.length === 0) {
-    return "None";
-  }
-
-  return attachments
-    .map((a) => {
-      const type = a.contentType ?? "unknown";
-      const sizeKb = (a.size / 1024).toFixed(1);
-      return `• \`${a.filename}\` — ${type} — ${sizeKb} KB`;
-    })
-    .join("\n");
+  return `${channelPart} · **${channelContext.guildName}** · ${channelContext.memberCount.toLocaleString()} members`;
 }
 
 export function createVerificationLookupMessage(
@@ -70,8 +50,7 @@ export function createVerificationLookupMessage(
   const wasRefreshed = isVerificationRefreshed(record);
   const updatedTs = Math.floor(record.updatedAt.getTime() / 1000);
 
-  const channelText = formatChannelContext(record.channelContext, record.channelId);
-  const attachmentsText = formatAttachmentList(record.attachments);
+  const location = formatLocation(record.channelContext, record.channelId);
 
   const rawContent = record.content.trim();
   let contentSection: string;
@@ -87,32 +66,43 @@ export function createVerificationLookupMessage(
     contentSection = quoteMarkdownString(truncated);
   }
 
-  const channelLines = formatChannelContext(record.channelContext, record.channelId);
+  const imageAttachments = record.attachments.filter(
+    (a) => a.url && a.contentType?.startsWith("image/"),
+  );
+
+  const nonImageAttachments = record.attachments.filter(
+    (a) => !a.contentType?.startsWith("image/"),
+  );
+
+  const footerParts = [
+    `Submitted by <@${record.submitterUserId}> (\`${record.submitterUserId}\`) · <t:${submittedTs}:f>`,
+    ...(wasRefreshed ? [`Updated <t:${updatedTs}:f>`] : []),
+    `Code \`${record.code}\` — verified by sushii`,
+  ];
 
   const lines = [
     `## Verified Message`,
-    `Submitted by <@${record.submitterUserId}> (\`${record.submitterUserId}\`)`,
+    `<@${record.authorId}> (\`${record.authorId}\`) · <t:${messageTs}:F>`,
+    location,
     "",
-    `**Author**: <@${record.authorId}> \`@${record.authorUsername}\` (\`${record.authorId}\`) · <t:${messageTs}:F>`,
-    ...channelLines,
-    "",
-    `**Message**`,
     contentSection,
-    "",
-    `**Attachments**`,
-    attachmentsText,
-    "",
-    `**Submitted**: <t:${submittedTs}:f>`,
-    ...(wasRefreshed ? [`**Updated**: <t:${updatedTs}:f>`] : []),
   ];
+
+  if (nonImageAttachments.length > 0) {
+    const attachmentList = nonImageAttachments
+      .map((a) => {
+        const type = a.contentType ?? "unknown";
+        const sizeKb = (a.size / 1024).toFixed(1);
+        return `• \`${a.filename}\` — ${type} — ${sizeKb} KB`;
+      })
+      .join("\n");
+    lines.push("", "**Attachments**", attachmentList);
+  }
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(lines.join("\n")),
   );
 
-  const imageAttachments = record.attachments.filter(
-    (a) => a.url && a.contentType?.startsWith("image/"),
-  );
   if (imageAttachments.length > 0) {
     const gallery = new MediaGalleryBuilder().addItems(
       ...imageAttachments.map((a) =>
@@ -125,7 +115,7 @@ export function createVerificationLookupMessage(
   container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `-# Code \`${record.code}\` — verified by sushii`,
+      footerParts.map((p) => `-# ${p}`).join("\n"),
     ),
   );
 
