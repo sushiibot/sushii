@@ -28,3 +28,9 @@ export interface UpsertResult {
   code: string;
   isRefresh: boolean;
 }
+
+export function isVerificationRefreshed(
+  record: Pick<MessageVerificationRecord, "createdAt" | "updatedAt">,
+): boolean {
+  return record.updatedAt.getTime() !== record.createdAt.getTime();
+}

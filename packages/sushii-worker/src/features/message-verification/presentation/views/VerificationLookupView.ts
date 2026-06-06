@@ -8,8 +8,7 @@ import {
 import Color from "@/utils/colors";
 
 import type { MessageVerificationRecord } from "../../application/types";
-
-const MAX_CONTENT_LENGTH = 3000;
+import { isVerificationRefreshed } from "../../application/types";
 
 function formatAttachments(
   attachments: MessageVerificationRecord["attachments"],
@@ -27,11 +26,8 @@ function formatAttachments(
     .join("\n");
 }
 
-function truncateContent(content: string): string {
-  if (content.length <= MAX_CONTENT_LENGTH) {
-    return content;
-  }
-  return content.slice(0, MAX_CONTENT_LENGTH) + "… (truncated)";
+function escapeCodeFence(text: string): string {
+  return text.replace(/`{3}/g, "` `` `");
 }
 
 export function createVerificationLookupMessage(
@@ -41,34 +37,48 @@ export function createVerificationLookupMessage(
 
   const submittedTs = Math.floor(record.createdAt.getTime() / 1000);
   const messageTs = Math.floor(record.messageTimestamp.getTime() / 1000);
+  const wasRefreshed = isVerificationRefreshed(record);
 
-  const content = record.content.trim();
-  const displayContent = content.length === 0
-    ? "*No text content*"
-    : `\`\`\`\n${truncateContent(content)}\n\`\`\``;
+  const attachmentsText = formatAttachments(record.attachments);
 
-  let text = `## Verification Record \`${record.code}\`\n`;
-  text += `**Submitter**\n<@${record.submitterUserId}> (${record.submitterUserId})\n\n`;
-  text += `**Message Author**\n${record.authorUsername} (${record.authorId})\n\n`;
-  text += `**Original Timestamp**\n<t:${messageTs}:F>\n\n`;
-  text += `**Channel**\n<#${record.channelId}> (\`${record.channelId}\`)\n\n`;
-  text += `**Content**\n${displayContent}\n\n`;
-  text += `**Attachments**\n${formatAttachments(record.attachments)}\n\n`;
-  text += `**Submitted At**\n<t:${submittedTs}:F>`;
+  const prefix = [
+    `## Verification Record \`${record.code}\`\n`,
+    `**Submitter**\n<@${record.submitterUserId}> (${record.submitterUserId})\n\n`,
+    `**Message Author**\n${record.authorUsername} (${record.authorId})\n\n`,
+    `**Original Timestamp**\n<t:${messageTs}:F>\n\n`,
+    `**Channel**\n<#${record.channelId}> (\`${record.channelId}\`)\n\n`,
+    `**Content**\n`,
+  ].join("");
 
-  const wasRefreshed =
-    record.updatedAt.getTime() !== record.createdAt.getTime();
-  if (wasRefreshed) {
-    const updatedTs = Math.floor(record.updatedAt.getTime() / 1000);
-    text += `\n\n**Last Refreshed**\n<t:${updatedTs}:F>`;
+  const suffix = [
+    `\n\n**Attachments**\n${attachmentsText}\n\n`,
+    `**Submitted At**\n<t:${submittedTs}:F>`,
+    wasRefreshed
+      ? `\n\n**Last Refreshed**\n<t:${Math.floor(record.updatedAt.getTime() / 1000)}:F>`
+      : "",
+  ].join("");
+
+  const FENCE_CHARS = 8;
+  const DISCORD_LIMIT = 3950;
+  const contentBudget = DISCORD_LIMIT - prefix.length - suffix.length - FENCE_CHARS;
+
+  const rawContent = record.content.trim();
+  let displayContent: string;
+  if (rawContent.length === 0) {
+    displayContent = "*No text content*";
+  } else {
+    const escaped = escapeCodeFence(rawContent);
+    const truncated =
+      contentBudget > 14 && escaped.length > contentBudget
+        ? escaped.slice(0, contentBudget - 14) + "… (truncated)"
+        : escaped;
+    displayContent = `\`\`\`\n${truncated}\n\`\`\``;
   }
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(text),
-  );
+  const text = prefix + displayContent + suffix;
 
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
   container.addSeparatorComponents(new SeparatorBuilder());
-
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `-# Code \`${record.code}\` — verified by sushii`,
@@ -92,6 +102,22 @@ export function createVerificationNotFoundMessage(): InteractionReplyOptions & {
     ),
   );
 
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  };
+}
+
+export function createVerificationLookupErrorMessage(): InteractionReplyOptions & {
+  flags: number;
+} {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      "## Error\nSomething went wrong while looking up the verification record. Please try again later.",
+    ),
+  );
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,

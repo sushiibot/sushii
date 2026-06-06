@@ -10,6 +10,7 @@ import type {
   NewMessageVerificationData,
   UpsertResult,
 } from "../application/types";
+import { isVerificationRefreshed } from "../application/types";
 
 type DbType = NodePgDatabase<typeof schema>;
 
@@ -29,8 +30,7 @@ function isCodePkViolation(err: unknown): boolean {
   return (
     err instanceof DatabaseError &&
     err.code === "23505" &&
-    (err.constraint === "message_verifications_pkey" ||
-      err.constraint?.includes("_pkey") === true)
+    err.constraint === "message_verifications_pkey"
   );
 }
 
@@ -81,8 +81,7 @@ export class DrizzleMessageVerificationRepository {
           throw new Error("Upsert returned no rows");
         }
 
-        const isRefresh =
-          row.createdAt.getTime() !== row.updatedAt.getTime();
+        const isRefresh = isVerificationRefreshed(row);
 
         return { code: row.code, isRefresh };
       } catch (err) {

@@ -1,11 +1,8 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
-  ContainerBuilder,
   InteractionContextType,
-  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
-  TextDisplayBuilder,
 } from "discord.js";
 import type { Logger } from "pino";
 
@@ -13,6 +10,7 @@ import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { MessageVerificationService } from "../../application/MessageVerificationService";
 import {
+  createVerificationLookupErrorMessage,
   createVerificationLookupMessage,
   createVerificationNotFoundMessage,
 } from "../views/VerificationLookupView";
@@ -71,18 +69,7 @@ export class VerifyMessageCommand extends SlashCommandHandler {
       );
 
       if (!interaction.replied && !interaction.deferred) {
-        const container = new ContainerBuilder();
-        container.addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            "Something went wrong while looking up the verification record. Please try again later.",
-          ),
-        );
-
-        await interaction.reply({
-          components: [container],
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-          allowedMentions: { parse: [] },
-        });
+        await interaction.reply(createVerificationLookupErrorMessage());
       }
     }
   }

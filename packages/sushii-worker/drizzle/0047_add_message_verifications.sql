@@ -12,5 +12,3 @@ CREATE TABLE "app_public"."message_verifications" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "message_verifications_submitter_message_unique" UNIQUE("submitter_user_id","message_id")
 );
-
-CREATE UNIQUE INDEX "scam_candidate_state_review_id_idx" ON "app_public"."scam_candidate_state" USING btree ("review_id");
