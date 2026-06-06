@@ -58,19 +58,23 @@ export class ScamImageHashService {
     private readonly metrics: ScamImageMetrics,
   ) {}
 
-  async computePHash(buffer: Buffer): Promise<bigint> {
-    const { data, info } = await sharp(buffer)
-      .flatten({ background: { r: 0, g: 0, b: 0 } })
-      .greyscale()
-      .resize(32, 32, { fit: "fill", kernel: "nearest" })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+  async computeHash(buffer: Buffer): Promise<bigint> {
+    const data = await this.toGreyscaleRaw(buffer, 9, 8);
 
-    if (info.channels !== 1 || data.length !== 1024) {
-      throw new Error(
-        `Unexpected raw buffer shape: channels=${info.channels}, length=${data.length}`,
-      );
+    let hash = 0n;
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        if (data[row * 9 + col] > data[row * 9 + col + 1]) {
+          hash |= 1n << BigInt(row * 8 + col);
+        }
+      }
     }
+
+    return hash;
+  }
+
+  async computePHash(buffer: Buffer): Promise<bigint> {
+    const data = await this.toGreyscaleRaw(buffer, 32, 32);
 
     const pixels: Float64Array[] = Array.from({ length: 32 }, (_, row) =>
       Float64Array.from({ length: 32 }, (_, col) => data[row * 32 + col]),
@@ -85,11 +89,12 @@ export class ScamImageHashService {
       }
     }
 
-    const mean = low.slice(1).reduce((a, b) => a + b, 0) / 63;
+    const ac = low.slice(1);
+    const mean = ac.reduce((a, b) => a + b, 0) / ac.length;
 
     let hash = 0n;
-    for (let i = 0; i < 64; i++) {
-      if (low[i] > mean) {
+    for (let i = 0; i < ac.length; i++) {
+      if (ac[i] > mean) {
         hash |= 1n << BigInt(i);
       }
     }
@@ -102,32 +107,6 @@ export class ScamImageHashService {
       this.computePHash(buffer),
     ]);
     return { hash, phash };
-  }
-
-  async computeHash(buffer: Buffer): Promise<bigint> {
-    const { data, info } = await sharp(buffer)
-      .flatten({ background: { r: 0, g: 0, b: 0 } })
-      .greyscale()
-      .resize(9, 8, { fit: "fill", kernel: "nearest" })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    if (info.channels !== 1 || data.length !== 72) {
-      throw new Error(
-        `Unexpected raw buffer shape: channels=${info.channels}, length=${data.length}`,
-      );
-    }
-
-    let hash = 0n;
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        if (data[row * 9 + col] > data[row * 9 + col + 1]) {
-          hash |= 1n << BigInt(row * 8 + col);
-        }
-      }
-    }
-
-    return hash;
   }
 
   async checkAttachments(
@@ -226,5 +205,20 @@ export class ScamImageHashService {
     }
 
     return buffer;
+  }
+
+  private async toGreyscaleRaw(buffer: Buffer, width: number, height: number): Promise<Buffer> {
+    const { data, info } = await sharp(buffer)
+      .flatten({ background: { r: 0, g: 0, b: 0 } })
+      .greyscale()
+      .resize(width, height, { fit: "fill", kernel: "nearest" })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    if (info.channels !== 1 || data.length !== width * height) {
+      throw new Error(
+        `Unexpected raw buffer shape: channels=${info.channels}, length=${data.length}`,
+      );
+    }
+    return data;
   }
 }
