@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."message_verifications" ADD COLUMN "channel_context" jsonb;

@@ -299,6 +299,7 @@ export const scamCandidateStateInAppPublic = appPublic.table(
     channelCount: integer("channel_count").notNull().default(0),
     guildIds: text("guild_ids").array().notNull().default(sql`'{}'::text[]`),
     seenByUserIds: text("seen_by_user_ids").array().notNull().default(sql`'{}'::text[]`),
+    trigger: text("trigger").notNull().default("threshold"),
     newImageResults: jsonb("new_image_results"),
     classificationResult: jsonb("classification_result"),
     claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
@@ -1206,7 +1207,13 @@ export const messageVerificationsInAppPublic = appPublic.table(
       mode: "date",
     }).notNull(),
     attachments: jsonb().notNull().$type<
-      { filename: string; contentType: string | null; size: number }[]
+      { filename: string; contentType: string | null; size: number; url?: string }[]
+    >(),
+    channelContext: jsonb("channel_context").$type<
+      | { type: "dm" }
+      | { type: "group_dm"; name: string | null; recipients: string[] }
+      | { type: "guild"; guildId: string; guildName: string; memberCount: number; channelName: string | null }
+      | null
     >(),
     createdAt: timestamp("created_at", {
       withTimezone: true,
