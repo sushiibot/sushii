@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Logger } from "pino";
 
 import { contentTypeFromFilename } from "../utils/imageUtils";
+import type { ScamClassifierMetrics } from "../infrastructure/metrics/ScamClassifierMetrics";
 
 export const MAX_LABEL_LENGTH = 100;
 
@@ -55,11 +56,15 @@ export class ScamImageClassifier {
     private readonly apiKey: string,
     private readonly model: string,
     private readonly logger: Logger,
+    private readonly metrics: ScamClassifierMetrics,
   ) {}
 
   async classify(
     images: { buffer: Buffer; filename: string }[],
   ): Promise<ClassificationResult | null> {
+    const startMs = performance.now();
+    const attrs = { model: this.model };
+
     try {
       const userText =
         images.length === 1
@@ -110,25 +115,47 @@ export class ScamImageClassifier {
         signal: AbortSignal.timeout(15_000),
       });
 
+      this.metrics.durationHistogram.record(performance.now() - startMs, attrs);
+
       if (!resp.ok) {
         this.logger.warn(
           { status: resp.status, model: this.model },
           "OpenRouter API request failed",
         );
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "api_error" });
         return null;
       }
 
       const data = await resp.json();
+
       const envelopeSchema = z.object({
         choices: z
           .array(z.object({ message: z.object({ content: z.string() }) }))
           .min(1),
+        usage: z
+          .object({
+            prompt_tokens: z.number().optional(),
+            completion_tokens: z.number().optional(),
+          })
+          .optional(),
       });
       const envelope = envelopeSchema.safeParse(data);
       if (!envelope.success) {
         this.logger.warn({ data }, "Unexpected OpenRouter response shape");
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
         return null;
       }
+
+      const { usage } = envelope.data;
+      if (usage) {
+        if (usage.prompt_tokens) {
+          this.metrics.tokenCounter.add(usage.prompt_tokens, { ...attrs, token_type: "input" });
+        }
+        if (usage.completion_tokens) {
+          this.metrics.tokenCounter.add(usage.completion_tokens, { ...attrs, token_type: "output" });
+        }
+      }
+
       const rawContent = envelope.data.choices[0].message.content.trim();
 
       const stripped = rawContent
@@ -141,6 +168,7 @@ export class ScamImageClassifier {
         parsed = JSON.parse(stripped);
       } catch (err) {
         this.logger.warn({ err, rawContent }, "Failed to parse OpenRouter response JSON");
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
         return null;
       }
 
@@ -150,12 +178,20 @@ export class ScamImageClassifier {
           { error: result.error.message, parsed },
           "OpenRouter response failed schema validation",
         );
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
         return null;
       }
+
+      this.metrics.requestCounter.add(1, {
+        ...attrs,
+        outcome: result.data.isScam ? "scam" : "not_scam",
+      });
 
       return result.data;
     } catch (err) {
       this.logger.warn({ err }, "ScamImageClassifier.classify failed");
+      this.metrics.durationHistogram.record(performance.now() - startMs, attrs);
+      this.metrics.requestCounter.add(1, { ...attrs, outcome: "error" });
       return null;
     }
   }

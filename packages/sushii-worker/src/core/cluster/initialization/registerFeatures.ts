@@ -2,7 +2,6 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { ScamImageClassifier } from "@/features/automod/application/ScamImageClassifier";
 import { ScamImageStore } from "@/features/automod/infrastructure/ScamImageStore";
 import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
@@ -194,14 +193,6 @@ export function registerFeatures(
     logger,
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
-  const scamImageClassifier = config.openRouterApiKey
-    ? new ScamImageClassifier(
-        config.openRouterApiKey,
-        config.openRouterScamClassifyModel,
-        logger.child({ component: "ScamImageClassifier" }),
-      )
-    : undefined;
-
   const scamImageStoreVars = [
     config.scamImageStoreEndpoint,
     config.scamImageStoreBucket,
@@ -234,7 +225,8 @@ export function registerFeatures(
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
-    scamImageClassifier,
+    openRouterApiKey: config.openRouterApiKey,
+    openRouterScamClassifyModel: config.openRouterScamClassifyModel,
     scamImageStore,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });

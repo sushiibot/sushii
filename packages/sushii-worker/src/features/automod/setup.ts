@@ -13,7 +13,7 @@ import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
 import { ScamCandidateService } from "./application/ScamCandidateService";
-import type { ScamImageClassifier } from "./application/ScamImageClassifier";
+import { ScamImageClassifier } from "./application/ScamImageClassifier";
 import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
 import { SpamAlertCache } from "./application/SpamAlertCache";
@@ -22,6 +22,7 @@ import { SpamDetectionService } from "./application/SpamDetectionService";
 import { DrizzleScamCandidateRepository } from "./infrastructure/DrizzleScamCandidateRepository";
 import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImageHashRepository";
 import { ScamCandidateMetrics } from "./infrastructure/metrics/ScamCandidateMetrics";
+import { ScamClassifierMetrics } from "./infrastructure/metrics/ScamClassifierMetrics";
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { ScamCandidateJanitorTask } from "./infrastructure/tasks/ScamCandidateJanitorTask";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
@@ -52,14 +53,15 @@ export interface AutomodFeatureOptions {
   deploymentService: DeploymentService;
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
-  scamImageClassifier?: ScamImageClassifier;
+  openRouterApiKey?: string;
+  openRouterScamClassifyModel?: string;
   scamImageStore?: ScamImageStore;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, scamImageClassifier, scamImageStore } =
+  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, openRouterApiKey, openRouterScamClassifyModel, scamImageStore } =
     options;
 
   // Services
@@ -100,6 +102,17 @@ export function setupAutomodFeature(
     scamImageMetrics,
     scamImageStore,
   );
+
+  const scamClassifierMetrics = new ScamClassifierMetrics();
+  const scamImageClassifier =
+    openRouterApiKey && openRouterScamClassifyModel
+      ? new ScamImageClassifier(
+          openRouterApiKey,
+          openRouterScamClassifyModel,
+          logger.child({ component: "ScamImageClassifier" }),
+          scamClassifierMetrics,
+        )
+      : undefined;
 
   const scamCandidateMetrics = new ScamCandidateMetrics();
   const scamCandidateService = new ScamCandidateService(
