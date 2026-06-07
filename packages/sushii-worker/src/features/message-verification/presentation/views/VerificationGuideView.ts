@@ -44,13 +44,26 @@ export function createVerificationGuideMessage(
     new TextDisplayBuilder().setContent(
       [
         "### How to Request Verification",
-        `The user must have sushii installed as a [user app](${installUrl}) to use **Submit to Mods** outside of this server (e.g. in DMs).`,
-        "",
-        "Ask the user to right-click a specific message and select **Apps → Submit to Mods**, then share the 8-character code with you.",
-        "",
-        "Run `/verify-message code:<code>` to display the verified record.",
+        "Run `/verify-message code:<code>` to display the verified record once you have a code.",
         "",
         "-# Codes don't expire. Any mod can look up any code. Works in servers, DMs, and group DMs.",
+      ].join("\n"),
+    ),
+  );
+
+  container.addSeparatorComponents(new SeparatorBuilder());
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      [
+        "### Suggested Message to Send",
+        "Copy and send this to the user you're requesting verification from:",
+        "```",
+        "To verify a message for our moderation team:",
+        `1. Install sushii as a user app (required for DMs): ${installUrl}`,
+        "2. Right-click the message → Apps → Submit to Mods",
+        "3. Send me the 8-character code you receive",
+        "```",
       ].join("\n"),
     ),
   );
