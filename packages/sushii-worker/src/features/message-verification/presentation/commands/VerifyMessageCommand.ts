@@ -39,10 +39,6 @@ export class VerifyMessageCommand extends SlashCommandHandler {
   }
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
-    if (!interaction.inCachedGuild()) {
-      throw new Error("Not a cached guild interaction");
-    }
-
     const rawCode = interaction.options.getString("code", true);
     const code = rawCode.trim().toUpperCase();
 
