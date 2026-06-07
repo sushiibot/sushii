@@ -129,6 +129,27 @@ export function initializeOtel(logger: Logger, clusterId: number) {
           options: { boundaries: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 64] },
         },
       } satisfies ViewOptions,
+      {
+        instrumentName: "automod.scam_image.download_duration",
+        aggregation: {
+          type: AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
+          options: { boundaries: [10, 25, 50, 100, 200, 400, 750, 1500, 3000, 10000] },
+        },
+      } satisfies ViewOptions,
+      {
+        instrumentName: "automod.scam_image.hash_duration",
+        aggregation: {
+          type: AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
+          options: { boundaries: [1, 5, 10, 25, 50, 100, 200, 500, 1000] },
+        },
+      } satisfies ViewOptions,
+      {
+        instrumentName: "automod.classifier.duration",
+        aggregation: {
+          type: AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
+          options: { boundaries: [100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000, 20000] },
+        },
+      } satisfies ViewOptions,
     ],
     readers: [
       new PeriodicExportingMetricReader({
