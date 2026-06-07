@@ -539,7 +539,7 @@ export class ScamCandidateService {
         await this.editReviewMessage(updated);
       }
 
-      this.metrics.reviewCounter.add(1, { outcome: "duplicate_pending", trigger });
+      this.metrics.reviewCounter.add(1, { outcome: "already_in_review", trigger });
       return;
     }
 
@@ -586,7 +586,7 @@ export class ScamCandidateService {
         { channelId: REVIEW_CHANNEL_ID },
         "Review channel not in cache — bot may be starting up, will retry via orphan janitor",
       );
-      this.metrics.reviewCounter.add(1, { outcome: "channel_error", trigger });
+      this.metrics.reviewCounter.add(1, { outcome: "channel_not_cached", trigger });
       return;
     }
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
@@ -660,7 +660,7 @@ export class ScamCandidateService {
           "transitionToReviewing returned null for non-terminal row — leaving message",
         );
       }
-      this.metrics.reviewCounter.add(1, { outcome: "state_lost_before_transition", trigger });
+      this.metrics.reviewCounter.add(1, { outcome: "state_lost", trigger });
       return;
     }
 
@@ -668,7 +668,7 @@ export class ScamCandidateService {
       await this.editReviewMessage(reviewing);
     }
 
-    this.metrics.reviewCounter.add(1, { outcome: "sent", trigger });
+    this.metrics.reviewCounter.add(1, { outcome: "review_sent", trigger });
   }
 
   private async buildReviewFromState(
