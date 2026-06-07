@@ -57,12 +57,13 @@ export interface AutomodFeatureOptions {
   openRouterApiKey?: string;
   openRouterScamClassifyModel?: string;
   scamImageStore?: ScamImageStore;
+  scamImageMetrics: ScamImageMetrics;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, openRouterApiKey, openRouterScamClassifyModel, scamImageStore } =
+  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, openRouterApiKey, openRouterScamClassifyModel, scamImageStore, scamImageMetrics } =
     options;
 
   // Services
@@ -94,8 +95,6 @@ export function setupAutomodFeature(
 
   const scamImageHashRepository = new DrizzleScamImageHashRepository(db);
   const scamCandidateRepository = new DrizzleScamCandidateRepository(db);
-  const scamImageMetrics = new ScamImageMetrics();
-  scamImageStore?.setMetrics(scamImageMetrics);
 
   const scamImageHashService = new ScamImageHashService(
     scamImageHashRepository,

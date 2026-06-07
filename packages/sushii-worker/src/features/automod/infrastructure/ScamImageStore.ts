@@ -16,7 +16,6 @@ export interface StoreOpts {
 
 export class ScamImageStore {
   private readonly s3: S3Client;
-  private metrics?: ScamImageMetrics;
 
   constructor(
     endpoint: string,
@@ -24,7 +23,7 @@ export class ScamImageStore {
     accessKeyId: string,
     secretAccessKey: string,
     private readonly logger: Logger,
-    metrics?: ScamImageMetrics,
+    private readonly metrics: ScamImageMetrics,
   ) {
     this.s3 = new S3Client({
       endpoint,
@@ -32,11 +31,6 @@ export class ScamImageStore {
       credentials: { accessKeyId, secretAccessKey },
       forcePathStyle: true,
     });
-    this.metrics = metrics;
-  }
-
-  setMetrics(metrics: ScamImageMetrics): void {
-    this.metrics = metrics;
   }
 
   async store(opts: StoreOpts): Promise<string | null> {
@@ -71,9 +65,10 @@ export class ScamImageStore {
           Metadata: metadata,
         }),
       );
+      this.metrics.uploadCounter.add(1, { trigger, outcome: "success" });
       return key;
     } catch (err) {
-      this.metrics?.uploadFailureCounter.add(1, { trigger });
+      this.metrics.uploadCounter.add(1, { trigger, outcome: "failure" });
       this.logger.warn({ err, key }, "ScamImageStore upload failed");
       return null;
     }

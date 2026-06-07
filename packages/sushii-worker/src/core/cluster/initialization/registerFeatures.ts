@@ -3,6 +3,7 @@ import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { ScamImageStore } from "@/features/automod/infrastructure/ScamImageStore";
+import { ScamImageMetrics } from "@/features/automod/infrastructure/metrics/ScamImageMetrics";
 import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
@@ -201,6 +202,7 @@ export function registerFeatures(
   ];
   const scamImageStoreConfiguredCount = scamImageStoreVars.filter(Boolean).length;
 
+  const scamImageMetrics = new ScamImageMetrics();
   let scamImageStore: ScamImageStore | undefined;
   if (scamImageStoreConfiguredCount === 4) {
     scamImageStore = new ScamImageStore(
@@ -209,6 +211,7 @@ export function registerFeatures(
       config.scamImageStoreAccessKeyId!,
       config.scamImageStoreSecretAccessKey!,
       logger.child({ component: "ScamImageStore" }),
+      scamImageMetrics,
     );
   } else if (scamImageStoreConfiguredCount > 0) {
     logger.warn(
@@ -228,6 +231,7 @@ export function registerFeatures(
     openRouterApiKey: config.openRouterApiKey,
     openRouterScamClassifyModel: config.openRouterScamClassifyModel,
     scamImageStore,
+    scamImageMetrics,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const promptsFeature = setupPromptsFeature({ db, logger });

@@ -8,7 +8,7 @@ const logger = newModuleLogger("ScamImageMetrics");
 export class ScamImageMetrics {
   readonly checkCounter: Counter;
   readonly matchCounter: Counter;
-  readonly uploadFailureCounter: Counter;
+  readonly uploadCounter: Counter;
   readonly downloadDurationHistogram: Histogram;
   readonly hashDurationHistogram: Histogram;
   readonly nearestDistanceHistogram: Histogram;
@@ -26,8 +26,8 @@ export class ScamImageMetrics {
       valueType: ValueType.INT,
     });
 
-    this.uploadFailureCounter = meter.createCounter("automod.scam_image.upload_failure", {
-      description: "Scam image S3 upload failures",
+    this.uploadCounter = meter.createCounter("automod.scam_image.upload", {
+      description: "Scam image S3 upload attempts",
       valueType: ValueType.INT,
     });
 
