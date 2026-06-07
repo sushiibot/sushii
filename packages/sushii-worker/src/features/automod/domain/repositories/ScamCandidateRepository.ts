@@ -147,8 +147,8 @@ export interface ScamCandidateRepository {
   deleteOldSightings(cutoff: Date): Promise<number>;
 
   /**
-   * Deletes orphaned claimed rows stuck longer than the given timeout.
+   * Deletes orphaned rows with status IN ('claimed', 'ready_to_post') stuck longer than the given timeout.
    * Returns deleted count.
    */
-  deleteOrphanedClaimedRows(cutoff: Date): Promise<number>;
+  deleteOrphanedPendingRows(cutoff: Date): Promise<number>;
 }

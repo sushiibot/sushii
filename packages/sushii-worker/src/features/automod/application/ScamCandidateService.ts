@@ -32,7 +32,7 @@ import {
   type ScamImageClassifier,
 } from "./ScamImageClassifier";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
-import type { ScamCandidateRepository, ScamCandidateState } from "../domain/repositories/ScamCandidateRepository";
+import type { ScamCandidateRepository, ScamCandidateReviewStatus, ScamCandidateState } from "../domain/repositories/ScamCandidateRepository";
 import type { ScamImageStore } from "../infrastructure/ScamImageStore";
 import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
 import {
@@ -199,6 +199,16 @@ export class ScamCandidateService {
     });
   }
 
+  private getStatusGuardMessage(status: ScamCandidateReviewStatus): string | null {
+    if (status === "claimed" || status === "ready_to_post") {
+      return "This review is still being set up — please try again in a moment.";
+    }
+    if (status === "ignored" || status === "added") {
+      return "This review has already been resolved.";
+    }
+    return null;
+  }
+
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
 
@@ -210,18 +220,9 @@ export class ScamCandidateService {
       });
       return;
     }
-    if (current.status === "claimed" || current.status === "ready_to_post") {
-      await interaction.followUp({
-        content: "This review is still being set up — please try again in a moment.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-    if (current.status === "ignored" || current.status === "added") {
-      await interaction.followUp({
-        content: "This review has already been resolved.",
-        flags: MessageFlags.Ephemeral,
-      });
+    const guardMsg = this.getStatusGuardMessage(current.status);
+    if (guardMsg) {
+      await interaction.followUp({ content: guardMsg, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -251,19 +252,9 @@ export class ScamCandidateService {
       return;
     }
 
-    if (state.status === "claimed" || state.status === "ready_to_post") {
-      await interaction.reply({
-        content: "This review is still being set up — please try again in a moment.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    if (state.status === "ignored" || state.status === "added") {
-      await interaction.reply({
-        content: "This review has already been resolved.",
-        flags: MessageFlags.Ephemeral,
-      });
+    const guardMsg = this.getStatusGuardMessage(state.status);
+    if (guardMsg) {
+      await interaction.reply({ content: guardMsg, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -306,7 +297,7 @@ export class ScamCandidateService {
     const added: { id: number; filename: string }[] = [];
     const failed: string[] = [];
 
-    for (const r of imageResults.filter((r) => r.isNew)) {
+    for (const r of imageResults.filter((img) => img.isNew)) {
       try {
         const id = await this.hashRepository.add(BigInt(r.phash), label, r.s3Key ?? undefined);
         added.push({ id, filename: r.filename });
@@ -359,7 +350,7 @@ export class ScamCandidateService {
     }
 
     const claimedCutoff = new Date(Date.now() - CLAIMED_ORPHAN_TTL_MS);
-    const deletedClaimed = await this.candidateRepository.deleteOrphanedClaimedRows(claimedCutoff);
+    const deletedClaimed = await this.candidateRepository.deleteOrphanedPendingRows(claimedCutoff);
     if (deletedClaimed > 0) {
       this.logger.debug({ deleted: deletedClaimed }, "Deleted orphaned claimed scam candidate rows");
     }
@@ -443,10 +434,19 @@ export class ScamCandidateService {
       files: successfulFiles,
     });
 
-    const reviewing = await this.candidateRepository.transitionFromReadyToPost(key, {
-      reviewChannelId: REVIEW_CHANNEL_ID,
-      reviewMessageId: msg.id,
-    });
+    let reviewing;
+    try {
+      reviewing = await this.candidateRepository.transitionFromReadyToPost(key, {
+        reviewChannelId: REVIEW_CHANNEL_ID,
+        reviewMessageId: msg.id,
+      });
+    } catch (err) {
+      this.logger.warn({ err, reviewId, key, messageId: msg.id }, "transitionFromReadyToPost threw — deleting message to prevent duplicate");
+      await msg.delete().catch((deleteErr) => {
+        this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete message after transition error");
+      });
+      throw err;
+    }
 
     if (!reviewing) {
       // Blue/green race — another instance won; delete our orphaned message
@@ -730,7 +730,10 @@ export class ScamCandidateService {
     overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[] },
   ): Promise<ReturnType<typeof buildScamCandidateReviewMessage>> {
     const guildNames =
-      overrides?.guildNames ?? state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+      overrides?.guildNames ??
+      (state.guildNames.length > 0
+        ? state.guildNames
+        : state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id));
     const imageResults = overrides?.imageResults ?? state.newImageResults ?? [];
     const username = await this.fetchUsername(state.triggeredByUserId);
     return buildScamCandidateReviewMessage({

@@ -14,6 +14,13 @@ export abstract class AbstractBackgroundTask {
     protected readonly logger: Logger,
   ) {}
 
+  /**
+   * Optional predicate evaluated after the Discord `ready` event. When defined,
+   * the task is registered on all clusters and the cron starts only if this returns
+   * true. When absent, the existing cluster-0-only behaviour applies.
+   */
+  shouldRunOnCluster?(): boolean;
+
   async onTick(): Promise<void> {
     // Check deployment status before executing
     if (!this.deploymentService.isCurrentDeploymentActive()) {

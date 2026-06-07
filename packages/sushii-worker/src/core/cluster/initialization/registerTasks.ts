@@ -72,7 +72,7 @@ export function registerTasks(
 
   for (const task of featureTasks) {
     if (task.shouldRunOnCluster) {
-      if (!task.shouldRunOnCluster(client)) {
+      if (!task.shouldRunOnCluster()) {
         logger.info(
           {
             taskName: task.name,

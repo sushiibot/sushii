@@ -22,8 +22,8 @@ export class ScamCandidateReviewPostTask extends AbstractBackgroundTask {
     super(client, deploymentService, logger);
   }
 
-  shouldRunOnCluster(client: Client): boolean {
-    return client.channels.cache.has(REVIEW_CHANNEL_ID);
+  shouldRunOnCluster(): boolean {
+    return this.client.channels.cache.has(REVIEW_CHANNEL_ID);
   }
 
   protected async execute(): Promise<void> {

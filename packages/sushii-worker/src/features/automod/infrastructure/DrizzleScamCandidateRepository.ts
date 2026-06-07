@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";
@@ -88,6 +88,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     channelCount: number,
     guildIds: string[],
     trigger: ScamCandidateTrigger,
+    attachmentUrls: string[],
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .insert(scamCandidateStateInAppPublic)
@@ -100,6 +101,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         channelCount,
         guildIds,
         seenByUserIds: [triggeredByUserId],
+        attachmentUrls,
       })
       .onConflictDoNothing()
       .returning();
@@ -107,23 +109,21 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     return rows[0] ? this.rowToState(rows[0]) : null;
   }
 
-  async transitionToReviewing(
+  async transitionToReadyToPost(
     key: string,
     opts: {
-      reviewChannelId: string;
-      reviewMessageId: string;
       newImageResults: StoredImageResult[];
       classificationResult: StoredClassificationResult | null;
+      guildNames: string[];
     },
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .update(scamCandidateStateInAppPublic)
       .set({
-        status: "reviewing",
-        reviewChannelId: opts.reviewChannelId,
-        reviewMessageId: opts.reviewMessageId,
+        status: "ready_to_post",
         newImageResults: opts.newImageResults,
         classificationResult: opts.classificationResult,
+        guildNames: opts.guildNames,
         updatedAt: new Date(),
       })
       .where(
@@ -135,6 +135,42 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .returning();
 
     return rows[0] ? this.rowToState(rows[0]) : null;
+  }
+
+  async transitionFromReadyToPost(
+    key: string,
+    opts: {
+      reviewChannelId: string;
+      reviewMessageId: string;
+    },
+  ): Promise<ScamCandidateState | null> {
+    const rows = await this.db
+      .update(scamCandidateStateInAppPublic)
+      .set({
+        status: "reviewing",
+        reviewChannelId: opts.reviewChannelId,
+        reviewMessageId: opts.reviewMessageId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(scamCandidateStateInAppPublic.key, key),
+          eq(scamCandidateStateInAppPublic.status, "ready_to_post"),
+        ),
+      )
+      .returning();
+
+    return rows[0] ? this.rowToState(rows[0]) : null;
+  }
+
+  async getPendingPostRows(): Promise<ScamCandidateState[]> {
+    const rows = await this.db
+      .select()
+      .from(scamCandidateStateInAppPublic)
+      .where(eq(scamCandidateStateInAppPublic.status, "ready_to_post"))
+      .orderBy(asc(scamCandidateStateInAppPublic.claimedAt));
+
+    return rows.map((row) => this.rowToState(row));
   }
 
   async appendSeenUser(
@@ -154,7 +190,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(
         and(
           eq(scamCandidateStateInAppPublic.key, key),
-          sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'reviewing')`,
+          sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'ready_to_post', 'reviewing')`,
         ),
       )
       .returning();
@@ -213,12 +249,12 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     return deleted.length;
   }
 
-  async deleteOrphanedClaimedRows(cutoff: Date): Promise<number> {
+  async deleteOrphanedPendingRows(cutoff: Date): Promise<number> {
     const deleted = await this.db
       .delete(scamCandidateStateInAppPublic)
       .where(
         and(
-          eq(scamCandidateStateInAppPublic.status, "claimed"),
+          sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'ready_to_post')`,
           lt(scamCandidateStateInAppPublic.claimedAt, cutoff),
         ),
       )
@@ -241,6 +277,8 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       seenByUserIds: row.seenByUserIds,
       newImageResults: row.newImageResults as StoredImageResult[] | null,
       classificationResult: row.classificationResult as StoredClassificationResult | null,
+      attachmentUrls: row.attachmentUrls,
+      guildNames: row.guildNames,
       claimedAt: row.claimedAt,
       updatedAt: row.updatedAt,
     };
