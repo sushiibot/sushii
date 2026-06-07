@@ -202,19 +202,29 @@ export function registerFeatures(
       )
     : undefined;
 
-  const scamImageStore =
-    config.scamImageStoreEndpoint &&
-    config.scamImageStoreBucket &&
-    config.scamImageStoreAccessKeyId &&
-    config.scamImageStoreSecretAccessKey
-      ? new ScamImageStore(
-          config.scamImageStoreEndpoint,
-          config.scamImageStoreBucket,
-          config.scamImageStoreAccessKeyId,
-          config.scamImageStoreSecretAccessKey,
-          logger.child({ component: "ScamImageStore" }),
-        )
-      : undefined;
+  const scamImageStoreVars = [
+    config.scamImageStoreEndpoint,
+    config.scamImageStoreBucket,
+    config.scamImageStoreAccessKeyId,
+    config.scamImageStoreSecretAccessKey,
+  ];
+  const scamImageStoreConfiguredCount = scamImageStoreVars.filter(Boolean).length;
+
+  let scamImageStore: ScamImageStore | undefined;
+  if (scamImageStoreConfiguredCount === 4) {
+    scamImageStore = new ScamImageStore(
+      config.scamImageStoreEndpoint!,
+      config.scamImageStoreBucket!,
+      config.scamImageStoreAccessKeyId!,
+      config.scamImageStoreSecretAccessKey!,
+      logger.child({ component: "ScamImageStore" }),
+    );
+  } else if (scamImageStoreConfiguredCount > 0) {
+    logger.warn(
+      { configured: scamImageStoreConfiguredCount, required: 4 },
+      "ScamImageStore partially configured — all 4 SCAM_IMAGE_STORE_* vars required; image uploads disabled",
+    );
+  }
 
   const automodFeature = setupAutomodFeature({
     client,
