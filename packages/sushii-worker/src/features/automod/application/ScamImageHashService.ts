@@ -239,7 +239,7 @@ export class ScamImageHashService {
     const { data, info } = await sharp(buffer)
       .flatten({ background: { r: 0, g: 0, b: 0 } })
       .greyscale()
-      .resize(width, height, { fit: "fill", kernel: "nearest" })
+      .resize(width, height, { fit: "fill", kernel: "lanczos3" })
       .raw()
       .toBuffer({ resolveWithObject: true });
     if (info.channels !== 1 || data.length !== width * height) {
