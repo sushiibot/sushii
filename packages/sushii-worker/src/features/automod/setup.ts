@@ -92,6 +92,7 @@ export function setupAutomodFeature(
   const scamImageHashRepository = new DrizzleScamImageHashRepository(db);
   const scamCandidateRepository = new DrizzleScamCandidateRepository(db);
   const scamImageMetrics = new ScamImageMetrics();
+  scamImageStore?.setMetrics(scamImageMetrics);
 
   const scamImageHashService = new ScamImageHashService(
     scamImageHashRepository,

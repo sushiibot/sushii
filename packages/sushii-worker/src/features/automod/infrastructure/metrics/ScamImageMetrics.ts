@@ -8,6 +8,7 @@ const logger = newModuleLogger("ScamImageMetrics");
 export class ScamImageMetrics {
   readonly checkCounter: Counter;
   readonly matchCounter: Counter;
+  readonly uploadFailureCounter: Counter;
   readonly downloadDurationHistogram: Histogram;
   readonly hashDurationHistogram: Histogram;
   readonly nearestDistanceHistogram: Histogram;
@@ -25,6 +26,11 @@ export class ScamImageMetrics {
       valueType: ValueType.INT,
     });
 
+    this.uploadFailureCounter = meter.createCounter("automod.scam_image.upload_failure", {
+      description: "Scam image S3 upload failures",
+      valueType: ValueType.INT,
+    });
+
     this.downloadDurationHistogram = meter.createHistogram(
       "automod.scam_image.download_duration",
       {
@@ -37,7 +43,7 @@ export class ScamImageMetrics {
     this.hashDurationHistogram = meter.createHistogram(
       "automod.scam_image.hash_duration",
       {
-        description: "Time to compute dHash for an image buffer (ms)",
+        description: "Time to compute pHash for an image buffer (ms)",
         valueType: ValueType.DOUBLE,
         unit: "ms",
       },
