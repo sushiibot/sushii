@@ -37,7 +37,16 @@ function formatLocation(
     ? `#${channelContext.channelName}`
     : `\`${channelId}\``;
 
-  return `${channelPart} · **${channelContext.guildName}** · ${channelContext.memberCount.toLocaleString()} members`;
+  const guildPart = channelContext.guildName
+    ? `**${channelContext.guildName}**`
+    : `Unknown Server (\`${channelContext.guildId}\`)`;
+
+  const memberPart =
+    channelContext.memberCount !== null
+      ? ` · ${channelContext.memberCount.toLocaleString()} members`
+      : "";
+
+  return `${channelPart} · ${guildPart}${memberPart}`;
 }
 
 export function createVerificationLookupMessage(

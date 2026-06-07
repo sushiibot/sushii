@@ -11,8 +11,8 @@ export type ChannelContext =
   | {
       type: "guild";
       guildId: string;
-      guildName: string;
-      memberCount: number;
+      guildName: string | null;
+      memberCount: number | null;
       channelName: string | null;
     };
 

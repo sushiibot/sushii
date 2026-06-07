@@ -21,7 +21,17 @@ function extractChannelContext(
   interaction: ContextMenuCommandInteraction,
 ): ChannelContext | null {
   const channel = interaction.channel;
+
   if (!channel) {
+    if (interaction.guildId) {
+      return {
+        type: "guild",
+        guildId: interaction.guildId,
+        guildName: null,
+        memberCount: null,
+        channelName: null,
+      };
+    }
     return null;
   }
 
@@ -41,8 +51,8 @@ function extractChannelContext(
   return {
     type: "guild",
     guildId: guild?.id ?? channel.guildId,
-    guildName: guild?.name ?? "Unknown Server",
-    memberCount: guild?.memberCount ?? 0,
+    guildName: guild?.name ?? null,
+    memberCount: guild?.memberCount ?? null,
     channelName: "name" in channel ? (channel.name ?? null) : null,
   };
 }

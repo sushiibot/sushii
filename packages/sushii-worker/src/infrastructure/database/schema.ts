@@ -1213,7 +1213,7 @@ export const messageVerificationsInAppPublic = appPublic.table(
     channelContext: jsonb("channel_context").$type<
       | { type: "dm" }
       | { type: "group_dm"; name: string | null; recipients: string[] }
-      | { type: "guild"; guildId: string; guildName: string; memberCount: number; channelName: string | null }
+      | { type: "guild"; guildId: string; guildName: string | null; memberCount: number | null; channelName: string | null }
       | null
     >(),
     createdAt: timestamp("created_at", {
