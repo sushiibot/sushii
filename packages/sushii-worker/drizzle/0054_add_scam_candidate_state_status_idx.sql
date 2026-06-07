@@ -1,0 +1,1 @@
+CREATE INDEX "scam_candidate_state_status_idx" ON "app_public"."scam_candidate_state" USING btree ("status");

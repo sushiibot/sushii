@@ -170,7 +170,8 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .select()
       .from(scamCandidateStateInAppPublic)
       .where(eq(scamCandidateStateInAppPublic.status, "ready_to_post"))
-      .orderBy(asc(scamCandidateStateInAppPublic.claimedAt));
+      .orderBy(asc(scamCandidateStateInAppPublic.claimedAt))
+      .limit(25);
 
     return rows.map((row) => this.rowToState(row));
   }

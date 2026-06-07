@@ -285,7 +285,7 @@ export const scamCandidateSightingsInAppPublic = appPublic.table(
 
 export const scamCandidateReviewStatusInAppPublic = appPublic.enum(
   "scam_candidate_review_status",
-  ["claimed", "reviewing", "ignored", "added"],
+  ["claimed", "ready_to_post", "reviewing", "ignored", "added"],
 );
 
 export const scamCandidateStateInAppPublic = appPublic.table(
@@ -303,11 +303,14 @@ export const scamCandidateStateInAppPublic = appPublic.table(
     trigger: text("trigger").notNull().default("threshold"),
     newImageResults: jsonb("new_image_results"),
     classificationResult: jsonb("classification_result"),
+    attachmentUrls: text("attachment_urls").array().notNull().default(sql`'{}'::text[]`),
+    guildNames: text("guild_names").array().notNull().default(sql`'{}'::text[]`),
     claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("scam_candidate_state_review_id_idx").on(table.reviewId),
+    index("scam_candidate_state_status_idx").on(table.status),
   ],
 );
 

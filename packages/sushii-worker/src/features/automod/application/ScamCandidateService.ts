@@ -400,19 +400,21 @@ export class ScamCandidateService {
         continue;
       }
 
+      let buffer: Buffer;
       try {
         const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
         if (!resp.ok) {
           this.logger.warn({ reviewId, url, status: resp.status }, "Failed to re-download attachment URL — skipping image");
           continue;
         }
-
-        const buffer = Buffer.from(await resp.arrayBuffer());
-        successfulFiles.push({ attachment: buffer, name: imageResult.filename });
-        successfulResults.push(imageResult);
+        buffer = Buffer.from(await resp.arrayBuffer());
       } catch (err) {
         this.logger.warn({ err, reviewId, url }, "Error re-downloading attachment URL — skipping image");
+        continue;
       }
+
+      successfulFiles.push({ attachment: buffer, name: imageResult.filename });
+      successfulResults.push(imageResult);
     }
 
     const channel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
