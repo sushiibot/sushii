@@ -104,7 +104,7 @@ export class ScamHashCommand extends SlashCommandHandler {
     }
 
     if (attachment.size > SCAM_IMAGE_MAX_SIZE_BYTES) {
-      await interaction.editReply("Image must be 5MB or smaller.");
+      await interaction.editReply("Image must be 8MB or smaller.");
       return;
     }
 

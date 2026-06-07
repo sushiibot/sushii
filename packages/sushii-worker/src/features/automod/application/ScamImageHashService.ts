@@ -174,6 +174,7 @@ export class ScamImageHashService {
           nearMissUrls.push(url);
         }
 
+        this.metrics.checkCounter.add(1, { outcome: "no_match" });
         this.logger.debug(
           {
             url,
@@ -190,8 +191,6 @@ export class ScamImageHashService {
         this.logger.debug({ err, url }, "Failed to check attachment for scam image");
       }
     }
-
-    this.metrics.checkCounter.add(1, { outcome: "no_match" });
 
     return { matched: null, nearMissUrls };
   }
