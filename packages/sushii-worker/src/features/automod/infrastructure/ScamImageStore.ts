@@ -16,16 +16,14 @@ export interface StoreOpts {
 
 export class ScamImageStore {
   private readonly s3: S3Client;
-  private readonly bucket: string;
 
   constructor(
     endpoint: string,
-    bucket: string,
+    private readonly bucket: string,
     accessKeyId: string,
     secretAccessKey: string,
     private readonly logger: Logger,
   ) {
-    this.bucket = bucket;
     this.s3 = new S3Client({
       endpoint,
       region: "auto",
