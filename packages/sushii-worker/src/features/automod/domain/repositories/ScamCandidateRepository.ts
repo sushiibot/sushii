@@ -10,6 +10,8 @@ export interface StoredImageResult {
   isNew: boolean;
   /** S3 key for the stored image; null if not stored or upload failed */
   s3Key?: string | null;
+  /** Index into attachmentUrls; optional for backward compat with old DB rows */
+  attachmentIndex?: number;
 }
 
 export interface StoredClassificationResult {
@@ -19,7 +21,7 @@ export interface StoredClassificationResult {
   reason: string;
 }
 
-export type ScamCandidateReviewStatus = "claimed" | "reviewing" | "ignored" | "added";
+export type ScamCandidateReviewStatus = "claimed" | "ready_to_post" | "reviewing" | "ignored" | "added";
 export type ScamCandidateTrigger = "threshold" | "near_miss";
 
 export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added">;
@@ -37,6 +39,8 @@ export interface ScamCandidateState {
   seenByUserIds: string[];
   newImageResults: StoredImageResult[] | null;
   classificationResult: StoredClassificationResult | null;
+  attachmentUrls: string[];
+  guildNames: string[];
   claimedAt: Date;
   updatedAt: Date;
 }
@@ -77,27 +81,42 @@ export interface ScamCandidateRepository {
     channelCount: number,
     guildIds: string[],
     trigger: ScamCandidateTrigger,
+    attachmentUrls: string[],
   ): Promise<ScamCandidateState | null>;
 
   /**
-   * Transitions a claimed row to 'reviewing' and populates the nullable columns
-   * that become available after the Discord message is sent.
+   * Transitions a claimed row to 'ready_to_post', persisting image results,
+   * classification, and guild names for the owning cluster to consume.
    */
-  transitionToReviewing(
+  transitionToReadyToPost(
     key: string,
     opts: {
-      reviewChannelId: string;
-      reviewMessageId: string;
       newImageResults: StoredImageResult[];
       classificationResult: StoredClassificationResult | null;
+      guildNames: string[];
     },
   ): Promise<ScamCandidateState | null>;
 
   /**
+   * Transitions a ready_to_post row to 'reviewing', setting review channel/message IDs.
+   * Guards on WHERE status = 'ready_to_post'. Returns null if row is no longer in that status.
+   */
+  transitionFromReadyToPost(
+    key: string,
+    opts: {
+      reviewChannelId: string;
+      reviewMessageId: string;
+    },
+  ): Promise<ScamCandidateState | null>;
+
+  /** Returns all rows with status='ready_to_post', ordered by claimedAt ASC. */
+  getPendingPostRows(): Promise<ScamCandidateState[]>;
+
+  /**
    * Appends userId to seen_by_user_ids (guarded against duplicates) and updates
-   * channel_count and guild_ids. Only applies when status is `'claimed'` or
-   * `'reviewing'`; no-op if ignored or added. Returns updated row or null if not
-   * found.
+   * channel_count and guild_ids. Only applies when status is `'claimed'`,
+   * `'ready_to_post'`, or `'reviewing'`; no-op if ignored or added. Returns updated row
+   * or null if not found.
    */
   appendSeenUser(
     key: string,

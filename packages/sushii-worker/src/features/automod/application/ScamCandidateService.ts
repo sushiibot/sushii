@@ -25,7 +25,7 @@ import {
   SCAM_IMAGE_MAX_SIZE_BYTES,
   type ScamImageHashService,
 } from "./ScamImageHashService";
-import type { ScamCandidateTrigger } from "../domain/repositories/ScamCandidateRepository";
+import type { ScamCandidateTrigger, StoredImageResult } from "../domain/repositories/ScamCandidateRepository";
 import {
   MAX_LABEL_LENGTH,
   type ClassificationResult,
@@ -41,10 +41,10 @@ import {
 } from "../presentation/handlers/scamCandidateCustomIds";
 import { buildHashKey } from "../utils/bigintUtils";
 import { filenameFromUrl } from "../utils/imageUtils";
+import { REVIEW_CHANNEL_ID } from "../constants";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
-const REVIEW_CHANNEL_ID = "1083567458230739056";
 const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 5;
 const CLAIMED_ORPHAN_TTL_MS = 15 * 60 * 1000;
@@ -65,6 +65,7 @@ interface ImageResult {
   closestDistance: number | null;
   isNew: boolean;
   s3Key: string | null;
+  attachmentIndex: number;
 }
 
 export interface CandidateImage {
@@ -209,7 +210,7 @@ export class ScamCandidateService {
       });
       return;
     }
-    if (current.status === "claimed") {
+    if (current.status === "claimed" || current.status === "ready_to_post") {
       await interaction.followUp({
         content: "This review is still being set up — please try again in a moment.",
         flags: MessageFlags.Ephemeral,
@@ -250,7 +251,7 @@ export class ScamCandidateService {
       return;
     }
 
-    if (state.status === "claimed") {
+    if (state.status === "claimed" || state.status === "ready_to_post") {
       await interaction.reply({
         content: "This review is still being set up — please try again in a moment.",
         flags: MessageFlags.Ephemeral,
@@ -364,12 +365,114 @@ export class ScamCandidateService {
     }
   }
 
-  private async editReviewMessage(state: ScamCandidateState): Promise<void> {
+  /** Polls for ready_to_post rows and posts the review message on the owning cluster. */
+  async postPendingReviews(): Promise<void> {
+    const pendingRows = await this.candidateRepository.getPendingPostRows();
+
+    for (const state of pendingRows) {
+      await this.postPendingReview(state).catch((err) => {
+        this.logger.error({ err, reviewId: state.reviewId, key: state.key }, "Failed to post pending review");
+      });
+    }
+  }
+
+  private async postPendingReview(state: ScamCandidateState): Promise<void> {
+    const { attachmentUrls, newImageResults, reviewId, key, trigger } = state;
+
+    if (attachmentUrls.length === 0) {
+      this.logger.warn({ reviewId, key }, "ready_to_post row has no attachment URLs — posting text-only review");
+    }
+
+    // Re-download images; use the filename's idx prefix to match each result to its URL
+    const successfulFiles: { attachment: Buffer; name: string }[] = [];
+    const successfulResults: StoredImageResult[] = [];
+
+    const storedResults = newImageResults ?? [];
+
+    for (const imageResult of storedResults) {
+      // Prefer the stored attachmentIndex; fall back to parsing the filename prefix for backward compat
+      let idx: number;
+      if (imageResult.attachmentIndex !== undefined) {
+        idx = imageResult.attachmentIndex;
+      } else {
+        const idxMatch = /^(\d+)_/.exec(imageResult.filename);
+        if (!idxMatch) {
+          this.logger.warn({ reviewId, filename: imageResult.filename }, "Could not parse idx from filename — skipping image");
+          continue;
+        }
+        idx = Number(idxMatch[1]);
+      }
+
+      const url = attachmentUrls[idx];
+      if (!url) {
+        this.logger.warn({ reviewId, idx, filename: imageResult.filename }, "No attachment URL for image index — skipping image");
+        continue;
+      }
+
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+        if (!resp.ok) {
+          this.logger.warn({ reviewId, url, status: resp.status }, "Failed to re-download attachment URL — skipping image");
+          continue;
+        }
+
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        successfulFiles.push({ attachment: buffer, name: imageResult.filename });
+        successfulResults.push(imageResult);
+      } catch (err) {
+        this.logger.warn({ err, reviewId, url }, "Error re-downloading attachment URL — skipping image");
+      }
+    }
+
+    const channel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
+    if (!channel?.isTextBased() || channel.isDMBased()) {
+      this.logger.error({ reviewId, channelId: REVIEW_CHANNEL_ID }, "Review channel not in cache on posting cluster");
+      return;
+    }
+    const reviewChannel = channel as GuildTextBasedChannel;
+
+    const { components, flags } = await this.buildReviewFromState(
+      state,
+      undefined,
+      { guildNames: state.guildNames, imageResults: successfulResults },
+    );
+
+    const msg = await reviewChannel.send({
+      components,
+      flags,
+      files: successfulFiles,
+    });
+
+    const reviewing = await this.candidateRepository.transitionFromReadyToPost(key, {
+      reviewChannelId: REVIEW_CHANNEL_ID,
+      reviewMessageId: msg.id,
+    });
+
+    if (!reviewing) {
+      // Blue/green race — another instance won; delete our orphaned message
+      this.logger.info({ reviewId, key, messageId: msg.id }, "transitionFromReadyToPost returned null — deleting orphaned message");
+      await msg.delete().catch((deleteErr) => {
+        this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
+      });
+      return;
+    }
+
+    if (reviewing.seenByUserIds.length > 1) {
+      await this.editReviewMessage(reviewing, { guildNames: state.guildNames, imageResults: successfulResults });
+    }
+
+    this.metrics.reviewCounter.add(1, { outcome: "review_sent", trigger });
+  }
+
+  private async editReviewMessage(
+    state: ScamCandidateState,
+    overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[] },
+  ): Promise<void> {
     if (!state.reviewChannelId || !state.reviewMessageId) {
       return;
     }
 
-    const options = await this.buildReviewFromState(state);
+    const options = await this.buildReviewFromState(state, undefined, overrides);
 
     try {
       const channel = await this.client.channels.fetch(state.reviewChannelId);
@@ -466,6 +569,7 @@ export class ScamCandidateService {
                 closestDistance: closest?.phashDistance ?? null,
                 isNew,
                 s3Key,
+                attachmentIndex: idx,
               } satisfies ImageResult;
             }),
           );
@@ -524,6 +628,7 @@ export class ScamCandidateService {
       channelCount,
       guildIdsArray,
       trigger,
+      attachmentUrls,
     );
 
     if (!claimed) {
@@ -576,23 +681,10 @@ export class ScamCandidateService {
       }
     }
 
-    const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
-    if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
-      // Leave the row in 'claimed' — the orphan janitor will clean it up after
-      // CLAIMED_ORPHAN_TTL_MS. Do NOT delete here: the sightings table retains
-      // old entries so the threshold would fire again immediately, re-claim,
-      // and re-fail in a tight loop.
-      this.logger.error(
-        { channelId: REVIEW_CHANNEL_ID },
-        "Review channel not found or not text-based",
-      );
-      this.metrics.reviewCounter.add(1, { outcome: "channel_not_cached", trigger });
-      return;
-    }
-    const reviewChannel = fetchedChannel as GuildTextBasedChannel;
-
     const guildNames = guildIdsArray.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
-    const username = await this.fetchUsername(userId);
+    if (guildNames.length === 0) {
+      this.logger.warn({ userId, hashKey }, "All guilds uncached on processing cluster — guildNames will be empty in review");
+    }
 
     const imageResults = results.map((r) => ({
       filename: r.filename,
@@ -602,24 +694,8 @@ export class ScamCandidateService {
       closestDistance: r.closestDistance,
       isNew: r.isNew,
       s3Key: r.s3Key,
+      attachmentIndex: r.attachmentIndex,
     }));
-
-    const { components, flags } = buildScamCandidateReviewMessage({
-      userId,
-      username,
-      channelCount,
-      guildNames,
-      imageResults,
-      classificationResult,
-      reviewId,
-      seenByUserCount: 1,
-    });
-
-    const msg = await reviewChannel.send({
-      components,
-      flags,
-      files: results.map((r) => ({ attachment: r.buffer, name: r.filename })),
-    });
 
     const storedClassification = classificationResult
       ? {
@@ -630,59 +706,39 @@ export class ScamCandidateService {
         }
       : null;
 
-    const reviewing = await this.candidateRepository.transitionToReviewing(hashKey, {
-      reviewChannelId: REVIEW_CHANNEL_ID,
-      reviewMessageId: msg.id,
+    const readyToPost = await this.candidateRepository.transitionToReadyToPost(hashKey, {
       newImageResults: imageResults,
       classificationResult: storedClassification,
+      guildNames,
     });
-    if (!reviewing) {
-      const current = await this.candidateRepository.getByReviewId(reviewId);
-      if (!current) {
-        // Genuine orphan — state was deleted; clean up the Discord message
-        this.logger.error(
-          { reviewId, hashKey, messageId: msg.id },
-          "Orphaned review message: state missing after send",
-        );
-        await msg.delete().catch((deleteErr) => {
-          this.logger.warn({ err: deleteErr, messageId: msg.id }, "Failed to delete orphaned review message");
-        });
-      } else if (current.status === "ignored" || current.status === "added") {
-        // Moderator resolved during send→transition window; message already updated
-        this.logger.info(
-          { reviewId, hashKey, status: current.status },
-          "Review resolved by moderator during transition",
-        );
-      } else {
-        // Unexpected: row exists in non-terminal state but transitionToReviewing failed
-        this.logger.error(
-          { reviewId, hashKey, status: current.status, messageId: msg.id },
-          "transitionToReviewing returned null for non-terminal row — leaving message",
-        );
-      }
+
+    if (!readyToPost) {
+      this.logger.error(
+        { reviewId, hashKey },
+        "transitionToReadyToPost returned null — row may have been orphaned",
+      );
       this.metrics.reviewCounter.add(1, { outcome: "state_lost", trigger });
       return;
     }
 
-    if (reviewing.seenByUserIds.length > 1) {
-      await this.editReviewMessage(reviewing);
-    }
-
-    this.metrics.reviewCounter.add(1, { outcome: "review_sent", trigger });
+    this.metrics.reviewCounter.add(1, { outcome: "ready_to_post", trigger });
   }
 
   private async buildReviewFromState(
     state: ScamCandidateState,
     resolved?: { statusLine: string; buttonLabel: string },
+    overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[] },
   ): Promise<ReturnType<typeof buildScamCandidateReviewMessage>> {
-    const guildNames = state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const guildNames =
+      overrides?.guildNames ?? state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
+    const imageResults = overrides?.imageResults ?? state.newImageResults ?? [];
     const username = await this.fetchUsername(state.triggeredByUserId);
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
       username,
       channelCount: state.channelCount,
       guildNames,
-      imageResults: state.newImageResults ?? [],
+      imageResults,
       classificationResult: state.classificationResult,
       reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,

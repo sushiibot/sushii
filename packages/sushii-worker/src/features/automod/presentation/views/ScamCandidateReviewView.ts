@@ -90,9 +90,12 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     textLines.push(resolved.statusLine);
   }
 
-  const gallery = new MediaGalleryBuilder().addItems(
-    ...imageResults.map((r) => new MediaGalleryItemBuilder().setURL(`attachment://${r.filename}`)),
-  );
+  const gallery =
+    imageResults.length > 0
+      ? new MediaGalleryBuilder().addItems(
+          ...imageResults.map((r) => new MediaGalleryItemBuilder().setURL(`attachment://${r.filename}`)),
+        )
+      : null;
 
   const userCountButton =
     seenByUserCount > 1
@@ -128,11 +131,15 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
         ].filter((b): b is ButtonBuilder => b !== null),
       );
 
-  const container = new ContainerBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(textLines.join("\n")))
-    .addMediaGalleryComponents(gallery)
-    .addSeparatorComponents(new SeparatorBuilder())
-    .addActionRowComponents(actionRow);
+  const container = new ContainerBuilder().addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(textLines.join("\n")),
+  );
+
+  if (gallery) {
+    container.addMediaGalleryComponents(gallery);
+  }
+
+  container.addSeparatorComponents(new SeparatorBuilder()).addActionRowComponents(actionRow);
 
   return {
     components: [container],
