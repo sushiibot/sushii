@@ -148,7 +148,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .set({
         seenByUserIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.seenByUserIds} || ARRAY[${userId}::text]))`,
         channelCount: sql`GREATEST(${scamCandidateStateInAppPublic.channelCount}, ${channelCount})`,
-        guildIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.guildIds} || ${guildIds}::text[]))`,
+        guildIds: sql`ARRAY(SELECT DISTINCT unnest(${scamCandidateStateInAppPublic.guildIds} || ARRAY[${sql.join(guildIds.map((id) => sql`${id}::text`), sql`, `)}]))`,
         updatedAt: new Date(),
       })
       .where(
