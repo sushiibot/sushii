@@ -48,8 +48,10 @@ Examples:
 - "discord nitro - free-nitro.gg"
 Omit parts that are not present. Use null if not a scam.
 
+For reason: write at most 15 words. Name the scam type and target (e.g. "Fake MrBeast crypto giveaway promoting buragamb.com"). No full sentences.
+
 Respond with ONLY a JSON object, no markdown fences, no explanation:
-{"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "one sentence", "suggestedLabel": "[platform] [impersonated account] - [scam site domain] or null if not a scam"}`;
+{"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "≤15 words", "suggestedLabel": "[platform] [impersonated account] - [scam site domain] or null if not a scam"}`;
 
 export class ScamImageClassifier {
   constructor(
@@ -101,7 +103,7 @@ export class ScamImageClassifier {
             ],
           },
         ],
-        max_tokens: 5000,
+        max_tokens: 200,
         temperature: 0,
       };
 
