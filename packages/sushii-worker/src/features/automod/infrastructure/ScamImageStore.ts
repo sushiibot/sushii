@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import type { Logger } from "pino";
 
 import { contentTypeFromFilename, extFromFilename } from "../utils/imageUtils";
@@ -70,6 +70,23 @@ export class ScamImageStore {
     } catch (err) {
       this.metrics.uploadCounter.add(1, { trigger, outcome: "failure" });
       this.logger.warn({ err, key }, "ScamImageStore upload failed");
+      return null;
+    }
+  }
+
+  async download(key: string): Promise<Buffer | null> {
+    try {
+      const resp = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+
+      if (!resp.Body) {
+        return null;
+      }
+
+      return Buffer.from(await resp.Body.transformToByteArray());
+    } catch (err) {
+      this.logger.warn({ err, key }, "ScamImageStore download failed");
       return null;
     }
   }
