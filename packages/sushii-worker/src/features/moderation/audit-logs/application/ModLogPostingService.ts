@@ -83,8 +83,8 @@ export class ModLogPostingService {
     } catch (error) {
       const isPermissionError =
         error instanceof DiscordAPIError &&
-        (error.code === RESTJSONErrorCodes.MissingPermissions ||
-          error.code === RESTJSONErrorCodes.MissingAccess);
+        (Number(error.code) === RESTJSONErrorCodes.MissingPermissions ||
+          Number(error.code) === RESTJSONErrorCodes.MissingAccess);
 
       const logCtx = {
         err: error,

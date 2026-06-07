@@ -31,7 +31,7 @@ export class AuditLogEventHandler extends EventHandler<Events.GuildAuditLogEntry
       );
 
       if (result.err) {
-        this.logger.error(
+        this.logger.warn(
           {
             err: result.val,
             guildId: guild.id,
