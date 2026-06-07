@@ -5,10 +5,9 @@ import { contentTypeFromFilename, extFromFilename } from "../utils/imageUtils";
 
 export interface StoreOpts {
   buffer: Buffer;
-  dhash: bigint;
   phash: bigint;
   closestDistance: number | undefined;
-  trigger: "hash_check" | "candidate_review";
+  trigger: "hash_check" | "candidate_review" | "hash_add";
   userId: string;
   guildId: string | undefined;
   filename: string;
@@ -32,16 +31,15 @@ export class ScamImageStore {
     });
   }
 
-  async store(opts: StoreOpts): Promise<void> {
-    const { buffer, dhash, phash, closestDistance, trigger, userId, guildId, filename } = opts;
+  async store(opts: StoreOpts): Promise<string | null> {
+    const { buffer, phash, closestDistance, trigger, userId, guildId, filename } = opts;
 
-    const dhashHex = dhash.toString(16).padStart(16, "0");
+    const uuid = crypto.randomUUID();
     const ext = extFromFilename(filename);
-    const key = `scam-images/${dhashHex}.${ext}`;
+    const key = `scam-images/${uuid}.${ext}`;
     const contentType = contentTypeFromFilename(filename);
 
     const metadata: Record<string, string> = {
-      dhash: dhashHex,
       phash: phash.toString(16).padStart(16, "0"),
       trigger,
       "user-id": userId,
@@ -65,8 +63,10 @@ export class ScamImageStore {
           Metadata: metadata,
         }),
       );
+      return key;
     } catch (err) {
-      this.logger.warn({ err, dhash: dhashHex }, "ScamImageStore upload failed");
+      this.logger.warn({ err, key }, "ScamImageStore upload failed");
+      return null;
     }
   }
 }

@@ -39,7 +39,6 @@ function dct1d(signal: Float64Array): Float64Array {
 function dct2d(pixels: Float64Array[]): Float64Array[] {
   const size = pixels.length;
   const rowDct = pixels.map((row) => dct1d(row));
-  // Apply DCT to each column
   const result: Float64Array[] = Array.from({ length: size }, () => new Float64Array(size));
   for (let col = 0; col < size; col++) {
     const column = new Float64Array(size);
@@ -62,22 +61,7 @@ export class ScamImageHashService {
     private readonly imageStore?: ScamImageStore,
   ) {}
 
-  private async computeHash(buffer: Buffer): Promise<bigint> {
-    const data = await this.toGreyscaleRaw(buffer, 9, 8);
-
-    let hash = 0n;
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        if (data[row * 9 + col] > data[row * 9 + col + 1]) {
-          hash |= 1n << BigInt(row * 8 + col);
-        }
-      }
-    }
-
-    return hash;
-  }
-
-  private async computePHash(buffer: Buffer): Promise<bigint> {
+  async computePhash(buffer: Buffer): Promise<bigint> {
     const data = await this.toGreyscaleRaw(buffer, 32, 32);
 
     const pixels: Float64Array[] = Array.from({ length: 32 }, (_, row) =>
@@ -105,12 +89,28 @@ export class ScamImageHashService {
     return hash;
   }
 
-  async computeHashes(buffer: Buffer): Promise<{ hash: bigint; phash: bigint }> {
-    const [hash, phash] = await Promise.all([
-      this.computeHash(buffer),
-      this.computePHash(buffer),
-    ]);
-    return { hash, phash };
+  /**
+   * Uploads the image to S3 and inserts a new hash entry into the DB.
+   * Returns the new entry ID.
+   */
+  async addHashEntry(
+    phash: bigint,
+    buffer: Buffer,
+    filename: string,
+    userId: string,
+    label?: string,
+  ): Promise<number> {
+    const s3Key = await this.imageStore?.store({
+      buffer,
+      phash,
+      closestDistance: undefined,
+      trigger: "hash_add",
+      userId,
+      guildId: undefined,
+      filename,
+    }) ?? null;
+
+    return this.repository.add(phash, label, s3Key ?? undefined);
   }
 
   async checkAttachments(
@@ -131,21 +131,20 @@ export class ScamImageHashService {
         this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart);
 
         const hashStart = Date.now();
-        const { hash, phash } = await this.computeHashes(buffer);
+        const phash = await this.computePhash(buffer);
         this.metrics.hashDurationHistogram.record(Date.now() - hashStart);
 
-        const closest = await this.repository.findClosest(hash, phash);
+        const closest = await this.repository.findClosest(phash);
 
         if (closest) {
-          this.metrics.nearestDistanceHistogram.record(closest.distance);
+          this.metrics.nearestDistanceHistogram.record(closest.phashDistance);
         }
 
-        if (closest && closest.distance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
+        if (closest && closest.phashDistance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
           void this.imageStore?.store({
             buffer,
-            dhash: hash,
             phash,
-            closestDistance: closest.distance,
+            closestDistance: closest.phashDistance,
             trigger: "hash_check",
             userId,
             guildId,
@@ -153,13 +152,25 @@ export class ScamImageHashService {
           });
         }
 
-        if (closest && closest.distance <= SCAM_HASH_MATCH_THRESHOLD) {
+        if (closest && closest.phashDistance <= SCAM_HASH_MATCH_THRESHOLD) {
           this.metrics.checkCounter.add(1, { outcome: "match" });
           this.metrics.matchCounter.add(1);
+          this.logger.info(
+            {
+              url,
+              guildId,
+              userId,
+              closestId: closest.entry.id,
+              closestLabel: closest.entry.label,
+              phashDistance: closest.phashDistance,
+              matchThreshold: SCAM_HASH_MATCH_THRESHOLD,
+            },
+            "Scam image match",
+          );
           return { matched: closest.entry, nearMissUrls: [] };
         }
 
-        if (closest && closest.distance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
+        if (closest && closest.phashDistance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
           nearMissUrls.push(url);
         }
 
@@ -168,7 +179,7 @@ export class ScamImageHashService {
             url,
             guildId,
             closestId: closest?.entry.id,
-            closestDistance: closest?.distance,
+            phashDistance: closest?.phashDistance,
             matchThreshold: SCAM_HASH_MATCH_THRESHOLD,
             nearMissThreshold: SCAM_HASH_NEAR_MISS_THRESHOLD,
           },
@@ -209,7 +220,6 @@ export class ScamImageHashService {
       return null;
     }
 
-    // Check dimensions without fully decoding
     const meta = await sharp(buffer).metadata();
     if (
       (meta.width && meta.width > SCAM_IMAGE_MAX_DIMENSION) ||

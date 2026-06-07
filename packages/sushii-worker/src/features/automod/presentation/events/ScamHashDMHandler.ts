@@ -43,7 +43,7 @@ interface CollectedImage {
 interface ImageCandidate {
   filename: string;
   url: string;
-  hash: bigint;
+  buffer: Buffer;
   phash: bigint;
   closestId: number | null;
   closestLabel: string | null;
@@ -197,17 +197,17 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
         }
 
         const buffer = Buffer.from(await resp.arrayBuffer());
-        const { hash, phash } = await this.hashService.computeHashes(buffer);
-        const closest = await this.repository.findClosest(hash, phash);
+        const phash = await this.hashService.computePhash(buffer);
+        const closest = await this.repository.findClosest(phash);
 
         candidates.push({
           filename: attachment.filename,
           url: attachment.url,
-          hash,
+          buffer,
           phash,
           closestId: closest?.entry.id ?? null,
           closestLabel: closest?.entry.label ?? null,
-          closestDistance: closest?.distance ?? null,
+          closestDistance: closest?.phashDistance ?? null,
         });
       } catch (err) {
         this.logger.warn({ err, filename: attachment.filename }, "Failed to hash DM attachment");
@@ -347,13 +347,13 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     const label = modalInteraction.fields.getTextInputValue(MODAL_LABEL_INPUT).trim() || undefined;
 
     // Add all non-dupe images
-    const added: { id: number; filename: string; hash: bigint }[] = [];
+    const added: { id: number; filename: string }[] = [];
     const addErrors: string[] = [];
 
     for (const c of toAdd) {
       try {
-        const id = await this.repository.add(c.hash, c.phash, label);
-        added.push({ id, filename: c.filename, hash: c.hash });
+        const id = await this.hashService.addHashEntry(c.phash, c.buffer, c.filename, OWNER_USER_ID, label);
+        added.push({ id, filename: c.filename });
       } catch (err) {
         this.logger.error({ err, filename: c.filename }, "Failed to add scam hash from DM");
         addErrors.push(c.filename);
@@ -364,7 +364,7 @@ export class ScamHashDMHandler extends EventHandler<Events.MessageCreate> {
     const resultLines: string[] = [];
     for (const a of added) {
       resultLines.push(
-        `• **#${a.id}** \`${a.filename}\` \`${formatDhash(a.hash)}\`${label ? ` · ${label}` : ""}`,
+        `• **#${a.id}** \`${a.filename}\`${label ? ` · ${label}` : ""}`,
       );
     }
     for (const c of dupes) {

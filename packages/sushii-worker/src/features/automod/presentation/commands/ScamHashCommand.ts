@@ -127,22 +127,21 @@ export class ScamHashCommand extends SlashCommandHandler {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    const { hash, phash } = await this.hashService.computeHashes(buffer);
+    const phash = await this.hashService.computePhash(buffer);
 
-    const closest = await this.repository.findClosest(hash, phash);
-    if (closest && closest.distance <= SCAM_HASH_DEDUP_THRESHOLD) {
+    const closest = await this.repository.findClosest(phash);
+    if (closest && closest.phashDistance <= SCAM_HASH_DEDUP_THRESHOLD) {
       const dupeLabel = closest.entry.label ?? "unlabeled";
       await interaction.editReply(
-        `A near-duplicate already exists: ID **${closest.entry.id}** (${dupeLabel}, distance ${closest.distance}). Use \`/scam-hash list\` to review.`,
+        `A near-duplicate already exists: ID **${closest.entry.id}** (${dupeLabel}, pHash distance ${closest.phashDistance}). Use \`/scam-hash list\` to review.`,
       );
       return;
     }
 
-    const id = await this.repository.add(hash, phash, label);
-    const hexHash = formatDhash(hash);
+    const id = await this.hashService.addHashEntry(phash, buffer, attachment.name, interaction.user.id, label);
 
     await interaction.editReply(
-      `Stored scam hash **#${id}** — \`${hexHash}\`${label ? ` · ${label}` : ""}`,
+      `Stored scam hash **#${id}**${label ? ` · ${label}` : ""}`,
     );
   }
 
@@ -175,10 +174,9 @@ export class ScamHashCommand extends SlashCommandHandler {
 
     const page = entries.slice(0, LIST_PAGE_SIZE);
     const rows = page.map((e) => {
-      const hexHash = formatDhash(e.hash);
       const date = e.addedAt.toISOString().slice(0, 10);
       const labelText = e.label ?? "—";
-      return `**#${e.id}** \`${hexHash}\` · ${labelText} · ${date}`;
+      return `**#${e.id}** · ${labelText} · ${date}`;
     });
 
     const content = rows.join("\n");

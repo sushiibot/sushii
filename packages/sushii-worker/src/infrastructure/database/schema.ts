@@ -253,9 +253,11 @@ export const scamImageHashesInAppPublic = appPublic.table(
   "scam_image_hashes",
   {
     id: serial().primaryKey().notNull(),
-    hash: bigint({ mode: "bigint" }).notNull(),
+    // Legacy dhash column — nullable, no longer populated for new entries
+    hash: bigint({ mode: "bigint" }),
     phash: bigint({ mode: "bigint" }),
     label: text(),
+    s3Key: text("s3_key"),
     addedAt: timestamp("added_at", { mode: "date" }).defaultNow().notNull(),
   },
   () => [

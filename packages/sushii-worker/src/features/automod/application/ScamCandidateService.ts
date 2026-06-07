@@ -59,7 +59,6 @@ const SWALLOWED_EDIT_CODES = new Set<number>([
 interface ImageResult {
   filename: string;
   buffer: Buffer;
-  hash: bigint;
   phash: bigint;
   closestId: number | null;
   closestLabel: string | null;
@@ -308,9 +307,7 @@ export class ScamCandidateService {
 
     for (const r of imageResults.filter((r) => r.isNew)) {
       try {
-        const hash = BigInt(r.hash);
-        const phash = r.phash != null ? BigInt(r.phash) : null;
-        const id = await this.hashRepository.add(hash, phash, label);
+        const id = await this.hashRepository.add(BigInt(r.phash), label);
         added.push({ id, filename: r.filename });
       } catch (err) {
         this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
@@ -433,16 +430,15 @@ export class ScamCandidateService {
                 throw new Error("oversized dimensions");
               }
 
-              const { hash, phash } = await this.hashService.computeHashes(buffer);
-              const closest = await this.hashRepository.findClosest(hash, phash);
-              const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
+              const phash = await this.hashService.computePhash(buffer);
+              const closest = await this.hashRepository.findClosest(phash);
+              const isNew = !closest || closest.phashDistance > SCAM_HASH_DEDUP_THRESHOLD;
               const filename = `${idx}_${filenameFromUrl(url)}`;
 
               void this.imageStore?.store({
                 buffer,
-                dhash: hash,
                 phash,
-                closestDistance: closest?.distance,
+                closestDistance: closest?.phashDistance,
                 trigger: "candidate_review",
                 userId,
                 guildId: guildIds.values().next().value,
@@ -452,11 +448,10 @@ export class ScamCandidateService {
               return {
                 filename,
                 buffer,
-                hash,
                 phash,
                 closestId: closest?.entry.id ?? null,
                 closestLabel: closest?.entry.label ?? null,
-                closestDistance: closest?.distance ?? null,
+                closestDistance: closest?.phashDistance ?? null,
                 isNew,
               } satisfies ImageResult;
             }),
@@ -504,7 +499,7 @@ export class ScamCandidateService {
       return;
     }
 
-    const hashes = results.map((r) => r.hash);
+    const hashes = results.map((r) => r.phash);
     const hashKey = buildHashKey(hashes);
     const guildIdsArray = [...guildIds];
     const reviewId = crypto.randomUUID();
@@ -585,7 +580,6 @@ export class ScamCandidateService {
 
     const imageResults = results.map((r) => ({
       filename: r.filename,
-      hash: r.hash.toString(),
       phash: r.phash.toString(),
       closestId: r.closestId,
       closestLabel: r.closestLabel,

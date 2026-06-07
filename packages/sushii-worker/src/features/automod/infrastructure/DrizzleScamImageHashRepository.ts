@@ -14,47 +14,44 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
   async findClosest(
-    dhash: bigint,
     phash: bigint,
-  ): Promise<{ entry: ScamImageHash; distance: number } | null> {
-    const signedDhash = toSignedBigint(dhash);
+  ): Promise<{ entry: ScamImageHash; phashDistance: number } | null> {
     const signedPhash = toSignedBigint(phash);
 
-    const distanceExpr = sql<number>`LEAST(
-      bit_count(${scamImageHashesInAppPublic.hash}::bit(64) # ${signedDhash}::bigint::bit(64)),
-      COALESCE(bit_count(${scamImageHashesInAppPublic.phash}::bit(64) # ${signedPhash}::bigint::bit(64)), 64)
-    )`;
+    const phashDistanceExpr = sql<number>`COALESCE(bit_count(${scamImageHashesInAppPublic.phash}::bit(64) # ${signedPhash}::bigint::bit(64)), 64)`;
 
     const rows = await this.db
       .select({
         id: scamImageHashesInAppPublic.id,
-        hash: scamImageHashesInAppPublic.hash,
         phash: scamImageHashesInAppPublic.phash,
         label: scamImageHashesInAppPublic.label,
+        s3Key: scamImageHashesInAppPublic.s3Key,
         addedAt: scamImageHashesInAppPublic.addedAt,
-        distance: distanceExpr,
+        phashDistance: phashDistanceExpr,
       })
       .from(scamImageHashesInAppPublic)
-      .orderBy(asc(distanceExpr))
+      .orderBy(asc(phashDistanceExpr))
       .limit(1);
 
     if (rows.length === 0) {
       return null;
     }
 
-    return { entry: this.rowToEntity(rows[0]), distance: rows[0].distance };
+    return {
+      entry: this.rowToEntity(rows[0]),
+      phashDistance: rows[0].phashDistance,
+    };
   }
 
-  async add(dhash: bigint, phash: bigint | null, label?: string): Promise<number> {
-    const signedDhash = toSignedBigint(dhash);
-    const signedPhash = phash !== null ? toSignedBigint(phash) : null;
+  async add(phash: bigint, label?: string, s3Key?: string): Promise<number> {
+    const signedPhash = toSignedBigint(phash);
 
     const rows = await this.db
       .insert(scamImageHashesInAppPublic)
       .values({
-        hash: signedDhash,
         phash: signedPhash,
         label: label ?? null,
+        s3Key: s3Key ?? null,
       })
       .returning({ id: scamImageHashesInAppPublic.id });
 
@@ -81,16 +78,16 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
 
   private rowToEntity(row: {
     id: number;
-    hash: bigint;
     phash: bigint | null;
     label: string | null;
+    s3Key: string | null;
     addedAt: Date;
   }): ScamImageHash {
     return {
       id: row.id,
-      hash: toUnsignedBigint(row.hash),
       phash: row.phash !== null ? toUnsignedBigint(row.phash) : null,
       label: row.label,
+      s3Key: row.s3Key,
       addedAt: row.addedAt,
     };
   }

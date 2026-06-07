@@ -76,7 +76,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
 
   textLines.push("**Images**");
   for (const r of imageResults) {
-    const hashHex = formatDhash(BigInt(r.hash));
+    const hashHex = formatDhash(BigInt(r.phash));
     let line = `• \`${hashHex}\``;
     if (r.closestId !== null) {
       const label = r.closestLabel ? ` "${r.closestLabel}"` : "";

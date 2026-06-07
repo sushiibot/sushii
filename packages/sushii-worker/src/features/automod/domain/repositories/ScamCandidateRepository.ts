@@ -1,9 +1,9 @@
 export interface StoredImageResult {
   filename: string;
-  /** bigint serialized as decimal string */
-  hash: string;
-  /** pHash bigint serialized as decimal string; undefined for pre-migration reviews */
-  phash?: string;
+  /** Legacy dhash bigint serialized as decimal string; absent on new entries */
+  hash?: string;
+  /** pHash bigint serialized as decimal string */
+  phash: string;
   closestId: number | null;
   closestLabel: string | null;
   closestDistance: number | null;
