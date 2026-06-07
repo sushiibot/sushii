@@ -445,7 +445,7 @@ export class ScamCandidateService {
                 closestDistance: closest?.distance,
                 trigger: "candidate_review",
                 userId,
-                guildId: [...guildIds][0],
+                guildId: guildIds.values().next().value,
                 filename,
               });
 

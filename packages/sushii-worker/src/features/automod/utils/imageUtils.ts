@@ -19,7 +19,7 @@ export function extFromFilename(filename: string): string {
   }
 }
 
-export function contentTypeFromFilename(filename: string): string {
+export function contentTypeFromFilename(filename: string, fallback = "application/octet-stream"): string {
   const ext = extFromFilename(filename);
   switch (ext) {
     case "jpg":
@@ -31,6 +31,6 @@ export function contentTypeFromFilename(filename: string): string {
     case "png":
       return "image/png";
     default:
-      return "application/octet-stream";
+      return fallback;
   }
 }

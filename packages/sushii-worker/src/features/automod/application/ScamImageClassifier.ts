@@ -67,7 +67,7 @@ export class ScamImageClassifier {
           : `Review these ${images.length} images from the same message for scam content.`;
 
       const imageContent = images.map((img) => {
-        const mimeType = contentTypeFromFilename(img.filename);
+        const mimeType = contentTypeFromFilename(img.filename, "image/png");
         const base64 = img.buffer.toString("base64");
         return {
           type: "image_url" as const,
