@@ -8,6 +8,8 @@ export interface StoredImageResult {
   closestLabel: string | null;
   closestDistance: number | null;
   isNew: boolean;
+  /** S3 key for the stored image; null if not stored or upload failed */
+  s3Key?: string | null;
 }
 
 export interface StoredClassificationResult {
