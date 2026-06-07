@@ -13,12 +13,13 @@ import { VerifyMessageGuideCommand } from "./presentation/commands/VerifyMessage
 interface SetupMessageVerificationDeps {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
+  applicationId: string;
 }
 
 export function setupMessageVerificationFeature(
   deps: SetupMessageVerificationDeps,
 ): BaseFeatureSetupReturn {
-  const { db, logger } = deps;
+  const { db, logger, applicationId } = deps;
 
   const repository = new DrizzleMessageVerificationRepository(db);
 
@@ -34,7 +35,7 @@ export function setupMessageVerificationFeature(
     logger.child({ component: "VerifyMessageCommand" }),
   );
 
-  const guideCommand = new VerifyMessageGuideCommand();
+  const guideCommand = new VerifyMessageGuideCommand(applicationId);
 
   return {
     commands: [verifyCommand, guideCommand],

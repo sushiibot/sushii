@@ -7,7 +7,9 @@ import {
 } from "discord.js";
 import Color from "@/utils/colors";
 
-export function createVerificationGuideMessage(): InteractionReplyOptions & {
+export function createVerificationGuideMessage(
+  installUrl: string,
+): InteractionReplyOptions & {
   flags: number;
 } {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
@@ -42,6 +44,8 @@ export function createVerificationGuideMessage(): InteractionReplyOptions & {
     new TextDisplayBuilder().setContent(
       [
         "### How to Request Verification",
+        `The user must have sushii installed as a [user app](${installUrl}) to use **Submit to Mods** outside of this server (e.g. in DMs).`,
+        "",
         "Ask the user to right-click a specific message and select **Apps → Submit to Mods**, then share the 8-character code with you.",
         "",
         "Run `/verify-message code:<code>` to display the verified record.",

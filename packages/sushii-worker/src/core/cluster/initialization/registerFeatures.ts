@@ -249,6 +249,7 @@ export function registerFeatures(
   const messageVerificationFeature = setupMessageVerificationFeature({
     db,
     logger: logger.child({ feature: "MessageVerification" }),
+    applicationId: config.discord.applicationId,
   });
 
   const remindersFeature = setupRemindersFeature({
