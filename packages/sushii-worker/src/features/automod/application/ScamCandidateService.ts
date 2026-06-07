@@ -576,14 +576,17 @@ export class ScamCandidateService {
       }
     }
 
-    const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
+    const fetchedChannel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
     if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
+      // Leave the row in 'claimed' — the orphan janitor will clean it up after
+      // CLAIMED_ORPHAN_TTL_MS. Deleting here causes an infinite retry loop:
+      // the sightings table still has old entries so the threshold fires again
+      // immediately, re-claims, and re-fails.
       this.logger.error(
         { channelId: REVIEW_CHANNEL_ID },
-        "Review channel not found or not text-based",
+        "Review channel not in cache — bot may be starting up, will retry via orphan janitor",
       );
       this.metrics.reviewCounter.add(1, { outcome: "channel_error", trigger });
-      await this.candidateRepository.deleteByKey(hashKey);
       return;
     }
     const reviewChannel = fetchedChannel as GuildTextBasedChannel;
