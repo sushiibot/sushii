@@ -22,7 +22,7 @@ describe("DrizzleScamCandidateRepository", () => {
   });
 
   async function insertClaimed(key: string, guildIds: string[]): Promise<void> {
-    await repo.claimByHashKey(key, crypto.randomUUID(), "100000000000000001", 1, guildIds, "threshold");
+    await repo.claimByHashKey(key, crypto.randomUUID(), "100000000000000001", 1, guildIds, "threshold", []);
   }
 
   describe("appendSeenUser", () => {

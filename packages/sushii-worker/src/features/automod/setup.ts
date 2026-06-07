@@ -25,6 +25,7 @@ import { ScamCandidateMetrics } from "./infrastructure/metrics/ScamCandidateMetr
 import { ScamClassifierMetrics } from "./infrastructure/metrics/ScamClassifierMetrics";
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { ScamCandidateJanitorTask } from "./infrastructure/tasks/ScamCandidateJanitorTask";
+import { ScamCandidateReviewPostTask } from "./infrastructure/tasks/ScamCandidateReviewPostTask";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
@@ -42,7 +43,7 @@ export interface AutomodFeature {
     spamAlertUpdateService: SpamAlertUpdateService;
   };
   commands: [ScamHashCommand];
-  tasks: [ScamCandidateJanitorTask];
+  tasks: [ScamCandidateJanitorTask, ScamCandidateReviewPostTask];
   destroy(): void;
 }
 
@@ -172,6 +173,13 @@ export function setupAutomodFeature(
     scamCandidateService,
   );
 
+  const scamCandidateReviewPostTask = new ScamCandidateReviewPostTask(
+    client,
+    deploymentService,
+    logger.child({ component: "ScamCandidateReviewPostTask" }),
+    scamCandidateService,
+  );
+
   client.once(Events.ClientReady, (readyClient) => {
     void scamHashDMHandler.primeOwnerDMChannel(readyClient);
   });
@@ -185,7 +193,7 @@ export function setupAutomodFeature(
       spamAlertUpdateService,
     },
     commands: [scamHashCommand],
-    tasks: [scamCandidateJanitorTask],
+    tasks: [scamCandidateJanitorTask, scamCandidateReviewPostTask],
     destroy: () => {
       spamDetectionService.destroy();
       scamCandidateService.destroy();

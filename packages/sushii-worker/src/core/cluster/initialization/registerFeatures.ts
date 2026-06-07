@@ -487,7 +487,8 @@ export function registerFeatures(
   }
 
   // ---------------------------------------------------------------------------
-  // Register background tasks
+  // Register background tasks inside the ready handler so that guild/channel
+  // caches are fully populated when shouldRunOnCluster predicates are evaluated.
 
   const featureTasks = [
     ...giveawayFeature.tasks,
@@ -502,7 +503,9 @@ export function registerFeatures(
     ...automodFeature.tasks,
   ];
 
-  registerTasks(client, featureTasks);
+  client.once(Events.ClientReady, () => {
+    registerTasks(client, featureTasks);
+  });
 
   // Return services for backwards compatibility (can be removed later)
   return {
