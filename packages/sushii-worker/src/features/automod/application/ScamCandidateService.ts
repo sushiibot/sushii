@@ -64,6 +64,7 @@ interface ImageResult {
   closestLabel: string | null;
   closestDistance: number | null;
   isNew: boolean;
+  s3Key: string | null;
 }
 
 export interface CandidateImage {
@@ -286,9 +287,8 @@ export class ScamCandidateService {
   }
 
   async handleLabelModal(reviewId: string, interaction: ModalSubmitInteraction): Promise<void> {
-    // Claim "added" first — gates concurrent Ignore races before any hash inserts
-    const state = await this.candidateRepository.resolveReview(reviewId, "added");
-    if (!state) {
+    const preState = await this.candidateRepository.getByReviewId(reviewId);
+    if (!preState) {
       await interaction.reply({
         content: "This review has expired — a new review will appear automatically.",
         flags: MessageFlags.Ephemeral,
@@ -301,13 +301,13 @@ export class ScamCandidateService {
     const label =
       interaction.fields.getTextInputValue(SCAM_CANDIDATE_MODAL_LABEL_INPUT).trim() || undefined;
 
-    const imageResults = state.newImageResults ?? [];
+    const imageResults = preState.newImageResults ?? [];
     const added: { id: number; filename: string }[] = [];
     const failed: string[] = [];
 
     for (const r of imageResults.filter((r) => r.isNew)) {
       try {
-        const id = await this.hashRepository.add(BigInt(r.phash), label);
+        const id = await this.hashRepository.add(BigInt(r.phash), label, r.s3Key ?? undefined);
         added.push({ id, filename: r.filename });
       } catch (err) {
         this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
@@ -317,9 +317,21 @@ export class ScamCandidateService {
 
     if (added.length === 0) {
       await interaction.editReply(
-        await this.buildReviewFromState(state, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
+        await this.buildReviewFromState(preState, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
-      this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed", trigger: state.trigger });
+      this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed", trigger: preState.trigger });
+      return;
+    }
+
+    // Mark as added only after at least one hash insert succeeded — prevents the row
+    // from being permanently "added" with zero hashes if all inserts fail.
+    const state = await this.candidateRepository.resolveReview(reviewId, "added");
+    if (!state) {
+      // Race: another moderator resolved it between insert(s) and resolveReview
+      await interaction.followUp({
+        content: "This review has already been resolved.",
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -435,7 +447,7 @@ export class ScamCandidateService {
               const isNew = !closest || closest.phashDistance > SCAM_HASH_DEDUP_THRESHOLD;
               const filename = `${idx}_${filenameFromUrl(url)}`;
 
-              void this.imageStore?.store({
+              const s3Key = await this.imageStore?.store({
                 buffer,
                 phash,
                 closestDistance: closest?.phashDistance,
@@ -443,7 +455,7 @@ export class ScamCandidateService {
                 userId,
                 guildId: guildIds.values().next().value,
                 filename,
-              });
+              }) ?? null;
 
               return {
                 filename,
@@ -453,6 +465,7 @@ export class ScamCandidateService {
                 closestLabel: closest?.entry.label ?? null,
                 closestDistance: closest?.phashDistance ?? null,
                 isNew,
+                s3Key,
               } satisfies ImageResult;
             }),
           );
@@ -585,6 +598,7 @@ export class ScamCandidateService {
       closestLabel: r.closestLabel,
       closestDistance: r.closestDistance,
       isNew: r.isNew,
+      s3Key: r.s3Key,
     }));
 
     const { components, flags } = buildScamCandidateReviewMessage({
