@@ -1,4 +1,4 @@
-import type { Guild, User } from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes, type Guild, type User } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -81,17 +81,25 @@ export class ModLogPostingService {
 
       return Ok(sentMessage.id);
     } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId: guild.id,
-          actionType: auditLogEvent.actionType,
-          targetId: auditLogEvent.targetId,
-          caseId: modLogCase.caseId,
-          modLogChannelId,
-        },
-        "Failed to post mod log message",
-      );
+      const isPermissionError =
+        error instanceof DiscordAPIError &&
+        (error.code === RESTJSONErrorCodes.MissingPermissions ||
+          error.code === RESTJSONErrorCodes.MissingAccess);
+
+      const logCtx = {
+        err: error,
+        guildId: guild.id,
+        actionType: auditLogEvent.actionType,
+        targetId: auditLogEvent.targetId,
+        caseId: modLogCase.caseId,
+        modLogChannelId,
+      };
+
+      if (isPermissionError) {
+        this.logger.warn(logCtx, "Failed to post mod log message: missing permissions");
+      } else {
+        this.logger.error(logCtx, "Failed to post mod log message");
+      }
 
       return Err(`Failed to post mod log message: ${error}`);
     }

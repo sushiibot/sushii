@@ -1,4 +1,4 @@
-import type { Client } from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes, type Client } from "discord.js";
 import type { Logger } from "pino";
 
 import type { GuildReactionBatch } from "../domain/types/ReactionEvent";
@@ -63,14 +63,18 @@ export class ReactionLogService {
         "Successfully sent guild reaction log message",
       );
     } catch (err) {
-      this.logger.error(
-        {
-          err,
-          guildId: guildBatch.guildId,
-          channelId: reactionLogChannelId,
-        },
-        "Failed to send guild reaction log message",
-      );
+      const isPermissionError =
+        err instanceof DiscordAPIError &&
+        (err.code === RESTJSONErrorCodes.MissingPermissions ||
+          err.code === RESTJSONErrorCodes.MissingAccess);
+
+      const logCtx = { err, guildId: guildBatch.guildId, channelId: reactionLogChannelId };
+
+      if (isPermissionError) {
+        this.logger.warn(logCtx, "Failed to send guild reaction log message: missing permissions");
+      } else {
+        this.logger.error(logCtx, "Failed to send guild reaction log message");
+      }
     }
   }
 }
