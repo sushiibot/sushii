@@ -85,20 +85,20 @@ export interface ScamCandidateRepository {
   ): Promise<ScamCandidateState | null>;
 
   /**
-   * Transitions a claimed row to 'ready_to_post', persisting image results,
-   * classification, and guild names for the owning cluster to consume.
+   * Transitions a claimed row to 'ready_to_post', persisting image results and guild names
+   * for the review cluster to consume.
    */
   transitionToReadyToPost(
     key: string,
     opts: {
       newImageResults: StoredImageResult[];
-      classificationResult: StoredClassificationResult | null;
       guildNames: string[];
     },
   ): Promise<ScamCandidateState | null>;
 
   /**
-   * Transitions a ready_to_post row to 'reviewing', setting review channel/message IDs.
+   * Transitions a ready_to_post row to 'reviewing', setting review channel/message IDs and
+   * the classification result (computed on the review cluster after re-downloading images).
    * Guards on WHERE status = 'ready_to_post'. Returns null if row is no longer in that status.
    */
   transitionFromReadyToPost(
@@ -107,6 +107,7 @@ export interface ScamCandidateRepository {
       reviewChannelId: string;
       reviewMessageId: string;
       postedImageResults: StoredImageResult[];
+      classificationResult: StoredClassificationResult | null;
     },
   ): Promise<ScamCandidateState | null>;
 

@@ -25,7 +25,7 @@ import {
   SCAM_IMAGE_MAX_SIZE_BYTES,
   type ScamImageHashService,
 } from "./ScamImageHashService";
-import type { ScamCandidateTrigger, StoredImageResult } from "../domain/repositories/ScamCandidateRepository";
+import type { ScamCandidateTrigger, StoredClassificationResult, StoredImageResult } from "../domain/repositories/ScamCandidateRepository";
 import {
   MAX_LABEL_LENGTH,
   type ClassificationResult,
@@ -417,6 +417,53 @@ export class ScamCandidateService {
       successfulResults.push(imageResult);
     }
 
+    // Classify new images on the review cluster — images are already downloaded here,
+    // so this piggybacks on the re-download rather than requiring a separate fetch.
+    let classificationResult: ClassificationResult | null = null;
+    if (this.classifier && successfulResults.some((r) => r.isNew)) {
+      const newImageInputs = successfulFiles
+        .filter((_, i) => successfulResults[i].isNew)
+        .map((f) => ({ buffer: f.attachment, filename: f.name }));
+      const classifySpan = tracer.startSpan("automod.candidate.classify", {
+        kind: SpanKind.INTERNAL,
+        attributes: {
+          "user.id": state.triggeredByUserId,
+          "candidate.images.new": newImageInputs.length,
+        },
+      });
+      try {
+        classificationResult = await this.classifier.classify(newImageInputs);
+        if (classificationResult) {
+          classifySpan.setAttributes({
+            "classification.is_scam": classificationResult.isScam,
+            "classification.confidence": classificationResult.confidence,
+            "classification.has_suggested_label": classificationResult.suggestedLabel !== null,
+          });
+          this.logger.debug(
+            {
+              isScam: classificationResult.isScam,
+              confidence: classificationResult.confidence,
+              label: classificationResult.suggestedLabel,
+            },
+            "Scam candidate classified",
+          );
+        } else {
+          classifySpan.addEvent("classification_failed", { reason: "classify returned null" });
+        }
+      } finally {
+        classifySpan.end();
+      }
+    }
+
+    const storedClassification = classificationResult
+      ? {
+          isScam: classificationResult.isScam,
+          confidence: classificationResult.confidence,
+          suggestedLabel: classificationResult.suggestedLabel,
+          reason: classificationResult.reason,
+        }
+      : null;
+
     const channel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
     if (!channel?.isTextBased() || channel.isDMBased()) {
       this.logger.error({ reviewId, channelId: REVIEW_CHANNEL_ID }, "Review channel not in cache on posting cluster");
@@ -427,7 +474,7 @@ export class ScamCandidateService {
     const { components, flags } = await this.buildReviewFromState(
       state,
       undefined,
-      { guildNames: state.guildNames, imageResults: successfulResults },
+      { guildNames: state.guildNames, imageResults: successfulResults, classificationResult: storedClassification },
     );
 
     const msg = await reviewChannel.send({
@@ -442,6 +489,7 @@ export class ScamCandidateService {
         reviewChannelId: REVIEW_CHANNEL_ID,
         reviewMessageId: msg.id,
         postedImageResults: successfulResults,
+        classificationResult: storedClassification,
       });
     } catch (err) {
       this.logger.warn({ err, reviewId, key, messageId: msg.id }, "transitionFromReadyToPost threw — deleting message to prevent duplicate");
@@ -651,39 +699,6 @@ export class ScamCandidateService {
       return;
     }
 
-    // Classify new images with AI (best-effort, non-blocking on failure)
-    let classificationResult: ClassificationResult | null = null;
-    if (this.classifier) {
-      const classifySpan = tracer.startSpan("automod.candidate.classify", {
-        kind: SpanKind.INTERNAL,
-        attributes: { "user.id": userId, "candidate.images.new": newResults.length },
-      });
-      try {
-        classificationResult = await this.classifier.classify(
-          newResults.map((r) => ({ buffer: r.buffer, filename: r.filename })),
-        );
-        if (classificationResult) {
-          classifySpan.setAttributes({
-            "classification.is_scam": classificationResult.isScam,
-            "classification.confidence": classificationResult.confidence,
-            "classification.has_suggested_label": classificationResult.suggestedLabel !== null,
-          });
-          this.logger.debug(
-            {
-              isScam: classificationResult.isScam,
-              confidence: classificationResult.confidence,
-              label: classificationResult.suggestedLabel,
-            },
-            "Scam candidate classified",
-          );
-        } else {
-          classifySpan.addEvent("classification_failed", { reason: "classify returned null" });
-        }
-      } finally {
-        classifySpan.end();
-      }
-    }
-
     const guildNames = guildIdsArray.map((id) => this.client.guilds.cache.get(id)?.name ?? id);
     if (guildNames.length === 0) {
       this.logger.warn({ userId, hashKey }, "All guilds uncached on processing cluster — guildNames will be empty in review");
@@ -700,18 +715,8 @@ export class ScamCandidateService {
       attachmentIndex: r.attachmentIndex,
     }));
 
-    const storedClassification = classificationResult
-      ? {
-          isScam: classificationResult.isScam,
-          confidence: classificationResult.confidence,
-          suggestedLabel: classificationResult.suggestedLabel,
-          reason: classificationResult.reason,
-        }
-      : null;
-
     const readyToPost = await this.candidateRepository.transitionToReadyToPost(hashKey, {
       newImageResults: imageResults,
-      classificationResult: storedClassification,
       guildNames,
     });
 
@@ -730,7 +735,7 @@ export class ScamCandidateService {
   private async buildReviewFromState(
     state: ScamCandidateState,
     resolved?: { statusLine: string; buttonLabel: string },
-    overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[] },
+    overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[]; classificationResult?: StoredClassificationResult | null },
   ): Promise<ReturnType<typeof buildScamCandidateReviewMessage>> {
     const guildNames =
       overrides?.guildNames ??
@@ -738,6 +743,10 @@ export class ScamCandidateService {
         ? state.guildNames
         : state.guildIds.map((id) => this.client.guilds.cache.get(id)?.name ?? id));
     const imageResults = overrides?.imageResults ?? state.newImageResults ?? [];
+    const classificationResult =
+      overrides !== undefined && "classificationResult" in overrides
+        ? overrides.classificationResult
+        : state.classificationResult;
     const username = await this.fetchUsername(state.triggeredByUserId);
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
@@ -745,7 +754,7 @@ export class ScamCandidateService {
       channelCount: state.channelCount,
       guildNames,
       imageResults,
-      classificationResult: state.classificationResult,
+      classificationResult: classificationResult ?? null,
       reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,
       resolved,

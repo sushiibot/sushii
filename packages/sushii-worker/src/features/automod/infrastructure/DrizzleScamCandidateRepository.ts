@@ -113,7 +113,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     key: string,
     opts: {
       newImageResults: StoredImageResult[];
-      classificationResult: StoredClassificationResult | null;
       guildNames: string[];
     },
   ): Promise<ScamCandidateState | null> {
@@ -122,7 +121,6 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .set({
         status: "ready_to_post",
         newImageResults: opts.newImageResults,
-        classificationResult: opts.classificationResult,
         guildNames: opts.guildNames,
         updatedAt: new Date(),
       })
@@ -143,6 +141,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       reviewChannelId: string;
       reviewMessageId: string;
       postedImageResults: StoredImageResult[];
+      classificationResult: StoredClassificationResult | null;
     },
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
@@ -152,6 +151,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         reviewChannelId: opts.reviewChannelId,
         reviewMessageId: opts.reviewMessageId,
         newImageResults: opts.postedImageResults,
+        classificationResult: opts.classificationResult,
         updatedAt: new Date(),
       })
       .where(
