@@ -106,6 +106,7 @@ export interface ScamCandidateRepository {
     opts: {
       reviewChannelId: string;
       reviewMessageId: string;
+      postedImageResults: StoredImageResult[];
     },
   ): Promise<ScamCandidateState | null>;
 

@@ -142,6 +142,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     opts: {
       reviewChannelId: string;
       reviewMessageId: string;
+      postedImageResults: StoredImageResult[];
     },
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
@@ -150,6 +151,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         status: "reviewing",
         reviewChannelId: opts.reviewChannelId,
         reviewMessageId: opts.reviewMessageId,
+        newImageResults: opts.postedImageResults,
         updatedAt: new Date(),
       })
       .where(
@@ -255,7 +257,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(
         and(
           sql`${scamCandidateStateInAppPublic.status} IN ('claimed', 'ready_to_post')`,
-          lt(scamCandidateStateInAppPublic.claimedAt, cutoff),
+          lt(scamCandidateStateInAppPublic.updatedAt, cutoff),
         ),
       )
       .returning({ key: scamCandidateStateInAppPublic.key });

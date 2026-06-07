@@ -439,6 +439,7 @@ export class ScamCandidateService {
       reviewing = await this.candidateRepository.transitionFromReadyToPost(key, {
         reviewChannelId: REVIEW_CHANNEL_ID,
         reviewMessageId: msg.id,
+        postedImageResults: successfulResults,
       });
     } catch (err) {
       this.logger.warn({ err, reviewId, key, messageId: msg.id }, "transitionFromReadyToPost threw — deleting message to prevent duplicate");
