@@ -30,6 +30,7 @@ import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
 import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
 import { ScamCandidateButtonHandler } from "./presentation/handlers/ScamCandidateButtonHandler";
 import { ScamCandidateLabelModalHandler } from "./presentation/handlers/ScamCandidateLabelModalHandler";
+import type { ScamImageStore } from "./infrastructure/ScamImageStore";
 
 export interface AutomodFeature {
   eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler, ScamHashDMHandler];
@@ -52,12 +53,13 @@ export interface AutomodFeatureOptions {
   logger: Logger;
   db: NodePgDatabase<typeof schema>;
   scamImageClassifier?: ScamImageClassifier;
+  scamImageStore?: ScamImageStore;
 }
 
 export function setupAutomodFeature(
   options: AutomodFeatureOptions,
 ): AutomodFeature {
-  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, scamImageClassifier } =
+  const { guildConfigRepository, emojiRepository, client, deploymentService, logger, db, scamImageClassifier, scamImageStore } =
     options;
 
   // Services
@@ -95,6 +97,7 @@ export function setupAutomodFeature(
     scamImageHashRepository,
     logger.child({ component: "ScamImageHashService" }),
     scamImageMetrics,
+    scamImageStore,
   );
 
   const scamCandidateMetrics = new ScamCandidateMetrics();
@@ -106,6 +109,7 @@ export function setupAutomodFeature(
     scamCandidateMetrics,
     logger.child({ component: "ScamCandidateService" }),
     scamImageClassifier,
+    scamImageStore,
   );
 
   // Event handlers

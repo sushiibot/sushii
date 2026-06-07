@@ -1,10 +1,13 @@
 import sharp from "sharp";
 import type { Logger } from "pino";
 
+import { filenameFromUrl } from "../utils/imageUtils";
+
 import type {
   ScamImageHash,
   ScamImageHashRepository,
 } from "../domain/repositories/ScamImageHashRepository";
+import type { ScamImageStore } from "../infrastructure/ScamImageStore";
 
 export interface AttachmentCheckResult {
   matched: ScamImageHash | null;
@@ -56,6 +59,7 @@ export class ScamImageHashService {
     private readonly repository: ScamImageHashRepository,
     private readonly logger: Logger,
     private readonly metrics: ScamImageMetrics,
+    private readonly imageStore?: ScamImageStore,
   ) {}
 
   private async computeHash(buffer: Buffer): Promise<bigint> {
@@ -112,6 +116,7 @@ export class ScamImageHashService {
   async checkAttachments(
     attachmentUrls: string[],
     guildId: string,
+    userId: string,
   ): Promise<AttachmentCheckResult> {
     const nearMissUrls: string[] = [];
 
@@ -133,6 +138,19 @@ export class ScamImageHashService {
 
         if (closest) {
           this.metrics.nearestDistanceHistogram.record(closest.distance);
+        }
+
+        if (closest && closest.distance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
+          void this.imageStore?.store({
+            buffer,
+            dhash: hash,
+            phash,
+            closestDistance: closest.distance,
+            trigger: "hash_check",
+            userId,
+            guildId,
+            filename: filenameFromUrl(url),
+          });
         }
 
         if (closest && closest.distance <= SCAM_HASH_MATCH_THRESHOLD) {

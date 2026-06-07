@@ -3,6 +3,7 @@ import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { ScamImageClassifier } from "@/features/automod/application/ScamImageClassifier";
+import { ScamImageStore } from "@/features/automod/infrastructure/ScamImageStore";
 import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
@@ -201,6 +202,20 @@ export function registerFeatures(
       )
     : undefined;
 
+  const scamImageStore =
+    config.scamImageStoreEndpoint &&
+    config.scamImageStoreBucket &&
+    config.scamImageStoreAccessKeyId &&
+    config.scamImageStoreSecretAccessKey
+      ? new ScamImageStore(
+          config.scamImageStoreEndpoint,
+          config.scamImageStoreBucket,
+          config.scamImageStoreAccessKeyId,
+          config.scamImageStoreSecretAccessKey,
+          logger.child({ component: "ScamImageStore" }),
+        )
+      : undefined;
+
   const automodFeature = setupAutomodFeature({
     client,
     deploymentService,
@@ -210,6 +225,7 @@ export function registerFeatures(
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
     scamImageClassifier,
+    scamImageStore,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const promptsFeature = setupPromptsFeature({ db, logger });

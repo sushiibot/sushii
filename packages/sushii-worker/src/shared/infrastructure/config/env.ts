@@ -79,6 +79,13 @@ const envSchema = z.object({
 
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_SCAM_CLASSIFY_MODEL: z.string().optional().default("stepfun/step-3.7-flash"),
+
+  // Scam image dataset storage (Backblaze B2 / S3-compatible)
+  // All four must be set to enable image uploads; absent = feature disabled
+  SCAM_IMAGE_STORE_ENDPOINT: z.string().optional(),
+  SCAM_IMAGE_STORE_BUCKET: z.string().optional(),
+  SCAM_IMAGE_STORE_ACCESS_KEY_ID: z.string().optional(),
+  SCAM_IMAGE_STORE_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

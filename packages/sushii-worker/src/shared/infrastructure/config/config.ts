@@ -136,6 +136,10 @@ export class Config {
   readonly googleCalendarApiKey?: string;
   readonly openRouterApiKey?: string;
   readonly openRouterScamClassifyModel: string;
+  readonly scamImageStoreEndpoint?: string;
+  readonly scamImageStoreBucket?: string;
+  readonly scamImageStoreAccessKeyId?: string;
+  readonly scamImageStoreSecretAccessKey?: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
@@ -199,6 +203,10 @@ export class Config {
     this.googleCalendarApiKey = env.GOOGLE_CALENDAR_API_KEY;
     this.openRouterApiKey = env.OPENROUTER_API_KEY;
     this.openRouterScamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
+    this.scamImageStoreEndpoint = env.SCAM_IMAGE_STORE_ENDPOINT;
+    this.scamImageStoreBucket = env.SCAM_IMAGE_STORE_BUCKET;
+    this.scamImageStoreAccessKeyId = env.SCAM_IMAGE_STORE_ACCESS_KEY_ID;
+    this.scamImageStoreSecretAccessKey = env.SCAM_IMAGE_STORE_SECRET_ACCESS_KEY;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;

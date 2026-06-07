@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { Logger } from "pino";
 
+import { contentTypeFromFilename } from "../utils/imageUtils";
+
 export const MAX_LABEL_LENGTH = 100;
 
 const classificationSchema = z.object({
@@ -48,20 +50,6 @@ Omit parts that are not present. Use null if not a scam.
 Respond with ONLY a JSON object, no markdown fences, no explanation:
 {"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "one sentence", "suggestedLabel": "[platform] [impersonated account] - [scam site domain] or null if not a scam"}`;
 
-function mimeTypeFromFilename(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  if (ext === "jpg" || ext === "jpeg") {
-    return "image/jpeg";
-  }
-  if (ext === "gif") {
-    return "image/gif";
-  }
-  if (ext === "webp") {
-    return "image/webp";
-  }
-  return "image/png";
-}
-
 export class ScamImageClassifier {
   constructor(
     private readonly apiKey: string,
@@ -79,7 +67,7 @@ export class ScamImageClassifier {
           : `Review these ${images.length} images from the same message for scam content.`;
 
       const imageContent = images.map((img) => {
-        const mimeType = mimeTypeFromFilename(img.filename);
+        const mimeType = contentTypeFromFilename(img.filename);
         const base64 = img.buffer.toString("base64");
         return {
           type: "image_url" as const,

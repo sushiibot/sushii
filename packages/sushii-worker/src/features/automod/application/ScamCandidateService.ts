@@ -33,12 +33,14 @@ import {
 } from "./ScamImageClassifier";
 import type { ScamImageHashRepository } from "../domain/repositories/ScamImageHashRepository";
 import type { ScamCandidateRepository, ScamCandidateState } from "../domain/repositories/ScamCandidateRepository";
+import type { ScamImageStore } from "../infrastructure/ScamImageStore";
 import type { ScamCandidateMetrics } from "../infrastructure/metrics/ScamCandidateMetrics";
 import {
   buildModalId,
   SCAM_CANDIDATE_MODAL_LABEL_INPUT,
 } from "../presentation/handlers/scamCandidateCustomIds";
 import { buildHashKey } from "../utils/bigintUtils";
+import { filenameFromUrl } from "../utils/imageUtils";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
@@ -86,6 +88,7 @@ export class ScamCandidateService {
     private readonly metrics: ScamCandidateMetrics,
     private readonly logger: Logger,
     private readonly classifier?: ScamImageClassifier,
+    private readonly imageStore?: ScamImageStore,
   ) {}
 
   destroy(): void {
@@ -433,8 +436,18 @@ export class ScamCandidateService {
               const { hash, phash } = await this.hashService.computeHashes(buffer);
               const closest = await this.hashRepository.findClosest(hash, phash);
               const isNew = !closest || closest.distance > SCAM_HASH_DEDUP_THRESHOLD;
-              const rawFilename = url.split("?")[0].split("/").pop() || "candidate.png";
-              const filename = `${idx}_${rawFilename}`;
+              const filename = `${idx}_${filenameFromUrl(url)}`;
+
+              void this.imageStore?.store({
+                buffer,
+                dhash: hash,
+                phash,
+                closestDistance: closest?.distance,
+                trigger: "candidate_review",
+                userId,
+                guildId: [...guildIds][0],
+                filename,
+              });
 
               return {
                 filename,

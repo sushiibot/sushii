@@ -280,6 +280,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
           const { matched, nearMissUrls } = await this.scamImageHashService.checkAttachments(
             imageUrls,
             guildId,
+            userId,
           );
 
           if (!matched) {
