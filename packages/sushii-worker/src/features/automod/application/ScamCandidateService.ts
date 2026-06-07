@@ -46,7 +46,7 @@ import { REVIEW_CHANNEL_ID } from "../constants";
 const tracer = opentelemetry.trace.getTracer("automod");
 
 const WINDOW_MS = 2 * 60 * 1000;
-const CHANNEL_THRESHOLD = 5;
+const CHANNEL_THRESHOLD = 3;
 const CLAIMED_ORPHAN_TTL_MS = 15 * 60 * 1000;
 
 // UnknownMessage is handled in editReviewMessage — it transitions state to 'ignored'.
@@ -394,23 +394,31 @@ export class ScamCandidateService {
         idx = Number(idxMatch[1]);
       }
 
+      let buffer: Buffer | null = null;
+
       const url = attachmentUrls[idx];
-      if (!url) {
-        this.logger.warn({ reviewId, idx, filename: imageResult.filename }, "No attachment URL for image index — skipping image");
-        continue;
+      if (url) {
+        try {
+          const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+          if (resp.ok) {
+            buffer = Buffer.from(await resp.arrayBuffer());
+          } else {
+            this.logger.warn({ reviewId, url, status: resp.status }, "Failed to re-download attachment URL — trying S3 fallback");
+          }
+        } catch (err) {
+          this.logger.warn({ err, reviewId, url }, "Error re-downloading attachment URL — trying S3 fallback");
+        }
       }
 
-      let buffer: Buffer;
-      try {
-        const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        if (!resp.ok) {
-          this.logger.warn({ reviewId, url, status: resp.status }, "Failed to re-download attachment URL — skipping image");
+      if (!buffer) {
+        if (imageResult.s3Key && this.imageStore) {
+          buffer = await this.imageStore.download(imageResult.s3Key);
+        }
+
+        if (!buffer) {
+          this.logger.warn({ reviewId, idx, filename: imageResult.filename }, "No attachment URL or S3 key for image — skipping image");
           continue;
         }
-        buffer = Buffer.from(await resp.arrayBuffer());
-      } catch (err) {
-        this.logger.warn({ err, reviewId, url }, "Error re-downloading attachment URL — skipping image");
-        continue;
       }
 
       successfulFiles.push({ attachment: buffer, name: imageResult.filename });
