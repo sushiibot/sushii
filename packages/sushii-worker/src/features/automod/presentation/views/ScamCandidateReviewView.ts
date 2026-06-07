@@ -20,7 +20,6 @@ import type {
   StoredImageResult,
 } from "../../domain/repositories/ScamCandidateRepository";
 
-const MAX_REASON_DISPLAY_LENGTH = 200;
 
 export interface ScamCandidateReviewViewOpts {
   userId: string;
@@ -56,7 +55,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
 
   const newResults = imageResults.filter((r) => r.isNew);
 
-  const textLines = [
+  const userLines = [
     `-# Scam Candidate`,
     `**User**`,
     `${username} (\`${userId}\`)`,
@@ -65,16 +64,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     ...guildNames.map((name) => `- ${name}`),
   ];
 
-  if (classificationResult) {
-    const icon = classificationResult.isScam ? "🔴" : "🟢";
-    const labelPart = classificationResult.suggestedLabel
-      ? ` · \`${classificationResult.suggestedLabel}\``
-      : "";
-    const reason = classificationResult.reason.slice(0, MAX_REASON_DISPLAY_LENGTH);
-    textLines.push(`-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${reason}`);
-  }
-
-  textLines.push("**Images**");
+  const imageLines = [`**Images**`];
   for (const r of imageResults) {
     const hashHex = formatDhash(BigInt(r.phash));
     let line = `• \`${hashHex}\``;
@@ -83,11 +73,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
       const prefix = r.isNew ? "nearest" : "≈";
       line += ` · ${prefix} #${r.closestId}${label} dist ${r.closestDistance}`;
     }
-    textLines.push(line);
-  }
-
-  if (resolved) {
-    textLines.push(resolved.statusLine);
+    imageLines.push(line);
   }
 
   const gallery =
@@ -131,12 +117,33 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
         ].filter((b): b is ButtonBuilder => b !== null),
       );
 
-  const container = new ContainerBuilder().addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(textLines.join("\n")),
-  );
+  const container = new ContainerBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(userLines.join("\n")))
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(imageLines.join("\n")));
 
   if (gallery) {
     container.addMediaGalleryComponents(gallery);
+  }
+
+  if (classificationResult) {
+    const icon = classificationResult.isScam ? "🔴" : "🟢";
+    const labelPart = classificationResult.suggestedLabel
+      ? ` · \`${classificationResult.suggestedLabel}\``
+      : "";
+    container
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${classificationResult.reason}`,
+        ),
+      );
+  }
+
+  if (resolved) {
+    container
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(resolved.statusLine));
   }
 
   container.addSeparatorComponents(new SeparatorBuilder()).addActionRowComponents(actionRow);
