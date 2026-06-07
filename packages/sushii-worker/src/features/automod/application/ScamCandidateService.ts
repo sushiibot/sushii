@@ -576,15 +576,15 @@ export class ScamCandidateService {
       }
     }
 
-    const fetchedChannel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
+    const fetchedChannel = await this.client.channels.fetch(REVIEW_CHANNEL_ID);
     if (!fetchedChannel?.isTextBased() || fetchedChannel.isDMBased()) {
       // Leave the row in 'claimed' — the orphan janitor will clean it up after
-      // CLAIMED_ORPHAN_TTL_MS. Deleting here causes an infinite retry loop:
-      // the sightings table still has old entries so the threshold fires again
-      // immediately, re-claims, and re-fails.
+      // CLAIMED_ORPHAN_TTL_MS. Do NOT delete here: the sightings table retains
+      // old entries so the threshold would fire again immediately, re-claim,
+      // and re-fail in a tight loop.
       this.logger.error(
         { channelId: REVIEW_CHANNEL_ID },
-        "Review channel not in cache — bot may be starting up, will retry via orphan janitor",
+        "Review channel not found or not text-based",
       );
       this.metrics.reviewCounter.add(1, { outcome: "channel_not_cached", trigger });
       return;
