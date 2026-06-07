@@ -70,7 +70,7 @@ export function createVerificationGuideMessage(
 
   return {
     components: [container],
-    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    flags: MessageFlags.IsComponentsV2,
     allowedMentions: { parse: [] },
   };
 }
