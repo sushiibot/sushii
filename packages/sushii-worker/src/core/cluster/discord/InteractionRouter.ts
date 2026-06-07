@@ -16,7 +16,9 @@ import {
   ApplicationCommandType,
   Collection,
   ComponentType,
+  DiscordAPIError,
   InteractionType,
+  RESTJSONErrorCodes,
   Routes,
 } from "discord.js";
 
@@ -737,6 +739,11 @@ export default class InteractionRouter {
     try {
       await modalHandler.handleModalSubmit(interaction);
     } catch (e) {
+      if (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownInteraction) {
+        log.warn({ err: e, interactionId: interaction.id }, "stale interaction token (modal)");
+        return;
+      }
+
       Sentry.captureException(e, {
         tags: {
           type: "modal",
@@ -778,6 +785,22 @@ export default class InteractionRouter {
     try {
       await buttonHandler.handleInteraction(interaction);
     } catch (err) {
+      const isStaleInteraction =
+        err instanceof DiscordAPIError &&
+        err.code === RESTJSONErrorCodes.UnknownInteraction;
+
+      if (isStaleInteraction) {
+        log.warn(
+          {
+            err,
+            interactionId: interaction.id,
+            handler: buttonHandler.constructor.name,
+          },
+          "stale interaction token (button)",
+        );
+        return;
+      }
+
       Sentry.captureException(err, {
         tags: {
           type: "button",
@@ -828,6 +851,11 @@ export default class InteractionRouter {
     try {
       await selectMenuHandler.handleInteraction(interaction);
     } catch (e) {
+      if (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownInteraction) {
+        log.warn({ err: e, interactionId: interaction.id }, "stale interaction token (select menu)");
+        return;
+      }
+
       Sentry.captureException(e, {
         tags: {
           type: "select_menu",
