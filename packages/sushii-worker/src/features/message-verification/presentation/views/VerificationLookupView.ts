@@ -141,7 +141,7 @@ export function createVerificationNotFoundMessage(): InteractionReplyOptions & {
   const container = new ContainerBuilder().setAccentColor(Color.Error);
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      "## Code Not Found\nNo verification record was found for that code. Make sure the code is correct and try again.",
+      "## Code Not Found\nNo verification record was found for that code. It may have expired (records are kept for 24 hours) or the code may be incorrect.",
     ),
   );
 

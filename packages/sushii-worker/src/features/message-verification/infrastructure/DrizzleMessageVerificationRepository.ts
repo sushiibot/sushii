@@ -1,5 +1,5 @@
 import { DatabaseError } from "pg";
-import { eq, sql } from "drizzle-orm";
+import { eq, lt, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "@/infrastructure/database/schema";
@@ -13,6 +13,9 @@ import type {
 import { isVerificationRefreshed } from "../application/types";
 
 type DbType = NodePgDatabase<typeof schema>;
+
+// Must match the column default in schema.ts messageVerificationsInAppPublic.expiresAt
+const EXPIRY_SQL = sql`now() + interval '24 hours'`;
 
 const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const CODE_LENGTH = 8;
@@ -70,12 +73,14 @@ export class DrizzleMessageVerificationRepository {
               messageTimestamp: data.messageTimestamp,
               attachments: data.attachments,
               updatedAt: sql`now()`,
+              expiresAt: EXPIRY_SQL,
             },
           })
           .returning({
             code: schema.messageVerificationsInAppPublic.code,
             createdAt: schema.messageVerificationsInAppPublic.createdAt,
             updatedAt: schema.messageVerificationsInAppPublic.updatedAt,
+            expiresAt: schema.messageVerificationsInAppPublic.expiresAt,
           });
 
         const row = result[0];
@@ -85,7 +90,7 @@ export class DrizzleMessageVerificationRepository {
 
         const isRefresh = isVerificationRefreshed(row);
 
-        return { code: row.code, isRefresh };
+        return { code: row.code, isRefresh, expiresAt: row.expiresAt };
       } catch (err) {
         if (isCodePkViolation(err) && attempt < MAX_RETRIES - 1) {
           continue;
@@ -109,6 +114,11 @@ export class DrizzleMessageVerificationRepository {
     }
 
     const row = result[0];
+
+    if (row.expiresAt <= new Date()) {
+      return null;
+    }
+
     return {
       code: row.code,
       submitterUserId: row.submitterUserId,
@@ -122,6 +132,15 @@ export class DrizzleMessageVerificationRepository {
       attachments: row.attachments as AttachmentMetadata[],
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      expiresAt: row.expiresAt,
     };
+  }
+
+  async deleteExpired(): Promise<number> {
+    const result = await this.db
+      .delete(schema.messageVerificationsInAppPublic)
+      .where(lt(schema.messageVerificationsInAppPublic.expiresAt, sql`now()`));
+
+    return result.rowCount || 0;
   }
 }

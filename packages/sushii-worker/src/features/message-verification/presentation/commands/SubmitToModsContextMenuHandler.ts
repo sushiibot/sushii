@@ -112,7 +112,7 @@ export class SubmitToModsContextMenuHandler extends ContextMenuHandler {
       );
 
       await interaction.reply(
-        createVerificationSubmitMessage(result.code, result.isRefresh),
+        createVerificationSubmitMessage(result.code, result.isRefresh, result.expiresAt),
       );
     } catch (err) {
       this.logger.error(

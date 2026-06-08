@@ -35,11 +35,13 @@ export interface MessageVerificationRecord extends NewMessageVerificationData {
   code: string;
   createdAt: Date;
   updatedAt: Date;
+  expiresAt: Date;
 }
 
 export interface UpsertResult {
   code: string;
   isRefresh: boolean;
+  expiresAt: Date;
 }
 
 export function isVerificationRefreshed(

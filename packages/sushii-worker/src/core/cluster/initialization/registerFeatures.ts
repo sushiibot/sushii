@@ -254,6 +254,8 @@ export function registerFeatures(
   const statusFeature = setupStatusFeature({ db });
   const messageVerificationFeature = setupMessageVerificationFeature({
     db,
+    client,
+    deploymentService,
     logger: logger.child({ feature: "MessageVerification" }),
     applicationId: config.discord.applicationId,
   });
@@ -505,6 +507,7 @@ export function registerFeatures(
     ...scheduleFeature.tasks,
     ...levelingFeature.tasks,
     ...automodFeature.tasks,
+    ...messageVerificationFeature.tasks,
   ];
 
   client.once(Events.ClientReady, () => {

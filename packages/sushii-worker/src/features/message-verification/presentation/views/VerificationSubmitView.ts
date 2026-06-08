@@ -9,15 +9,20 @@ import Color from "@/utils/colors";
 export function createVerificationSubmitMessage(
   code: string,
   isRefresh: boolean,
+  expiresAt: Date,
 ): InteractionReplyOptions & { flags: number } {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
+  const expiresTs = Math.floor(expiresAt.getTime() / 1000);
 
   let text = isRefresh
-    ? `## Record Refreshed\nYour previously submitted message has been updated.\n\n`
-    : `## Message Submitted\n\n`;
+    ? `## Message Updated\nThe previously saved record for this message has been updated.\n\n`
+    : `## Message Saved\n\n`;
 
-  text += `**Lookup Code**\n\`${code}\`\n\n`;
-  text += `-# This code is only useful if a moderator explicitly requested it for report verification.`;
+  text += `Share this code with the moderator if they requested it — expires <t:${expiresTs}:R>.\n\n`;
+  text += `**\`${code}\`**\n\n`;
+  text += `-# What was saved: the message text, author, timestamp, and any attachment filenames.\n`;
+  text += `-# Nothing is sent to anyone automatically — a moderator needs this code to access it.\n`;
+  text += `-# Only share this if a moderator explicitly asked for it.`;
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(text),

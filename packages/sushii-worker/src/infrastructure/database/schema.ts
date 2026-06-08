@@ -1231,6 +1231,12 @@ export const messageVerificationsInAppPublic = appPublic.table(
     })
       .notNull()
       .default(sql`now()`),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .default(sql`now() + interval '24 hours'`),
   },
   (table) => [
     unique("message_verifications_submitter_message_unique").on(

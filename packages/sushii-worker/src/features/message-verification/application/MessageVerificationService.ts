@@ -20,4 +20,8 @@ export class MessageVerificationService {
   async lookupByCode(code: string): Promise<MessageVerificationRecord | null> {
     return this.repository.findByCode(code);
   }
+
+  async deleteExpired(): Promise<number> {
+    return this.repository.deleteExpired();
+  }
 }

@@ -386,6 +386,13 @@
       "when": 1780858464374,
       "tag": "0054_add_scam_candidate_state_status_idx",
       "breakpoints": false
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1780891743081,
+      "tag": "0055_add_expires_at_to_message_verifications",
+      "breakpoints": false
     }
   ]
 }
