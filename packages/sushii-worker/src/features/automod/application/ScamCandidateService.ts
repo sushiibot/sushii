@@ -877,15 +877,7 @@ export class ScamCandidateService {
         : state.classificationResult;
     const username = await this.fetchUsername(state.triggeredByUserId);
     const effectiveClassification = classificationResult ?? null;
-    const nearMatchTrigger = (overrides?.imageResults ?? state.newImageResults ?? []).some(
-      (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
-    );
-    const revertable =
-      state.status === "added" &&
-      (
-        (effectiveClassification?.isScam === true && effectiveClassification.confidence === "high") ||
-        nearMatchTrigger
-      );
+    const revertable = state.status === "added";
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
       username,
