@@ -1,9 +1,12 @@
 import { z } from "zod";
 import type { Logger } from "pino";
 import sharp from "sharp";
+import opentelemetry, { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 
 import { contentTypeFromFilename } from "../utils/imageUtils";
 import type { ScamClassifierMetrics } from "../infrastructure/metrics/ScamClassifierMetrics";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 
 export const MAX_LABEL_LENGTH = 100;
 
@@ -81,6 +84,17 @@ export class ScamImageClassifier {
   async classify(
     images: { buffer: Buffer; filename: string }[],
   ): Promise<ClassificationResult | null> {
+    return tracer.startActiveSpan(
+      "automod.classifier.classify",
+      { kind: SpanKind.CLIENT, attributes: { "classifier.model": this.model, "classifier.image_count": images.length } },
+      (span) => this._classify(images, span),
+    );
+  }
+
+  private async _classify(
+    images: { buffer: Buffer; filename: string }[],
+    span: Span,
+  ): Promise<ClassificationResult | null> {
     const startMs = performance.now();
     const attrs = { model: this.model };
 
@@ -143,6 +157,9 @@ export class ScamImageClassifier {
           "OpenRouter API request failed",
         );
         this.metrics.requestCounter.add(1, { ...attrs, outcome: "api_error" });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${resp.status}` });
+        span.setAttribute("classifier.outcome", "api_error");
+        span.end();
         return null;
       }
 
@@ -150,7 +167,13 @@ export class ScamImageClassifier {
 
       const envelopeSchema = z.object({
         choices: z
-          .array(z.object({ message: z.object({ content: z.string().nullable(), reasoning: z.string().nullable().optional() }) }))
+          .array(z.object({
+            finish_reason: z.string().nullable().optional(),
+            message: z.object({
+              content: z.string().nullable(),
+              reasoning: z.string().nullable().optional(),
+            }),
+          }))
           .min(1),
         usage: z
           .object({
@@ -161,8 +184,14 @@ export class ScamImageClassifier {
       });
       const envelope = envelopeSchema.safeParse(data);
       if (!envelope.success) {
-        this.logger.warn({ data }, "Unexpected OpenRouter response shape");
-        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
+        this.logger.warn(
+          { error: envelope.error.message, model: this.model },
+          "Unexpected OpenRouter response shape",
+        );
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "envelope_error" });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: envelope.error.message });
+        span.setAttribute("classifier.outcome", "envelope_error");
+        span.end();
         return null;
       }
 
@@ -176,7 +205,29 @@ export class ScamImageClassifier {
         }
       }
 
-      const { content, reasoning } = envelope.data.choices[0].message;
+      const { finish_reason, message } = envelope.data.choices[0];
+      span.setAttribute("classifier.finish_reason", finish_reason ?? "unknown");
+      if (usage?.prompt_tokens) {
+        span.setAttribute("classifier.tokens.prompt", usage.prompt_tokens);
+      }
+      if (usage?.completion_tokens) {
+        span.setAttribute("classifier.tokens.completion", usage.completion_tokens);
+      }
+      if (finish_reason === "length") {
+        this.logger.warn(
+          { model: this.model, completion_tokens: usage?.completion_tokens },
+          "OpenRouter response truncated (finish_reason=length), increase max_tokens",
+        );
+        span.addEvent("response_truncated");
+      }
+
+      const { content, reasoning } = message;
+      if (content === null) {
+        this.logger.warn(
+          { model: this.model, hasReasoning: reasoning !== null && reasoning !== undefined },
+          "OpenRouter response has null content, falling back to reasoning field",
+        );
+      }
       const rawContent = (content ?? reasoning ?? "").trim();
 
       const stripped = rawContent
@@ -189,7 +240,10 @@ export class ScamImageClassifier {
         parsed = JSON.parse(stripped);
       } catch (err) {
         this.logger.warn({ err, rawContent }, "Failed to parse OpenRouter response JSON");
-        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "json_parse_error" });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "JSON parse failed" });
+        span.setAttribute("classifier.outcome", "json_parse_error");
+        span.end();
         return null;
       }
 
@@ -199,20 +253,31 @@ export class ScamImageClassifier {
           { error: result.error.message, parsed },
           "OpenRouter response failed schema validation",
         );
-        this.metrics.requestCounter.add(1, { ...attrs, outcome: "parse_failed" });
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "schema_error" });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: result.error.message });
+        span.setAttribute("classifier.outcome", "schema_error");
+        span.end();
         return null;
       }
 
-      this.metrics.requestCounter.add(1, {
-        ...attrs,
-        outcome: result.data.isScam ? "scam" : "not_scam",
+      const outcome = result.data.isScam ? "scam" : "not_scam";
+      this.metrics.requestCounter.add(1, { ...attrs, outcome });
+      span.setAttributes({
+        "classifier.outcome": outcome,
+        "classifier.is_scam": result.data.isScam,
+        "classifier.confidence": result.data.confidence,
+        "classifier.has_label": result.data.suggestedLabel !== null,
       });
-
+      span.end();
       return result.data;
     } catch (err) {
       this.logger.warn({ err }, "ScamImageClassifier.classify failed");
       this.metrics.durationHistogram.record(performance.now() - startMs, attrs);
       this.metrics.requestCounter.add(1, { ...attrs, outcome: "error" });
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.setAttribute("classifier.outcome", "error");
+      span.end();
       return null;
     }
   }
