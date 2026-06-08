@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Logger } from "pino";
+import sharp from "sharp";
 
 import { contentTypeFromFilename } from "../utils/imageUtils";
 import type { ScamClassifierMetrics } from "../infrastructure/metrics/ScamClassifierMetrics";
@@ -53,6 +54,22 @@ For reason: write at most 15 words. Name the scam type and target (e.g. "Fake Mr
 Respond with ONLY a JSON object, no markdown fences, no explanation:
 {"isScam": true or false, "confidence": "low" or "medium" or "high", "reason": "≤15 words", "suggestedLabel": "[platform] [impersonated account] - [scam site domain] or null if not a scam"}`;
 
+const CLASSIFIER_MAX_DIMENSION = 1024;
+
+async function resizeForClassifier(buffer: Buffer): Promise<Buffer> {
+  const meta = await sharp(buffer).metadata();
+  const { width, height } = meta;
+  if (
+    (!width || width <= CLASSIFIER_MAX_DIMENSION) &&
+    (!height || height <= CLASSIFIER_MAX_DIMENSION)
+  ) {
+    return buffer;
+  }
+  return sharp(buffer)
+    .resize(CLASSIFIER_MAX_DIMENSION, CLASSIFIER_MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
+    .toBuffer();
+}
+
 export class ScamImageClassifier {
   constructor(
     private readonly apiKey: string,
@@ -73,17 +90,18 @@ export class ScamImageClassifier {
           ? "Review this image for scam content."
           : `Review these ${images.length} images from the same message for scam content.`;
 
-      const imageContent = images.map((img) => {
+      const imageContent = await Promise.all(images.map(async (img) => {
         // Pass image/png as fallback — vision APIs require a valid image MIME in data URLs
         const mimeType = contentTypeFromFilename(img.filename, "image/png");
-        const base64 = img.buffer.toString("base64");
+        const resized = await resizeForClassifier(img.buffer);
+        const base64 = resized.toString("base64");
         return {
           type: "image_url" as const,
           image_url: {
             url: `data:${mimeType};base64,${base64}`,
           },
         };
-      });
+      }));
 
       const body = {
         model: this.model,
