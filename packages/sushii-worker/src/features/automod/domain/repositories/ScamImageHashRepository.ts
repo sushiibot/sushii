@@ -12,5 +12,6 @@ export interface ScamImageHashRepository {
   ): Promise<{ entry: ScamImageHash; phashDistance: number } | null>;
   add(phash: bigint, label?: string, s3Key?: string): Promise<number>;
   delete(id: number): Promise<boolean>;
+  removeByPhashes(phashes: bigint[]): Promise<void>;
   list(): Promise<ScamImageHash[]>;
 }

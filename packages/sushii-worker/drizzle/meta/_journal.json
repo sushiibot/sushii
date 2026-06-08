@@ -393,6 +393,13 @@
       "when": 1780891743081,
       "tag": "0055_add_expires_at_to_message_verifications",
       "breakpoints": false
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1780931617398,
+      "tag": "0056_add_reverted_status",
+      "breakpoints": false
     }
   ]
 }

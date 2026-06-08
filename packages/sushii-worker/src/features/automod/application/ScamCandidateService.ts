@@ -203,7 +203,7 @@ export class ScamCandidateService {
     if (status === "claimed" || status === "ready_to_post") {
       return "This review is still being set up — please try again in a moment.";
     }
-    if (status === "ignored" || status === "added") {
+    if (status === "ignored" || status === "added" || status === "reverted") {
       return "This review has already been resolved.";
     }
     return null;
@@ -294,18 +294,7 @@ export class ScamCandidateService {
       interaction.fields.getTextInputValue(SCAM_CANDIDATE_MODAL_LABEL_INPUT).trim() || undefined;
 
     const imageResults = preState.newImageResults ?? [];
-    const added: { id: number; filename: string }[] = [];
-    const failed: string[] = [];
-
-    for (const r of imageResults.filter((img) => img.isNew)) {
-      try {
-        const id = await this.hashRepository.add(BigInt(r.phash), label, r.s3Key ?? undefined);
-        added.push({ id, filename: r.filename });
-      } catch (err) {
-        this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
-        failed.push(r.filename);
-      }
-    }
+    const { added, failed } = await this.insertHashes(imageResults, label);
 
     if (added.length === 0) {
       await interaction.editReply(
@@ -339,6 +328,68 @@ export class ScamCandidateService {
     );
 
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added", trigger: state.trigger });
+  }
+
+  async handleRevert(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+
+    const current = await this.candidateRepository.getByReviewId(reviewId);
+    if (!current) {
+      await interaction.followUp({
+        content: "This review has expired — a new review will appear automatically.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (current.status !== "added") {
+      await interaction.followUp({
+        content: "This review has already been resolved.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const state = await this.candidateRepository.revertReview(reviewId);
+    if (!state) {
+      await interaction.followUp({
+        content: "This review has already been resolved.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const phashes = (state.newImageResults ?? [])
+      .filter((r) => r.isNew)
+      .map((r) => BigInt(r.phash));
+    if (phashes.length > 0) {
+      await this.hashRepository.removeByPhashes(phashes);
+    }
+
+    await interaction.editReply(
+      await this.buildReviewFromState(state, { statusLine: "*reverted*", buttonLabel: "Reverted" }),
+    );
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: "reverted", trigger: state.trigger });
+  }
+
+  private async insertHashes(
+    imageResults: StoredImageResult[],
+    label?: string,
+  ): Promise<{ added: { id: number; filename: string }[]; failed: string[] }> {
+    const added: { id: number; filename: string }[] = [];
+    const failed: string[] = [];
+
+    for (const r of imageResults.filter((img) => img.isNew)) {
+      try {
+        const id = await this.hashRepository.add(BigInt(r.phash), label, r.s3Key ?? undefined);
+        added.push({ id, filename: r.filename });
+      } catch (err) {
+        this.logger.error({ err, filename: r.filename }, "Failed to add scam hash from candidate review");
+        failed.push(r.filename);
+      }
+    }
+
+    return { added, failed };
   }
 
   /** Periodic janitor: delete sightings and orphaned claimed rows. */
@@ -479,9 +530,19 @@ export class ScamCandidateService {
     }
     const reviewChannel = channel as GuildTextBasedChannel;
 
+    const autoApprove =
+      storedClassification?.isScam === true && storedClassification.confidence === "high";
+
+    // For auto-approve, send with a locked "Auto-approving…" status (no Ignore/Add buttons).
+    // Hash insertion happens after winning the blue/green race, then the message is edited
+    // to its final state with the Revert button.
+    const initialResolved = autoApprove
+      ? { statusLine: "*auto-approving…*", buttonLabel: "Auto-approving" }
+      : undefined;
+
     const { components, flags } = await this.buildReviewFromState(
       state,
-      undefined,
+      initialResolved,
       { guildNames: state.guildNames, imageResults: successfulResults, classificationResult: storedClassification },
     );
 
@@ -516,6 +577,53 @@ export class ScamCandidateService {
       return;
     }
 
+    if (autoApprove) {
+      const label = storedClassification?.suggestedLabel ?? undefined;
+      const newPhashes = successfulResults.filter((r) => r.isNew).map((r) => BigInt(r.phash));
+      const { added, failed } = await this.insertHashes(successfulResults, label);
+
+      if (added.length === 0) {
+        this.logger.warn({ reviewId }, "Auto-approve: all hash inserts failed, falling back to manual review");
+        // Fall through to show Ignore/Add buttons for manual resolution
+        await this.editReviewMessage(reviewing, {
+          guildNames: state.guildNames,
+          imageResults: successfulResults,
+          classificationResult: storedClassification,
+        });
+        this.metrics.reviewCounter.add(1, { outcome: "auto_approve_insert_failed", trigger });
+        return;
+      }
+
+      const failedSuffix = failed.length > 0 ? ` · ⚠ ${failed.length} failed` : "";
+      const addedLabel = added.length === 1 ? "Auto-added 1 image" : `Auto-added ${added.length} images`;
+      const statusSuffix = [
+        `**${addedLabel}**${label ? ` · ${label}` : ""}${failedSuffix}`,
+        ...added.map((a) => `• **#${a.id}** \`${a.filename}\``),
+      ].join("\n");
+
+      const resolved = await this.candidateRepository.resolveReview(reviewId, "added");
+      if (!resolved) {
+        // Race: another moderator resolved it between transition and our insert
+        await this.hashRepository.removeByPhashes(newPhashes);
+        await this.editReviewMessage(reviewing, {
+          guildNames: state.guildNames,
+          imageResults: successfulResults,
+          classificationResult: storedClassification,
+        });
+        this.metrics.reviewCounter.add(1, { outcome: "auto_approve_race", trigger });
+        return;
+      }
+
+      await this.editReviewMessage(resolved, {
+        guildNames: state.guildNames,
+        imageResults: successfulResults,
+        classificationResult: storedClassification,
+        resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
+      });
+      this.metrics.reviewCounter.add(1, { outcome: "auto_approved", trigger });
+      return;
+    }
+
     if (reviewing.seenByUserIds.length > 1) {
       await this.editReviewMessage(reviewing, { guildNames: state.guildNames, imageResults: successfulResults });
     }
@@ -525,13 +633,18 @@ export class ScamCandidateService {
 
   private async editReviewMessage(
     state: ScamCandidateState,
-    overrides?: { guildNames?: string[]; imageResults?: StoredImageResult[] },
+    overrides?: {
+      guildNames?: string[];
+      imageResults?: StoredImageResult[];
+      classificationResult?: StoredClassificationResult | null;
+      resolved?: { statusLine: string; buttonLabel: string };
+    },
   ): Promise<void> {
     if (!state.reviewChannelId || !state.reviewMessageId) {
       return;
     }
 
-    const options = await this.buildReviewFromState(state, undefined, overrides);
+    const options = await this.buildReviewFromState(state, overrides?.resolved, overrides);
 
     try {
       const channel = await this.client.channels.fetch(state.reviewChannelId);
@@ -756,15 +869,21 @@ export class ScamCandidateService {
         ? overrides.classificationResult
         : state.classificationResult;
     const username = await this.fetchUsername(state.triggeredByUserId);
+    const effectiveClassification = classificationResult ?? null;
+    const revertable =
+      state.status === "added" &&
+      effectiveClassification?.isScam === true &&
+      effectiveClassification.confidence === "high";
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
       username,
       channelCount: state.channelCount,
       guildNames,
       imageResults,
-      classificationResult: classificationResult ?? null,
+      classificationResult: effectiveClassification,
       reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,
+      revertable,
       resolved,
     });
   }

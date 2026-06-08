@@ -1,4 +1,4 @@
-import { asc, desc, sql } from "drizzle-orm";
+import { asc, desc, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { scamImageHashesInAppPublic } from "@/infrastructure/database/schema";
@@ -65,6 +65,16 @@ export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
       .returning({ id: scamImageHashesInAppPublic.id });
 
     return rows.length > 0;
+  }
+
+  async removeByPhashes(phashes: bigint[]): Promise<void> {
+    if (phashes.length === 0) {
+      return;
+    }
+    const signed = phashes.map(toSignedBigint);
+    await this.db
+      .delete(scamImageHashesInAppPublic)
+      .where(inArray(scamImageHashesInAppPublic.phash, signed));
   }
 
   async list(): Promise<ScamImageHash[]> {

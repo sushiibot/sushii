@@ -13,6 +13,7 @@ import {
 import {
   buildAddId,
   buildIgnoreId,
+  buildRevertId,
 } from "../handlers/scamCandidateCustomIds";
 import { formatDhash } from "../../utils/bigintUtils";
 import type {
@@ -31,6 +32,8 @@ export interface ScamCandidateReviewViewOpts {
   classificationResult: StoredClassificationResult | null;
   reviewId: string;
   seenByUserCount: number;
+  /** When true, an active Revert button is shown alongside the resolved status */
+  revertable?: boolean;
   resolved?: {
     statusLine: string;
     buttonLabel: string;
@@ -50,6 +53,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     classificationResult,
     reviewId,
     seenByUserCount,
+    revertable,
     resolved,
   } = opts;
 
@@ -92,6 +96,8 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
           .setDisabled(true)
       : null;
 
+  const canRevert = resolved !== undefined && revertable === true;
+
   const actionRow = resolved
     ? new ActionRowBuilder<ButtonBuilder>().addComponents(
         ...[
@@ -100,6 +106,12 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
             .setLabel(resolved.buttonLabel)
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(true),
+          canRevert
+            ? new ButtonBuilder()
+                .setCustomId(buildRevertId(reviewId))
+                .setLabel("Revert")
+                .setStyle(ButtonStyle.Danger)
+            : null,
           userCountButton,
         ].filter((b): b is ButtonBuilder => b !== null),
       )

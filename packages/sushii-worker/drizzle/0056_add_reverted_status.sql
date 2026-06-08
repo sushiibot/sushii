@@ -1,0 +1,1 @@
+ALTER TYPE "app_public"."scam_candidate_review_status" ADD VALUE 'reverted';

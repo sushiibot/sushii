@@ -3,11 +3,11 @@ import type { ButtonInteraction } from "discord.js";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 
 import type { ScamCandidateService } from "../../application/ScamCandidateService";
-import { parseAddId, parseIgnoreId } from "./scamCandidateCustomIds";
+import { parseAddId, parseIgnoreId, parseRevertId } from "./scamCandidateCustomIds";
 
 export class ScamCandidateButtonHandler extends ButtonHandler {
   customIDMatch = (customId: string) =>
-    parseIgnoreId(customId) !== null || parseAddId(customId) !== null
+    parseIgnoreId(customId) !== null || parseAddId(customId) !== null || parseRevertId(customId) !== null
       ? { path: customId, index: 0, params: {} }
       : false;
 
@@ -25,6 +25,12 @@ export class ScamCandidateButtonHandler extends ButtonHandler {
     const addId = parseAddId(interaction.customId);
     if (addId !== null) {
       await this.service.handleAdd(addId, interaction);
+      return;
+    }
+
+    const revertId = parseRevertId(interaction.customId);
+    if (revertId !== null) {
+      await this.service.handleRevert(revertId, interaction);
     }
   }
 }

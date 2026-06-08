@@ -285,7 +285,7 @@ export const scamCandidateSightingsInAppPublic = appPublic.table(
 
 export const scamCandidateReviewStatusInAppPublic = appPublic.enum(
   "scam_candidate_review_status",
-  ["claimed", "ready_to_post", "reviewing", "ignored", "added"],
+  ["claimed", "ready_to_post", "reviewing", "ignored", "added", "reverted"],
 );
 
 export const scamCandidateStateInAppPublic = appPublic.table(

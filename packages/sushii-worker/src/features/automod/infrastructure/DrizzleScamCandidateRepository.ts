@@ -211,7 +211,22 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       .where(
         and(
           eq(scamCandidateStateInAppPublic.reviewId, reviewId),
-          sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added')`,
+          sql`${scamCandidateStateInAppPublic.status} NOT IN ('ignored', 'added', 'reverted')`,
+        ),
+      )
+      .returning();
+
+    return rows[0] ? this.rowToState(rows[0]) : null;
+  }
+
+  async revertReview(reviewId: string): Promise<ScamCandidateState | null> {
+    const rows = await this.db
+      .update(scamCandidateStateInAppPublic)
+      .set({ status: "reverted", updatedAt: new Date() })
+      .where(
+        and(
+          eq(scamCandidateStateInAppPublic.reviewId, reviewId),
+          eq(scamCandidateStateInAppPublic.status, "added"),
         ),
       )
       .returning();

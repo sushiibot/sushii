@@ -21,10 +21,10 @@ export interface StoredClassificationResult {
   reason: string;
 }
 
-export type ScamCandidateReviewStatus = "claimed" | "ready_to_post" | "reviewing" | "ignored" | "added";
+export type ScamCandidateReviewStatus = "claimed" | "ready_to_post" | "reviewing" | "ignored" | "added" | "reverted";
 export type ScamCandidateTrigger = "threshold" | "near_miss";
 
-export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added">;
+export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added" | "reverted">;
 
 export interface ScamCandidateState {
   key: string;
@@ -128,13 +128,19 @@ export interface ScamCandidateRepository {
   ): Promise<ScamCandidateState | null>;
 
   /**
-   * Sets status to 'ignored' or 'added' on the row identified by review_id.
-   * Returns the full updated state on success, null if not found.
+   * Sets status to 'ignored', 'added', or 'reverted' on the row identified by review_id.
+   * Returns the full updated state on success, null if not found or already resolved.
    */
   resolveReview(
     reviewId: string,
     status: ResolvedStatus,
   ): Promise<ScamCandidateState | null>;
+
+  /**
+   * Transitions an 'added' row to 'reverted', guarded on status = 'added'.
+   * Returns the updated state, or null if the row is not found or not in 'added' status.
+   */
+  revertReview(reviewId: string): Promise<ScamCandidateState | null>;
 
   /** Looks up a state row by its review_id column. */
   getByReviewId(reviewId: string): Promise<ScamCandidateState | null>;
