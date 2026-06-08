@@ -581,11 +581,12 @@ export class ScamCandidateService {
     }
 
     if (autoApprove) {
-      // Prefer AI suggested label; fall back to the closest known hash's label for near-match cases
+      // Prefer AI suggested label (only when AI agrees it's a scam); fall back to closest known hash's label
       const nearMatchLabel = successfulResults
         .filter((r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD)
         .find((r) => r.closestLabel)?.closestLabel ?? undefined;
-      const label = storedClassification?.suggestedLabel ?? nearMatchLabel;
+      const aiLabel = storedClassification?.isScam === true ? (storedClassification.suggestedLabel ?? undefined) : undefined;
+      const label = aiLabel ?? nearMatchLabel;
       const newPhashes = successfulResults.filter((r) => r.isNew).map((r) => BigInt(r.phash));
       const { added, failed } = await this.insertHashes(successfulResults, label);
 
@@ -627,7 +628,12 @@ export class ScamCandidateService {
         classificationResult: storedClassification,
         resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
       });
-      this.metrics.reviewCounter.add(1, { outcome: nearMatchTrigger ? "auto_approved_near_match" : "auto_approved", trigger });
+      const autoOutcome = nearMatchTrigger ? "auto_approved_near_match" : "auto_approved";
+      this.logger.info(
+        { reviewId, userId: state.triggeredByUserId, addedCount: added.length, label, outcome: autoOutcome, trigger },
+        "Scam candidate auto-approved",
+      );
+      this.metrics.reviewCounter.add(1, { outcome: autoOutcome, trigger });
       return;
     }
 

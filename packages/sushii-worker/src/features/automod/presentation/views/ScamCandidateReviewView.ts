@@ -16,6 +16,7 @@ import {
   buildRevertId,
 } from "../handlers/scamCandidateCustomIds";
 import { formatDhash } from "../../utils/bigintUtils";
+import { NEAR_MATCH_AUTO_APPROVE_THRESHOLD } from "../../constants";
 import type {
   StoredClassificationResult,
   StoredImageResult,
@@ -75,7 +76,11 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     if (r.closestId !== null) {
       const label = r.closestLabel ? ` "${r.closestLabel}"` : "";
       const prefix = r.isNew ? "nearest" : "≈";
-      line += ` · ${prefix} #${r.closestId}${label} dist ${r.closestDistance}`;
+      const nearMatchMarker =
+        r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD
+          ? " ⚡"
+          : "";
+      line += ` · ${prefix} #${r.closestId}${label} dist ${r.closestDistance}${nearMatchMarker}`;
     }
     imageLines.push(line);
   }
