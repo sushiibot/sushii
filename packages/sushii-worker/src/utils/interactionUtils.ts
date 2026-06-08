@@ -1,3 +1,4 @@
+import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type {
   ButtonInteraction,
   InteractionReplyOptions,
@@ -57,15 +58,23 @@ export async function safeReply(
 
     return await interaction.reply(options);
   } catch (error) {
-    logger.error(
-      {
-        err: error,
-        interactionId: interaction.id,
-        replied: interaction.replied,
-        deferred: interaction.deferred,
-      },
-      "Failed to reply to interaction",
-    );
+    const isStaleInteraction =
+      error instanceof DiscordAPIError &&
+      Number(error.code) === RESTJSONErrorCodes.UnknownInteraction;
+
+    const logCtx = {
+      err: error,
+      interactionId: interaction.id,
+      replied: interaction.replied,
+      deferred: interaction.deferred,
+    };
+
+    if (isStaleInteraction) {
+      logger.warn(logCtx, "Failed to reply to interaction: stale token");
+    } else {
+      logger.error(logCtx, "Failed to reply to interaction");
+    }
+
     return null;
   }
 }
