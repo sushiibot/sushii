@@ -1,7 +1,10 @@
 import sharp from "sharp";
 import type { Logger } from "pino";
+import opentelemetry, { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 
 import { filenameFromUrl } from "../utils/imageUtils";
+
+const tracer = opentelemetry.trace.getTracer("automod");
 
 import type {
   ScamImageHash,
@@ -118,6 +121,26 @@ export class ScamImageHashService {
     guildId: string,
     userId: string,
   ): Promise<AttachmentCheckResult> {
+    return tracer.startActiveSpan(
+      "automod.hash.check_attachments",
+      {
+        kind: SpanKind.INTERNAL,
+        attributes: {
+          "hash.attachment_count": attachmentUrls.length,
+          "user.id": userId,
+          "guild.id": guildId,
+        },
+      },
+      (span) => this._checkAttachments(attachmentUrls, guildId, userId, span),
+    );
+  }
+
+  private async _checkAttachments(
+    attachmentUrls: string[],
+    guildId: string,
+    userId: string,
+    span: Span,
+  ): Promise<AttachmentCheckResult> {
     const nearMissUrls: string[] = [];
 
     for (const url of attachmentUrls) {
@@ -126,6 +149,7 @@ export class ScamImageHashService {
         const buffer = await this.downloadImage(url);
         if (!buffer) {
           this.metrics.checkCounter.add(1, { outcome: "skip_size" });
+          span.addEvent("attachment_skipped", { url, reason: "size" });
           continue;
         }
         this.metrics.downloadDurationHistogram.record(Date.now() - downloadStart);
@@ -167,11 +191,18 @@ export class ScamImageHashService {
             },
             "Scam image match",
           );
+          span.setAttributes({
+            "hash.outcome": "match",
+            "hash.closest_distance": closest.phashDistance,
+            "hash.closest_id": closest.entry.id,
+          });
+          span.end();
           return { matched: closest.entry, nearMissUrls: [] };
         }
 
         if (closest && closest.phashDistance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
           nearMissUrls.push(url);
+          span.addEvent("near_miss", { url, phash_distance: closest.phashDistance });
         }
 
         this.metrics.checkCounter.add(1, { outcome: "no_match" });
@@ -189,9 +220,15 @@ export class ScamImageHashService {
       } catch (err) {
         this.metrics.checkCounter.add(1, { outcome: "error" });
         this.logger.debug({ err, url }, "Failed to check attachment for scam image");
+        span.addEvent("attachment_error", { url });
       }
     }
 
+    span.setAttributes({
+      "hash.outcome": nearMissUrls.length > 0 ? "near_miss" : "no_match",
+      "hash.near_miss_count": nearMissUrls.length,
+    });
+    span.end();
     return { matched: null, nearMissUrls };
   }
 
