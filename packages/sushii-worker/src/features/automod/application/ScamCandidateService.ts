@@ -41,7 +41,7 @@ import {
 } from "../presentation/handlers/scamCandidateCustomIds";
 import { buildHashKey } from "../utils/bigintUtils";
 import { filenameFromUrl } from "../utils/imageUtils";
-import { REVIEW_CHANNEL_ID } from "../constants";
+import { NEAR_MATCH_AUTO_APPROVE_THRESHOLD, REVIEW_CHANNEL_ID } from "../constants";
 
 const tracer = opentelemetry.trace.getTracer("automod");
 
@@ -530,8 +530,11 @@ export class ScamCandidateService {
     }
     const reviewChannel = channel as GuildTextBasedChannel;
 
-    const autoApprove =
-      storedClassification?.isScam === true && storedClassification.confidence === "high";
+    const nearMatchTrigger = successfulResults.some(
+      (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
+    );
+    const aiTrigger = storedClassification?.isScam === true && storedClassification.confidence === "high";
+    const autoApprove = nearMatchTrigger || aiTrigger;
 
     // For auto-approve, send with a locked "Auto-approving…" status (no Ignore/Add buttons).
     // Hash insertion happens after winning the blue/green race, then the message is edited
@@ -578,7 +581,11 @@ export class ScamCandidateService {
     }
 
     if (autoApprove) {
-      const label = storedClassification?.suggestedLabel ?? undefined;
+      // Prefer AI suggested label; fall back to the closest known hash's label for near-match cases
+      const nearMatchLabel = successfulResults
+        .filter((r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD)
+        .find((r) => r.closestLabel)?.closestLabel ?? undefined;
+      const label = storedClassification?.suggestedLabel ?? nearMatchLabel;
       const newPhashes = successfulResults.filter((r) => r.isNew).map((r) => BigInt(r.phash));
       const { added, failed } = await this.insertHashes(successfulResults, label);
 
@@ -620,7 +627,7 @@ export class ScamCandidateService {
         classificationResult: storedClassification,
         resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
       });
-      this.metrics.reviewCounter.add(1, { outcome: "auto_approved", trigger });
+      this.metrics.reviewCounter.add(1, { outcome: nearMatchTrigger ? "auto_approved_near_match" : "auto_approved", trigger });
       return;
     }
 
@@ -870,10 +877,15 @@ export class ScamCandidateService {
         : state.classificationResult;
     const username = await this.fetchUsername(state.triggeredByUserId);
     const effectiveClassification = classificationResult ?? null;
+    const nearMatchTrigger = (overrides?.imageResults ?? state.newImageResults ?? []).some(
+      (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
+    );
     const revertable =
       state.status === "added" &&
-      effectiveClassification?.isScam === true &&
-      effectiveClassification.confidence === "high";
+      (
+        (effectiveClassification?.isScam === true && effectiveClassification.confidence === "high") ||
+        nearMatchTrigger
+      );
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
       username,
