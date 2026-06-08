@@ -729,15 +729,17 @@ export class ScamCandidateService {
               const isNew = !closest || closest.phashDistance > SCAM_HASH_DEDUP_THRESHOLD;
               const filename = `${idx}_${filenameFromUrl(url)}`;
 
-              const s3Key = await this.imageStore?.store({
-                buffer,
-                phash,
-                closestDistance: closest?.phashDistance,
-                trigger: "candidate_review",
-                userId,
-                guildId: guildIds.values().next().value,
-                filename,
-              }) ?? null;
+              const s3Key = isNew
+                ? (await this.imageStore?.store({
+                    buffer,
+                    phash,
+                    closestDistance: closest?.phashDistance,
+                    trigger: "candidate_review",
+                    userId,
+                    guildId: guildIds.values().next().value,
+                    filename,
+                  })) ?? null
+                : null;
 
               return {
                 filename,

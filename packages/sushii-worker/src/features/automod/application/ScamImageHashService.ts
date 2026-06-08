@@ -164,18 +164,6 @@ export class ScamImageHashService {
           this.metrics.nearestDistanceHistogram.record(closest.phashDistance);
         }
 
-        if (closest && closest.phashDistance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
-          void this.imageStore?.store({
-            buffer,
-            phash,
-            closestDistance: closest.phashDistance,
-            trigger: "hash_check",
-            userId,
-            guildId,
-            filename: filenameFromUrl(url),
-          });
-        }
-
         if (closest && closest.phashDistance <= SCAM_HASH_MATCH_THRESHOLD) {
           this.metrics.checkCounter.add(1, { outcome: "match" });
           this.metrics.matchCounter.add(1);
