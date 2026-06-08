@@ -121,7 +121,7 @@ export class ScamImageClassifier {
             ],
           },
         ],
-        max_tokens: 200,
+        max_tokens: 2000,
         temperature: 0,
       };
 
@@ -150,7 +150,7 @@ export class ScamImageClassifier {
 
       const envelopeSchema = z.object({
         choices: z
-          .array(z.object({ message: z.object({ content: z.string() }) }))
+          .array(z.object({ message: z.object({ content: z.string().nullable(), reasoning: z.string().nullable().optional() }) }))
           .min(1),
         usage: z
           .object({
@@ -176,7 +176,8 @@ export class ScamImageClassifier {
         }
       }
 
-      const rawContent = envelope.data.choices[0].message.content.trim();
+      const { content, reasoning } = envelope.data.choices[0].message;
+      const rawContent = (content ?? reasoning ?? "").trim();
 
       const stripped = rawContent
         .replace(/^```(?:json)?\n?/, "")
