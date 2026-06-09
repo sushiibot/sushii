@@ -208,10 +208,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   private async handleList(interaction: ChatInputCommandInteraction): Promise<void> {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
-    const [channels, defaultSchedule] = await Promise.all([
-      this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!)),
-      this.scheduleChannelService.getDefault(BigInt(interaction.guildId!)),
-    ]);
+    const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!));
+    const defaultCalendarId = channels.find(s => s.isDefault)?.calendarId ?? null;
 
     if (channels.length === 0) {
       await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info));
@@ -228,7 +226,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     for (let i = 0; i < channels.length; i++) {
       const sc = channels[i];
-      const isDefault = defaultSchedule?.calendarId === sc.calendarId;
+      const isDefault = defaultCalendarId === sc.calendarId;
 
       const nextSyncText = sc.nextPollAt.getTime() <= now
         ? "Syncing now"
