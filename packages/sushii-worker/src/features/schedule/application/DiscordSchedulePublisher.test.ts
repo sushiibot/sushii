@@ -36,6 +36,7 @@ function makeSchedule(overrides: Partial<Schedule> = {}): Schedule {
     lastErrorReason: null,
     discordChannelFailedAt: null,
     accentColor: null,
+    isDefault: false,
     createdAt: now,
     updatedAt: now,
     ...overrides,

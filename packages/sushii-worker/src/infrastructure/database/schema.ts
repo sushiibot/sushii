@@ -1051,6 +1051,7 @@ export const schedulesInAppPublic = appPublic.table(
       mode: "date",
     }),
     accentColor: integer("accent_color"),
+    isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

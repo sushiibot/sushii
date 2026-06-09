@@ -16,6 +16,7 @@ import { GoogleCalendarClient } from "./infrastructure/google/GoogleCalendarClie
 import { ScheduleMetrics } from "./infrastructure/metrics/ScheduleMetrics";
 import { DrizzleScheduleRepository } from "./infrastructure/repositories/DrizzleScheduleRepository";
 import { SchedulePollTask } from "./infrastructure/tasks/SchedulePollTask";
+import { ScheduleAutocomplete } from "./presentation/autocompletes/ScheduleAutocomplete";
 import { ScheduleConfigAutocomplete } from "./presentation/autocompletes/ScheduleConfigAutocomplete";
 import { ScheduleCommand } from "./presentation/commands/ScheduleCommand";
 import { ScheduleConfigCommand } from "./presentation/commands/ScheduleConfigCommand";
@@ -94,6 +95,7 @@ export function setupScheduleFeature(
 
   const scheduleCommand = new ScheduleCommand(
     scheduleRepository, // implements ScheduleEventRepository
+    scheduleChannelService,
     logger.child({ component: "ScheduleCommand" }),
   );
 
@@ -115,6 +117,11 @@ export function setupScheduleFeature(
     emojiRepository,
   );
 
+  const scheduleAutocomplete = new ScheduleAutocomplete(
+    scheduleChannelService,
+    logger.child({ component: "ScheduleAutocomplete" }),
+  );
+
   const scheduleConfigAutocomplete = new ScheduleConfigAutocomplete(
     scheduleChannelService,
     logger.child({ component: "ScheduleConfigAutocomplete" }),
@@ -124,7 +131,7 @@ export function setupScheduleFeature(
 
   return {
     commands: [scheduleCommand, scheduleConfigCommand],
-    autocompletes: [scheduleConfigAutocomplete],
+    autocompletes: [scheduleAutocomplete, scheduleConfigAutocomplete],
     contextMenuHandlers: [],
     buttonHandlers: [scheduleConfigNewButtonHandler, scheduleConfigDeleteButtonHandler],
     eventHandlers: [],

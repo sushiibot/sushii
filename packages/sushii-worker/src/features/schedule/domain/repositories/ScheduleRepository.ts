@@ -30,6 +30,18 @@ export interface ScheduleRepository {
 
   findAllByGuild(guildId: bigint): Promise<Schedule[]>;
 
+  /**
+   * Returns the explicitly-set default schedule for the guild, or falls back to
+   * the oldest one by createdAt if none is marked. Returns null if no schedules exist.
+   */
+  findDefault(guildId: bigint): Promise<Schedule | null>;
+
+  /**
+   * Sets the given calendar as the default for the guild, clearing isDefault on
+   * all others in the same guild atomically.
+   */
+  setDefault(guildId: bigint, calendarId: string): Promise<void>;
+
   upsert(data: UpsertScheduleData): Promise<Schedule>;
 
   delete(guildId: bigint, calendarId: string): Promise<void>;

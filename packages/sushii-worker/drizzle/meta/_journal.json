@@ -400,6 +400,13 @@
       "when": 1780931617398,
       "tag": "0056_add_reverted_status",
       "breakpoints": false
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1781019240523,
+      "tag": "0057_add_schedule_is_default",
+      "breakpoints": false
     }
   ]
 }

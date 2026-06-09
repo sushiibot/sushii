@@ -18,6 +18,7 @@ export const SCHEDULE_CONFIG_SUBCOMMANDS = {
   DELETE: "delete",
   LIST: "list",
   REFRESH: "refresh",
+  SET_DEFAULT: "set-default",
   GUIDE: "guide",
 } as const;
 

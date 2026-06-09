@@ -14,6 +14,7 @@ export interface Schedule {
   lastErrorReason: string | null;
   discordChannelFailedAt: Date | null;
   accentColor: number | null;
+  isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

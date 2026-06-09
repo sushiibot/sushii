@@ -1,0 +1,1 @@
+ALTER TABLE "app_public"."schedules" ADD COLUMN "is_default" boolean DEFAULT false NOT NULL;
