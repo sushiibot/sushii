@@ -190,7 +190,12 @@ export class DrizzleScheduleRepository
       await tx
         .update(schema.schedulesInAppPublic)
         .set({ isDefault: false, updatedAt: now })
-        .where(eq(schema.schedulesInAppPublic.guildId, guildId));
+        .where(
+          and(
+            eq(schema.schedulesInAppPublic.guildId, guildId),
+            eq(schema.schedulesInAppPublic.isDefault, true),
+          )
+        );
       await tx
         .update(schema.schedulesInAppPublic)
         .set({ isDefault: true, updatedAt: now })

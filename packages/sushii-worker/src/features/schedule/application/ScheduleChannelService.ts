@@ -140,9 +140,11 @@ export class ScheduleChannelService {
 
     await this.repo.delete(guildId, existing.calendarId);
 
-    // If the deleted schedule was the explicit default, promote the next oldest.
-    // If no explicit default was set, findDefault's createdAt fallback already
-    // handles it — no action needed.
+    // If the deleted schedule was the explicit default, promote the next oldest
+    // to an explicit default. Without this, findDefault's createdAt fallback
+    // would still pick the right schedule, but leaving isDefault=false on all
+    // remaining schedules means the first caller to setDefault would have no
+    // prior explicit default to "take over from".
     if (existing.isDefault) {
       const remaining = await this.repo.findAllByGuild(guildId);
       if (remaining.length > 0) {

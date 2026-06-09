@@ -315,6 +315,36 @@ describe("ScheduleChannelService.remove", () => {
   });
 });
 
+describe("ScheduleChannelService.setDefault", () => {
+  it("returns error when no schedule is configured for the channel", async () => {
+    const repo = makeRepo([]);
+    repo.findByChannel = mock(async () => null);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    const result = await service.setDefault(1n, 100n);
+    expect(result.ok).toBe(false);
+    expect(result.val).toMatch(/No schedule channel/);
+  });
+
+  it("returns Ok with the schedule on success", async () => {
+    const existing = makeSchedule({ channelId: 100n, calendarId: "cal@group.calendar.google.com" });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    const result = await service.setDefault(1n, 100n);
+    expect(result.ok).toBe(true);
+    expect(result.val).toBe(existing);
+  });
+
+  it("calls repo.setDefault with the correct guildId and calendarId", async () => {
+    const existing = makeSchedule({ guildId: 1n, channelId: 100n, calendarId: "cal@group.calendar.google.com" });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    await service.setDefault(1n, 100n);
+    expect(repo.setDefault).toHaveBeenCalledWith(1n, "cal@group.calendar.google.com");
+  });
+});
+
 describe("ScheduleChannelService.refresh", () => {
   it("returns error when no schedule is configured for the channel", async () => {
     const repo = makeRepo([]);
