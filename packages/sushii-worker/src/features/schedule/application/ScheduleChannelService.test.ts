@@ -29,6 +29,7 @@ function makeSchedule(overrides: Partial<Schedule> = {}): Schedule {
     lastErrorReason: null,
     discordChannelFailedAt: null,
     accentColor: null,
+    isDefault: false,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -58,6 +59,10 @@ function makeRepo(
     findByChannel: mock(async () => existingSchedules[0] ?? null),
     findByCalendar: mock(async () => null),
     findAllDue: mock(async () => []),
+    findDefault: mock(async () =>
+      existingSchedules.find((s) => s.isDefault) ?? existingSchedules[0] ?? null
+    ),
+    setDefault: mock(async () => {}),
     upsert: mock(async (_data: UpsertScheduleData) => upsertResult),
     delete: mock(async () => {}),
     updateSyncToken: mock(async () => {}),
@@ -264,6 +269,49 @@ describe("ScheduleChannelService.remove", () => {
 
     expect(result.ok).toBe(true);
     expect(repo.delete).toHaveBeenCalledWith(1n, "cal@group.calendar.google.com");
+  });
+
+  it("promotes the oldest remaining schedule when the default is deleted", async () => {
+    const older = makeSchedule({
+      channelId: 100n,
+      calendarId: "a@group.calendar.google.com",
+      isDefault: true,
+      createdAt: new Date("2024-01-01"),
+    });
+    const newer = makeSchedule({
+      channelId: 200n,
+      calendarId: "b@group.calendar.google.com",
+      isDefault: false,
+      createdAt: new Date("2024-06-01"),
+    });
+    const repo = makeRepo([older, newer]);
+    repo.findByChannel = mock(async () => older);
+    repo.findAllByGuild = mock(async () => [newer]);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    await service.remove(1n, 100n);
+
+    expect(repo.setDefault).toHaveBeenCalledWith(1n, "b@group.calendar.google.com");
+  });
+
+  it("does not call setDefault when the deleted schedule was not the default", async () => {
+    const existing = makeSchedule({ channelId: 100n, isDefault: false });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    await service.remove(1n, 100n);
+
+    expect(repo.setDefault).not.toHaveBeenCalled();
+  });
+
+  it("does not call setDefault when the default is deleted and no schedules remain", async () => {
+    const existing = makeSchedule({ channelId: 100n, isDefault: true });
+    const repo = makeRepo([existing]);
+    repo.findByChannel = mock(async () => existing);
+    repo.findAllByGuild = mock(async () => []);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+    await service.remove(1n, 100n);
+
+    expect(repo.setDefault).not.toHaveBeenCalled();
   });
 });
 
