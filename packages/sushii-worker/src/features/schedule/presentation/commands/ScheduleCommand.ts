@@ -16,6 +16,7 @@ import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import type { ScheduleEventRepository } from "../../domain/repositories/ScheduleEventRepository";
+import { SCHEDULE_ALL_VALUE } from "../autocompletes/ScheduleAutocomplete";
 
 // TODO: add pagination so users can browse beyond the first page of events
 const MAX_DISPLAYED_EVENTS = 10;
@@ -57,13 +58,28 @@ export class ScheduleCommand extends SlashCommandHandler {
 
     const calendarInput = interaction.options.getString("calendar");
 
-    let calendarId: string;
-    let isFiltered: boolean;
+    // showAll: whether to merge events from all calendars
+    let showAll = false;
     let filterTitle: string | null = null;
-
     let hasMultiple: boolean;
 
-    if (calendarInput) {
+    if (calendarInput === SCHEDULE_ALL_VALUE) {
+      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
+      if (allSchedules.length === 0) {
+        const container = new ContainerBuilder()
+          .setAccentColor(Color.Info)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("No schedules are configured in this server."),
+          );
+        await interaction.reply({
+          components: [container],
+          flags: MessageFlags.IsComponentsV2,
+        });
+        return;
+      }
+      showAll = true;
+      hasMultiple = allSchedules.length > 1;
+    } else if (calendarInput) {
       // Validate: the provided calendarId must belong to this guild
       const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
       const schedule = allSchedules.find((s) => s.calendarId === calendarInput) ?? null;
@@ -81,8 +97,6 @@ export class ScheduleCommand extends SlashCommandHandler {
         return;
       }
 
-      calendarId = schedule.calendarId;
-      isFiltered = true;
       hasMultiple = allSchedules.length > 1;
     } else {
       const defaultSchedule = await this.scheduleChannelService.getDefault(guildId);
@@ -101,13 +115,13 @@ export class ScheduleCommand extends SlashCommandHandler {
       }
 
       const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
-      calendarId = defaultSchedule.calendarId;
       filterTitle = defaultSchedule.displayTitle;
-      isFiltered = false;
       hasMultiple = allSchedules.length > 1;
     }
 
-    const events = await this.eventRepo.findUpcomingByCalendar(guildId, calendarId, now, MAX_FETCH_EVENTS + 1);
+    const events = showAll
+      ? await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS + 1)
+      : await this.eventRepo.findUpcomingByCalendar(guildId, calendarInput!, now, MAX_FETCH_EVENTS + 1);
     const truncated = events.length > MAX_FETCH_EVENTS;
     const countable = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
     const displayed = countable.slice(0, MAX_DISPLAYED_EVENTS);
@@ -126,7 +140,7 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
-    const accentColor = displayed[0].accentColor ?? Color.Info;
+    const accentColor = showAll ? Color.Info : (displayed[0].accentColor ?? Color.Info);
 
     const container = new ContainerBuilder().setAccentColor(accentColor);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Events"));
@@ -135,7 +149,7 @@ export class ScheduleCommand extends SlashCommandHandler {
     );
 
     for (let i = 0; i < displayed.length; i++) {
-      const { event } = displayed[i];
+      const { event, calendarTitle } = displayed[i];
       const date = event.getDate();
       if (!date) {
         continue; // defensive — ensured non-null by SQL filter
@@ -165,8 +179,15 @@ export class ScheduleCommand extends SlashCommandHandler {
 
       const lines: string[] = [titleLine, timestampStr];
 
+      const meta: string[] = [];
       if (event.location && !locationIsUrl) {
-        lines.push(`-# ${event.location}`);
+        meta.push(event.location);
+      }
+      if (showAll && hasMultiple) {
+        meta.push(calendarTitle);
+      }
+      if (meta.length > 0) {
+        lines.push(`-# ${meta.join("  ·  ")}`);
       }
 
       container.addTextDisplayComponents(
@@ -184,8 +205,8 @@ export class ScheduleCommand extends SlashCommandHandler {
       const noun = remainingCount === 1 ? "event" : "events";
       footerParts.push(`-# …and ${remainingCount}${suffix} more ${noun}. Check the schedule channel for the full list.`);
     }
-    if (!isFiltered && hasMultiple && filterTitle) {
-      footerParts.push(`-# Viewing: ${filterTitle}. Use \`/schedule calendar\` to see other schedules.`);
+    if (!calendarInput && hasMultiple && filterTitle) {
+      footerParts.push(`-# Viewing: ${filterTitle}. Use \`/schedule [calendar]\` to see other schedules.`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),

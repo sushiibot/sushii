@@ -693,6 +693,14 @@ export class DrizzleScheduleRepository
     return rows.map(mapEventWithCalendar);
   }
 
+  async findUpcomingByGuild(
+    guildId: bigint,
+    from: Date,
+    limit: number,
+  ): Promise<ScheduleEventWithCalendar[]> {
+    return this.findUpcomingBase(guildId, from, limit);
+  }
+
   async findUpcomingByCalendar(
     guildId: bigint,
     calendarId: string,

@@ -34,6 +34,16 @@ export interface ScheduleEventRepository {
   ): Promise<ScheduleEventWithCalendar[]>;
 
   /**
+   * Returns the next `limit` upcoming events across all calendars in a guild,
+   * joined with schedule metadata.
+   */
+  findUpcomingByGuild(
+    guildId: bigint,
+    from: Date,
+    limit: number,
+  ): Promise<ScheduleEventWithCalendar[]>;
+
+  /**
    * Returns the next `limit` upcoming events for a specific calendar in a guild,
    * joined with schedule metadata.
    */
