@@ -21,10 +21,12 @@ import Color from "@/utils/colors";
 
 import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import {
+  buildGuideContainer,
   buildSetupInstructionsContainer,
   makeContainer,
   SCHEDULE_CONFIG_CUSTOM_IDS,
   SCHEDULE_CONFIG_EMOJI_NAMES,
+  SCHEDULE_CONFIG_GUIDE_EMOJI_NAMES,
   SCHEDULE_CONFIG_OPTIONS,
   SCHEDULE_CONFIG_SETUP_EMOJI_NAMES,
   SCHEDULE_CONFIG_SUBCOMMANDS,
@@ -84,6 +86,11 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
             .setRequired(true),
         ),
     )
+    .addSubcommand((c) =>
+      c
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.GUIDE)
+        .setDescription("Show how to set up and manage a schedule channel."),
+    )
     .toJSON();
 
   private readonly editHandler: ScheduleConfigEditHandler;
@@ -116,6 +123,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         return this.handleList(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH:
         return this.handleRefresh(interaction);
+      case SCHEDULE_CONFIG_SUBCOMMANDS.GUIDE:
+        return this.handleGuide(interaction);
       default:
         throw new Error(`Unknown subcommand: ${subcommand}`);
     }
@@ -148,12 +157,12 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     const content = [
       `## ${emojis.warning} Delete Schedule?`,
       "",
-      `**${schedule.displayTitle}** — posts to <#${channelId}>`,
+      `**${schedule.displayTitle}** · <#${channelId}>`,
       `-# Google Calendar: ${schedule.calendarTitle}`,
       "",
       "**This will not:**",
-      `- Delete any posts already in <#${channelId}> — those stay as-is`,
-      "- Remove any events from Google Calendar — your calendar is unchanged",
+      `- Delete any posts already in <#${channelId}>. Those stay as-is.`,
+      "- Remove any events from Google Calendar. Your calendar is unchanged.",
       "",
       "**Want to change settings instead?** Use `/schedule-config edit` to update the channel, name, or color without deleting.",
       "",
@@ -215,7 +224,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
       if (sc.consecutiveFailures > 0) {
         const failureLine = sc.lastErrorReason
-          ? `${emojis.warning} ${sc.consecutiveFailures} consecutive failures — ${sc.lastErrorReason}`
+          ? `${emojis.warning} ${sc.consecutiveFailures} consecutive failures: ${sc.lastErrorReason}`
           : `${emojis.warning} ${sc.consecutiveFailures} consecutive failures`;
         lines.push(failureLine);
       }
@@ -230,6 +239,20 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         );
       }
     }
+
+    await interaction.reply({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+    });
+  }
+
+  private async handleGuide(interaction: ChatInputCommandInteraction): Promise<void> {
+    const [emojis, schedules] = await Promise.all([
+      this.emojiRepo.getEmojis(SCHEDULE_CONFIG_GUIDE_EMOJI_NAMES),
+      this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!)),
+    ]);
+
+    const container = buildGuideContainer(emojis, schedules);
 
     await interaction.reply({
       components: [container],

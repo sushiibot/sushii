@@ -4,6 +4,7 @@ import {
   ButtonStyle,
   ContainerBuilder,
   MessageFlags,
+  SeparatorBuilder,
   TextDisplayBuilder,
 } from "discord.js";
 import { Err, Ok } from "ts-results";
@@ -17,6 +18,7 @@ export const SCHEDULE_CONFIG_SUBCOMMANDS = {
   DELETE: "delete",
   LIST: "list",
   REFRESH: "refresh",
+  GUIDE: "guide",
 } as const;
 
 export const SCHEDULE_CONFIG_OPTIONS = {
@@ -55,6 +57,7 @@ export const SCHEDULE_CONFIG_MATCH_PATTERNS = {
 
 export const SCHEDULE_CONFIG_EMOJI_NAMES = ["success", "fail", "warning", "schedule", "bell", "tip"] as const;
 export const SCHEDULE_CONFIG_SETUP_EMOJI_NAMES = ["schedule", "num_1", "num_2", "num_3"] as const;
+export const SCHEDULE_CONFIG_GUIDE_EMOJI_NAMES = ["schedule", "tip"] as const;
 
 /** Timeout (ms) for awaiting modal submission — 5 minutes. */
 export const MODAL_AWAIT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -67,7 +70,7 @@ export function parseHexColor(input: string): Result<number | null, string> {
   const trimmed = input.trim().replace(/^#/, "");
   if (!trimmed) return Ok(null);
   if (!/^[0-9a-fA-F]{6}$/.test(trimmed)) {
-    return Err("Invalid hex color — use a 6-digit code like `#ff6b6b` or `ff6b6b`");
+    return Err("Invalid hex color. Use a 6-digit code like `#ff6b6b` or `ff6b6b`");
   }
   return Ok(parseInt(trimmed, 16));
 }
@@ -91,6 +94,34 @@ export function makeContainer(
   };
 }
 
+function buildSetupInstructionsText(emojis: {
+  schedule: string;
+  num_1: string;
+  num_2: string;
+  num_3: string;
+}): string {
+  return [
+    `## ${emojis.schedule} Setting Up a Schedule Channel`,
+    "",
+    "Your Google Calendar must be **public** before the bot can read it.",
+    "Already have a calendar you'd like to use? Skip to Step 2.",
+    "",
+    `${emojis.num_1} **Create a new calendar**`,
+    "Open [Google Calendar Settings](https://calendar.google.com/calendar/r/settings) and click",
+    "**+ Add other → Create new calendar**. Give it a name like *Server Events*.",
+    "We recommend a dedicated calendar so personal events stay private.",
+    "",
+    `${emojis.num_2} **Make the calendar public**`,
+    "Select your calendar in Settings. Under **Access permissions for events**:",
+    "- Check **Make available to public**",
+    '- Set to **See all event details**',
+    "",
+    `${emojis.num_3} **Copy the Calendar ID**`,
+    "Scroll to **Integrate calendar** and copy the **Calendar ID**",
+    "(e.g. `abc123@group.calendar.google.com`). You can also copy the **Public URL to this calendar**.",
+  ].join("\n");
+}
+
 /**
  * Builds the setup instructions container shown by `/schedule-config new`.
  * Extracted so the button handler can re-include it alongside a permission error,
@@ -106,28 +137,7 @@ export function buildSetupInstructionsContainer(emojis: {
     .setAccentColor(Color.Info)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        [
-          `## ${emojis.schedule} Setting Up a Schedule Channel`,
-          "",
-          "Your Google Calendar must be **public** before the bot can read it.",
-          "Already have a calendar you'd like to use? Skip to Step 2.",
-          "",
-          `${emojis.num_1} **Create a new calendar**`,
-          "Open [Google Calendar Settings](https://calendar.google.com/calendar/r/settings) and click",
-          "**+ Add other → Create new calendar**. Give it a name like *Server Events*.",
-          "We recommend a dedicated calendar so personal events stay private.",
-          "",
-          `${emojis.num_2} **Make the calendar public**`,
-          "Select your calendar in Settings. Under **Access permissions for events**:",
-          "- Check **Make available to public**",
-          '- Set to **See all event details**',
-          "",
-          `${emojis.num_3} **Copy the Calendar ID**`,
-          "Scroll to **Integrate calendar** and copy the **Calendar ID**",
-          "(e.g. `abc123@group.calendar.google.com`). You can also copy the **Public URL to this calendar**.",
-          "",
-          "-# When ready, click the button below to continue.",
-        ].join("\n"),
+        buildSetupInstructionsText(emojis) + "\n\n-# When ready, click the button below to continue.",
       ),
     )
     .addActionRowComponents(
@@ -148,15 +158,59 @@ export function buildPostSetupGuide(emojis: { tip: string }, intervalDisplay: st
     "## Managing your schedule",
     "",
     `${emojis.tip} **Adding & editing events**`,
-    `Add or update events directly in Google Calendar — changes sync automatically ${intervalDisplay}. You can also ask [Gemini](https://gemini.google.com) to add events for you. Use \`/schedule-config refresh\` to force an immediate sync.`,
+    `Add or update events directly in Google Calendar. Changes sync automatically ${intervalDisplay}. You can also ask [Gemini](https://gemini.google.com) to add events for you. Use \`/schedule-config refresh\` to force an immediate sync.`,
     "",
     `${emojis.tip} **Timezones**`,
-    "Create events in any timezone — members always see times in their own local timezone.",
+    "Create events in any timezone. Members always see times in their own local timezone.",
     "",
     `${emojis.tip} **Clickable links**`,
     "Set an event's **Location** to a URL (e.g. a stream or ticket link) and it becomes a clickable link in the schedule.",
     "",
     `${emojis.tip} **Emoji categories**`,
-    "Start an event name with an emoji — e.g. `🎵 Concert Night` — and it appears before the date for easy visual grouping.",
+    "Start an event name with an emoji (e.g. `🎵 Concert Night`) and it appears before the date for easy visual grouping.",
   ].join("\n");
+}
+
+/**
+ * Builds the full guide container shown by `/schedule-config guide`.
+ * Focused on tips for using an existing schedule — redirects to `/schedule-config new` for setup.
+ */
+export function buildGuideContainer(
+  emojis: { schedule: string; tip: string },
+  schedules: Array<{ logChannelId: bigint; displayTitle: string }>,
+): ContainerBuilder {
+  const logChannelLine = schedules.length === 1
+    ? `Change alerts and errors are sent to <#${schedules[0].logChannelId}>.`
+    : schedules.length > 1
+      ? `Change alerts and errors are sent to: ${schedules.map((s) => `<#${s.logChannelId}> (${s.displayTitle})`).join(", ")}.`
+      : null;
+
+  const tipsLines = [
+    "## Managing your schedule",
+    "",
+    `${emojis.tip} **Adding & editing events**`,
+    `Add or update events directly in Google Calendar. Changes sync automatically every few minutes. Use \`/schedule-config refresh\` to force an immediate sync.`,
+    ...(logChannelLine ? [logChannelLine] : []),
+    "",
+    `${emojis.tip} **Timezones**`,
+    "Create events in any timezone. Members always see times in their own local timezone.",
+    "",
+    `${emojis.tip} **Clickable links**`,
+    "Set an event's **Location** to a URL (e.g. a stream or ticket link) and it becomes a clickable link in the schedule.",
+    "",
+    `${emojis.tip} **Emoji categories**`,
+    "Start an event name with an emoji (e.g. `🎵 Concert Night`) and it appears before the date for easy visual grouping.",
+  ];
+
+  return new ContainerBuilder()
+    .setAccentColor(Color.Info)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `## ${emojis.schedule} Schedule Guide\n-# To add a new schedule channel, use \`/schedule-config new\`.`,
+      ),
+    )
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(tipsLines.join("\n")),
+    );
 }
