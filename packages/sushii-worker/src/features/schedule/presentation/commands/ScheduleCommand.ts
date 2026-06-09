@@ -100,21 +100,8 @@ export class ScheduleCommand extends SlashCommandHandler {
     } else {
       const defaultSchedule = await this.scheduleChannelService.getDefault(guildId);
 
-      if (!defaultSchedule) {
-        const container = new ContainerBuilder()
-          .setAccentColor(Color.Info)
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent("No schedules are configured in this server."),
-          );
-        await interaction.reply({
-          components: [container],
-          flags: MessageFlags.IsComponentsV2,
-        });
-        return;
-      }
-
-      effectiveCalendarId = defaultSchedule.calendarId;
-      filterTitle = defaultSchedule.displayTitle;
+      effectiveCalendarId = defaultSchedule!.calendarId;
+      filterTitle = defaultSchedule!.displayTitle;
     }
 
     const events = showAll

@@ -62,7 +62,7 @@ function makeRepo(
     findDefault: mock(async () =>
       existingSchedules.find((s) => s.isDefault) ?? existingSchedules[0] ?? null
     ),
-    setDefault: mock(async () => existingSchedules[0] ?? upsertResult),
+    setDefault: mock(async () => ({ ...(existingSchedules[0] ?? upsertResult), isDefault: true })),
     upsert: mock(async (_data: UpsertScheduleData) => upsertResult),
     delete: mock(async () => {}),
     updateSyncToken: mock(async () => {}),
@@ -332,7 +332,7 @@ describe("ScheduleChannelService.setDefault", () => {
     const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
     const result = await service.setDefault(1n, 100n);
     expect(result.ok).toBe(true);
-    expect(result.val).toBe(existing);
+    expect(result.val).toMatchObject({ calendarId: "cal@group.calendar.google.com", isDefault: true });
   });
 
   it("calls repo.setDefault with the correct guildId and calendarId", async () => {

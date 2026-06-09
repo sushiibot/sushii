@@ -166,12 +166,20 @@ export class ScheduleChannelService {
     // findDefault falls back to oldest-by-createdAt when no explicit default
     // exists. Persist that choice so subsequent calls skip the fallback path.
     if (schedule && !schedule.isDefault) {
-      const updated = await this.repo.setDefault(guildId, schedule.calendarId);
-      this.logger.info(
-        { guildId: guildId.toString(), calendarId: updated.calendarId },
-        "Auto-set schedule default from fallback",
-      );
-      return updated;
+      try {
+        const updated = await this.repo.setDefault(guildId, schedule.calendarId);
+        this.logger.info(
+          { guildId: guildId.toString(), calendarId: updated.calendarId },
+          "Auto-set schedule default from fallback",
+        );
+        return updated;
+      } catch (err) {
+        this.logger.warn(
+          { err, guildId: guildId.toString(), calendarId: schedule.calendarId },
+          "Failed to persist fallback default",
+        );
+        return schedule;
+      }
     }
 
     return schedule;
