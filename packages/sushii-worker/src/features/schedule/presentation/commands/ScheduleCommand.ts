@@ -14,6 +14,7 @@ import type { Logger } from "pino";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
+import type { ScheduleChannelService } from "../../application/ScheduleChannelService";
 import type { ScheduleEventRepository } from "../../domain/repositories/ScheduleEventRepository";
 
 // TODO: add pagination so users can browse beyond the first page of events
@@ -28,10 +29,18 @@ export class ScheduleCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("schedule")
     .setDescription("Show upcoming scheduled events for this server.")
+    .addStringOption((o) =>
+      o
+        .setName("calendar")
+        .setDescription("Which schedule to show. Defaults to the server's primary schedule.")
+        .setAutocomplete(true)
+        .setRequired(false),
+    )
     .toJSON();
 
   constructor(
     private readonly eventRepo: ScheduleEventRepository,
+    private readonly scheduleChannelService: ScheduleChannelService,
     private readonly logger: Logger,
   ) {
     super();
@@ -46,7 +55,59 @@ export class ScheduleCommand extends SlashCommandHandler {
     const guildId = BigInt(interaction.guildId);
     const now = new Date();
 
-    const events = await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS + 1);
+    const calendarInput = interaction.options.getString("calendar");
+
+    let calendarId: string;
+    let isFiltered: boolean;
+    let filterTitle: string | null = null;
+
+    let hasMultiple: boolean;
+
+    if (calendarInput) {
+      // Validate: the provided calendarId must belong to this guild
+      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
+      const schedule = allSchedules.find((s) => s.calendarId === calendarInput) ?? null;
+
+      if (!schedule) {
+        const container = new ContainerBuilder()
+          .setAccentColor(Color.Error)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("That schedule was not found in this server."),
+          );
+        await interaction.reply({
+          components: [container],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      calendarId = schedule.calendarId;
+      isFiltered = true;
+      hasMultiple = allSchedules.length > 1;
+    } else {
+      const defaultSchedule = await this.scheduleChannelService.getDefault(guildId);
+
+      if (!defaultSchedule) {
+        const container = new ContainerBuilder()
+          .setAccentColor(Color.Info)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("No schedules are configured in this server."),
+          );
+        await interaction.reply({
+          components: [container],
+          flags: MessageFlags.IsComponentsV2,
+        });
+        return;
+      }
+
+      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
+      calendarId = defaultSchedule.calendarId;
+      filterTitle = defaultSchedule.displayTitle;
+      isFiltered = false;
+      hasMultiple = allSchedules.length > 1;
+    }
+
+    const events = await this.eventRepo.findUpcomingByCalendar(guildId, calendarId, now, MAX_FETCH_EVENTS + 1);
     const truncated = events.length > MAX_FETCH_EVENTS;
     const countable = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
     const displayed = countable.slice(0, MAX_DISPLAYED_EVENTS);
@@ -65,9 +126,7 @@ export class ScheduleCommand extends SlashCommandHandler {
       return;
     }
 
-    const calendarIds = new Set(displayed.map((ev) => ev.calendarId));
-    const multipleCalendars = calendarIds.size > 1;
-    const accentColor = calendarIds.size === 1 ? (displayed[0].accentColor ?? Color.Info) : Color.Info;
+    const accentColor = displayed[0].accentColor ?? Color.Info;
 
     const container = new ContainerBuilder().setAccentColor(accentColor);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Events"));
@@ -76,7 +135,7 @@ export class ScheduleCommand extends SlashCommandHandler {
     );
 
     for (let i = 0; i < displayed.length; i++) {
-      const { event, calendarTitle } = displayed[i];
+      const { event } = displayed[i];
       const date = event.getDate();
       if (!date) {
         continue; // defensive — ensured non-null by SQL filter
@@ -106,15 +165,8 @@ export class ScheduleCommand extends SlashCommandHandler {
 
       const lines: string[] = [titleLine, timestampStr];
 
-      const meta: string[] = [];
       if (event.location && !locationIsUrl) {
-        meta.push(event.location);
-      }
-      if (multipleCalendars) {
-        meta.push(calendarTitle);
-      }
-      if (meta.length > 0) {
-        lines.push(`-# ${meta.join("  ·  ")}`);
+        lines.push(`-# ${event.location}`);
       }
 
       container.addTextDisplayComponents(
@@ -131,6 +183,9 @@ export class ScheduleCommand extends SlashCommandHandler {
       const suffix = truncated ? "+" : "";
       const noun = remainingCount === 1 ? "event" : "events";
       footerParts.push(`-# …and ${remainingCount}${suffix} more ${noun}. Check the schedule channel for the full list.`);
+    }
+    if (!isFiltered && hasMultiple && filterTitle) {
+      footerParts.push(`-# Viewing: ${filterTitle}. Use \`/schedule calendar\` to see other schedules.`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),

@@ -36,6 +36,7 @@ function mapSchedule(row: typeof schema.schedulesInAppPublic.$inferSelect): Sche
     lastErrorReason: row.lastErrorReason,
     discordChannelFailedAt: row.discordChannelFailedAt,
     accentColor: row.accentColor ?? null,
+    isDefault: row.isDefault,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -152,8 +153,54 @@ export class DrizzleScheduleRepository
     const rows = await this.db
       .select()
       .from(schema.schedulesInAppPublic)
-      .where(eq(schema.schedulesInAppPublic.guildId, guildId));
+      .where(eq(schema.schedulesInAppPublic.guildId, guildId))
+      .orderBy(asc(schema.schedulesInAppPublic.createdAt));
     return rows.map(mapSchedule);
+  }
+
+  async findDefault(guildId: bigint): Promise<Schedule | null> {
+    const explicit = await this.db
+      .select()
+      .from(schema.schedulesInAppPublic)
+      .where(
+        and(
+          eq(schema.schedulesInAppPublic.guildId, guildId),
+          eq(schema.schedulesInAppPublic.isDefault, true),
+        ),
+      )
+      .limit(1);
+
+    if (explicit.length > 0) {
+      return mapSchedule(explicit[0]);
+    }
+
+    const oldest = await this.db
+      .select()
+      .from(schema.schedulesInAppPublic)
+      .where(eq(schema.schedulesInAppPublic.guildId, guildId))
+      .orderBy(asc(schema.schedulesInAppPublic.createdAt))
+      .limit(1);
+
+    return oldest.length > 0 ? mapSchedule(oldest[0]) : null;
+  }
+
+  async setDefault(guildId: bigint, calendarId: string): Promise<void> {
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.schedulesInAppPublic)
+        .set({ isDefault: false, updatedAt: now })
+        .where(eq(schema.schedulesInAppPublic.guildId, guildId));
+      await tx
+        .update(schema.schedulesInAppPublic)
+        .set({ isDefault: true, updatedAt: now })
+        .where(
+          and(
+            eq(schema.schedulesInAppPublic.guildId, guildId),
+            eq(schema.schedulesInAppPublic.calendarId, calendarId),
+          ),
+        );
+    });
   }
 
   async upsert(data: UpsertScheduleData): Promise<Schedule> {
@@ -592,10 +639,11 @@ export class DrizzleScheduleRepository
     return rows.map(mapEventWithCalendar);
   }
 
-  async findUpcomingByGuild(
+  private async findUpcomingBase(
     guildId: bigint,
     from: Date,
     limit: number,
+    calendarId?: string,
   ): Promise<ScheduleEventWithCalendar[]> {
     const fromDateStr = from.toISOString().slice(0, 10);
     const rows = await this.db
@@ -616,6 +664,9 @@ export class DrizzleScheduleRepository
       .where(
         and(
           eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          calendarId !== undefined
+            ? eq(schema.scheduleEventsInAppPublic.calendarId, calendarId)
+            : undefined,
           or(
             // Timed events: filter by start_utc
             and(
@@ -631,13 +682,18 @@ export class DrizzleScheduleRepository
           ),
         ),
       )
-      .orderBy(
-        asc(
-          eventSortExpr(schema.scheduleEventsInAppPublic),
-        ),
-      )
+      .orderBy(asc(eventSortExpr(schema.scheduleEventsInAppPublic)))
       .limit(limit);
 
     return rows.map(mapEventWithCalendar);
+  }
+
+  async findUpcomingByCalendar(
+    guildId: bigint,
+    calendarId: string,
+    from: Date,
+    limit: number,
+  ): Promise<ScheduleEventWithCalendar[]> {
+    return this.findUpcomingBase(guildId, from, limit, calendarId);
   }
 }

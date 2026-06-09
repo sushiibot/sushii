@@ -140,12 +140,42 @@ export class ScheduleChannelService {
 
     await this.repo.delete(guildId, existing.calendarId);
 
+    // If the deleted schedule was the explicit default, promote the next oldest.
+    // If no explicit default was set, findDefault's createdAt fallback already
+    // handles it — no action needed.
+    if (existing.isDefault) {
+      const remaining = await this.repo.findAllByGuild(guildId);
+      if (remaining.length > 0) {
+        await this.repo.setDefault(guildId, remaining[0].calendarId);
+      }
+    }
+
     this.logger.info(
       { guildId: guildId.toString(), channelId: channelId.toString(), calendarId: existing.calendarId },
       "Schedule channel removed",
     );
 
     return Ok(undefined);
+  }
+
+  async getDefault(guildId: bigint): Promise<Schedule | null> {
+    return this.repo.findDefault(guildId);
+  }
+
+  async setDefault(guildId: bigint, channelId: bigint): Promise<Result<Schedule, string>> {
+    const existing = await this.repo.findByChannel(guildId, channelId);
+    if (!existing) {
+      return Err("No schedule channel is configured for that channel.");
+    }
+
+    await this.repo.setDefault(guildId, existing.calendarId);
+
+    this.logger.info(
+      { guildId: guildId.toString(), channelId: channelId.toString(), calendarId: existing.calendarId },
+      "Schedule default updated",
+    );
+
+    return Ok(existing);
   }
 
   async refresh(guildId: bigint, channelId: bigint): Promise<Result<void, string>> {

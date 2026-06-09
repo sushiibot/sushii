@@ -88,6 +88,18 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     )
     .addSubcommand((c) =>
       c
+        .setName(SCHEDULE_CONFIG_SUBCOMMANDS.SET_DEFAULT)
+        .setDescription("Set which schedule /schedule shows by default.")
+        .addStringOption((o) =>
+          o
+            .setName(SCHEDULE_CONFIG_OPTIONS.SCHEDULE)
+            .setDescription("The schedule to set as the default.")
+            .setAutocomplete(true)
+            .setRequired(true),
+        ),
+    )
+    .addSubcommand((c) =>
+      c
         .setName(SCHEDULE_CONFIG_SUBCOMMANDS.GUIDE)
         .setDescription("Show how to set up and manage a schedule channel."),
     )
@@ -123,6 +135,8 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
         return this.handleList(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.REFRESH:
         return this.handleRefresh(interaction);
+      case SCHEDULE_CONFIG_SUBCOMMANDS.SET_DEFAULT:
+        return this.handleSetDefault(interaction);
       case SCHEDULE_CONFIG_SUBCOMMANDS.GUIDE:
         return this.handleGuide(interaction);
       default:
@@ -194,7 +208,10 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
   private async handleList(interaction: ChatInputCommandInteraction): Promise<void> {
     const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
 
-    const channels = await this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!));
+    const [channels, defaultSchedule] = await Promise.all([
+      this.scheduleChannelService.listForGuild(BigInt(interaction.guildId!)),
+      this.scheduleChannelService.getDefault(BigInt(interaction.guildId!)),
+    ]);
 
     if (channels.length === 0) {
       await interaction.reply(makeContainer("No schedule channels are configured in this server.", Color.Info));
@@ -211,13 +228,15 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
 
     for (let i = 0; i < channels.length; i++) {
       const sc = channels[i];
+      const isDefault = defaultSchedule?.calendarId === sc.calendarId;
 
       const nextSyncText = sc.nextPollAt.getTime() <= now
         ? "Syncing now"
         : `Next sync ${time(sc.nextPollAt, TimestampStyles.RelativeTime)}`;
 
+      const titleSuffix = isDefault ? " (default)" : "";
       const lines: string[] = [
-        `${emojis.schedule} **${sc.displayTitle}**`,
+        `${emojis.schedule} **${sc.displayTitle}**${titleSuffix}`,
         `-# Posts to <#${sc.channelId}>  ·  Alerts to <#${sc.logChannelId}>`,
         `-# Google Calendar: ${sc.calendarTitle}  ·  ${nextSyncText}`,
       ];
@@ -240,9 +259,50 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
       }
     }
 
+    if (channels.length > 1) {
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          "-# Use `/schedule-config set-default` to change which schedule `/schedule` shows by default.",
+        ),
+      );
+    }
+
     await interaction.reply({
       components: [container],
       flags: MessageFlags.IsComponentsV2,
+    });
+  }
+
+  private async handleSetDefault(interaction: ChatInputCommandInteraction): Promise<void> {
+    const channelId = interaction.options.getString(SCHEDULE_CONFIG_OPTIONS.SCHEDULE, true);
+    const emojis = await this.emojiRepo.getEmojis(SCHEDULE_CONFIG_EMOJI_NAMES);
+
+    const result = await this.scheduleChannelService.setDefault(
+      BigInt(interaction.guildId!),
+      BigInt(channelId),
+    );
+
+    if (result.err) {
+      await interaction.reply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error, true));
+      return;
+    }
+
+    const content = [
+      `${emojis.success} **Default schedule updated**`,
+      "",
+      `\`/schedule\` will now show **${result.val.displayTitle}** by default.`,
+    ].join("\n");
+
+    const container = new ContainerBuilder()
+      .setAccentColor(Color.Success)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+
+    await interaction.reply({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 
