@@ -49,7 +49,7 @@ export class ScheduleConfigAutocomplete extends AutocompleteHandler {
       const channelName = channel ? `#${channel.name}` : `<#${schedule.channelId}>`;
       const calendarName = schedule.displayTitle;
 
-      const prefix = `${channelName} — `;
+      const prefix = `${channelName}: `;
       const maxCalendarLen = 100 - prefix.length;
       const truncatedCalendar =
         calendarName.length > maxCalendarLen

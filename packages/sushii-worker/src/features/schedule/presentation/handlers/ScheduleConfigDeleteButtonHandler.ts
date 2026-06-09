@@ -90,7 +90,7 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
 
     // Update the ephemeral confirmation to acknowledge the action.
     const ephemeralLine = schedule
-      ? `${emojis.success} **Deleted** — **${schedule.displayTitle}** (was posting to <#${channelIdStr}>)`
+      ? `${emojis.success} **Deleted** **${schedule.displayTitle}** (was posting to <#${channelIdStr}>)`
       : `${emojis.success} **Schedule deleted.**`;
 
     await interaction.editReply(makeContainer(ephemeralLine, Color.Success));
@@ -113,8 +113,8 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
 
     lines.push(
       "",
-      `-# Existing posts in <#${channelIdStr}> were not deleted — they stay as-is.`,
-      `-# No Google Calendar events were removed — your calendar is unchanged.`,
+      `-# Existing posts in <#${channelIdStr}> were not deleted. They stay as-is.`,
+      `-# No Google Calendar events were removed. Your calendar is unchanged.`,
       "",
       "To add a new calendar, use `/schedule-config new`.",
       `To view remaining schedules, use \`/schedule-config list\`.`,

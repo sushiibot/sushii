@@ -89,7 +89,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           ),
         new LabelBuilder()
           .setLabel("Public schedule channel")
-          .setDescription("Where the schedule is posted — visible to all members")
+          .setDescription("Where the schedule is posted (visible to all members)")
           .setChannelSelectMenuComponent(
             new ChannelSelectMenuBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_CHANNEL)
@@ -97,7 +97,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           ),
         new LabelBuilder()
           .setLabel("Private log channel")
-          .setDescription("Where event change alerts and errors are sent — keep this mod-only")
+          .setDescription("Where event change alerts and errors are sent (keep this mod-only)")
           .setChannelSelectMenuComponent(
             new ChannelSelectMenuBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_LOG_CHANNEL)
@@ -105,7 +105,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           ),
         new LabelBuilder()
           .setLabel("Accent color (optional)")
-          .setDescription("Hex code for the schedule accent bar — leave blank for no accent color")
+          .setDescription("Hex code for the schedule accent bar (leave blank for no accent color)")
           .setTextInputComponent(
             new TextInputBuilder()
               .setCustomId(SCHEDULE_CONFIG_CUSTOM_IDS.MODAL_FIELD_COLOR)
@@ -197,7 +197,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           const logChannelPerms = checkChannelPermissions(guild, logChannel.id);
 
           if (channelPerms.missingPermissions.length > 0 || logChannelPerms.missingPermissions.length > 0) {
-            const lines = [`## ${emojis.fail} Missing bot permissions — fix these to continue`];
+            const lines = [`## ${emojis.fail} Missing bot permissions: fix these to continue`];
 
             if (channelPerms.missingPermissions.length > 0) {
               lines.push(`**Schedule channel** <#${channel.id}>`);
@@ -262,7 +262,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
           if (channel.id === logChannel.id) {
             container.addTextDisplayComponents(
               new TextDisplayBuilder().setContent(
-                `${emojis.warning} Schedule and log channel are the same — event alerts will appear alongside schedule posts. To use a separate log channel, run \`/schedule-config edit\`.`,
+                `${emojis.warning} Schedule and log channel are the same. Event alerts will appear alongside schedule posts. To use a separate log channel, run \`/schedule-config edit\`.`,
               ),
             );
           }

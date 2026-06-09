@@ -130,7 +130,7 @@ export class ScheduleCommand extends SlashCommandHandler {
     if (remainingCount > 0) {
       const suffix = truncated ? "+" : "";
       const noun = remainingCount === 1 ? "event" : "events";
-      footerParts.push(`-# …and ${remainingCount}${suffix} more ${noun} — check the schedule channel for the full list`);
+      footerParts.push(`-# …and ${remainingCount}${suffix} more ${noun}. Check the schedule channel for the full list.`);
     }
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(footerParts.join("\n")),
