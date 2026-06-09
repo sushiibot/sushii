@@ -62,7 +62,7 @@ function makeRepo(
     findDefault: mock(async () =>
       existingSchedules.find((s) => s.isDefault) ?? existingSchedules[0] ?? null
     ),
-    setDefault: mock(async () => {}),
+    setDefault: mock(async () => existingSchedules[0] ?? upsertResult),
     upsert: mock(async (_data: UpsertScheduleData) => upsertResult),
     delete: mock(async () => {}),
     updateSyncToken: mock(async () => {}),

@@ -61,27 +61,28 @@ export class ScheduleCommand extends SlashCommandHandler {
     // showAll: whether to merge events from all calendars
     let showAll = false;
     let filterTitle: string | null = null;
-    let hasMultiple: boolean;
+    // Resolved calendar ID used for event fetch (may differ from calendarInput when using default)
+    let effectiveCalendarId: string | null = calendarInput;
+
+    const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
+    if (allSchedules.length === 0) {
+      const container = new ContainerBuilder()
+        .setAccentColor(Color.Info)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent("No schedules are configured in this server."),
+        );
+      await interaction.reply({
+        components: [container],
+        flags: MessageFlags.IsComponentsV2,
+      });
+      return;
+    }
+    const hasMultiple = allSchedules.length > 1;
 
     if (calendarInput === SCHEDULE_ALL_VALUE) {
-      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
-      if (allSchedules.length === 0) {
-        const container = new ContainerBuilder()
-          .setAccentColor(Color.Info)
-          .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent("No schedules are configured in this server."),
-          );
-        await interaction.reply({
-          components: [container],
-          flags: MessageFlags.IsComponentsV2,
-        });
-        return;
-      }
       showAll = true;
-      hasMultiple = allSchedules.length > 1;
     } else if (calendarInput) {
       // Validate: the provided calendarId must belong to this guild
-      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
       const schedule = allSchedules.find((s) => s.calendarId === calendarInput) ?? null;
 
       if (!schedule) {
@@ -96,8 +97,6 @@ export class ScheduleCommand extends SlashCommandHandler {
         });
         return;
       }
-
-      hasMultiple = allSchedules.length > 1;
     } else {
       const defaultSchedule = await this.scheduleChannelService.getDefault(guildId);
 
@@ -114,14 +113,13 @@ export class ScheduleCommand extends SlashCommandHandler {
         return;
       }
 
-      const allSchedules = await this.scheduleChannelService.listForGuild(guildId);
+      effectiveCalendarId = defaultSchedule.calendarId;
       filterTitle = defaultSchedule.displayTitle;
-      hasMultiple = allSchedules.length > 1;
     }
 
     const events = showAll
       ? await this.eventRepo.findUpcomingByGuild(guildId, now, MAX_FETCH_EVENTS + 1)
-      : await this.eventRepo.findUpcomingByCalendar(guildId, calendarInput!, now, MAX_FETCH_EVENTS + 1);
+      : await this.eventRepo.findUpcomingByCalendar(guildId, effectiveCalendarId!, now, MAX_FETCH_EVENTS + 1);
     const truncated = events.length > MAX_FETCH_EVENTS;
     const countable = truncated ? events.slice(0, MAX_FETCH_EVENTS) : events;
     const displayed = countable.slice(0, MAX_DISPLAYED_EVENTS);

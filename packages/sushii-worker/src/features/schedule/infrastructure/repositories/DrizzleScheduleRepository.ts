@@ -184,9 +184,9 @@ export class DrizzleScheduleRepository
     return oldest.length > 0 ? mapSchedule(oldest[0]) : null;
   }
 
-  async setDefault(guildId: bigint, calendarId: string): Promise<void> {
+  async setDefault(guildId: bigint, calendarId: string): Promise<Schedule> {
     const now = new Date();
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       await tx
         .update(schema.schedulesInAppPublic)
         .set({ isDefault: false, updatedAt: now })
@@ -196,7 +196,7 @@ export class DrizzleScheduleRepository
             eq(schema.schedulesInAppPublic.isDefault, true),
           )
         );
-      await tx
+      const rows = await tx
         .update(schema.schedulesInAppPublic)
         .set({ isDefault: true, updatedAt: now })
         .where(
@@ -204,7 +204,14 @@ export class DrizzleScheduleRepository
             eq(schema.schedulesInAppPublic.guildId, guildId),
             eq(schema.schedulesInAppPublic.calendarId, calendarId),
           ),
-        );
+        )
+        .returning();
+      if (rows.length === 0) {
+        throw new Error("setDefault matched no schedule", {
+          cause: { guildId: guildId.toString(), calendarId },
+        });
+      }
+      return mapSchedule(rows[0]);
     });
   }
 

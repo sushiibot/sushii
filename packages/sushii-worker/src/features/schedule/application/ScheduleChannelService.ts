@@ -161,7 +161,20 @@ export class ScheduleChannelService {
   }
 
   async getDefault(guildId: bigint): Promise<Schedule | null> {
-    return this.repo.findDefault(guildId);
+    const schedule = await this.repo.findDefault(guildId);
+
+    // findDefault falls back to oldest-by-createdAt when no explicit default
+    // exists. Persist that choice so subsequent calls skip the fallback path.
+    if (schedule && !schedule.isDefault) {
+      const updated = await this.repo.setDefault(guildId, schedule.calendarId);
+      this.logger.info(
+        { guildId: guildId.toString(), calendarId: updated.calendarId },
+        "Auto-set schedule default from fallback",
+      );
+      return updated;
+    }
+
+    return schedule;
   }
 
   async setDefault(guildId: bigint, channelId: bigint): Promise<Result<Schedule, string>> {
@@ -170,14 +183,14 @@ export class ScheduleChannelService {
       return Err("No schedule channel is configured for that channel.");
     }
 
-    await this.repo.setDefault(guildId, existing.calendarId);
+    const updated = await this.repo.setDefault(guildId, existing.calendarId);
 
     this.logger.info(
       { guildId: guildId.toString(), channelId: channelId.toString(), calendarId: existing.calendarId },
       "Schedule default updated",
     );
 
-    return Ok(existing);
+    return Ok(updated);
   }
 
   async refresh(guildId: bigint, channelId: bigint): Promise<Result<void, string>> {

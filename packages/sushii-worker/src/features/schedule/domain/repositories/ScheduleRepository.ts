@@ -40,7 +40,7 @@ export interface ScheduleRepository {
    * Sets the given calendar as the default for the guild, clearing isDefault on
    * all others in the same guild atomically.
    */
-  setDefault(guildId: bigint, calendarId: string): Promise<void>;
+  setDefault(guildId: bigint, calendarId: string): Promise<Schedule>;
 
   upsert(data: UpsertScheduleData): Promise<Schedule>;
 
