@@ -345,6 +345,41 @@ describe("ScheduleChannelService.setDefault", () => {
   });
 });
 
+describe("ScheduleChannelService.getDefault", () => {
+  it("returns existing explicit default without writing", async () => {
+    const existing = makeSchedule({ calendarId: "cal@group.calendar.google.com", isDefault: true });
+    const repo = makeRepo([existing]);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.getDefault(1n);
+
+    expect(repo.setDefault).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ calendarId: "cal@group.calendar.google.com", isDefault: true });
+  });
+
+  it("persists and returns fallback when no explicit default", async () => {
+    const fallback = makeSchedule({ calendarId: "cal@group.calendar.google.com", isDefault: false });
+    const repo = makeRepo([fallback]);
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.getDefault(1n);
+
+    expect(repo.setDefault).toHaveBeenCalledWith(1n, "cal@group.calendar.google.com");
+    expect(result).toMatchObject({ isDefault: true });
+  });
+
+  it("returns original schedule when setDefault fails", async () => {
+    const fallback = makeSchedule({ calendarId: "cal@group.calendar.google.com", isDefault: false });
+    const repo = makeRepo([fallback]);
+    repo.setDefault = mock(async () => { throw new Error("DB error"); });
+    const service = new ScheduleChannelService(repo, makeCalendarClient(), true, logger);
+
+    const result = await service.getDefault(1n);
+
+    expect(result).toMatchObject({ calendarId: "cal@group.calendar.google.com", isDefault: false });
+  });
+});
+
 describe("ScheduleChannelService.refresh", () => {
   it("returns error when no schedule is configured for the channel", async () => {
     const repo = makeRepo([]);

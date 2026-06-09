@@ -207,9 +207,7 @@ export class DrizzleScheduleRepository
         )
         .returning();
       if (rows.length === 0) {
-        throw new Error("setDefault matched no schedule", {
-          cause: { guildId: guildId.toString(), calendarId },
-        });
+        throw new Error(`setDefault matched no schedule: guildId=${guildId}, calendarId=${calendarId}`);
       }
       return mapSchedule(rows[0]);
     });
