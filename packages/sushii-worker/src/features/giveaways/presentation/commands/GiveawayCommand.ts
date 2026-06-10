@@ -262,11 +262,23 @@ export class GiveawayCommand extends SlashCommandHandler {
       });
     } catch (err) {
       if (err instanceof DiscordAPIError) {
+        if (err.code === RESTJSONErrorCodes.MissingPermissions) {
+          await interaction.reply(
+            getErrorMessage(
+              "Missing permissions",
+              `I don't have permission to send messages in <#${interaction.channelId}>.\n\nPlease grant me the **Send Messages** and **Embed Links** permissions in this channel, then try again.`,
+              true,
+            ),
+          );
+          return;
+        }
+
         if (err.code === RESTJSONErrorCodes.MissingAccess) {
           await interaction.reply(
             getErrorMessage(
-              "Failed to send giveaway",
-              "I don't have permission to send the giveaway message, please make sure I can view and send messages to the channel.",
+              "Missing access",
+              `I can't access <#${interaction.channelId}>.\n\nPlease make sure I have the **View Channel** and **Send Messages** permissions here, then try again.`,
+              true,
             ),
           );
           return;
