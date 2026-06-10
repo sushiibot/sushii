@@ -83,7 +83,7 @@ export class ScamImageClassifier {
 
   async classify(
     images: { buffer: Buffer; filename: string }[],
-  ): Promise<ClassificationResult | null> {
+  ): Promise<ClassificationResult | { error: string }> {
     return tracer.startActiveSpan(
       "automod.classifier.classify",
       { kind: SpanKind.CLIENT, attributes: { "classifier.model": this.model, "classifier.image_count": images.length } },
@@ -94,7 +94,7 @@ export class ScamImageClassifier {
   private async _classify(
     images: { buffer: Buffer; filename: string }[],
     span: Span,
-  ): Promise<ClassificationResult | null> {
+  ): Promise<ClassificationResult | { error: string }> {
     const startMs = performance.now();
     const attrs = { model: this.model };
 
@@ -160,7 +160,7 @@ export class ScamImageClassifier {
         span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${resp.status}` });
         span.setAttribute("classifier.outcome", "api_error");
         span.end();
-        return null;
+        return { error: `API request failed (HTTP ${resp.status})` };
       }
 
       const data = await resp.json();
@@ -192,7 +192,7 @@ export class ScamImageClassifier {
         span.setStatus({ code: SpanStatusCode.ERROR, message: envelope.error.message });
         span.setAttribute("classifier.outcome", "envelope_error");
         span.end();
-        return null;
+        return { error: "Unexpected API response shape" };
       }
 
       const { usage } = envelope.data;
@@ -244,7 +244,7 @@ export class ScamImageClassifier {
         span.setStatus({ code: SpanStatusCode.ERROR, message: "JSON parse failed" });
         span.setAttribute("classifier.outcome", "json_parse_error");
         span.end();
-        return null;
+        return { error: "Failed to parse API response" };
       }
 
       const result = classificationSchema.safeParse(parsed);
@@ -257,7 +257,7 @@ export class ScamImageClassifier {
         span.setStatus({ code: SpanStatusCode.ERROR, message: result.error.message });
         span.setAttribute("classifier.outcome", "schema_error");
         span.end();
-        return null;
+        return { error: "API response failed validation" };
       }
 
       const outcome = result.data.isScam ? "scam" : "not_scam";
@@ -278,7 +278,8 @@ export class ScamImageClassifier {
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.setAttribute("classifier.outcome", "error");
       span.end();
-      return null;
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return { error: message };
     }
   }
 }

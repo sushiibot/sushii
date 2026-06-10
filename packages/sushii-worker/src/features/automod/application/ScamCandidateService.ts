@@ -265,7 +265,8 @@ export class ScamCandidateService {
       .setRequired(false)
       .setPlaceholder("e.g. tezowin.com promo");
 
-    const suggestedLabel = state.classificationResult?.suggestedLabel;
+    const cr = state.classificationResult;
+    const suggestedLabel = cr !== null && !("error" in cr) ? cr.suggestedLabel : null;
     if (suggestedLabel) {
       labelInput.setValue(suggestedLabel.slice(0, MAX_LABEL_LENGTH));
     }
@@ -478,7 +479,7 @@ export class ScamCandidateService {
 
     // Classify new images on the review cluster — images are already downloaded here,
     // so this piggybacks on the re-download rather than requiring a separate fetch.
-    let classificationResult: ClassificationResult | null = null;
+    let classifyOutcome: ClassificationResult | { error: string } | null = null;
     if (this.classifier && successfulResults.some((r) => r.isNew)) {
       const newImageInputs = successfulFiles
         .filter((_, i) => successfulResults[i].isNew)
@@ -491,37 +492,41 @@ export class ScamCandidateService {
         },
       });
       try {
-        classificationResult = await this.classifier.classify(newImageInputs);
-        if (classificationResult) {
+        classifyOutcome = await this.classifier.classify(newImageInputs);
+        if (!("error" in classifyOutcome)) {
           classifySpan.setAttributes({
-            "classification.is_scam": classificationResult.isScam,
-            "classification.confidence": classificationResult.confidence,
-            "classification.has_suggested_label": classificationResult.suggestedLabel !== null,
+            "classification.is_scam": classifyOutcome.isScam,
+            "classification.confidence": classifyOutcome.confidence,
+            "classification.has_suggested_label": classifyOutcome.suggestedLabel !== null,
           });
           this.logger.debug(
             {
-              isScam: classificationResult.isScam,
-              confidence: classificationResult.confidence,
-              label: classificationResult.suggestedLabel,
+              isScam: classifyOutcome.isScam,
+              confidence: classifyOutcome.confidence,
+              label: classifyOutcome.suggestedLabel,
             },
             "Scam candidate classified",
           );
         } else {
-          classifySpan.addEvent("classification_failed", { reason: "classify returned null" });
+          classifySpan.addEvent("classification_failed", { reason: classifyOutcome.error });
+          this.logger.warn({ error: classifyOutcome.error }, "Scam candidate classification failed");
         }
       } finally {
         classifySpan.end();
       }
     }
 
-    const storedClassification = classificationResult
-      ? {
-          isScam: classificationResult.isScam,
-          confidence: classificationResult.confidence,
-          suggestedLabel: classificationResult.suggestedLabel,
-          reason: classificationResult.reason,
-        }
-      : null;
+    const storedClassification: StoredClassificationResult | null =
+      classifyOutcome === null
+        ? null
+        : "error" in classifyOutcome
+          ? { error: classifyOutcome.error }
+          : {
+              isScam: classifyOutcome.isScam,
+              confidence: classifyOutcome.confidence,
+              suggestedLabel: classifyOutcome.suggestedLabel,
+              reason: classifyOutcome.reason,
+            };
 
     const channel = this.client.channels.cache.get(REVIEW_CHANNEL_ID);
     if (!channel?.isTextBased() || channel.isDMBased()) {
@@ -533,7 +538,11 @@ export class ScamCandidateService {
     const nearMatchTrigger = successfulResults.some(
       (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
     );
-    const aiTrigger = storedClassification?.isScam === true && storedClassification.confidence === "high";
+    const aiTrigger =
+      storedClassification !== null &&
+      !("error" in storedClassification) &&
+      storedClassification.isScam === true &&
+      storedClassification.confidence === "high";
     const autoApprove = nearMatchTrigger || aiTrigger;
 
     // For auto-approve, send with a locked "Auto-approving…" status (no Ignore/Add buttons).
@@ -585,7 +594,10 @@ export class ScamCandidateService {
       const nearMatchLabel = successfulResults
         .filter((r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD)
         .find((r) => r.closestLabel)?.closestLabel ?? undefined;
-      const aiLabel = storedClassification?.isScam === true ? (storedClassification.suggestedLabel ?? undefined) : undefined;
+      const aiLabel =
+        storedClassification !== null && !("error" in storedClassification) && storedClassification.isScam === true
+          ? (storedClassification.suggestedLabel ?? undefined)
+          : undefined;
       const label = aiLabel ?? nearMatchLabel;
       const newPhashes = successfulResults.filter((r) => r.isNew).map((r) => BigInt(r.phash));
       const { added, failed } = await this.insertHashes(successfulResults, label);

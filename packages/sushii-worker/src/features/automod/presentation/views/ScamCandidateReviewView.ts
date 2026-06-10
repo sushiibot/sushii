@@ -144,17 +144,19 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
   }
 
   if (classificationResult) {
-    const icon = classificationResult.isScam ? "🔴" : "🟢";
-    const labelPart = classificationResult.suggestedLabel
-      ? ` · \`${classificationResult.suggestedLabel}\``
-      : "";
+    let aiLine: string;
+    if ("error" in classificationResult) {
+      aiLine = `-# AI: ⚠️ failed — ${classificationResult.error}`;
+    } else {
+      const icon = classificationResult.isScam ? "🔴" : "🟢";
+      const labelPart = classificationResult.suggestedLabel
+        ? ` · \`${classificationResult.suggestedLabel}\``
+        : "";
+      aiLine = `-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${classificationResult.reason}`;
+    }
     container
       .addSeparatorComponents(new SeparatorBuilder())
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          `-# AI: ${icon} ${classificationResult.confidence} confidence${labelPart} — ${classificationResult.reason}`,
-        ),
-      );
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(aiLine));
   }
 
   if (resolved) {

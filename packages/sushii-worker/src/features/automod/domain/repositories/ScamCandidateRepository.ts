@@ -14,12 +14,9 @@ export interface StoredImageResult {
   attachmentIndex?: number;
 }
 
-export interface StoredClassificationResult {
-  isScam: boolean;
-  confidence: string;
-  suggestedLabel: string | null;
-  reason: string;
-}
+export type StoredClassificationResult =
+  | { isScam: boolean; confidence: string; suggestedLabel: string | null; reason: string }
+  | { error: string };
 
 export type ScamCandidateReviewStatus = "claimed" | "ready_to_post" | "reviewing" | "ignored" | "added" | "reverted";
 export type ScamCandidateTrigger = "threshold" | "near_miss";
