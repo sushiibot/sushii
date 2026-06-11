@@ -72,13 +72,6 @@ export function proxyRequests(rest: REST) {
         headers: responseHeaders,
       });
     } catch (error) {
-      console.error(`Error while processing request:`, {
-        error,
-        method,
-        url,
-        headers,
-      });
-
       if (error instanceof DiscordAPIError || error instanceof HTTPError) {
         const responseHeaders = new Headers();
         if ("rawError" in error) {
@@ -102,6 +95,11 @@ export function proxyRequests(rest: REST) {
           statusText: "Upstream timed out",
         });
       } else {
+        console.error(`Error while processing request:`, {
+          error,
+          method,
+          url,
+        });
         throw error;
       }
     }
