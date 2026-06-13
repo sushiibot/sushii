@@ -21,8 +21,22 @@ describe("DrizzleScamCandidateRepository", () => {
     await testDb.close();
   });
 
-  async function insertClaimed(key: string, guildIds: string[]): Promise<void> {
-    await repo.claimByHashKey(key, crypto.randomUUID(), "100000000000000001", 1, guildIds, "threshold", []);
+  async function insertClaimed(key: string, guildIds: string[]): Promise<string> {
+    const reviewId = crypto.randomUUID();
+    await repo.claimByHashKey(key, reviewId, "100000000000000001", 1, guildIds, "threshold", []);
+    return reviewId;
+  }
+
+  async function insertReviewing(key: string): Promise<string> {
+    const reviewId = await insertClaimed(key, ["111111111111111111"]);
+    await repo.transitionToReadyToPost(key, { newImageResults: [], guildNames: [] });
+    await repo.transitionFromReadyToPost(key, {
+      reviewChannelId: "900000000000000001",
+      reviewMessageId: "900000000000000002",
+      postedImageResults: [],
+      classificationResult: null,
+    });
+    return reviewId;
   }
 
   describe("appendSeenUser", () => {
@@ -93,6 +107,74 @@ describe("DrizzleScamCandidateRepository", () => {
     test("returns null for unknown key", async () => {
       const result = await repo.appendSeenUser("nonexistent", "200000000000000002", 1, ["111111111111111111"]);
       expect(result).toBeNull();
+    });
+  });
+
+  describe("revertReview", () => {
+    beforeEach(async () => {
+      await db.delete(schema.scamCandidateStateInAppPublic);
+    });
+
+    test("transitions added → reverted and returns updated state", async () => {
+      const reviewId = await insertReviewing("revert1");
+      await repo.resolveReview(reviewId, "added");
+
+      const result = await repo.revertReview(reviewId);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe("reverted");
+    });
+
+    test("returns null when status is not added (guard)", async () => {
+      const reviewId = await insertReviewing("revert2");
+      // Row is in 'reviewing', not 'added'
+      const result = await repo.revertReview(reviewId);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null for unknown reviewId", async () => {
+      const result = await repo.revertReview(crypto.randomUUID());
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("undoIgnore", () => {
+    beforeEach(async () => {
+      await db.delete(schema.scamCandidateStateInAppPublic);
+    });
+
+    test("transitions ignored → reviewing and returns updated state", async () => {
+      const reviewId = await insertReviewing("undo1");
+      await repo.resolveReview(reviewId, "ignored");
+
+      const result = await repo.undoIgnore(reviewId);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe("reviewing");
+    });
+
+    test("returns null when status is not ignored (guard)", async () => {
+      const reviewId = await insertReviewing("undo2");
+      // Row is in 'reviewing', not 'ignored'
+      const result = await repo.undoIgnore(reviewId);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null for unknown reviewId", async () => {
+      const result = await repo.undoIgnore(crypto.randomUUID());
+      expect(result).toBeNull();
+    });
+
+    test("allows re-ignore after undo (reviewing → ignored again)", async () => {
+      const reviewId = await insertReviewing("undo3");
+      await repo.resolveReview(reviewId, "ignored");
+      await repo.undoIgnore(reviewId);
+
+      const reIgnored = await repo.resolveReview(reviewId, "ignored");
+      expect(reIgnored).not.toBeNull();
+      expect(reIgnored!.status).toBe("ignored");
     });
   });
 });
