@@ -10,6 +10,7 @@ import { ApplicationCommandType } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import { isPublicServer } from "@/features/moderation/shared/domain/services/PublicServerValidationService";
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
@@ -34,6 +35,7 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
     private readonly lookupUserService: LookupUserService,
     private readonly emojiRepository: BotEmojiRepository,
     private readonly logger: Logger,
+    private readonly userLevelRepository: UserLevelRepository,
   ) {
     super();
   }
@@ -60,9 +62,38 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
       PermissionFlagsBits.BanMembers,
     );
 
+    const [guildLevelResult, globalLevelResult] = await Promise.allSettled([
+      this.userLevelRepository.getUserGuildLevel(
+        interaction.guildId,
+        targetUser.id,
+      ),
+      this.userLevelRepository.getUserGlobalLevel(targetUser.id),
+    ]);
+
+    if (guildLevelResult.status === "rejected") {
+      log.error(
+        { err: guildLevelResult.reason },
+        "Failed to fetch guild level for userinfo context menu",
+      );
+    }
+
+    if (globalLevelResult.status === "rejected") {
+      log.error(
+        { err: globalLevelResult.reason },
+        "Failed to fetch global level for userinfo context menu",
+      );
+    }
+
+    const guildLevel =
+      guildLevelResult.status === "fulfilled" ? guildLevelResult.value : null;
+    const globalLevel =
+      globalLevelResult.status === "fulfilled" ? globalLevelResult.value : null;
+
     const userInfoEmbed = createUserInfoEmbed(
       targetUser,
       targetMember || undefined,
+      guildLevel,
+      globalLevel,
     );
 
     if (!isModerator) {

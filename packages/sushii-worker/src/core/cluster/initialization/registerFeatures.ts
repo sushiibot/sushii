@@ -247,7 +247,12 @@ export function registerFeatures(
     logger,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
-  const userProfileFeature = setupUserProfileFeature({ db, client, logger });
+  const userProfileFeature = setupUserProfileFeature({
+    db,
+    client,
+    logger,
+    userLevelRepository: levelingFeature.services.userLevelRepository,
+  });
   const socialFeature = setupSocialFeature({ db, client, logger });
   const notificationFeature = setupNotificationFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
@@ -287,6 +292,7 @@ export function registerFeatures(
       automodFeature.services.automodAlertReactionService,
     spamAlertUpdateService: automodFeature.services.spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
+    userLevelRepository: levelingFeature.services.userLevelRepository,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,

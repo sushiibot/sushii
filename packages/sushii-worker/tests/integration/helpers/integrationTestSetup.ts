@@ -104,6 +104,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     automodAlertReactionService,
     spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
+    userLevelRepository: levelingServices.userLevelRepository,
   });
 
   // Create giveaway services with mock client

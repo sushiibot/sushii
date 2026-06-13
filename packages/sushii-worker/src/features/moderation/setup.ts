@@ -6,6 +6,7 @@ import type { AutomodAlertReactionService } from "@/features/automod/application
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
@@ -85,6 +86,7 @@ interface ModerationDependencies {
   automodAlertReactionService: AutomodAlertReactionService;
   spamAlertUpdateService: SpamAlertUpdateService;
   nameHistoryService: UserNameHistoryService;
+  userLevelRepository: UserLevelRepository;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -268,6 +270,7 @@ export function createModerationServices({
 export function createModerationCommands(
   services: ReturnType<typeof createModerationServices>,
   logger: Logger,
+  userLevelRepository: UserLevelRepository,
 ) {
   const {
     moderationService,
@@ -348,6 +351,7 @@ export function createModerationCommands(
       lookupUserService,
       emojiRepository,
       logger.child({ contextMenuHandler: "userInfoContextMenu" }),
+      userLevelRepository,
     ),
   ];
 
@@ -413,6 +417,7 @@ export function setupModerationFeature({
   automodAlertReactionService,
   spamAlertUpdateService,
   nameHistoryService,
+  userLevelRepository,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
@@ -424,8 +429,9 @@ export function setupModerationFeature({
     automodAlertReactionService,
     spamAlertUpdateService,
     nameHistoryService,
+    userLevelRepository,
   });
-  const commands = createModerationCommands(services, logger);
+  const commands = createModerationCommands(services, logger, userLevelRepository);
   const events = createModerationEventHandlers(services, logger);
   const tasks = createModerationTasks(services, client, deploymentService);
 

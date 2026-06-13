@@ -2,6 +2,9 @@ import type { GuildMember, User } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 import type { APIEmbed } from "discord.js";
 
+import type { GlobalUserLevel } from "@/features/leveling/domain/entities/GlobalUserLevel";
+import type { UserLevel } from "@/features/leveling/domain/entities/UserLevel";
+import type { BaseUserLevel } from "@/features/leveling/domain/entities/BaseUserLevel";
 import Color from "@/utils/colors";
 import { getCreatedTimestampSeconds } from "@/utils/snowflake";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
@@ -16,9 +19,15 @@ function getUserType(user: User): "User" | "Bot" | "System" {
   return "User";
 }
 
+function formatLevel(level: BaseUserLevel): string {
+  return `Level ${level.getCurrentLevel()} — ${level.getXpDisplayText()}`;
+}
+
 export function createUserInfoEmbed(
   user: User,
   member: GuildMember | undefined,
+  guildLevel: UserLevel | null,
+  globalLevel: GlobalUserLevel | null,
 ): APIEmbed {
   let authorName = `${user.displayName} (@${user.username})`;
   if (member?.nickname) {
@@ -99,6 +108,26 @@ export function createUserInfoEmbed(
       {
         name: "Roles",
         value: rolesStr || "Member has no roles",
+      },
+    ]);
+  }
+
+  if (globalLevel) {
+    embed = embed.addFields([
+      {
+        name: "Global Level",
+        value: formatLevel(globalLevel),
+        inline: true,
+      },
+    ]);
+  }
+
+  if (guildLevel) {
+    embed = embed.addFields([
+      {
+        name: "Server Level",
+        value: formatLevel(guildLevel),
+        inline: true,
       },
     ]);
   }

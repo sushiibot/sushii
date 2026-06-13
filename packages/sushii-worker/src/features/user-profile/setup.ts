@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
@@ -18,12 +19,14 @@ interface SetupParams {
   db: NodePgDatabase<typeof schema>;
   client: Client;
   logger: Logger;
+  userLevelRepository: UserLevelRepository;
 }
 
 export function setupUserProfileFeature({
   db,
   client,
   logger,
+  userLevelRepository,
 }: SetupParams): FullFeatureSetupReturn<UserProfileFeatureServices> {
   // Create repositories
   const userProfileRepository = new DrizzleUserProfileRepository(db);
@@ -31,7 +34,7 @@ export function setupUserProfileFeature({
   // Create commands
   const avatarCommand = new AvatarCommand(client, logger);
   const bannerCommand = new BannerCommand(client, logger);
-  const userInfoCommand = new UserInfoCommand(client, logger);
+  const userInfoCommand = new UserInfoCommand(client, logger, userLevelRepository);
 
   return {
     services: {
