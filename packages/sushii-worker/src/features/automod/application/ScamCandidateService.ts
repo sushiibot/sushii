@@ -334,6 +334,7 @@ export class ScamCandidateService {
   private async loadForTransition(
     reviewId: string,
     expectedStatus: ScamCandidateReviewStatus,
+    statusMismatchMessage: string,
     interaction: ButtonInteraction,
   ): Promise<ScamCandidateState | null> {
     await interaction.deferUpdate();
@@ -348,13 +349,7 @@ export class ScamCandidateService {
     }
 
     if (current.status !== expectedStatus) {
-      let message: string;
-      if (expectedStatus === "added") {
-        message = "This review has already been resolved.";
-      } else {
-        message = "This review is no longer in an ignored state.";
-      }
-      await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
+      await interaction.followUp({ content: statusMismatchMessage, flags: MessageFlags.Ephemeral });
       return null;
     }
 
@@ -362,7 +357,12 @@ export class ScamCandidateService {
   }
 
   async handleRevert(reviewId: string, interaction: ButtonInteraction): Promise<void> {
-    const current = await this.loadForTransition(reviewId, "added", interaction);
+    const current = await this.loadForTransition(
+      reviewId,
+      "added",
+      "This review has already been resolved.",
+      interaction,
+    );
     if (!current) {
       return;
     }
@@ -390,12 +390,17 @@ export class ScamCandidateService {
   }
 
   async handleUndoIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
-    const current = await this.loadForTransition(reviewId, "ignored", interaction);
+    const current = await this.loadForTransition(
+      reviewId,
+      "ignored",
+      "This review is no longer in an ignored state.",
+      interaction,
+    );
     if (!current) {
       return;
     }
 
-    const state = await this.candidateRepository.unresolveIgnoredReview(reviewId);
+    const state = await this.candidateRepository.undoIgnore(reviewId);
     if (!state) {
       await interaction.followUp({
         content: "This review is no longer in an ignored state.",

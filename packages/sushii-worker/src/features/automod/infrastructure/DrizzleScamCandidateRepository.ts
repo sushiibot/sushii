@@ -224,7 +224,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     return this.transitionStatus(reviewId, "added", "reverted");
   }
 
-  async unresolveIgnoredReview(reviewId: string): Promise<ScamCandidateState | null> {
+  async undoIgnore(reviewId: string): Promise<ScamCandidateState | null> {
     return this.transitionStatus(reviewId, "ignored", "reviewing");
   }
 
