@@ -14,6 +14,7 @@ import {
   buildAddId,
   buildIgnoreId,
   buildRevertId,
+  buildUndoIgnoreId,
 } from "../handlers/scamCandidateCustomIds";
 import { formatDhash } from "../../utils/bigintUtils";
 import { NEAR_MATCH_AUTO_APPROVE_THRESHOLD } from "../../constants";
@@ -33,8 +34,10 @@ export interface ScamCandidateReviewViewOpts {
   classificationResult: StoredClassificationResult | null;
   reviewId: string;
   seenByUserCount: number;
-  /** When true, an active Revert button is shown alongside the resolved status */
+  /** When true, an active Revert button is shown alongside the resolved status (for added reviews) */
   revertable?: boolean;
+  /** When true, an active Undo button is shown alongside the resolved status (for ignored reviews) */
+  undoable?: boolean;
   resolved?: {
     statusLine: string;
     buttonLabel: string;
@@ -55,6 +58,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     reviewId,
     seenByUserCount,
     revertable,
+    undoable,
     resolved,
   } = opts;
 
@@ -102,6 +106,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
       : null;
 
   const canRevert = resolved !== undefined && revertable === true;
+  const canUndo = resolved !== undefined && undoable === true;
 
   const actionRow = resolved
     ? new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -116,6 +121,12 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
                 .setCustomId(buildRevertId(reviewId))
                 .setLabel("Revert")
                 .setStyle(ButtonStyle.Danger)
+            : null,
+          canUndo
+            ? new ButtonBuilder()
+                .setCustomId(buildUndoIgnoreId(reviewId))
+                .setLabel("Undo Ignore")
+                .setStyle(ButtonStyle.Secondary)
             : null,
           userCountButton,
         ].filter((b): b is ButtonBuilder => b !== null),

@@ -331,7 +331,11 @@ export class ScamCandidateService {
     this.metrics.reviewOutcomeCounter.add(1, { outcome: failed.length > 0 ? "add_failed" : "added", trigger: state.trigger });
   }
 
-  async handleRevert(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+  private async loadForTransition(
+    reviewId: string,
+    expectedStatus: ScamCandidateReviewStatus,
+    interaction: ButtonInteraction,
+  ): Promise<ScamCandidateState | null> {
     await interaction.deferUpdate();
 
     const current = await this.candidateRepository.getByReviewId(reviewId);
@@ -340,14 +344,26 @@ export class ScamCandidateService {
         content: "This review has expired — a new review will appear automatically.",
         flags: MessageFlags.Ephemeral,
       });
-      return;
+      return null;
     }
 
-    if (current.status !== "added") {
-      await interaction.followUp({
-        content: "This review has already been resolved.",
-        flags: MessageFlags.Ephemeral,
-      });
+    if (current.status !== expectedStatus) {
+      let message: string;
+      if (expectedStatus === "added") {
+        message = "This review has already been resolved.";
+      } else {
+        message = "This review is no longer in an ignored state.";
+      }
+      await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
+      return null;
+    }
+
+    return current;
+  }
+
+  async handleRevert(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+    const current = await this.loadForTransition(reviewId, "added", interaction);
+    if (!current) {
       return;
     }
 
@@ -371,6 +387,25 @@ export class ScamCandidateService {
       await this.buildReviewFromState(state, { statusLine: "*reverted*", buttonLabel: "Reverted" }),
     );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "reverted", trigger: state.trigger });
+  }
+
+  async handleUndoIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
+    const current = await this.loadForTransition(reviewId, "ignored", interaction);
+    if (!current) {
+      return;
+    }
+
+    const state = await this.candidateRepository.unresolveIgnoredReview(reviewId);
+    if (!state) {
+      await interaction.followUp({
+        content: "This review is no longer in an ignored state.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await interaction.editReply(await this.buildReviewFromState(state));
+    this.metrics.reviewOutcomeCounter.add(1, { outcome: "undo_ignored", trigger: state.trigger });
   }
 
   private async insertHashes(
@@ -538,19 +573,28 @@ export class ScamCandidateService {
     const nearMatchTrigger = successfulResults.some(
       (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
     );
-    const aiTrigger =
+    const aiApproveTrigger =
       storedClassification !== null &&
       !("error" in storedClassification) &&
       storedClassification.isScam === true &&
       storedClassification.confidence === "high";
-    const autoApprove = nearMatchTrigger || aiTrigger;
+    const autoApprove = nearMatchTrigger || aiApproveTrigger;
 
-    // For auto-approve, send with a locked "Auto-approving…" status (no Ignore/Add buttons).
-    // Hash insertion happens after winning the blue/green race, then the message is edited
-    // to its final state with the Revert button.
-    const initialResolved = autoApprove
-      ? { statusLine: "*auto-approving…*", buttonLabel: "Auto-approving" }
-      : undefined;
+    // Auto-ignore: AI is highly confident this is NOT a scam. Near-match takes precedence.
+    const aiIgnoreTrigger =
+      storedClassification !== null &&
+      !("error" in storedClassification) &&
+      storedClassification.isScam === false &&
+      storedClassification.confidence === "high";
+    const autoIgnore = !autoApprove && aiIgnoreTrigger;
+
+    // Post with a locked status (no Ignore/Add buttons) so no mod can race the auto action.
+    let initialResolved: { statusLine: string; buttonLabel: string } | undefined;
+    if (autoApprove) {
+      initialResolved = { statusLine: "*auto-approving…*", buttonLabel: "Auto-approving" };
+    } else if (autoIgnore) {
+      initialResolved = { statusLine: "*auto-ignoring…*", buttonLabel: "Auto-ignoring" };
+    }
 
     const { components, flags } = await this.buildReviewFromState(
       state,
@@ -646,6 +690,33 @@ export class ScamCandidateService {
         "Scam candidate auto-approved",
       );
       this.metrics.reviewCounter.add(1, { outcome: autoOutcome, trigger });
+      return;
+    }
+
+    if (autoIgnore) {
+      const resolved = await this.candidateRepository.resolveReview(reviewId, "ignored");
+      if (!resolved) {
+        // Race: another moderator resolved it between transition and our resolveReview
+        await this.editReviewMessage(reviewing, {
+          guildNames: state.guildNames,
+          imageResults: successfulResults,
+          classificationResult: storedClassification,
+        });
+        this.metrics.reviewCounter.add(1, { outcome: "auto_ignore_race", trigger });
+        return;
+      }
+
+      await this.editReviewMessage(resolved, {
+        guildNames: state.guildNames,
+        imageResults: successfulResults,
+        classificationResult: storedClassification,
+        resolved: { statusLine: "*auto-ignored*", buttonLabel: "Auto-ignored" },
+      });
+      this.logger.info(
+        { reviewId, userId: state.triggeredByUserId, outcome: "auto_ignored", trigger },
+        "Scam candidate auto-ignored",
+      );
+      this.metrics.reviewCounter.add(1, { outcome: "auto_ignored", trigger });
       return;
     }
 
@@ -898,6 +969,7 @@ export class ScamCandidateService {
     const username = await this.fetchUsername(state.triggeredByUserId);
     const effectiveClassification = classificationResult ?? null;
     const revertable = state.status === "added";
+    const undoable = state.status === "ignored";
     return buildScamCandidateReviewMessage({
       userId: state.triggeredByUserId,
       username,
@@ -908,6 +980,7 @@ export class ScamCandidateService {
       reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,
       revertable,
+      undoable,
       resolved,
     });
   }

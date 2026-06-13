@@ -2,6 +2,7 @@ const IGNORE_PREFIX = "scam_candidate:ignore:";
 const ADD_PREFIX = "scam_candidate:add:";
 const MODAL_PREFIX = "scam_candidate:label:";
 const REVERT_PREFIX = "scam_candidate:revert:";
+const UNDO_IGNORE_PREFIX = "scam_candidate:undo_ignore:";
 
 export const SCAM_CANDIDATE_MODAL_LABEL_INPUT = "label";
 
@@ -35,4 +36,12 @@ export function buildRevertId(reviewId: string): string {
 
 export function parseRevertId(customId: string): string | null {
   return customId.startsWith(REVERT_PREFIX) ? customId.slice(REVERT_PREFIX.length) : null;
+}
+
+export function buildUndoIgnoreId(reviewId: string): string {
+  return `${UNDO_IGNORE_PREFIX}${reviewId}`;
+}
+
+export function parseUndoIgnoreId(customId: string): string | null {
+  return customId.startsWith(UNDO_IGNORE_PREFIX) ? customId.slice(UNDO_IGNORE_PREFIX.length) : null;
 }

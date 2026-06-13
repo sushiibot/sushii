@@ -139,6 +139,12 @@ export interface ScamCandidateRepository {
    */
   revertReview(reviewId: string): Promise<ScamCandidateState | null>;
 
+  /**
+   * Transitions an 'ignored' row back to 'reviewing', guarded on status = 'ignored'.
+   * Returns the updated state, or null if the row is not found or not in 'ignored' status.
+   */
+  unresolveIgnoredReview(reviewId: string): Promise<ScamCandidateState | null>;
+
   /** Looks up a state row by its review_id column. */
   getByReviewId(reviewId: string): Promise<ScamCandidateState | null>;
 

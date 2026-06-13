@@ -10,6 +10,7 @@ import {
 import type {
   NewScamCandidateSighting,
   ResolvedStatus,
+  ScamCandidateReviewStatus,
   ScamCandidateTrigger,
   ScamCandidateRepository,
   ScamCandidateState,
@@ -220,13 +221,25 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
   }
 
   async revertReview(reviewId: string): Promise<ScamCandidateState | null> {
+    return this.transitionStatus(reviewId, "added", "reverted");
+  }
+
+  async unresolveIgnoredReview(reviewId: string): Promise<ScamCandidateState | null> {
+    return this.transitionStatus(reviewId, "ignored", "reviewing");
+  }
+
+  private async transitionStatus(
+    reviewId: string,
+    from: ScamCandidateReviewStatus,
+    to: ScamCandidateReviewStatus,
+  ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .update(scamCandidateStateInAppPublic)
-      .set({ status: "reverted", updatedAt: new Date() })
+      .set({ status: to, updatedAt: new Date() })
       .where(
         and(
           eq(scamCandidateStateInAppPublic.reviewId, reviewId),
-          eq(scamCandidateStateInAppPublic.status, "added"),
+          eq(scamCandidateStateInAppPublic.status, from),
         ),
       )
       .returning();
