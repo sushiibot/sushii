@@ -578,19 +578,16 @@ export class ScamCandidateService {
     const nearMatchTrigger = successfulResults.some(
       (r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD,
     );
-    const aiApproveTrigger =
-      storedClassification !== null &&
-      !("error" in storedClassification) &&
-      storedClassification.isScam === true &&
-      storedClassification.confidence === "high";
+    // Narrow once — all three sites (aiApproveTrigger, aiIgnoreTrigger, aiLabel) read from this.
+    const validClassification =
+      storedClassification !== null && !("error" in storedClassification)
+        ? storedClassification
+        : null;
+    const aiApproveTrigger = validClassification?.isScam === true && validClassification.confidence === "high";
     const autoApprove = nearMatchTrigger || aiApproveTrigger;
 
     // Auto-ignore: AI is highly confident this is NOT a scam. Near-match takes precedence.
-    const aiIgnoreTrigger =
-      storedClassification !== null &&
-      !("error" in storedClassification) &&
-      storedClassification.isScam === false &&
-      storedClassification.confidence === "high";
+    const aiIgnoreTrigger = validClassification?.isScam === false && validClassification.confidence === "high";
     const autoIgnore = !autoApprove && aiIgnoreTrigger;
 
     // Post with a locked status (no Ignore/Add buttons) so no mod can race the auto action.
@@ -601,10 +598,12 @@ export class ScamCandidateService {
       initialResolved = { statusLine: "*auto-ignoring…*", buttonLabel: "Auto-ignoring" };
     }
 
+    const reviewOverrides = { guildNames: state.guildNames, imageResults: successfulResults, classificationResult: storedClassification };
+
     const { components, flags } = await this.buildReviewFromState(
       state,
       initialResolved,
-      { guildNames: state.guildNames, imageResults: successfulResults, classificationResult: storedClassification },
+      reviewOverrides,
     );
 
     const msg = await reviewChannel.send({
@@ -643,10 +642,7 @@ export class ScamCandidateService {
       const nearMatchLabel = successfulResults
         .filter((r) => r.closestDistance !== null && r.closestDistance <= NEAR_MATCH_AUTO_APPROVE_THRESHOLD)
         .find((r) => r.closestLabel)?.closestLabel ?? undefined;
-      const aiLabel =
-        storedClassification !== null && !("error" in storedClassification) && storedClassification.isScam === true
-          ? (storedClassification.suggestedLabel ?? undefined)
-          : undefined;
+      const aiLabel = validClassification?.isScam === true ? (validClassification.suggestedLabel ?? undefined) : undefined;
       const label = aiLabel ?? nearMatchLabel;
       const newPhashes = successfulResults.filter((r) => r.isNew).map((r) => BigInt(r.phash));
       const { added, failed } = await this.insertHashes(successfulResults, label);
@@ -654,11 +650,7 @@ export class ScamCandidateService {
       if (added.length === 0) {
         this.logger.warn({ reviewId }, "Auto-approve: all hash inserts failed, falling back to manual review");
         // Fall through to show Ignore/Add buttons for manual resolution
-        await this.editReviewMessage(reviewing, {
-          guildNames: state.guildNames,
-          imageResults: successfulResults,
-          classificationResult: storedClassification,
-        });
+        await this.editReviewMessage(reviewing, reviewOverrides);
         this.metrics.reviewCounter.add(1, { outcome: "auto_approve_insert_failed", trigger });
         return;
       }
@@ -674,21 +666,12 @@ export class ScamCandidateService {
       if (!resolved) {
         // Race: another moderator resolved it between transition and our insert
         await this.hashRepository.removeByPhashes(newPhashes);
-        await this.editReviewMessage(reviewing, {
-          guildNames: state.guildNames,
-          imageResults: successfulResults,
-          classificationResult: storedClassification,
-        });
+        await this.editReviewMessage(reviewing, reviewOverrides);
         this.metrics.reviewCounter.add(1, { outcome: "auto_approve_race", trigger });
         return;
       }
 
-      await this.editReviewMessage(resolved, {
-        guildNames: state.guildNames,
-        imageResults: successfulResults,
-        classificationResult: storedClassification,
-        resolved: { statusLine: statusSuffix, buttonLabel: addedLabel },
-      });
+      await this.editReviewMessage(resolved, { ...reviewOverrides, resolved: { statusLine: statusSuffix, buttonLabel: addedLabel } });
       const autoOutcome = nearMatchTrigger ? "auto_approved_near_match" : "auto_approved";
       this.logger.info(
         { reviewId, userId: state.triggeredByUserId, addedCount: added.length, label, outcome: autoOutcome, trigger },
@@ -702,21 +685,12 @@ export class ScamCandidateService {
       const resolved = await this.candidateRepository.resolveReview(reviewId, "ignored");
       if (!resolved) {
         // Race: another moderator resolved it between transition and our resolveReview
-        await this.editReviewMessage(reviewing, {
-          guildNames: state.guildNames,
-          imageResults: successfulResults,
-          classificationResult: storedClassification,
-        });
+        await this.editReviewMessage(reviewing, reviewOverrides);
         this.metrics.reviewCounter.add(1, { outcome: "auto_ignore_race", trigger });
         return;
       }
 
-      await this.editReviewMessage(resolved, {
-        guildNames: state.guildNames,
-        imageResults: successfulResults,
-        classificationResult: storedClassification,
-        resolved: { statusLine: "*auto-ignored*", buttonLabel: "Auto-ignored" },
-      });
+      await this.editReviewMessage(resolved, { ...reviewOverrides, resolved: { statusLine: "*auto-ignored*", buttonLabel: "Auto-ignored" } });
       this.logger.info(
         { reviewId, userId: state.triggeredByUserId, outcome: "auto_ignored", trigger },
         "Scam candidate auto-ignored",
