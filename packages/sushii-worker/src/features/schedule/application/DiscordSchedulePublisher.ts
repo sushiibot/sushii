@@ -480,8 +480,12 @@ export class DiscordSchedulePublisher {
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
     );
 
+    const MAX_DISPLAYED_CHANGES = 10;
+    const displayedChanges = changes.slice(0, MAX_DISPLAYED_CHANGES);
+    const hiddenCount = changes.length - displayedChanges.length;
+
     // Per-event entries
-    for (const change of changes) {
+    for (const change of displayedChanges) {
       const lines: string[] = [];
 
       if (change.kind === "removed") {
@@ -540,6 +544,14 @@ export class DiscordSchedulePublisher {
 
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(lines.join("\n")),
+      );
+    }
+
+    if (hiddenCount > 0) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `-# …and ${hiddenCount} more change${hiddenCount === 1 ? "" : "s"} not shown.`,
+        ),
       );
     }
 
