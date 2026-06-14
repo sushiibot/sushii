@@ -19,7 +19,7 @@ export type StoredClassificationResult =
   | { error: string };
 
 export type ScamCandidateReviewStatus = "claimed" | "ready_to_post" | "reviewing" | "ignored" | "added" | "reverted";
-export type ScamCandidateTrigger = "threshold" | "near_miss";
+export type ScamCandidateTrigger = "threshold";
 
 export type ResolvedStatus = Extract<ScamCandidateReviewStatus, "ignored" | "added" | "reverted">;
 
