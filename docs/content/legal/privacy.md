@@ -3,7 +3,7 @@ title: Privacy Policy
 description: Privacy Policy for sushii bot
 ---
 
-Last updated: March 30, 2022
+Last updated: June 14, 2026
 ## Interpretation and Definitions
 
 ### Interpretation
@@ -74,10 +74,11 @@ collect may include the following:
 
 * User ID
 * Username
-* Discriminator
 * Avatar URL
 * Date and Time of last message
 * Number of messages in the past month, week, day, and in total
+* Perceptual hashes (a compact numeric fingerprint) derived from image attachments posted in public channels of publicly listed servers, used to build and maintain a scam detection database. This processing occurs across all publicly listed servers where the Bot is present and cannot be opted out of on a per-server basis.
+* Image attachment content from public channels, in cases where images are flagged as potential scam candidates. These images may be stored for audit purposes and transmitted to third-party AI services for classification (see "How your information may be shared"). Sighting records used to detect cross-server patterns are discarded after 2 minutes; candidate records may be retained indefinitely.
 
 ### Collected data only when enabled
 
@@ -151,6 +152,14 @@ in relation to some specific use cases:
 provide you with services, to protect your rights, or to fulfill business
 obligations.
 
+**Third-Party Service Providers:** As part of our scam detection system, images
+flagged as potential scam candidates from public channels may be sent to
+OpenRouter (openrouter.ai) for AI-based classification. OpenRouter routes
+requests to third-party model providers to perform the classification. We only
+use models whose providers do not use submitted data for model training. You can
+review OpenRouter's privacy policy, including their sub-processors, at
+https://openrouter.ai/privacy.
+
 In general, we have no business needs that justify, nor direct interests in,
 sharing your information with other entities.
 
@@ -183,6 +192,11 @@ requirements).
 
 For messages saved for logging purposes, messages are saved for a max of 7 days
 before they are removed from our database.
+
+Perceptual hashes derived from image attachments for scam detection are retained
+indefinitely as part of our trust and safety database. Image attachments flagged
+as scam candidates — including cases later determined not to be scam — may also
+be retained for audit purposes.
 
 When we have no ongoing legitimate business need to process your personal
 information, we will either delete or anonymize it, or, if this is not possible
