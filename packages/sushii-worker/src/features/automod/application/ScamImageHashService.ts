@@ -14,12 +14,10 @@ import type { ScamImageStore } from "../infrastructure/ScamImageStore";
 
 export interface AttachmentCheckResult {
   matched: ScamImageHash | null;
-  nearMissUrls: string[];
 }
 import type { ScamImageMetrics } from "../infrastructure/metrics/ScamImageMetrics";
 
 export const SCAM_HASH_MATCH_THRESHOLD = 10;
-export const SCAM_HASH_NEAR_MISS_THRESHOLD = 15;
 export const SCAM_HASH_DEDUP_THRESHOLD = 5;
 
 export const SCAM_IMAGE_MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — Discord base upload limit
@@ -141,7 +139,6 @@ export class ScamImageHashService {
     userId: string,
     span: Span,
   ): Promise<AttachmentCheckResult> {
-    const nearMissUrls: string[] = [];
 
     for (const url of attachmentUrls) {
       try {
@@ -185,12 +182,7 @@ export class ScamImageHashService {
             "hash.closest_id": closest.entry.id,
           });
           span.end();
-          return { matched: closest.entry, nearMissUrls: [] };
-        }
-
-        if (closest && closest.phashDistance <= SCAM_HASH_NEAR_MISS_THRESHOLD) {
-          nearMissUrls.push(url);
-          span.addEvent("near_miss", { url, phash_distance: closest.phashDistance });
+          return { matched: closest.entry };
         }
 
         this.metrics.checkCounter.add(1, { outcome: "no_match" });
@@ -201,7 +193,6 @@ export class ScamImageHashService {
             closestId: closest?.entry.id,
             phashDistance: closest?.phashDistance,
             matchThreshold: SCAM_HASH_MATCH_THRESHOLD,
-            nearMissThreshold: SCAM_HASH_NEAR_MISS_THRESHOLD,
           },
           "Scam image no_match",
         );
@@ -212,12 +203,9 @@ export class ScamImageHashService {
       }
     }
 
-    span.setAttributes({
-      "hash.outcome": nearMissUrls.length > 0 ? "near_miss" : "no_match",
-      "hash.near_miss_count": nearMissUrls.length,
-    });
+    span.setAttribute("hash.outcome", "no_match");
     span.end();
-    return { matched: null, nearMissUrls };
+    return { matched: null };
   }
 
   private async downloadImage(url: string): Promise<Buffer | null> {

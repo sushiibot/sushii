@@ -171,34 +171,6 @@ export class ScamCandidateService {
     });
   }
 
-  async triggerNearMissReview(input: {
-    userId: string;
-    guildId: string;
-    attachmentUrls: string[];
-  }): Promise<void> {
-    const { userId, guildId, attachmentUrls } = input;
-
-    const guild = this.client.guilds.cache.get(guildId);
-    if (!guild) {
-      this.logger.trace({ guildId }, "near-miss skip — guild not in cache");
-      return;
-    }
-    if (!guild.features.includes(GuildFeature.Discoverable)) {
-      this.logger.trace({ guildId }, "near-miss skip — guild not discoverable");
-      return;
-    }
-
-    this.processCandidate({
-      userId,
-      attachmentUrls,
-      channelCount: 1,
-      guildIds: new Set([guildId]),
-      trigger: "near_miss",
-    }).catch((err) => {
-      this.logger.error({ err, userId }, "Near-miss candidate review failed");
-    });
-  }
-
   private getStatusGuardMessage(status: ScamCandidateReviewStatus): string | null {
     if (status === "claimed" || status === "ready_to_post") {
       return "This review is still being set up — please try again in a moment.";

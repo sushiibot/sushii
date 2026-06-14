@@ -130,7 +130,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       // user is timed out, they can no longer send messages, so the spam
       // threshold cannot be reached and we avoid a duplicate action.
       let scamActed = false;
-      let nearMissUrls: string[] = [];
       if (scamImageEnabled && !isExempt) {
         const userKey = `${guildId}:${payload.author.id}`;
         if (imageUrls.length > 0) {
@@ -153,7 +152,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
                 guildConfig.moderationSettings.automodAlertsChannelId,
               );
               scamActed = result.acted;
-              nearMissUrls = result.nearMissUrls;
             } finally {
               this.inProgressImageChecks.delete(userKey);
             }
@@ -165,21 +163,6 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       // ScamCandidateService filters to discoverable guilds internally.
       // Skip exempt users (e.g. mods testing images).
       if (!scamActed && !isExempt && imageAttachments.length > 0) {
-        if (nearMissUrls.length > 0) {
-          this.scamCandidateService
-            .triggerNearMissReview({
-              userId: payload.author.id,
-              guildId,
-              attachmentUrls: nearMissUrls,
-            })
-            .catch((err) => {
-              this.logger.error(
-                { err, userId: payload.author.id },
-                "Near-miss candidate review failed",
-              );
-            });
-        }
-
         const candidateImages = imageAttachments
           .filter((a) => a.size != null)
           .map((a) => ({ fileSize: a.size!, attachmentUrl: a.url }));
@@ -264,7 +247,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
     imageUrls: string[],
     attachments: SpamAttachment[],
     alertsChannelId: string | null | undefined,
-  ): Promise<{ acted: boolean; nearMissUrls: string[] }> {
+  ): Promise<{ acted: boolean }> {
     return tracer.startActiveSpan(
       "automod.scam-image.check",
       {
@@ -277,16 +260,15 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
       },
       async (span) => {
         try {
-          const { matched, nearMissUrls } = await this.scamImageHashService.checkAttachments(
+          const { matched } = await this.scamImageHashService.checkAttachments(
             imageUrls,
             guildId,
             userId,
           );
 
           if (!matched) {
-            span.setAttribute("scam.outcome", nearMissUrls.length > 0 ? "near_miss" : "no_match");
-            span.setAttribute("scam.near_miss_count", nearMissUrls.length);
-            return { acted: false, nearMissUrls };
+            span.setAttribute("scam.outcome", "no_match");
+            return { acted: false };
           }
 
           span.setAttribute("scam.outcome", "match");
@@ -306,7 +288,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             alertsChannelId,
             matchLabel,
           );
-          return { acted: true, nearMissUrls: [] };
+          return { acted: true };
         } catch (err) {
           // Silently ignore Unknown Message — already deleted before we could act
           if (
@@ -314,7 +296,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             err.code === RESTJSONErrorCodes.UnknownMessage
           ) {
             span.setAttribute("scam.outcome", "unknown_message");
-            return { acted: false, nearMissUrls: [] };
+            return { acted: false };
           }
 
           span.recordException(
@@ -328,7 +310,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             { err, guildId, userId },
             "Failed to run scam image check",
           );
-          return { acted: false, nearMissUrls: [] };
+          return { acted: false };
         } finally {
           span.end();
         }
