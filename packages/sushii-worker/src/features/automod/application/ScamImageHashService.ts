@@ -17,7 +17,7 @@ export interface AttachmentCheckResult {
 }
 import type { ScamImageMetrics } from "../infrastructure/metrics/ScamImageMetrics";
 
-export const SCAM_HASH_MATCH_THRESHOLD = 10;
+export const SCAM_HASH_MATCH_THRESHOLD = 6;
 export const SCAM_HASH_DEDUP_THRESHOLD = 5;
 
 export const SCAM_IMAGE_MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — Discord base upload limit
