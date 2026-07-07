@@ -98,6 +98,9 @@ export class ScamImageClassifier {
     const startMs = performance.now();
     const attrs = { model: this.model };
 
+    const MAX_ATTEMPTS = 3;
+    const TIMEOUT_MS = 30_000;
+
     try {
       const userText =
         images.length === 1
@@ -139,15 +142,50 @@ export class ScamImageClassifier {
         temperature: 0,
       };
 
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15_000),
-      });
+      let resp: Response | undefined;
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+          });
+
+          // Retry on 5xx server errors; break on success or 4xx
+          if (resp.ok || (resp.status >= 400 && resp.status < 500)) {
+            break;
+          }
+
+          this.logger.warn(
+            { status: resp.status, model: this.model, attempt },
+            "OpenRouter API returned server error, retrying",
+          );
+          lastError = new Error(`HTTP ${resp.status}`);
+          resp = undefined;
+        } catch (err) {
+          lastError = err;
+          this.logger.warn(
+            { err, attempt },
+            "OpenRouter API request failed, retrying",
+          );
+          resp = undefined;
+        }
+      }
+
+      if (!resp) {
+        this.metrics.durationHistogram.record(performance.now() - startMs, attrs);
+        this.metrics.requestCounter.add(1, { ...attrs, outcome: "api_error" });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "All retries exhausted" });
+        span.setAttribute("classifier.outcome", "api_error");
+        span.end();
+        const msg = lastError instanceof Error ? lastError.message : "All retries exhausted";
+        return { error: msg };
+      }
 
       this.metrics.durationHistogram.record(performance.now() - startMs, attrs);
 
