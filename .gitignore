@@ -143,3 +143,10 @@ dist
 *.pub
 
 **/docker_data
+
+# Local scratch / tooling artifacts
+.TODO/
+.claude/worktrees/
+.kanban/
+.playwright-mcp/
+preview-full.png
