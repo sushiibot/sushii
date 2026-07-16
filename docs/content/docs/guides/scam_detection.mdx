@@ -6,17 +6,17 @@ description: Automatically catch known scam images posted in your server
 import { Callout } from "fumadocs-ui/components/callout";
 
 sushii can automatically catch messages that post known Discord scam images,
-like the "MrBeast" style deposit scams where an image claims you need to send
-crypto first to receive a giveaway prize (often impersonating other
-influencers too). These scams spread as images across many channels and
-servers, so that's all this feature checks, not links or text.
+like the "MrBeast" style deposit scams where images claim you can get a sum of
+money for free from an online casino promotion (often impersonating other
+influencers too). These scams spread without any links or text, so sushii will
+check only images for this feature.
 
 ## What it does
 
-When a member posts a known scam image, sushii:
+When a member posts a message with one or multiple known scam images, sushii:
 
 1. Times the member out for 10 minutes.
-2. Deletes the message.
+2. Deletes the messages.
 3. Posts an alert to your alerts channel with the image and quick
    **Warn / Kick / Softban / Ban** buttons.
 4. Logs it in your mod log, just like any other moderation action.
@@ -29,8 +29,8 @@ it appears anywhere.
 
 <Callout type="info" title="False positives can happen">
 It's rare, but a normal image could occasionally look close enough to a known
-scam to get flagged by mistake. If that happens, let us know in the support
-server.
+scam to get flagged by mistake. If that happens, please click the button in the
+alert message to report it as a false positive.
 </Callout>
 
 ## Setup
@@ -50,12 +50,16 @@ outranks sushii's, it'll still delete the message and send the alert.
 ## Where the scam images come from
 
 sushii keeps a shared list of known scam images built from what's been seen
-across all the public servers it's in, not just yours. This runs in the
-background all the time, whether or not you've turned the setting above on,
-and there's no way to opt your server out of it. That's what keeps the list
+across all public servers it's in. This runs in the background all the time,
+whether or not you've turned the setting above on. This is what keeps the list
 useful for every server running sushii, including yours.
 
-sushii doesn't keep a copy of your server's images for this. What it stores
+sushii does not scan every image it sees. It first looks for behavioral
+signals, such as the same images spreading rapidly across servers, and only
+analyzes image content once that behavior crosses a high-confidence
+threshold.
+
+sushii does not keep a copy of your server's images for this. What it stores
 is a short fingerprint of each image, just enough to tell if two images
 match. You can't recreate or view the original image from that fingerprint.
 
