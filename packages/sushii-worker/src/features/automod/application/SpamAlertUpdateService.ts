@@ -1,5 +1,4 @@
 import type { APIContainerComponent, APIMessage } from "discord-api-types/v10";
-import { ComponentType } from "discord-api-types/v10";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -14,6 +13,7 @@ import type { Logger } from "pino";
 import customIds from "@/interactions/customIds";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 
+import { rebuildModerationActionRow } from "../utils/alertComponentUtils";
 import type { SpamAlertCache } from "./SpamAlertCache";
 
 type ButtonActionType = "warn" | "kick" | "ban" | "softban" | "unban";
@@ -137,30 +137,15 @@ export class SpamAlertUpdateService {
       const actionLine = `-# <@${executorId}> ${verb} <@${targetUserId}>`;
       const buttonActionType = BUTTON_ACTION_TYPE[actionType] ?? null;
 
-      // Remove the existing ActionRow and any previous action TextDisplay
-      // (same rebuild logic as AutomodAlertActionButtonHandler)
-      const childrenWithoutButtons = rawContainer.components.filter(
-        (c) => c.type !== ComponentType.ActionRow,
-      );
-      const lastChild =
-        childrenWithoutButtons[childrenWithoutButtons.length - 1];
-      const baseChildren =
-        lastChild?.type === ComponentType.TextDisplay
-          ? childrenWithoutButtons.slice(0, -1)
-          : childrenWithoutButtons;
-
       const newActionRow = buttonActionType
         ? buildContextualActionRow(buttonActionType, targetUserId)
         : null;
 
-      const updatedContainer: APIContainerComponent = {
-        ...rawContainer,
-        components: [
-          ...baseChildren,
-          new TextDisplayBuilder().setContent(actionLine).toJSON(),
-          ...(newActionRow ? [newActionRow.toJSON()] : []),
-        ],
-      };
+      const updatedContainer = rebuildModerationActionRow(
+        rawContainer,
+        new TextDisplayBuilder().setContent(actionLine).toJSON(),
+        newActionRow ? newActionRow.toJSON() : null,
+      );
 
       await message.edit({
         components: [updatedContainer],

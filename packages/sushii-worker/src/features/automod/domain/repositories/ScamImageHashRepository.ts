@@ -7,6 +7,7 @@ export interface ScamImageHash {
 }
 
 export interface ScamImageHashRepository {
+  findById(id: number): Promise<ScamImageHash | null>;
   findClosest(
     phash: bigint,
   ): Promise<{ entry: ScamImageHash; phashDistance: number } | null>;

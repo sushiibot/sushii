@@ -13,6 +13,20 @@ import type * as schema from "@/infrastructure/database/schema";
 export class DrizzleScamImageHashRepository implements ScamImageHashRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
+  async findById(id: number): Promise<ScamImageHash | null> {
+    const rows = await this.db
+      .select()
+      .from(scamImageHashesInAppPublic)
+      .where(sql`${scamImageHashesInAppPublic.id} = ${id}`)
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.rowToEntity(rows[0]);
+  }
+
   async findClosest(
     phash: bigint,
   ): Promise<{ entry: ScamImageHash; phashDistance: number } | null> {

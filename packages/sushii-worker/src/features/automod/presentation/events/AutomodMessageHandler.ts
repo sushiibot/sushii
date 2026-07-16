@@ -287,6 +287,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
             attachments,
             alertsChannelId,
             matchLabel,
+            matched.id,
           );
           return { acted: true };
         } catch (err) {

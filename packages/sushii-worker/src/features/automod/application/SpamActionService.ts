@@ -26,6 +26,10 @@ import {
   isImageAttachment,
   type SpamAttachment,
 } from "../utils/attachmentUtils";
+import {
+  buildReportHashId,
+  buildRemoveTimeoutId,
+} from "../presentation/handlers/automodAlertExtraCustomIds";
 
 // Timeout duration applied to spam offenders
 const SPAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -76,6 +80,7 @@ export class SpamActionService {
       spamAttachments,
       alertsChannelId,
       context,
+      undefined,
     );
   }
 
@@ -88,6 +93,7 @@ export class SpamActionService {
     attachments: SpamAttachment[],
     alertsChannelId?: string | null,
     matchLabel?: string | null,
+    scamHashId?: number,
   ): Promise<void> {
     const messages = new Map([[channelId, [messageId]]]);
     const detail = matchLabel
@@ -109,6 +115,7 @@ export class SpamActionService {
       attachments,
       alertsChannelId,
       context,
+      scamHashId,
     );
   }
 
@@ -121,6 +128,7 @@ export class SpamActionService {
     attachments: SpamAttachment[],
     alertsChannelId: string | null | undefined,
     context: SpamActionContext,
+    scamHashId: number | undefined,
   ): Promise<void> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
@@ -160,6 +168,7 @@ export class SpamActionService {
           content,
           attachments,
           context,
+          scamHashId,
         );
       } catch (err: unknown) {
         this.logger.warn(
@@ -240,6 +249,7 @@ export class SpamActionService {
     spamContent: string | null,
     spamAttachments: SpamAttachment[],
     context: SpamActionContext,
+    scamHashId: number | undefined,
   ): Promise<void> {
     const channel = guild.channels.cache.get(alertsChannelId);
     if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
@@ -393,6 +403,29 @@ export class SpamActionService {
     container
       .addSeparatorComponents(new SeparatorBuilder())
       .addActionRowComponents(actionRow);
+
+    const utilityButtons: ButtonBuilder[] = [];
+    if (timedOut) {
+      utilityButtons.push(
+        new ButtonBuilder()
+          .setCustomId(buildRemoveTimeoutId(userId))
+          .setLabel("Remove Timeout")
+          .setStyle(ButtonStyle.Secondary),
+      );
+    }
+    if (scamHashId !== undefined) {
+      utilityButtons.push(
+        new ButtonBuilder()
+          .setCustomId(buildReportHashId(scamHashId))
+          .setLabel("Report Incorrect Detection")
+          .setStyle(ButtonStyle.Secondary),
+      );
+    }
+    if (utilityButtons.length > 0) {
+      container.addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(...utilityButtons),
+      );
+    }
 
     const alertMessage = await channel.send({
       components: [container],

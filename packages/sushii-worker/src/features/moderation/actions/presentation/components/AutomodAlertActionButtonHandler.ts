@@ -1,5 +1,4 @@
 import type { APIContainerComponent, APIMessage } from "discord-api-types/v10";
-import { ComponentType } from "discord-api-types/v10";
 import type { ButtonInteraction } from "discord.js";
 import {
   ActionRowBuilder,
@@ -18,6 +17,7 @@ import {
 import Color from "@/utils/colors";
 import type { Logger } from "pino";
 
+import { rebuildModerationActionRow } from "@/features/automod/utils/alertComponentUtils";
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
 import {
   BanAction,
@@ -338,29 +338,13 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     const rawMessage = modalSubmission.message.toJSON() as APIMessage;
     const rawContainer = (rawMessage.components ?? [])[0] as APIContainerComponent;
 
-    // Remove the existing ActionRow (type 1) and any previous action TextDisplay
-    const childrenWithoutButtons = rawContainer.components.filter(
-      (c) => c.type !== ComponentType.ActionRow,
-    );
-
-    // The separator before the button area is always present from the initial build.
-    // If a prior action was taken, its TextDisplay is the last child — replace it.
-    const lastChild = childrenWithoutButtons[childrenWithoutButtons.length - 1];
-    const baseChildren =
-      lastChild?.type === ComponentType.TextDisplay
-        ? childrenWithoutButtons.slice(0, -1)
-        : childrenWithoutButtons;
-
     const newActionRow = buildContextualActionRow(actionType, userId);
 
-    const updatedContainer: APIContainerComponent = {
-      ...rawContainer,
-      components: [
-        ...baseChildren,
-        new TextDisplayBuilder().setContent(actionLine).toJSON(),
-        ...(newActionRow ? [newActionRow.toJSON()] : []),
-      ],
-    };
+    const updatedContainer = rebuildModerationActionRow(
+      rawContainer,
+      new TextDisplayBuilder().setContent(actionLine).toJSON(),
+      newActionRow ? newActionRow.toJSON() : null,
+    );
 
     await modalSubmission.editReply({
       components: [updatedContainer],

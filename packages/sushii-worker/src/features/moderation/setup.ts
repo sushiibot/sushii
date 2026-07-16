@@ -34,6 +34,7 @@ import {
   ModLogReasonButtonHandler,
 } from "./audit-logs/presentation/components";
 import { AutomodAlertActionButtonHandler } from "./actions/presentation/components/AutomodAlertActionButtonHandler";
+import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -367,6 +368,10 @@ export function createModerationCommands(
     new AutomodAlertActionButtonHandler(
       moderationService,
       logger.child({ buttonHandler: "automodAlertAction" }),
+    ),
+    new AutomodAlertRemoveTimeoutButtonHandler(
+      moderationService,
+      logger.child({ buttonHandler: "automodAlertRemoveTimeout" }),
     ),
   ];
 

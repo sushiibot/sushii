@@ -13,6 +13,7 @@ import { AutomodAlertCache } from "./application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "./application/AutomodAlertReactionService";
 import { InviteInfoService } from "./application/InviteInfoService";
 import { ScamCandidateService } from "./application/ScamCandidateService";
+import { ScamHashReportService } from "./application/ScamHashReportService";
 import { ScamImageClassifier } from "./application/ScamImageClassifier";
 import { ScamImageHashService } from "./application/ScamImageHashService";
 import { SpamActionService } from "./application/SpamActionService";
@@ -20,30 +21,33 @@ import { SpamAlertCache } from "./application/SpamAlertCache";
 import { SpamAlertUpdateService } from "./application/SpamAlertUpdateService";
 import { SpamDetectionService } from "./application/SpamDetectionService";
 import { DrizzleScamCandidateRepository } from "./infrastructure/DrizzleScamCandidateRepository";
+import { DrizzleScamHashReportRepository } from "./infrastructure/DrizzleScamHashReportRepository";
 import { DrizzleScamImageHashRepository } from "./infrastructure/DrizzleScamImageHashRepository";
 import { ScamCandidateMetrics } from "./infrastructure/metrics/ScamCandidateMetrics";
 import { ScamClassifierMetrics } from "./infrastructure/metrics/ScamClassifierMetrics";
 import { ScamImageMetrics } from "./infrastructure/metrics/ScamImageMetrics";
 import { ScamCandidateJanitorTask } from "./infrastructure/tasks/ScamCandidateJanitorTask";
 import { ScamCandidateReviewPostTask } from "./infrastructure/tasks/ScamCandidateReviewPostTask";
+import { ScamHashReportPostTask } from "./infrastructure/tasks/ScamHashReportPostTask";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
 import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
 import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
 import { ScamCandidateButtonHandler } from "./presentation/handlers/ScamCandidateButtonHandler";
 import { ScamCandidateLabelModalHandler } from "./presentation/handlers/ScamCandidateLabelModalHandler";
+import { ScamHashReportButtonHandler } from "./presentation/handlers/ScamHashReportButtonHandler";
 import type { ScamImageStore } from "./infrastructure/ScamImageStore";
 
 export interface AutomodFeature {
   eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler, ScamHashDMHandler];
-  buttonHandlers: [ScamCandidateButtonHandler];
+  buttonHandlers: [ScamCandidateButtonHandler, ScamHashReportButtonHandler];
   modalHandlers: [ScamCandidateLabelModalHandler];
   services: {
     automodAlertReactionService: AutomodAlertReactionService;
     spamAlertUpdateService: SpamAlertUpdateService;
   };
   commands: [ScamHashCommand];
-  tasks: [ScamCandidateJanitorTask, ScamCandidateReviewPostTask];
+  tasks: [ScamCandidateJanitorTask, ScamCandidateReviewPostTask, ScamHashReportPostTask];
   destroy(): void;
 }
 
@@ -95,6 +99,7 @@ export function setupAutomodFeature(
 
   const scamImageHashRepository = new DrizzleScamImageHashRepository(db);
   const scamCandidateRepository = new DrizzleScamCandidateRepository(db);
+  const scamHashReportRepository = new DrizzleScamHashReportRepository(db);
 
   const scamImageHashService = new ScamImageHashService(
     scamImageHashRepository,
@@ -164,6 +169,18 @@ export function setupAutomodFeature(
   const scamCandidateButtonHandler = new ScamCandidateButtonHandler(scamCandidateService);
   const scamCandidateLabelModalHandler = new ScamCandidateLabelModalHandler(scamCandidateService);
 
+  const scamHashReportService = new ScamHashReportService(
+    client,
+    scamHashReportRepository,
+    scamImageHashRepository,
+    scamImageStore,
+    logger.child({ component: "ScamHashReportService" }),
+  );
+  const scamHashReportButtonHandler = new ScamHashReportButtonHandler(
+    scamHashReportService,
+    logger.child({ buttonHandler: "scamHashReport" }),
+  );
+
   // Background tasks
   const scamCandidateJanitorTask = new ScamCandidateJanitorTask(
     client,
@@ -179,20 +196,27 @@ export function setupAutomodFeature(
     scamCandidateService,
   );
 
+  const scamHashReportPostTask = new ScamHashReportPostTask(
+    client,
+    deploymentService,
+    logger.child({ component: "ScamHashReportPostTask" }),
+    scamHashReportService,
+  );
+
   client.once(Events.ClientReady, (readyClient) => {
     void scamHashDMHandler.primeOwnerDMChannel(readyClient);
   });
 
   return {
     eventHandlers: [automodMessageHandler, automodAlertExecutionHandler, scamHashDMHandler],
-    buttonHandlers: [scamCandidateButtonHandler],
+    buttonHandlers: [scamCandidateButtonHandler, scamHashReportButtonHandler],
     modalHandlers: [scamCandidateLabelModalHandler],
     services: {
       automodAlertReactionService,
       spamAlertUpdateService,
     },
     commands: [scamHashCommand],
-    tasks: [scamCandidateJanitorTask, scamCandidateReviewPostTask],
+    tasks: [scamCandidateJanitorTask, scamCandidateReviewPostTask, scamHashReportPostTask],
     destroy: () => {
       spamDetectionService.destroy();
       scamCandidateService.destroy();
