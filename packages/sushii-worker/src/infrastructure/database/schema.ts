@@ -314,6 +314,29 @@ export const scamCandidateStateInAppPublic = appPublic.table(
   ],
 );
 
+export const scamHashReportStatusInAppPublic = appPublic.enum(
+  "scam_hash_report_status",
+  ["pending", "posted", "reverted", "dismissed"],
+);
+
+export const scamHashReportsInAppPublic = appPublic.table(
+  "scam_hash_reports",
+  {
+    id: serial().primaryKey().notNull(),
+    hashId: integer("hash_id").notNull(),
+    reporterId: text("reporter_id").notNull(),
+    guildId: text("guild_id").notNull(),
+    guildName: text("guild_name").notNull(),
+    status: scamHashReportStatusInAppPublic().notNull().default("pending"),
+    reviewMessageId: text("review_message_id"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("scam_hash_reports_status_idx").on(table.status),
+  ],
+);
+
 export const guildEmojisAndStickersInAppPublic = appPublic.table(
   "guild_emojis_and_stickers",
   {
