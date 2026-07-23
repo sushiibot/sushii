@@ -1,4 +1,14 @@
-import { and, asc, between, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  between,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
@@ -318,6 +328,23 @@ export class DrizzleModLogRepository implements ModLogRepository {
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<ModerationCase[], string>> {
+    const result = await this.findByUserIdsNotPending(guildId, [userId], tx);
+
+    if (!result.ok) {
+      this.logger.error(
+        { err: result.val, guildId, userId },
+        "Failed to find moderation cases by user ID",
+      );
+    }
+
+    return result;
+  }
+
+  async findByUserIdsNotPending(
+    guildId: string,
+    userIds: string[],
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<ModerationCase[], string>> {
     const db = tx || this.db;
     try {
       const results = await db
@@ -326,7 +353,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
         .where(
           and(
             eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.userId, BigInt(userId)),
+            inArray(
+              modLogsInAppPublic.userId,
+              userIds.map((userId) => BigInt(userId)),
+            ),
             eq(modLogsInAppPublic.pending, false),
           ),
         )
@@ -337,8 +367,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
       return Ok(cases);
     } catch (err) {
       this.logger.error(
-        { err, guildId, userId },
-        "Failed to find moderation cases by user ID",
+        { err, guildId, userIds },
+        "Failed to find moderation cases by user IDs",
       );
       return Err(`Failed to find moderation cases: ${err}`);
     }

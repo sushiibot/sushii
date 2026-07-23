@@ -192,6 +192,7 @@ describe("ModerationExecutionPipeline", () => {
       delete: mock(() => Promise.resolve(Ok.EMPTY)),
       findById: mock(() => Promise.resolve(Ok(null))),
       findByUserIdNotPending: mock(() => Promise.resolve(Ok([]))),
+      findByUserIdsNotPending: mock(() => Promise.resolve(Ok([]))),
       findByGuildId: mock(() => Promise.resolve(Ok([]))),
       deleteRange: mock(() => Promise.resolve(Ok([]))),
       exists: mock(() => Promise.resolve(Ok(true))),

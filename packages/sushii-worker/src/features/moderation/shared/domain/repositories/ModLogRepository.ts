@@ -50,6 +50,17 @@ export interface ModLogCaseOperations {
   ): Promise<Result<ModerationCase[], string>>;
 
   /**
+   * Finds all cases across multiple users in a guild — the merged-history
+   * query behind `/alts view`. Same ordering/pending-exclusion as
+   * findByUserIdNotPending.
+   */
+  findByUserIdsNotPending(
+    guildId: string,
+    userIds: string[],
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<ModerationCase[], string>>;
+
+  /**
    * Finds cases for a guild with pagination.
    */
   findByGuildId(

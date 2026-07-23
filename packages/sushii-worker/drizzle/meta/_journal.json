@@ -414,6 +414,13 @@
       "when": 1784159479156,
       "tag": "0058_add_scam_hash_reports",
       "breakpoints": false
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1784826036090,
+      "tag": "0059_add-alt-account-linking",
+      "breakpoints": false
     }
   ]
 }

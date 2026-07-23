@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
+import { setupAltAccountsFeature } from "@/features/alt-accounts/setup";
 import { ScamImageStore } from "@/features/automod/infrastructure/ScamImageStore";
 import { ScamImageMetrics } from "@/features/automod/infrastructure/metrics/ScamImageMetrics";
 import { setupAutomodFeature } from "@/features/automod/setup";
@@ -294,6 +295,11 @@ export function registerFeatures(
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingFeature.services.userLevelRepository,
   });
+  const altAccountsFeature = setupAltAccountsFeature({
+    db,
+    modLogRepository: moderationFeature.services.modLogRepository,
+    logger: logger.child({ feature: "AltAccounts" }),
+  });
   const giveawayFeature = setupGiveawayFeature({
     db,
     userLevelRepository: levelingFeature.services.userLevelRepository,
@@ -371,6 +377,7 @@ export function registerFeatures(
     ...statusFeature.commands,
     ...automodFeature.commands,
     ...messageVerificationFeature.commands,
+    ...altAccountsFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
@@ -410,6 +417,7 @@ export function registerFeatures(
     ...emojiStatsFeature.buttonHandlers,
     ...promptsFeature.buttonHandlers,
     ...automodFeature.buttonHandlers,
+    ...altAccountsFeature.buttonHandlers,
   );
 
   // Modal handlers

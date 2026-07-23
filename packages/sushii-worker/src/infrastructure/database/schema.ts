@@ -1269,3 +1269,68 @@ export const messageVerificationsInAppPublic = appPublic.table(
     ),
   ],
 );
+
+export const altIdentitiesInAppPublic = appPublic.table(
+  "alt_identities",
+  {
+    id: serial("id").notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    nickname: text(),
+    createdAt: timestamp("created_at", { mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.id],
+      name: "alt_identities_pkey",
+    }),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
+export const altIdentityMembersInAppPublic = appPublic.table(
+  "alt_identity_members",
+  {
+    identityId: integer("identity_id").notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    linkedBy: bigint("linked_by", { mode: "bigint" }).notNull(),
+    linkedAt: timestamp("linked_at", { mode: "date" })
+      .notNull()
+      .defaultNow(),
+    reason: text(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.userId],
+      name: "alt_identity_members_pkey",
+    }),
+    index("idx_alt_identity_members_identity").using(
+      "btree",
+      table.guildId.asc().nullsLast().op("int8_ops"),
+      table.identityId.asc().nullsLast().op("int4_ops"),
+    ),
+    foreignKey({
+      columns: [table.guildId, table.identityId],
+      foreignColumns: [
+        altIdentitiesInAppPublic.guildId,
+        altIdentitiesInAppPublic.id,
+      ],
+      name: "alt_identity_members_guild_id_identity_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);

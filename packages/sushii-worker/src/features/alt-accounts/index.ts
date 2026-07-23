@@ -1,0 +1,1 @@
+export { setupAltAccountsFeature } from "./setup";
