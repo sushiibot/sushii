@@ -9,8 +9,9 @@ import type { AltIdentitySummary } from "../../domain/types/AltIdentityWithMembe
 function formatIdentityRow(identity: AltIdentitySummary): string {
   const name = identity.nickname ?? `Identity #${identity.id}`;
   const memberWord = identity.memberCount === 1 ? "account" : "accounts";
+  const mentions = identity.memberIds.map((id) => `<@${id}>`).join(" ");
 
-  return `**${name}** — ${identity.memberCount} ${memberWord}`;
+  return `**${name}** — ${identity.memberCount} ${memberWord}\n${mentions}`;
 }
 
 export function buildAltIdentityListContainer(
@@ -31,8 +32,12 @@ export function buildAltIdentityListContainer(
       ),
     );
   } else {
-    const rows = identities.map(formatIdentityRow).join("\n");
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(rows));
+    const rows = identities.map(formatIdentityRow).join("\n\n");
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${rows}\n\n-# Use \`/alts view\` on any account above to see its full details.`,
+      ),
+    );
   }
 
   ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);

@@ -18,6 +18,7 @@ describe("UnlinkAccountService", () => {
         throw new Error("not used");
       }),
       findIdentityByUserId: mock(() => Promise.resolve(Ok(null))),
+      findIdentityById: mock(() => Promise.resolve(Ok(null))),
       removeMember: mock(() =>
         Promise.resolve(Ok<RemoveMemberOutcome>({ kind: "notLinked" })),
       ),

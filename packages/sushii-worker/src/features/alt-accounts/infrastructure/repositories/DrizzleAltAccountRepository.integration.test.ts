@@ -185,8 +185,50 @@ describe("DrizzleAltAccountRepository (Integration)", () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.val.map((i) => i.memberCount)).toEqual([3, 2]);
+        expect(result.val.map((i) => i.memberIds.length)).toEqual([3, 2]);
       }
       expect(pair.ok).toBe(true);
+    });
+
+    test("includes member IDs for each identity", async () => {
+      await repo.link(GUILD_A, USER_1, USER_2, MOD_ID, null);
+
+      const result = await repo.listIdentities(GUILD_A, 10, 0);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.val[0].memberIds.sort()).toEqual(
+          [USER_1, USER_2].sort(),
+        );
+      }
+    });
+  });
+
+  describe("findIdentityById", () => {
+    test("fetches an identity by ID", async () => {
+      const linked = await repo.link(GUILD_A, USER_1, USER_2, MOD_ID, null);
+      if (!linked.ok) {
+        throw new Error("setup failed");
+      }
+
+      const result = await repo.findIdentityById(
+        GUILD_A,
+        linked.val.identity.identity.id,
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.val?.members).toHaveLength(2);
+      }
+    });
+
+    test("returns null for a nonexistent identity", async () => {
+      const result = await repo.findIdentityById(GUILD_A, 999999);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.val).toBeNull();
+      }
     });
   });
 });

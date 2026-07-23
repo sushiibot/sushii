@@ -76,8 +76,8 @@ describe("AltsCommand", () => {
 
     it("shows a clear error for a self-link", async () => {
       const interaction = makeInteraction("link", {
-        user_a: makeUser(USER_A),
-        user_b: makeUser(USER_A),
+        account_1: makeUser(USER_A),
+        account_2: makeUser(USER_A),
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,8 +96,8 @@ describe("AltsCommand", () => {
       );
 
       const interaction = makeInteraction("link", {
-        user_a: makeUser(USER_A, true),
-        user_b: makeUser(USER_B),
+        account_1: makeUser(USER_A, true),
+        account_2: makeUser(USER_B),
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -302,6 +302,23 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
     }
   }
 
+  async findIdentityById(
+    guildId: string,
+    identityId: number,
+    tx?: DbType,
+  ): Promise<Result<AltIdentityWithMembers | null, string>> {
+    const db = tx || this.db;
+    try {
+      return Ok(await this.loadIdentity(db, guildId, identityId));
+    } catch (err) {
+      this.logger.error(
+        { err, guildId, identityId },
+        "Failed to find alt identity by ID",
+      );
+      return Err(`Failed to find alt identity: ${err}`);
+    }
+  }
+
   async removeMember(
     guildId: string,
     userId: string,
@@ -402,6 +419,7 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
       const memberCount = sql<number>`count(${altIdentityMembersInAppPublic.userId})`.mapWith(
         Number,
       );
+      const memberIds = sql<string[]>`array_agg(${altIdentityMembersInAppPublic.userId}::text order by ${altIdentityMembersInAppPublic.linkedAt}) filter (where ${altIdentityMembersInAppPublic.userId} is not null)`;
 
       const rows = await db
         .select({
@@ -409,6 +427,7 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
           guildId: altIdentitiesInAppPublic.guildId,
           nickname: altIdentitiesInAppPublic.nickname,
           memberCount,
+          memberIds,
         })
         .from(altIdentitiesInAppPublic)
         .leftJoin(
@@ -439,6 +458,7 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
         guildId: row.guildId.toString(),
         nickname: row.nickname,
         memberCount: row.memberCount,
+        memberIds: row.memberIds ?? [],
       }));
 
       return Ok(summaries);

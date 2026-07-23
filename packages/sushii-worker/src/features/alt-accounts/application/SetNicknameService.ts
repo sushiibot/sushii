@@ -3,6 +3,7 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { AltAccountRepository } from "../domain/repositories/AltAccountRepository";
+import type { AltIdentityWithMembers } from "../domain/types/AltIdentityWithMembers";
 
 export const NICKNAME_MAX_LENGTH = 100;
 
@@ -75,13 +76,14 @@ export class SetNicknameService {
   /**
    * Sets a nickname directly by identity ID — used by the `/alts view`
    * panel's nickname button, which already knows the identity ID from its
-   * custom ID and has no single "target user" to resolve from.
+   * custom ID and has no single "target user" to resolve from. Returns the
+   * refreshed identity so the caller can re-render the view in place.
    */
   async setNicknameByIdentityId(
     guildId: string,
     identityId: number,
     nickname: string | null,
-  ): Promise<Result<void, string>> {
+  ): Promise<Result<AltIdentityWithMembers, string>> {
     const validation = this.validateNicknameLength(nickname);
     if (validation.err) {
       return validation;
@@ -101,6 +103,19 @@ export class SetNicknameService {
       return Err(setResult.val);
     }
 
-    return Ok.EMPTY;
+    const identityResult = await this.altAccountRepository.findIdentityById(
+      guildId,
+      identityId,
+    );
+
+    if (identityResult.err || !identityResult.val) {
+      this.logger.error(
+        { err: identityResult.err ? identityResult.val : "not found", guildId, identityId },
+        "Failed to reload alt identity after nickname update",
+      );
+      return Err("Nickname updated, but failed to refresh the view.");
+    }
+
+    return Ok(identityResult.val);
   }
 }

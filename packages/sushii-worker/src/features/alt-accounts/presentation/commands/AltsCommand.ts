@@ -16,7 +16,7 @@ import type { SetNicknameService } from "../../application/SetNicknameService";
 import type { UnlinkAccountService } from "../../application/UnlinkAccountService";
 import type { ViewIdentityService } from "../../application/ViewIdentityService";
 import {
-  buildAltIdentityHistoryContainer,
+  buildAltIdentityContainer,
   buildAltIdentityListContainer,
   buildLinkOutcomeContainer,
   buildNicknameOutcomeContainer,
@@ -25,7 +25,6 @@ import {
 } from "../views";
 
 const LIST_PAGE_SIZE = 10;
-const HISTORY_PAGE_SIZE = 10;
 
 export class AltsCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -40,11 +39,14 @@ export class AltsCommand extends SlashCommandHandler {
         .setName("link")
         .setDescription("Link two accounts as belonging to the same person.")
         .addUserOption((o) =>
-          o.setName("user_a").setDescription("First account.").setRequired(true),
+          o
+            .setName("account_1")
+            .setDescription("First account.")
+            .setRequired(true),
         )
         .addUserOption((o) =>
           o
-            .setName("user_b")
+            .setName("account_2")
             .setDescription("Second account.")
             .setRequired(true),
         )
@@ -66,7 +68,7 @@ export class AltsCommand extends SlashCommandHandler {
     .addSubcommand((c) =>
       c
         .setName("view")
-        .setDescription("View an account's linked identity and merged history.")
+        .setDescription("View an account's linked identity.")
         .addUserOption((o) =>
           o.setName("user").setDescription("Account to look up.").setRequired(true),
         ),
@@ -130,8 +132,8 @@ export class AltsCommand extends SlashCommandHandler {
   private async handleLink(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const userA = interaction.options.getUser("user_a", true);
-    const userB = interaction.options.getUser("user_b", true);
+    const userA = interaction.options.getUser("account_1", true);
+    const userB = interaction.options.getUser("account_2", true);
     const reason = interaction.options.getString("reason");
 
     const log = this.logger.child({
@@ -222,27 +224,11 @@ export class AltsCommand extends SlashCommandHandler {
       return;
     }
 
-    const { identity, history } = result.val;
-
-    const paginator = new ComponentsV2Paginator({
-      interaction,
-      pageSize: HISTORY_PAGE_SIZE,
-      callbacks: {
-        fetchPage: async (pageIndex, pageSize) =>
-          history.slice(pageIndex * pageSize, pageIndex * pageSize + pageSize),
-        getTotalCount: async () => history.length,
-        renderContainer: (cases, state, navButtons) =>
-          buildAltIdentityHistoryContainer(
-            identity,
-            cases,
-            history.length,
-            navButtons,
-            state.isDisabled,
-          ),
-      },
+    await interaction.reply({
+      components: [buildAltIdentityContainer(result.val)],
+      flags: ["IsComponentsV2"],
+      allowedMentions: { parse: [] },
     });
-
-    await paginator.start(false);
   }
 
   private async handleNickname(

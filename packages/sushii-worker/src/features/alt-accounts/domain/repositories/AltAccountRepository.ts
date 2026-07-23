@@ -47,6 +47,12 @@ export interface AltAccountRepository {
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<AltIdentityWithMembers | null, string>>;
 
+  findIdentityById(
+    guildId: string,
+    identityId: number,
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<AltIdentityWithMembers | null, string>>;
+
   /**
    * Removes one account's membership. Also deletes the parent identity if
    * it becomes empty.

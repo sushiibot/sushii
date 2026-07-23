@@ -1,7 +1,6 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
-import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
 
@@ -20,14 +19,13 @@ import {
 
 interface SetupAltAccountsFeatureDeps {
   db: NodePgDatabase<typeof schema>;
-  modLogRepository: ModLogRepository;
   logger: Logger;
 }
 
 export function setupAltAccountsFeature(
   deps: SetupAltAccountsFeatureDeps,
 ): FeatureSetupWithTasks {
-  const { db, modLogRepository, logger } = deps;
+  const { db, logger } = deps;
 
   const altAccountRepository = new DrizzleAltAccountRepository(
     db,
@@ -44,7 +42,6 @@ export function setupAltAccountsFeature(
   );
   const viewIdentityService = new ViewIdentityService(
     altAccountRepository,
-    modLogRepository,
     logger.child({ component: "ViewIdentityService" }),
   );
   const setNicknameService = new SetNicknameService(

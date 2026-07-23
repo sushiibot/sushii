@@ -10,12 +10,14 @@ export interface AltIdentityWithMembers {
 }
 
 /**
- * Lightweight row for `/alts list` — nickname and member count only, no
- * per-member link metadata.
+ * Lightweight row for `/alts list` — nickname, member count, and member IDs
+ * (so a mod can jump to `/alts view` on one of them), no per-member link
+ * metadata.
  */
 export interface AltIdentitySummary {
   id: number;
   guildId: string;
   nickname: string | null;
   memberCount: number;
+  memberIds: string[];
 }

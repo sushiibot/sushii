@@ -32,6 +32,7 @@ describe("SetNicknameService", () => {
         throw new Error("not used");
       }),
       findIdentityByUserId: mock(() => Promise.resolve(Ok(makeIdentity(null)))),
+      findIdentityById: mock(() => Promise.resolve(Ok(makeIdentity("DramaKid alts")))),
       removeMember: mock(() => {
         throw new Error("not used");
       }),
@@ -99,5 +100,36 @@ describe("SetNicknameService", () => {
       expect(result.val.kind).toBe("noIdentity");
     }
     expect(mockRepository.setNickname).not.toHaveBeenCalled();
+  });
+
+  describe("setNicknameByIdentityId", () => {
+    it("returns the refreshed identity on success", async () => {
+      const result = await service.setNicknameByIdentityId(
+        GUILD_ID,
+        1,
+        "DramaKid alts",
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.val.identity.nickname).toBe("DramaKid alts");
+      }
+      expect(mockRepository.setNickname).toHaveBeenCalledWith(
+        GUILD_ID,
+        1,
+        "DramaKid alts",
+      );
+    });
+
+    it("rejects a nickname longer than the max length", async () => {
+      const result = await service.setNicknameByIdentityId(
+        GUILD_ID,
+        1,
+        "a".repeat(NICKNAME_MAX_LENGTH + 1),
+      );
+
+      expect(result.err).toBe(true);
+      expect(mockRepository.setNickname).not.toHaveBeenCalled();
+    });
   });
 });

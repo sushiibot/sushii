@@ -39,6 +39,7 @@ describe("LinkAccountsService", () => {
         ),
       ),
       findIdentityByUserId: mock(() => Promise.resolve(Ok(null))),
+      findIdentityById: mock(() => Promise.resolve(Ok(null))),
       removeMember: mock(() => Promise.resolve(Ok({ kind: "notLinked" as const }))),
       setNickname: mock(() => Promise.resolve(Ok.EMPTY)),
       listIdentities: mock(() => Promise.resolve(Ok([]))),

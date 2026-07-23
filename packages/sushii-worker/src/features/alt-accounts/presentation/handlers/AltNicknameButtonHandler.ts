@@ -11,8 +11,8 @@ import { ButtonHandler } from "@/shared/presentation/handlers";
 
 import { NICKNAME_MAX_LENGTH } from "../../application/SetNicknameService";
 import type { SetNicknameService } from "../../application/SetNicknameService";
-import { formatNicknameChangeMessage } from "../views";
 import { parseNicknameButtonId } from "../customIds";
+import { buildAltIdentityContainer } from "../views";
 
 export class AltNicknameButtonHandler extends ButtonHandler {
   customIDMatch = (customId: string) =>
@@ -108,9 +108,14 @@ export class AltNicknameButtonHandler extends ButtonHandler {
       return;
     }
 
-    await interaction.reply({
-      content: formatNicknameChangeMessage(nickname),
-      ephemeral: true,
+    if (!interaction.isFromMessage()) {
+      throw new Error("Alt nickname modal should be from a button on a message");
+    }
+
+    await interaction.update({
+      components: [buildAltIdentityContainer(result.val)],
+      flags: ["IsComponentsV2"],
+      allowedMentions: { parse: [] },
     });
   }
 }

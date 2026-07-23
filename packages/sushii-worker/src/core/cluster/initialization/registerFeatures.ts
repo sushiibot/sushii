@@ -297,7 +297,6 @@ export function registerFeatures(
   });
   const altAccountsFeature = setupAltAccountsFeature({
     db,
-    modLogRepository: moderationFeature.services.modLogRepository,
     logger: logger.child({ feature: "AltAccounts" }),
   });
   const giveawayFeature = setupGiveawayFeature({
