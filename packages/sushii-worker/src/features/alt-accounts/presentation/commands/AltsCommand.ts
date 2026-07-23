@@ -165,6 +165,7 @@ export class AltsCommand extends SlashCommandHandler {
         buildLinkOutcomeContainer(result.val, userA.id, userB.id, reason),
       ],
       flags: ["IsComponentsV2"],
+      allowedMentions: { parse: [] },
     });
   }
 
@@ -190,6 +191,7 @@ export class AltsCommand extends SlashCommandHandler {
     await interaction.reply({
       components: [buildUnlinkOutcomeContainer(result.val, user.id, reason)],
       flags: ["IsComponentsV2"],
+      allowedMentions: { parse: [] },
     });
   }
 
@@ -215,6 +217,7 @@ export class AltsCommand extends SlashCommandHandler {
       await interaction.reply({
         components: [buildNoIdentityContainer(user.id)],
         flags: ["IsComponentsV2"],
+        allowedMentions: { parse: [] },
       });
       return;
     }
@@ -267,6 +270,7 @@ export class AltsCommand extends SlashCommandHandler {
         buildNicknameOutcomeContainer(result.val, user.id, nickname),
       ],
       flags: ["IsComponentsV2"],
+      allowedMentions: { parse: [] },
     });
   }
 
