@@ -7,6 +7,7 @@ import { AutomodAlertReactionService } from "@/features/automod/application/Auto
 import { SpamAlertCache } from "@/features/automod/application/SpamAlertCache";
 import { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import { DrizzleBotEmojiRepository } from "@/features/bot-emojis";
+import { setupAltAccountsFeature } from "@/features/alt-accounts/setup";
 import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
@@ -95,6 +96,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     logger,
   );
   const userNameHistoryFeature = setupUserNameHistoryFeature({ db });
+  const altAccountsFeature = setupAltAccountsFeature({ db, logger });
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
@@ -105,6 +107,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingServices.userLevelRepository,
+    altAccountRepository: altAccountsFeature.services.altAccountRepository,
   });
 
   // Create giveaway services with mock client

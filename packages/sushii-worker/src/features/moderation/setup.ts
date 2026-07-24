@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { AltAccountRepository } from "@/features/alt-accounts/domain/repositories";
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
@@ -88,6 +89,7 @@ interface ModerationDependencies {
   spamAlertUpdateService: SpamAlertUpdateService;
   nameHistoryService: UserNameHistoryService;
   userLevelRepository: UserLevelRepository;
+  altAccountRepository: AltAccountRepository;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -103,6 +105,7 @@ export function createModerationServices({
   automodAlertReactionService,
   spamAlertUpdateService,
   nameHistoryService,
+  altAccountRepository,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -172,6 +175,7 @@ export function createModerationServices({
   const historyUserService = new HistoryUserService(
     client,
     modLogRepository,
+    altAccountRepository,
     logger.child({ module: "historyUserService" }),
   );
 
@@ -423,6 +427,7 @@ export function setupModerationFeature({
   spamAlertUpdateService,
   nameHistoryService,
   userLevelRepository,
+  altAccountRepository,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
@@ -435,6 +440,7 @@ export function setupModerationFeature({
     spamAlertUpdateService,
     nameHistoryService,
     userLevelRepository,
+    altAccountRepository,
   });
   const commands = createModerationCommands(services, logger, userLevelRepository);
   const events = createModerationEventHandlers(services, logger);

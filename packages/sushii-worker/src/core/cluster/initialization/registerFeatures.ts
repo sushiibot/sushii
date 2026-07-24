@@ -283,6 +283,10 @@ export function registerFeatures(
     db,
     logger: logger.child({ feature: "RoleMenu" }),
   });
+  const altAccountsFeature = setupAltAccountsFeature({
+    db,
+    logger: logger.child({ feature: "AltAccounts" }),
+  });
   const moderationFeature = setupModerationFeature({
     db,
     client,
@@ -294,10 +298,7 @@ export function registerFeatures(
     spamAlertUpdateService: automodFeature.services.spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingFeature.services.userLevelRepository,
-  });
-  const altAccountsFeature = setupAltAccountsFeature({
-    db,
-    logger: logger.child({ feature: "AltAccounts" }),
+    altAccountRepository: altAccountsFeature.services.altAccountRepository,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,

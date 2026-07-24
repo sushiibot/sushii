@@ -2,7 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
-import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
+import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import {
   LinkAccountsService,
@@ -11,6 +11,7 @@ import {
   UnlinkAccountService,
   ViewIdentityService,
 } from "./application";
+import type { AltAccountRepository } from "./domain/repositories";
 import { DrizzleAltAccountRepository } from "./infrastructure";
 import {
   AltNicknameButtonHandler,
@@ -22,9 +23,13 @@ interface SetupAltAccountsFeatureDeps {
   logger: Logger;
 }
 
+export interface AltAccountsFeatureServices {
+  altAccountRepository: AltAccountRepository;
+}
+
 export function setupAltAccountsFeature(
   deps: SetupAltAccountsFeatureDeps,
-): FeatureSetupWithTasks {
+): FullFeatureSetupReturn<AltAccountsFeatureServices> {
   const { db, logger } = deps;
 
   const altAccountRepository = new DrizzleAltAccountRepository(
@@ -74,5 +79,8 @@ export function setupAltAccountsFeature(
     buttonHandlers: [altNicknameButtonHandler],
     eventHandlers: [],
     tasks: [],
+    services: {
+      altAccountRepository,
+    },
   };
 }

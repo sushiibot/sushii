@@ -31,6 +31,7 @@ export const HISTORY_ACTION_EMOJIS = [
 export function formatModerationCase(
   moderationCase: ModerationCase,
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+  showTargetMention = false,
 ): string {
   const emojiName = getActionTypeBotEmoji(moderationCase.actionType);
   const emoji = emojis[emojiName];
@@ -49,6 +50,10 @@ export function formatModerationCase(
   const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
   let s = `\`#${moderationCase.caseId}\` • ${emoji} **${actionName}**  – <t:${timestamp}:R>`;
+
+  if (showTargetMention) {
+    s += ` – on <@${moderationCase.userId}>`;
+  }
 
   if (moderationCase.executorId) {
     s += ` – <@${moderationCase.executorId}>`;
@@ -73,6 +78,14 @@ export function formatModerationCase(
   return s;
 }
 
+function getMergedAccountCount(historyResult: UserHistoryResult): number {
+  return historyResult.linkedIdentity?.members.length ?? 0;
+}
+
+function spansMultipleUsers(cases: ModerationCase[]): boolean {
+  return new Set(cases.map((c) => c.userId)).size > 1;
+}
+
 export function buildUserHistoryEmbeds(
   targetUser: User,
   member: GuildMember | null,
@@ -81,6 +94,7 @@ export function buildUserHistoryEmbeds(
 ): EmbedBuilder[] {
   const { moderationHistory, totalCases } = historyResult;
   const count = totalCases;
+  const mergedAccountCount = getMergedAccountCount(historyResult);
 
   const mainEmbed = new EmbedBuilder()
     .setTitle(`Moderation History (${count} case${count === 1 ? "" : "s"})`)
@@ -94,7 +108,7 @@ export function buildUserHistoryEmbeds(
 
   // No description if no cases
   if (moderationHistory.length === 0) {
-    addUserAccountInfo(mainEmbed, targetUser, member);
+    addUserAccountInfo(mainEmbed, targetUser, member, mergedAccountCount);
     return [mainEmbed];
   }
 
@@ -105,15 +119,24 @@ export function buildUserHistoryEmbeds(
     return `${emoji} **${action}** – ${num}`;
   });
 
+  // Only tag each case with its target when the cases actually span more
+  // than one linked account — no point calling that out otherwise.
+  const showTargetMention = spansMultipleUsers(moderationHistory);
+
   // Build case history
   const casesStr = moderationHistory.map((c) =>
-    formatModerationCase(c, emojis),
+    formatModerationCase(c, emojis, showTargetMention),
   );
 
-  const [mainChunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
+  const [firstChunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
+
+  const mergedNote =
+    mergedAccountCount > 1
+      ? `*Merged history across ${mergedAccountCount} linked accounts — see \`/alts view\`.*\n\n`
+      : "";
 
   // First embed gets first chunk
-  mainEmbed.setDescription(mainChunk);
+  mainEmbed.setDescription(mergedNote + firstChunk);
 
   // Additional embeds get the rest excluding first chunk
   const additionalEmbeds = additionalChunks.map((desc) =>
@@ -144,7 +167,12 @@ export function buildUserHistoryEmbeds(
   const allEmbeds = [mainEmbed, ...additionalEmbeds];
 
   // Add user account info to the last embed
-  addUserAccountInfo(allEmbeds[allEmbeds.length - 1], targetUser, member);
+  addUserAccountInfo(
+    allEmbeds[allEmbeds.length - 1],
+    targetUser,
+    member,
+    mergedAccountCount,
+  );
 
   return allEmbeds;
 }
@@ -165,6 +193,7 @@ export function addUserAccountInfo(
   embed: EmbedBuilder,
   targetUser: User,
   member: GuildMember | null,
+  mergedAccountCount = 0,
 ): void {
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
   const fields = [
@@ -182,8 +211,13 @@ export function addUserAccountInfo(
     });
   }
 
+  const footerText =
+    mergedAccountCount > 1
+      ? `User ID: ${targetUser.id} • merged across ${mergedAccountCount} linked accounts`
+      : `User ID: ${targetUser.id}`;
+
   embed.addFields(fields).setFooter({
-    text: `User ID: ${targetUser.id}`,
+    text: footerText,
   });
 }
 
@@ -194,6 +228,7 @@ export function buildUserHistoryContextEmbed(
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
 ): EmbedBuilder {
   const { moderationHistory, totalCases } = historyResult;
+  const mergedAccountCount = getMergedAccountCount(historyResult);
 
   const embed = new EmbedBuilder()
     .setTitle(
@@ -206,19 +241,26 @@ export function buildUserHistoryContextEmbed(
     return embed;
   }
 
-  // Show only the most recent 3 cases
-  const recentCases = moderationHistory.slice(0, 3);
+  // moderationHistory is ordered oldest-first (ascending case ID), so the
+  // most recent cases are at the end — take the last 3 and show newest first.
+  const recentCases = moderationHistory.slice(-3).reverse();
+  const showTargetMention = spansMultipleUsers(recentCases);
   const casesStr = recentCases
-    .map((c) => formatModerationCase(c, emojis))
+    .map((c) => formatModerationCase(c, emojis, showTargetMention))
     .join("\n\n");
 
   embed.setDescription(casesStr);
 
   // Add footer with instruction to use /history for full list
+  const footerParts = [];
+  if (mergedAccountCount > 1) {
+    footerParts.push(`Merged across ${mergedAccountCount} linked accounts`);
+  }
   if (totalCases > 3) {
-    embed.setFooter({
-      text: `Showing 3 of ${totalCases} cases. Use /history for full list`,
-    });
+    footerParts.push(`Showing 3 of ${totalCases} cases. Use /history for full list`);
+  }
+  if (footerParts.length > 0) {
+    embed.setFooter({ text: footerParts.join(" • ") });
   }
 
   return embed;
