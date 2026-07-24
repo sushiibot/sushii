@@ -17,9 +17,14 @@ const MAX_RENDERED_MEMBERS = 20;
 
 function formatMemberLine(
   member: AltIdentityWithMembers["members"][number],
+  highlightUserId?: string,
 ): string {
   const linkedTimestamp = dayjs.utc(member.linkedAt).unix();
-  let line = `<@${member.userId}> — linked by <@${member.linkedBy}> <t:${linkedTimestamp}:R>`;
+  const mention =
+    member.userId === highlightUserId
+      ? `**<@${member.userId}>**`
+      : `<@${member.userId}>`;
+  let line = `${mention} — linked by <@${member.linkedBy}> <t:${linkedTimestamp}:R>`;
 
   if (member.reason) {
     line += `\n${quoteMarkdownString(member.reason)}`;
@@ -28,14 +33,26 @@ function formatMemberLine(
   return line;
 }
 
+export interface AltIdentityContainerOptions {
+  isDisabled?: boolean;
+  /** Extra line(s) shown above the member list, e.g. what a `/alts link` call just did. */
+  note?: string;
+  color?: Color;
+  /** Marks one member's line, e.g. the account just added by `/alts link`. */
+  highlightUserId?: string;
+}
+
 /**
- * Builds the `/alts view` container: nickname, capped member list, and a
- * nickname edit button accessory.
+ * Builds the identity container shared by `/alts view` and `/alts link`:
+ * nickname, optional note, capped member list, and a nickname edit button
+ * accessory.
  */
 export function buildAltIdentityContainer(
   identity: AltIdentityWithMembers,
-  isDisabled = false,
+  options: AltIdentityContainerOptions = {},
 ): ContainerBuilder {
+  const { isDisabled = false, note, color = Color.Success, highlightUserId } =
+    options;
   const { identity: identityEntity, members } = identity;
 
   const title = identityEntity.nickname
@@ -44,14 +61,21 @@ export function buildAltIdentityContainer(
 
   const memberLines = members
     .slice(0, MAX_RENDERED_MEMBERS)
-    .map(formatMemberLine);
+    .map((member) => formatMemberLine(member, highlightUserId));
 
   if (members.length > MAX_RENDERED_MEMBERS) {
     memberLines.push(`*+${members.length - MAX_RENDERED_MEMBERS} more*`);
   }
 
+  const historyFooter =
+    members.length > 1
+      ? "-# Run `/history` on any account above to see all of them combined."
+      : null;
+
   const headerText = new TextDisplayBuilder().setContent(
-    `${title}\n${memberLines.join("\n")}`,
+    [title, note, memberLines.join("\n"), historyFooter]
+      .filter(Boolean)
+      .join("\n"),
   );
 
   const nicknameButton = new ButtonBuilder()
@@ -65,7 +89,7 @@ export function buildAltIdentityContainer(
     .setButtonAccessory(nicknameButton);
 
   return new ContainerBuilder()
-    .setAccentColor(Color.Success)
+    .setAccentColor(color)
     .addSectionComponents(headerSection);
 }
 

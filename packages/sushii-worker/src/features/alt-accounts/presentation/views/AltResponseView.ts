@@ -4,6 +4,7 @@ import Color from "@/utils/colors";
 
 import type { LinkOutcome, RemoveMemberOutcome } from "../../domain/repositories/AltAccountRepository";
 import type { SetNicknameOutcome } from "../../application/SetNicknameService";
+import { buildAltIdentityContainer } from "./AltIdentityView";
 
 function simpleContainer(content: string, color: Color): ContainerBuilder {
   return new ContainerBuilder()
@@ -19,38 +20,44 @@ export function buildLinkOutcomeContainer(
 ): ContainerBuilder {
   switch (outcome.kind) {
     case "created":
-      return simpleContainer(
-        `Linked <@${userIdA}> and <@${userIdB}> as a new identity.` +
+      return buildAltIdentityContainer(outcome.identity, {
+        note:
+          `**Linked** <@${userIdA}> and <@${userIdB}> as a new identity.` +
           (reason ? `\n**Reason:** ${reason}` : ""),
-        Color.Success,
-      );
+        color: Color.Success,
+      });
     case "added": {
       const existingUserId =
         outcome.addedUserId === userIdA ? userIdB : userIdA;
 
-      return simpleContainer(
-        `Added <@${outcome.addedUserId}> to <@${existingUserId}>'s existing identity.` +
+      return buildAltIdentityContainer(outcome.identity, {
+        note:
+          `**Added** <@${outcome.addedUserId}> to <@${existingUserId}>'s existing identity.` +
           (reason ? `\n**Reason:** ${reason}` : ""),
-        Color.Success,
-      );
+        color: Color.Success,
+        highlightUserId: outcome.addedUserId,
+      });
     }
     case "alreadyLinked":
-      return simpleContainer(
-        `<@${userIdA}> and <@${userIdB}> are already linked to the same identity.`,
-        Color.Info,
-      );
+      return buildAltIdentityContainer(outcome.identity, {
+        note: `<@${userIdA}> and <@${userIdB}> are **already linked** to the same identity.`,
+        color: Color.Info,
+      });
     case "merged": {
-      let content = `Merged the identities for <@${userIdA}> and <@${userIdB}> into one.`;
+      let note = `**Merged** the identities for <@${userIdA}> and <@${userIdB}> into one.`;
 
       if (outcome.keptNickname && outcome.discardedNickname) {
-        content += `\nKept nickname **${outcome.keptNickname}**, merged in **${outcome.discardedNickname}** (use \`/alts nickname\` to rename).`;
+        note += `\nKept nickname **${outcome.keptNickname}**, merged in **${outcome.discardedNickname}** (use \`/alts nickname\` to rename).`;
       }
 
       if (reason) {
-        content += `\n**Reason:** ${reason} (not saved — merges don't persist a reason)`;
+        note += `\n**Reason:** ${reason} (not saved — merges don't persist a reason)`;
       }
 
-      return simpleContainer(content, Color.Success);
+      return buildAltIdentityContainer(outcome.identity, {
+        note,
+        color: Color.Success,
+      });
     }
   }
 }
