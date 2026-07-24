@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { pino } from "pino";
 import { Ok } from "ts-results";
 
-import type { AltIdentity } from "../domain/entities/AltIdentity";
+import { makeAltIdentity } from "@/test/fixtures/altIdentity";
+
 import type { AltAccountRepository, LinkOutcome } from "../domain/repositories/AltAccountRepository";
-import type { AltIdentityWithMembers } from "../domain/types/AltIdentityWithMembers";
 import { LinkAccountsService } from "./LinkAccountsService";
 
 const GUILD_ID = "111111111111111111";
@@ -12,16 +12,8 @@ const USER_A = "222222222222222222";
 const USER_B = "333333333333333333";
 const LINKED_BY = "444444444444444444";
 
-function makeIdentity(id: number): AltIdentityWithMembers {
-  return {
-    identity: {
-      id,
-      guildId: GUILD_ID,
-      nickname: null,
-      createdAt: new Date(),
-    } as AltIdentity,
-    members: [],
-  };
+function makeIdentity(id: number) {
+  return makeAltIdentity({ id, guildId: GUILD_ID });
 }
 
 describe("LinkAccountsService", () => {

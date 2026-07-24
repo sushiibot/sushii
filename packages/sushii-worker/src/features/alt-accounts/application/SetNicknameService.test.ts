@@ -2,24 +2,16 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { pino } from "pino";
 import { Ok } from "ts-results";
 
-import type { AltIdentity } from "../domain/entities/AltIdentity";
+import { makeAltIdentity } from "@/test/fixtures/altIdentity";
+
 import type { AltAccountRepository } from "../domain/repositories/AltAccountRepository";
-import type { AltIdentityWithMembers } from "../domain/types/AltIdentityWithMembers";
 import { NICKNAME_MAX_LENGTH, SetNicknameService } from "./SetNicknameService";
 
 const GUILD_ID = "111111111111111111";
 const USER_ID = "222222222222222222";
 
-function makeIdentity(nickname: string | null): AltIdentityWithMembers {
-  return {
-    identity: {
-      id: 1,
-      guildId: GUILD_ID,
-      nickname,
-      createdAt: new Date(),
-    } as AltIdentity,
-    members: [],
-  };
+function makeIdentity(nickname: string | null) {
+  return makeAltIdentity({ guildId: GUILD_ID, nickname });
 }
 
 describe("SetNicknameService", () => {

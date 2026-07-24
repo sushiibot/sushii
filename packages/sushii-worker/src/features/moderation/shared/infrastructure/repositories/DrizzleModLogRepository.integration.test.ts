@@ -6,21 +6,13 @@ import type { Logger } from "pino";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
+import { makeModerationCase } from "@/test/fixtures/moderationCase";
+import type { ModerationCase } from "../../domain/entities/ModerationCase";
 
-import { ModerationCase } from "../../domain/entities/ModerationCase";
-import { ActionType } from "../../domain/value-objects/ActionType";
 import { DrizzleModLogRepository } from "./DrizzleModLogRepository";
 
 function makeCase(guildId: string, userId: string): ModerationCase {
-  return ModerationCase.create(
-    guildId,
-    "0",
-    ActionType.Warn,
-    userId,
-    "TestUser#0001",
-    null,
-    null,
-  );
+  return makeModerationCase({ guildId, userId });
 }
 
 describe("DrizzleModLogRepository (Integration)", () => {
