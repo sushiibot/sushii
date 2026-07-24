@@ -251,9 +251,18 @@ describe("buildHistoryPageContainer", () => {
       false,
     );
 
-    expect(getContainerText(container)).toContain(
-      "Merged history across 2 linked accounts",
-    );
+    const text = getContainerText(container);
+    expect(text).toContain("Merged history for 2 linked accounts");
+    expect(text).toContain(`<@${USER_A}>`);
+    expect(text).toContain(`<@${USER_B}>`);
+    expect(text).toContain("`/alts`");
+
+    // The merged-accounts note is its own line, not merged with the
+    // account created/joined line.
+    const mergedLine = text
+      .split("\n")
+      .find((line) => line.includes("Merged history"));
+    expect(mergedLine).not.toContain("Account created");
   });
 
   it("tags each case with its target when cases span multiple linked accounts", () => {

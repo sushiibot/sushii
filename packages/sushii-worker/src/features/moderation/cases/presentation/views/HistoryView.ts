@@ -13,6 +13,7 @@ import {
   ThumbnailBuilder,
 } from "discord.js";
 
+import type { AltIdentityWithMembers } from "@/features/alt-accounts/domain/types";
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis";
 import type { UserHistoryResult } from "@/features/moderation/cases/application/HistoryUserService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
@@ -164,32 +165,38 @@ function buildUserHeaderSection(
   targetUser: User,
   member: GuildMember | null,
   totalCases: number,
-  mergedAccountCount: number,
+  linkedIdentity: AltIdentityWithMembers | null,
 ): SectionBuilder {
   const title = `### Moderation History — ${totalCases} case${totalCases === 1 ? "" : "s"}\n<@${targetUser.id}>`;
 
-  const parts: string[] = [];
-  if (mergedAccountCount > 1) {
-    parts.push(
-      `*Merged history across ${mergedAccountCount} linked accounts — see \`/alts view\`.*`,
+  const lines = [title];
+
+  if (linkedIdentity && linkedIdentity.members.length > 1) {
+    const mentions = linkedIdentity.members
+      .map((m) => `<@${m.userId}>`)
+      .join(" ");
+    lines.push(
+      `*Merged history for ${linkedIdentity.members.length} linked accounts: ${mentions} — use \`/alts\` to manage.*`,
     );
   }
 
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  parts.push(
+  const dateParts = [
     `Account created <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
-  );
+  ];
 
   if (member?.joinedTimestamp) {
     const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
-    parts.push(
+    dateParts.push(
       `Joined server <t:${joinedTimestamp}:F> (<t:${joinedTimestamp}:R>)`,
     );
   }
 
+  lines.push(dateParts.join(" • "));
+
   return new SectionBuilder()
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`${title}\n${parts.join(" • ")}`),
+      new TextDisplayBuilder().setContent(lines.join("\n")),
     )
     .setThumbnailAccessory(
       new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
@@ -244,12 +251,16 @@ export function buildHistoryPageContainer(
   isDisabled: boolean,
 ): ContainerBuilder {
   const { moderationHistory, totalCases } = historyResult;
-  const mergedAccountCount = getMergedAccountCount(historyResult);
 
   const container = new ContainerBuilder().setAccentColor(Color.Success);
 
   container.addSectionComponents(
-    buildUserHeaderSection(targetUser, member, totalCases, mergedAccountCount),
+    buildUserHeaderSection(
+      targetUser,
+      member,
+      totalCases,
+      historyResult.linkedIdentity,
+    ),
   );
   container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
