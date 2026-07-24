@@ -1,5 +1,17 @@
-import type { GuildMember, User } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  GuildMember,
+  User,
+} from "discord.js";
+import {
+  ContainerBuilder,
+  EmbedBuilder,
+  SectionBuilder,
+  SeparatorBuilder,
+  TextDisplayBuilder,
+  ThumbnailBuilder,
+} from "discord.js";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis";
 import type { UserHistoryResult } from "@/features/moderation/cases/application/HistoryUserService";
@@ -12,13 +24,12 @@ import {
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import dayjs from "@/shared/domain/dayjs";
-import buildChunks from "@/utils/buildChunks";
 import Color from "@/utils/colors";
 import { quoteMarkdownString } from "@/utils/markdown";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { getCleanFilename } from "@/utils/url";
-import { getUserString } from "@/utils/userString";
 
 export const HISTORY_ACTION_EMOJIS = [
   ...ActionTypeBotEmojis,
@@ -49,14 +60,16 @@ export function formatModerationCase(
 
   const timestamp = dayjs.utc(moderationCase.actionTime).unix();
 
-  let s = `\`#${moderationCase.caseId}\` • ${emoji} **${actionName}**  – <t:${timestamp}:R>`;
+  let s = `\`#${moderationCase.caseId}\` • ${emoji} **${actionName}**`;
 
   if (showTargetMention) {
     s += ` – on <@${moderationCase.userId}>`;
   }
 
+  s += ` – <t:${timestamp}:R>`;
+
   if (moderationCase.executorId) {
-    s += ` – <@${moderationCase.executorId}>`;
+    s += ` – by <@${moderationCase.executorId}>`;
   }
 
   if (moderationCase.reason) {
@@ -82,102 +95,60 @@ function getMergedAccountCount(historyResult: UserHistoryResult): number {
   return historyResult.linkedIdentity?.members.length ?? 0;
 }
 
-function spansMultipleUsers(cases: ModerationCase[]): boolean {
+export function spansMultipleUsers(cases: ModerationCase[]): boolean {
   return new Set(cases.map((c) => c.userId)).size > 1;
 }
 
-export function buildUserHistoryEmbeds(
-  targetUser: User,
-  member: GuildMember | null,
-  historyResult: UserHistoryResult,
+// Discord caps a single Text Display component's content at 4000 characters.
+// A case's reason can run up to 1024 characters and isn't truncated, so pages
+// are packed by rendered length rather than a fixed case count — leaves
+// enough margin that the header/summary/nav text added around it never pushes
+// the *cases* Text Display itself over the limit.
+const HISTORY_PAGE_CHAR_BUDGET = 3500;
+
+/**
+ * Splits history into pages sized to fit safely under Discord's Text Display
+ * character limit. A single case's rendered length (even with a max-length
+ * reason and attachments) is always well under the budget, so every page
+ * holds at least one case.
+ */
+export function buildHistoryPages(
+  moderationHistory: ModerationCase[],
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
-): EmbedBuilder[] {
-  const { moderationHistory, totalCases } = historyResult;
-  const count = totalCases;
-  const mergedAccountCount = getMergedAccountCount(historyResult);
+  showTargetMention: boolean,
+): ModerationCase[][] {
+  const pages: ModerationCase[][] = [];
 
-  const mainEmbed = new EmbedBuilder()
-    .setTitle(`Moderation History (${count} case${count === 1 ? "" : "s"})`)
-    .setColor(Color.Success);
+  let currentPage: ModerationCase[] = [];
+  let currentLength = 0;
 
-  // Add user info to first embed
-  mainEmbed.setAuthor({
-    name: getUserString(member || targetUser),
-    iconURL: targetUser.displayAvatarURL(),
-  });
+  for (const moderationCase of moderationHistory) {
+    const lineLength = formatModerationCase(
+      moderationCase,
+      emojis,
+      showTargetMention,
+    ).length;
+    const separatorLength = currentPage.length > 0 ? 1 : 0; // joining "\n"
+    const projectedLength = currentLength + separatorLength + lineLength;
 
-  // No description if no cases
-  if (moderationHistory.length === 0) {
-    addUserAccountInfo(mainEmbed, targetUser, member, mergedAccountCount);
-    return [mainEmbed];
+    if (projectedLength > HISTORY_PAGE_CHAR_BUDGET && currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [moderationCase];
+      currentLength = lineLength;
+    } else {
+      currentPage.push(moderationCase);
+      currentLength = projectedLength;
+    }
   }
 
-  const summary = buildCaseSummary(moderationHistory);
-  const summaryStr = Array.from(summary.entries()).map(([actionType, num]) => {
-    const emoji = emojis[getActionTypeBotEmoji(actionType)];
-    const action = formatActionTypeAsSentence(actionType);
-    return `${emoji} **${action}** – ${num}`;
-  });
-
-  // Only tag each case with its target when the cases actually span more
-  // than one linked account — no point calling that out otherwise.
-  const showTargetMention = spansMultipleUsers(moderationHistory);
-
-  // Build case history
-  const casesStr = moderationHistory.map((c) =>
-    formatModerationCase(c, emojis, showTargetMention),
-  );
-
-  const [firstChunk, ...additionalChunks] = buildChunks(casesStr, "\n", 3500);
-
-  const mergedNote =
-    mergedAccountCount > 1
-      ? `*Merged history across ${mergedAccountCount} linked accounts — see \`/alts view\`.*\n\n`
-      : "";
-
-  // First embed gets first chunk
-  mainEmbed.setDescription(mergedNote + firstChunk);
-
-  // Additional embeds get the rest excluding first chunk
-  const additionalEmbeds = additionalChunks.map((desc) =>
-    new EmbedBuilder()
-      .setTitle("Case History (Continued)")
-      .setColor(Color.Success)
-      .setDescription(desc),
-  );
-
-  if (additionalEmbeds.length > 0) {
-    // Add summary to last embed
-    additionalEmbeds[additionalEmbeds.length - 1].addFields([
-      {
-        name: "Summary",
-        value: summaryStr.join("\n"),
-      },
-    ]);
-  } else {
-    // Add summary to first embed
-    mainEmbed.addFields([
-      {
-        name: "Summary",
-        value: summaryStr.join("\n"),
-      },
-    ]);
+  if (currentPage.length > 0) {
+    pages.push(currentPage);
   }
 
-  const allEmbeds = [mainEmbed, ...additionalEmbeds];
-
-  // Add user account info to the last embed
-  addUserAccountInfo(
-    allEmbeds[allEmbeds.length - 1],
-    targetUser,
-    member,
-    mergedAccountCount,
-  );
-
-  return allEmbeds;
+  return pages;
 }
 
-export function buildCaseSummary(
+function buildCaseSummary(
   moderationHistory: ModerationCase[],
 ): Map<ActionType, number> {
   return moderationHistory.reduce((summary, moderationCase) => {
@@ -189,36 +160,116 @@ export function buildCaseSummary(
   }, new Map<ActionType, number>());
 }
 
-export function addUserAccountInfo(
-  embed: EmbedBuilder,
+function buildUserHeaderSection(
   targetUser: User,
   member: GuildMember | null,
-  mergedAccountCount = 0,
-): void {
+  totalCases: number,
+  mergedAccountCount: number,
+): SectionBuilder {
+  const title = `### Moderation History — ${totalCases} case${totalCases === 1 ? "" : "s"}\n<@${targetUser.id}>`;
+
+  const parts: string[] = [];
+  if (mergedAccountCount > 1) {
+    parts.push(
+      `*Merged history across ${mergedAccountCount} linked accounts — see \`/alts view\`.*`,
+    );
+  }
+
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  const fields = [
-    {
-      name: "Account Created",
-      value: `<t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
-    },
-  ];
+  parts.push(
+    `Account created <t:${createdTimestamp}:F> (<t:${createdTimestamp}:R>)`,
+  );
 
   if (member?.joinedTimestamp) {
     const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
-    fields.push({
-      name: "Joined Server",
-      value: `<t:${joinedTimestamp}:F> (<t:${joinedTimestamp}:R>)`,
-    });
+    parts.push(
+      `Joined server <t:${joinedTimestamp}:F> (<t:${joinedTimestamp}:R>)`,
+    );
   }
 
-  const footerText =
-    mergedAccountCount > 1
-      ? `User ID: ${targetUser.id} • merged across ${mergedAccountCount} linked accounts`
-      : `User ID: ${targetUser.id}`;
+  return new SectionBuilder()
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`${title}\n${parts.join(" • ")}`),
+    )
+    .setThumbnailAccessory(
+      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
+    );
+}
 
-  embed.addFields(fields).setFooter({
-    text: footerText,
+function buildCasesSection(
+  pageCases: ModerationCase[],
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+  showTargetMention: boolean,
+): TextDisplayBuilder {
+  const content =
+    pageCases.length === 0
+      ? "*No moderation cases found in this server.*"
+      : pageCases
+          .map((c) => formatModerationCase(c, emojis, showTargetMention))
+          .join("\n");
+
+  return new TextDisplayBuilder().setContent(content);
+}
+
+function buildSummarySection(
+  moderationHistory: ModerationCase[],
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+): TextDisplayBuilder {
+  const summary = buildCaseSummary(moderationHistory);
+  const summaryStr = Array.from(summary.entries()).map(([actionType, num]) => {
+    const emoji = emojis[getActionTypeBotEmoji(actionType)];
+    const action = formatActionTypeAsSentence(actionType);
+    return `${emoji} **${action}** – ${num}`;
   });
+
+  return new TextDisplayBuilder().setContent(
+    `**Summary**\n${summaryStr.join("\n")}`,
+  );
+}
+
+/**
+ * Builds one page of the `/history` command: user header (with a merged-alts
+ * note when applicable), the page's cases (newest-first — the most relevant
+ * cases are the most recent ones, regardless of which linked account they're
+ * on), and a summary of the full history across every page.
+ */
+export function buildHistoryPageContainer(
+  targetUser: User,
+  member: GuildMember | null,
+  historyResult: UserHistoryResult,
+  pageCases: ModerationCase[],
+  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+  showTargetMention: boolean,
+  navButtons: ActionRowBuilder<ButtonBuilder> | null,
+  isDisabled: boolean,
+): ContainerBuilder {
+  const { moderationHistory, totalCases } = historyResult;
+  const mergedAccountCount = getMergedAccountCount(historyResult);
+
+  const container = new ContainerBuilder().setAccentColor(Color.Success);
+
+  container.addSectionComponents(
+    buildUserHeaderSection(targetUser, member, totalCases, mergedAccountCount),
+  );
+  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addTextDisplayComponents(
+    buildCasesSection(pageCases, emojis, showTargetMention),
+  );
+
+  if (moderationHistory.length > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(
+      buildSummarySection(moderationHistory, emojis),
+    );
+  }
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`-# User ID: ${targetUser.id}`),
+  );
+
+  ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);
+
+  return container;
 }
 
 export function buildUserHistoryContextEmbed(

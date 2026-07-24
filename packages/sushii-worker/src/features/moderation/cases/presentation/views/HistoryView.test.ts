@@ -9,10 +9,38 @@ import { makeModerationCase } from "@/test/fixtures/moderationCase";
 import type { UserHistoryResult } from "../../application/HistoryUserService";
 import {
   HISTORY_ACTION_EMOJIS,
+  buildHistoryPageContainer,
+  buildHistoryPages,
   buildUserHistoryContextEmbed,
-  buildUserHistoryEmbeds,
   formatModerationCase,
+  spansMultipleUsers,
 } from "./HistoryView";
+
+function getContainerText(container: { toJSON: () => unknown }): string {
+  const texts: string[] = [];
+
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    if ("content" in node && typeof (node as { content?: unknown }).content === "string") {
+      texts.push((node as { content: string }).content);
+    }
+
+    if (
+      "components" in node &&
+      Array.isArray((node as { components?: unknown }).components)
+    ) {
+      for (const child of (node as { components: unknown[] }).components) {
+        walk(child);
+      }
+    }
+  };
+
+  walk(container.toJSON());
+  return texts.join("\n");
+}
 
 const GUILD_ID = "111111111111111111";
 const USER_A = "222222222222222222";
@@ -70,6 +98,14 @@ describe("formatModerationCase", () => {
   it("includes the target mention when showTargetMention is true", () => {
     const line = formatModerationCase(makeCase(USER_A, "1"), emojis, true);
     expect(line).toContain(`on <@${USER_A}>`);
+  });
+
+  it("always labels the executor mention as 'by', never a bare mention", () => {
+    // target is USER_B, executor is USER_A (see makeCase) — distinct so the
+    // "by" label can't accidentally match the target mention instead.
+    const line = formatModerationCase(makeCase(USER_B, "1"), emojis, true);
+    expect(line).toContain(`by <@${USER_A}>`);
+    expect(line).toContain(`on <@${USER_B}>`);
   });
 });
 
@@ -160,64 +196,220 @@ describe("buildUserHistoryContextEmbed", () => {
   });
 });
 
-describe("buildUserHistoryEmbeds", () => {
-  it("has no merged banner or footer note when there is no linked identity", () => {
+describe("buildHistoryPageContainer", () => {
+  it("shows both absolute and relative account-created timestamps", () => {
     const history = [makeCase(USER_A, "1")];
+    const historyResult = makeHistoryResult(history, null);
 
-    const [embed] = buildUserHistoryEmbeds(
+    const container = buildHistoryPageContainer(
       fakeTargetUser,
       null,
-      makeHistoryResult(history, null),
+      historyResult,
+      history,
       emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
     );
 
-    expect(embed.data.description ?? "").not.toContain("Merged history");
-    expect(embed.data.footer?.text ?? "").not.toContain("merged");
+    const text = getContainerText(container);
+    expect(text).toContain(":F>");
+    expect(text).toContain(":R>");
   });
 
-  it("adds a merged-history banner and footer note when the identity has multiple members", () => {
-    const history = [makeCase(USER_A, "1"), makeCase(USER_B, "2")];
-    const identity = makeIdentity([USER_A, USER_B]);
+  it("has no merged banner when there is no linked identity", () => {
+    const history = [makeCase(USER_A, "1")];
+    const historyResult = makeHistoryResult(history, null);
 
-    const [embed] = buildUserHistoryEmbeds(
+    const container = buildHistoryPageContainer(
       fakeTargetUser,
       null,
-      makeHistoryResult(history, identity),
+      historyResult,
+      history,
       emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
     );
 
-    expect(embed.data.description ?? "").toContain(
+    expect(getContainerText(container)).not.toContain("Merged history");
+  });
+
+  it("adds a merged-history banner when the identity has multiple members", () => {
+    const history = [makeCase(USER_A, "1"), makeCase(USER_B, "2")];
+    const identity = makeIdentity([USER_A, USER_B]);
+    const historyResult = makeHistoryResult(history, identity);
+
+    const container = buildHistoryPageContainer(
+      fakeTargetUser,
+      null,
+      historyResult,
+      history,
+      emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
+    );
+
+    expect(getContainerText(container)).toContain(
       "Merged history across 2 linked accounts",
     );
-    expect(embed.data.footer?.text ?? "").toContain(
-      "merged across 2 linked accounts",
-    );
   });
 
-  it("tags each case with its target when the merged cases span multiple accounts", () => {
+  it("tags each case with its target when cases span multiple linked accounts", () => {
     const history = [makeCase(USER_A, "1"), makeCase(USER_B, "2")];
     const identity = makeIdentity([USER_A, USER_B]);
+    const historyResult = makeHistoryResult(history, identity);
 
-    const [embed] = buildUserHistoryEmbeds(
+    const container = buildHistoryPageContainer(
       fakeTargetUser,
       null,
-      makeHistoryResult(history, identity),
+      historyResult,
+      history,
       emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
     );
 
-    const description = embed.data.description ?? "";
-    expect(description).toContain(`on <@${USER_A}>`);
-    expect(description).toContain(`on <@${USER_B}>`);
+    const text = getContainerText(container);
+    expect(text).toContain(`on <@${USER_A}>`);
+    expect(text).toContain(`on <@${USER_B}>`);
   });
 
-  it("still reports the User ID footer when there are no cases at all", () => {
-    const [embed] = buildUserHistoryEmbeds(
+  it("bases the target-mention decision on the full history, not just the current page", () => {
+    // Full history spans two accounts, but this page only has USER_A's case
+    // — the target should still be tagged, since another page has USER_B.
+    const history = [makeCase(USER_A, "1"), makeCase(USER_B, "2")];
+    const identity = makeIdentity([USER_A, USER_B]);
+    const historyResult = makeHistoryResult(history, identity);
+
+    const container = buildHistoryPageContainer(
       fakeTargetUser,
       null,
-      makeHistoryResult([], null),
+      historyResult,
+      [history[0]],
       emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
     );
 
-    expect(embed.data.footer?.text ?? "").toContain(`User ID: ${USER_A}`);
+    expect(getContainerText(container)).toContain(`on <@${USER_A}>`);
+  });
+
+  it("shows a summary of the full history, not just the current page", () => {
+    const history = [makeCase(USER_A, "1"), makeCase(USER_A, "2")];
+    const historyResult = makeHistoryResult(history, null);
+
+    const container = buildHistoryPageContainer(
+      fakeTargetUser,
+      null,
+      historyResult,
+      [history[0]],
+      emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
+    );
+
+    expect(getContainerText(container)).toContain("– 2");
+  });
+
+  it("shows an empty-page message when the current page has no cases", () => {
+    const history = [makeCase(USER_A, "1")];
+    const historyResult = makeHistoryResult(history, null);
+
+    const container = buildHistoryPageContainer(
+      fakeTargetUser,
+      null,
+      historyResult,
+      [],
+      emojis,
+      spansMultipleUsers(history),
+      null,
+      false,
+    );
+
+    expect(getContainerText(container)).toContain(
+      "No moderation cases found",
+    );
+  });
+
+  it("reports the User ID subtext when there are no cases at all", () => {
+    const historyResult = makeHistoryResult([], null);
+
+    const container = buildHistoryPageContainer(
+      fakeTargetUser,
+      null,
+      historyResult,
+      [],
+      emojis,
+      false,
+      null,
+      false,
+    );
+
+    expect(getContainerText(container)).toContain(`User ID: ${USER_A}`);
+  });
+});
+
+describe("buildHistoryPages", () => {
+  it("packs many short cases onto a single page", () => {
+    const history = Array.from({ length: 30 }, (_, i) =>
+      makeCase(USER_A, String(i + 1)),
+    );
+
+    const pages = buildHistoryPages(history, emojis, false);
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toHaveLength(30);
+  });
+
+  it("splits onto a new page instead of truncating a long reason", () => {
+    const longReason = "a".repeat(1024);
+    const history = Array.from({ length: 4 }, (_, i) =>
+      makeModerationCase({
+        guildId: GUILD_ID,
+        caseId: String(i + 1),
+        userId: USER_A,
+        executorId: USER_A,
+        reason: longReason,
+      }),
+    );
+
+    const pages = buildHistoryPages(history, emojis, false);
+
+    // 4 max-length (1024-char) reasons don't fit in one 3500-char-budget
+    // page, but no case is ever dropped or shortened across however many
+    // pages it takes.
+    expect(pages.length).toBeGreaterThan(1);
+    const allCases = pages.flat();
+    expect(allCases).toHaveLength(4);
+    for (const c of allCases) {
+      expect(c.reason?.value).toBe(longReason);
+    }
+  });
+
+  it("always keeps at least one case per page, even if it alone is large", () => {
+    const longReason = "a".repeat(1024);
+    const history = [
+      makeModerationCase({
+        guildId: GUILD_ID,
+        caseId: "1",
+        userId: USER_A,
+        executorId: USER_A,
+        reason: longReason,
+      }),
+    ];
+
+    const pages = buildHistoryPages(history, emojis, false);
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toHaveLength(1);
+  });
+
+  it("returns no pages for empty history", () => {
+    expect(buildHistoryPages([], emojis, false)).toHaveLength(0);
   });
 });

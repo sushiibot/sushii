@@ -1,5 +1,6 @@
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 
 export interface MakeModerationCaseOptions {
   guildId?: string;
@@ -8,6 +9,7 @@ export interface MakeModerationCaseOptions {
   userId?: string;
   userTag?: string;
   executorId?: string | null;
+  reason?: string | null;
 }
 
 export function makeModerationCase(
@@ -20,6 +22,6 @@ export function makeModerationCase(
     options.userId ?? "222222222222222222",
     options.userTag ?? "TestUser#0001",
     options.executorId ?? null,
-    null,
+    Reason.create(options.reason ?? null).unwrap(),
   );
 }
