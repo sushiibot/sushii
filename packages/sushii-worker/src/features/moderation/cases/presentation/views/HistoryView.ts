@@ -165,20 +165,10 @@ function buildUserHeaderSection(
   targetUser: User,
   member: GuildMember | null,
   totalCases: number,
-  linkedIdentity: AltIdentityWithMembers | null,
 ): SectionBuilder {
   const title = `### Moderation History — ${totalCases} case${totalCases === 1 ? "" : "s"}\n<@${targetUser.id}>`;
 
   const lines = [title];
-
-  if (linkedIdentity && linkedIdentity.members.length > 1) {
-    const mentions = linkedIdentity.members
-      .map((m) => `<@${m.userId}>`)
-      .join(" ");
-    lines.push(
-      `*Merged history for ${linkedIdentity.members.length} linked accounts: ${mentions} — use \`/alts\` to manage.*`,
-    );
-  }
 
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
   const dateParts = [
@@ -234,9 +224,22 @@ function buildSummarySection(
   );
 }
 
+function buildLinkedAccountsSection(
+  linkedIdentity: AltIdentityWithMembers,
+): TextDisplayBuilder {
+  const mentions = linkedIdentity.members.map((m) => `<@${m.userId}>`).join(" ");
+
+  return new TextDisplayBuilder().setContent(
+    [
+      `**Merged history for ${linkedIdentity.members.length} linked alt accounts**`,
+      mentions,
+      "-# use `/alts` to manage alts",
+    ].join("\n"),
+  );
+}
+
 /**
- * Builds one page of the `/history` command: user header (with a merged-alts
- * note when applicable), the page's cases (newest-first — the most relevant
+ * Builds one page of the `/history` command: user header, the page's cases (newest-first — the most relevant
  * cases are the most recent ones, regardless of which linked account they're
  * on), and a summary of the full history across every page.
  */
@@ -255,12 +258,7 @@ export function buildHistoryPageContainer(
   const container = new ContainerBuilder().setAccentColor(Color.Success);
 
   container.addSectionComponents(
-    buildUserHeaderSection(
-      targetUser,
-      member,
-      totalCases,
-      historyResult.linkedIdentity,
-    ),
+    buildUserHeaderSection(targetUser, member, totalCases),
   );
   container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
@@ -271,6 +269,14 @@ export function buildHistoryPageContainer(
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(
       buildSummarySection(moderationHistory, emojis),
+    );
+  }
+
+  const { linkedIdentity } = historyResult;
+  if (linkedIdentity && linkedIdentity.members.length > 1) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(
+      buildLinkedAccountsSection(linkedIdentity),
     );
   }
 

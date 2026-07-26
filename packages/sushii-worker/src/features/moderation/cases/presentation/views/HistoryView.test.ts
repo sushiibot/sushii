@@ -252,17 +252,14 @@ describe("buildHistoryPageContainer", () => {
     );
 
     const text = getContainerText(container);
-    expect(text).toContain("Merged history for 2 linked accounts");
-    expect(text).toContain(`<@${USER_A}>`);
-    expect(text).toContain(`<@${USER_B}>`);
-    expect(text).toContain("`/alts`");
+    expect(text).toContain("**Merged history for 2 linked alt accounts**");
+    expect(text).toContain(`<@${USER_A}> <@${USER_B}>`);
+    expect(text).toContain("-# use `/alts` to manage alts");
 
-    // The merged-accounts note is its own line, not merged with the
-    // account created/joined line.
-    const mergedLine = text
-      .split("\n")
-      .find((line) => line.includes("Merged history"));
-    expect(mergedLine).not.toContain("Account created");
+    // The merged-accounts block sits below the summary, not in the header.
+    expect(text.indexOf("Merged history")).toBeGreaterThan(
+      text.indexOf("**Summary**"),
+    );
   });
 
   it("tags each case with its target when cases span multiple linked accounts", () => {
