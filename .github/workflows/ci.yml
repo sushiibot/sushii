@@ -41,7 +41,7 @@ jobs:
           bun-version: latest
 
       - name: Install sushii-worker dependencies
-        run: bun install --immutable
+        run: bun install --frozen-lockfile
 
       - name: Typecheck sushii-worker
         run: cd packages/sushii-worker && bun run typecheck
