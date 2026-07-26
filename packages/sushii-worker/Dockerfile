@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /config
 
 # Root package.json and lockfile
-COPY ./package.json ./bun.lockb ./
+COPY ./package.json ./bun.lock ./
 
 # Project specific package.json - only the workspace packages required
 COPY ./packages/sushii-worker/package.json ./packages/sushii-worker/
