@@ -239,9 +239,11 @@ function buildLinkedAccountsSection(
 }
 
 /**
- * Builds one page of the `/history` command: user header, the page's cases (newest-first — the most relevant
- * cases are the most recent ones, regardless of which linked account they're
- * on), and a summary of the full history across every page.
+ * Builds one page of the `/history` command: user header, the page's cases
+ * (oldest at top, newest at bottom, chat-log style — page 1 holds the most
+ * recent cases overall, and later pages go further back regardless of which
+ * linked account a case is on), and a summary of the full history across
+ * every page.
  */
 export function buildHistoryPageContainer(
   targetUser: User,

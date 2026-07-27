@@ -86,8 +86,9 @@ export class HistoryCommand extends SlashCommandHandler {
 
     const emojis = await this.emojiRepository.getEmojis(HISTORY_ACTION_EMOJIS);
 
-    // Newest-first — the most relevant cases are the most recent ones,
-    // regardless of which linked account they're on.
+    // Newest-first, so page 1 is packed with the most recent cases and later
+    // pages hold progressively older ones — the most relevant cases surface
+    // first regardless of which linked account they're on.
     const casesNewestFirst = [...historyResult.val.moderationHistory].reverse();
 
     // Only tag each case with its target when the cases actually span more
@@ -105,7 +106,11 @@ export class HistoryCommand extends SlashCommandHandler {
       interaction,
       pageSize: 1,
       callbacks: {
-        fetchPage: async (pageIndex) => (pages[pageIndex] ? [pages[pageIndex]] : []),
+        // Each bin was packed newest-first; reverse it for display so a page
+        // reads like a chat log — oldest case at the top, newest at the
+        // bottom — while page 1 still holds the most recent cases overall.
+        fetchPage: async (pageIndex) =>
+          pages[pageIndex] ? [[...pages[pageIndex]].reverse()] : [],
         getTotalCount: async () => pages.length,
         renderContainer: ([pageCases], state, navButtons) =>
           buildHistoryPageContainer(
