@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
   InteractionContextType,
+  MessageFlags,
   PermissionFlagsBits,
   PermissionsBitField,
   SlashCommandBuilder,
@@ -10,11 +11,19 @@ import type { Logger } from "pino";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
-import type { LinkAccountsService } from "../../application/LinkAccountsService";
+import type {
+  LinkAccountsService,
+  LinkTarget,
+} from "../../application/LinkAccountsService";
 import type { ListIdentitiesService } from "../../application/ListIdentitiesService";
 import type { SetNicknameService } from "../../application/SetNicknameService";
 import type { UnlinkAccountService } from "../../application/UnlinkAccountService";
 import type { ViewIdentityService } from "../../application/ViewIdentityService";
+import {
+  parseAccountTokens,
+  resolveAdditionalAccounts,
+  validateAccountTokens,
+} from "../AdditionalAccountsResolver";
 import {
   buildAltIdentityContainer,
   buildAltIdentityListContainer,
@@ -25,6 +34,8 @@ import {
 } from "../views";
 
 const LIST_PAGE_SIZE = 10;
+/** Stored per member row and re-rendered on every future view of the identity. */
+const REASON_MAX_LENGTH = 400;
 
 export class AltsCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -51,7 +62,19 @@ export class AltsCommand extends SlashCommandHandler {
             .setRequired(true),
         )
         .addStringOption((o) =>
-          o.setName("reason").setDescription("Optional reason.").setRequired(false),
+          o
+            .setName("additional_accounts")
+            .setDescription(
+              "More accounts: space or comma separated user IDs or mentions (25 total max).",
+            )
+            .setRequired(false),
+        )
+        .addStringOption((o) =>
+          o
+            .setName("reason")
+            .setDescription("Optional reason.")
+            .setRequired(false)
+            .setMaxLength(REASON_MAX_LENGTH),
         ),
     )
     .addSubcommand((c) =>
@@ -134,6 +157,7 @@ export class AltsCommand extends SlashCommandHandler {
   ): Promise<void> {
     const userA = interaction.options.getUser("account_1", true);
     const userB = interaction.options.getUser("account_2", true);
+    const additionalRaw = interaction.options.getString("additional_accounts");
     const reason = interaction.options.getString("reason");
 
     const log = this.logger.child({
@@ -143,32 +167,100 @@ export class AltsCommand extends SlashCommandHandler {
       executorId: interaction.user.id,
     });
 
-    const result = await this.linkAccountsService.link(
-      interaction.guildId,
-      { id: userA.id, isBot: userA.bot },
-      { id: userB.id, isBot: userB.bot },
-      interaction.user.id,
+    let additional: LinkTarget[] = [];
+    let invalidTokens: string[] = [];
+    let unresolvedIds: string[] = [];
+    let parsedUserIds: string[] = [];
+
+    // Parsing and validation happen before deferring so a bad list still gets
+    // an ephemeral error rather than a public one.
+    if (additionalRaw !== null) {
+      const parsed = parseAccountTokens(additionalRaw);
+      const valid = validateAccountTokens(parsed);
+
+      if (valid.err) {
+        log.info({ error: valid.val }, "Rejected /alts link");
+        await interaction.reply({
+          content: valid.val,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      invalidTokens = parsed.invalidTokens;
+      parsedUserIds = parsed.userIds;
+    }
+
+    // Only the extra-accounts path needs Discord fetches, so the two-account
+    // path keeps its immediate reply.
+    const deferred = parsedUserIds.length > 0;
+    if (deferred) {
+      await interaction.deferReply();
+
+      ({ targets: additional, unresolvedIds } = await resolveAdditionalAccounts(
+        interaction,
+        parsedUserIds,
+      ));
+    }
+
+    const result = await this.linkAccountsService.link({
+      guildId: interaction.guildId,
+      primary: [
+        { id: userA.id, isBot: userA.bot },
+        { id: userB.id, isBot: userB.bot },
+      ],
+      additional,
+      linkedBy: interaction.user.id,
       reason,
-    );
+    });
 
     if (result.err) {
       log.info({ error: result.val }, "Rejected /alts link");
-      await interaction.reply({
-        content: result.val,
-        ephemeral: true,
-      });
+      await this.respondError(interaction, deferred, result.val);
       return;
     }
 
-    log.info({ outcome: result.val.kind }, "Processed /alts link");
+    log.info(
+      {
+        identityCreated: result.val.identityCreated,
+        added: result.val.addedUserIds.length,
+        merged: result.val.mergedIdentityIds.length,
+      },
+      "Processed /alts link",
+    );
 
-    await interaction.reply({
-      components: [
-        buildLinkOutcomeContainer(result.val, userA.id, userB.id, reason),
-      ],
-      flags: ["IsComponentsV2"],
-      allowedMentions: { parse: [] },
+    const container = buildLinkOutcomeContainer(result.val, {
+      primaryUserIds: [userA.id, userB.id],
+      reason,
+      invalidTokens,
+      unresolvedIds,
     });
+
+    if (deferred) {
+      await interaction.editReply({
+        components: [container],
+        flags: ["IsComponentsV2"],
+        allowedMentions: { parse: [] },
+      });
+    } else {
+      await interaction.reply({
+        components: [container],
+        flags: ["IsComponentsV2"],
+        allowedMentions: { parse: [] },
+      });
+    }
+  }
+
+  private async respondError(
+    interaction: ChatInputCommandInteraction<"cached">,
+    deferred: boolean,
+    content: string,
+  ): Promise<void> {
+    if (deferred) {
+      await interaction.editReply({ content });
+    } else {
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    }
   }
 
   private async handleUnlink(

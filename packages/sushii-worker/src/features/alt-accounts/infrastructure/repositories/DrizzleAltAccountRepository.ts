@@ -14,7 +14,7 @@ import { AltIdentity } from "../../domain/entities/AltIdentity";
 import { AltIdentityMember } from "../../domain/entities/AltIdentityMember";
 import type {
   AltAccountRepository,
-  LinkOutcome,
+  MultiLinkOutcome,
   RemoveMemberOutcome,
 } from "../../domain/repositories/AltAccountRepository";
 import type { AltIdentitySummary, AltIdentityWithMembers } from "../../domain/types/AltIdentityWithMembers";
@@ -30,16 +30,21 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
     private readonly logger: Logger,
   ) {}
 
-  async link(
+  async linkMany(
     guildId: string,
-    userIdA: string,
-    userIdB: string,
+    userIds: string[],
     linkedBy: string,
     reason: string | null,
     tx?: DbType,
     retrying = false,
-  ): Promise<Result<LinkOutcome, string>> {
-    const doLink = async (activeTx: DbType): Promise<LinkOutcome> => {
+  ): Promise<Result<MultiLinkOutcome, string>> {
+    const distinctUserIds = [...new Set(userIds)];
+    if (distinctUserIds.length < 2) {
+      return Err("Linking requires at least two accounts.");
+    }
+    userIds = distinctUserIds;
+
+    const doLink = async (activeTx: DbType): Promise<MultiLinkOutcome> => {
       const guildIdBigInt = BigInt(guildId);
 
       const existingMembers = await activeTx
@@ -48,86 +53,97 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
         .where(
           and(
             eq(altIdentityMembersInAppPublic.guildId, guildIdBigInt),
-            inArray(altIdentityMembersInAppPublic.userId, [
-              BigInt(userIdA),
-              BigInt(userIdB),
-            ]),
+            inArray(
+              altIdentityMembersInAppPublic.userId,
+              userIds.map((id) => BigInt(id)),
+            ),
           ),
         );
 
-      const memberA = existingMembers.find(
-        (m) => m.userId === BigInt(userIdA),
+      const identityByUserId = new Map(
+        existingMembers.map((m) => [m.userId.toString(), m.identityId]),
       );
-      const memberB = existingMembers.find(
-        (m) => m.userId === BigInt(userIdB),
+      const identityIds = [...new Set(identityByUserId.values())].sort(
+        (a, b) => a - b,
       );
 
-      if (memberA && memberB) {
-        if (memberA.identityId === memberB.identityId) {
-          const identity = await this.loadIdentity(
+      const unlinkedUserIds = userIds.filter((id) => !identityByUserId.has(id));
+
+      let keepId: number;
+      let identityCreated = false;
+      let merge = {
+        mergedIdentityIds: [] as number[],
+        keptNickname: null as string | null,
+        adoptedNickname: null as string | null,
+        discardedNicknames: [] as string[],
+      };
+
+      if (identityIds.length === 0) {
+        const [newIdentityRow] = await activeTx
+          .insert(altIdentitiesInAppPublic)
+          .values({ guildId: guildIdBigInt })
+          .returning();
+
+        keepId = newIdentityRow.id;
+        identityCreated = true;
+      } else {
+        keepId = identityIds[0];
+
+        if (identityIds.length > 1) {
+          merge = await this.mergeIdentitiesInto(
             activeTx,
             guildId,
-            memberA.identityId,
+            keepId,
+            identityIds.slice(1),
           );
-          return { kind: "alreadyLinked", identity: identity! };
+        } else {
+          const [keepRow] = await activeTx
+            .select()
+            .from(altIdentitiesInAppPublic)
+            .where(
+              and(
+                eq(altIdentitiesInAppPublic.guildId, guildIdBigInt),
+                eq(altIdentitiesInAppPublic.id, keepId),
+              ),
+            )
+            .for("update");
+
+          if (!keepRow) {
+            throw new Error(
+              "Alt identity was concurrently modified during link, please retry",
+            );
+          }
+
+          merge.keptNickname = keepRow.nickname;
         }
+      }
 
-        return this.mergeIdentities(
-          activeTx,
-          guildId,
-          memberA.identityId,
-          memberB.identityId,
+      if (unlinkedUserIds.length > 0) {
+        await activeTx.insert(altIdentityMembersInAppPublic).values(
+          unlinkedUserIds.map((userId) => ({
+            identityId: keepId,
+            guildId: guildIdBigInt,
+            userId: BigInt(userId),
+            linkedBy: BigInt(linkedBy),
+            reason,
+          })),
         );
       }
 
-      if (memberA || memberB) {
-        const existing = (memberA || memberB)!;
-        const newUserId = memberA ? userIdB : userIdA;
-
-        await activeTx.insert(altIdentityMembersInAppPublic).values({
-          identityId: existing.identityId,
-          guildId: guildIdBigInt,
-          userId: BigInt(newUserId),
-          linkedBy: BigInt(linkedBy),
-          reason,
-        });
-
-        const identity = await this.loadIdentity(
-          activeTx,
-          guildId,
-          existing.identityId,
+      const identity = await this.loadIdentity(activeTx, guildId, keepId);
+      if (!identity) {
+        throw new Error(
+          "Alt identity was concurrently modified during link, please retry",
         );
-        return { kind: "added", identity: identity!, addedUserId: newUserId };
       }
 
-      const [newIdentityRow] = await activeTx
-        .insert(altIdentitiesInAppPublic)
-        .values({ guildId: guildIdBigInt })
-        .returning();
-
-      await activeTx.insert(altIdentityMembersInAppPublic).values([
-        {
-          identityId: newIdentityRow.id,
-          guildId: guildIdBigInt,
-          userId: BigInt(userIdA),
-          linkedBy: BigInt(linkedBy),
-          reason,
-        },
-        {
-          identityId: newIdentityRow.id,
-          guildId: guildIdBigInt,
-          userId: BigInt(userIdB),
-          linkedBy: BigInt(linkedBy),
-          reason,
-        },
-      ]);
-
-      const identity = await this.loadIdentity(
-        activeTx,
-        guildId,
-        newIdentityRow.id,
-      );
-      return { kind: "created", identity: identity! };
+      return {
+        identity,
+        identityCreated,
+        addedUserIds: unlinkedUserIds,
+        alreadyLinkedUserIds: userIds.filter((id) => identityByUserId.has(id)),
+        ...merge,
+      };
     };
 
     try {
@@ -137,65 +153,83 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
 
       return Ok(outcome);
     } catch (err) {
+      // A caller-owned transaction is already aborted by the failed statement,
+      // so recovery has to happen at the transaction owner, not here.
+      if (tx) {
+        throw err;
+      }
+
       if (this.isUniqueViolation(err)) {
         this.logger.debug(
-          { guildId, userIdA, userIdB },
+          { guildId, userIds },
           "Link race lost to a concurrent insert, re-reading committed state",
         );
 
-        const [reReadA, reReadB] = await Promise.all([
-          this.findIdentityByUserId(guildId, userIdA),
-          this.findIdentityByUserId(guildId, userIdB),
-        ]);
+        const reReads = await Promise.all(
+          userIds.map((userId) => this.findIdentityByUserId(guildId, userId)),
+        );
+
+        const identities = reReads.map((r) => (r.ok ? r.val : null));
+        const first = identities[0];
 
         if (
-          reReadA.ok &&
-          reReadB.ok &&
-          reReadA.val &&
-          reReadB.val &&
-          reReadA.val.identity.id === reReadB.val.identity.id
+          first &&
+          identities.every((i) => i && i.identity.id === first.identity.id)
         ) {
-          return Ok({ kind: "alreadyLinked", identity: reReadA.val });
+          return Ok({
+            identity: first,
+            identityCreated: false,
+            addedUserIds: [],
+            alreadyLinkedUserIds: userIds,
+            mergedIdentityIds: [],
+            keptNickname: first.identity.nickname,
+            adoptedNickname: null,
+            discardedNicknames: [],
+          });
         }
 
         if (!retrying) {
           this.logger.debug(
-            { guildId, userIdA, userIdB },
+            { guildId, userIds },
             "Link race did not resolve to a shared identity yet, retrying once",
           );
 
-          return this.link(
+          return this.linkMany(
             guildId,
-            userIdA,
-            userIdB,
+            userIds,
             linkedBy,
             reason,
-            tx,
+            undefined,
             true,
           );
         }
       }
 
-      this.logger.error(
-        { err, guildId, userIdA, userIdB },
-        "Failed to link accounts",
-      );
-      return Err(`Failed to link accounts: ${err}`);
+      this.logger.error({ err, guildId, userIds }, "Failed to link accounts");
+      return Err("Failed to link accounts, please try again.");
     }
   }
 
-  private async mergeIdentities(
+  /**
+   * Re-points every member of `discardIds` onto `keepId` and deletes the
+   * discarded identities. Callers pick `keepId` as the lowest involved id so
+   * concurrent merges of the same set agree on a survivor.
+   */
+  private async mergeIdentitiesInto(
     activeTx: DbType,
     guildId: string,
-    identityIdA: number,
-    identityIdB: number,
-  ): Promise<LinkOutcome> {
+    keepId: number,
+    discardIds: number[],
+  ): Promise<{
+    mergedIdentityIds: number[];
+    keptNickname: string | null;
+    adoptedNickname: string | null;
+    discardedNicknames: string[];
+  }> {
     const guildIdBigInt = BigInt(guildId);
 
-    // Deterministic keep/discard so concurrent merges of the same pair agree.
-    const keepId = Math.min(identityIdA, identityIdB);
-    const discardId = Math.max(identityIdA, identityIdB);
-
+    // Locked in ascending id order (keepId is the lowest) so concurrent merges
+    // of overlapping sets queue instead of deadlocking.
     const [keepRow] = await activeTx
       .select()
       .from(altIdentitiesInAppPublic)
@@ -204,18 +238,22 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
           eq(altIdentitiesInAppPublic.guildId, guildIdBigInt),
           eq(altIdentitiesInAppPublic.id, keepId),
         ),
-      );
-    const [discardRow] = await activeTx
+      )
+      .for("update");
+
+    const discardRows = await activeTx
       .select()
       .from(altIdentitiesInAppPublic)
       .where(
         and(
           eq(altIdentitiesInAppPublic.guildId, guildIdBigInt),
-          eq(altIdentitiesInAppPublic.id, discardId),
+          inArray(altIdentitiesInAppPublic.id, discardIds),
         ),
-      );
+      )
+      .orderBy(asc(altIdentitiesInAppPublic.id))
+      .for("update");
 
-    if (!keepRow || !discardRow) {
+    if (!keepRow || discardRows.length !== discardIds.length) {
       throw new Error(
         "Alt identity was concurrently modified during merge, please retry",
       );
@@ -227,17 +265,23 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
       .where(
         and(
           eq(altIdentityMembersInAppPublic.guildId, guildIdBigInt),
-          eq(altIdentityMembersInAppPublic.identityId, discardId),
+          inArray(altIdentityMembersInAppPublic.identityId, discardIds),
         ),
       );
 
-    const keptNickname = keepRow.nickname;
-    const discardedNickname = discardRow.nickname;
+    const discardedNicknames = discardRows
+      .map((row) => row.nickname)
+      .filter((nickname): nickname is string => Boolean(nickname));
 
-    if (!keptNickname && discardedNickname) {
+    const keptNickname = keepRow.nickname;
+    let adoptedNickname: string | null = null;
+
+    if (!keptNickname && discardedNicknames.length > 0) {
+      adoptedNickname = discardedNicknames.shift()!;
+
       await activeTx
         .update(altIdentitiesInAppPublic)
-        .set({ nickname: discardedNickname })
+        .set({ nickname: adoptedNickname })
         .where(
           and(
             eq(altIdentitiesInAppPublic.guildId, guildIdBigInt),
@@ -251,17 +295,15 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
       .where(
         and(
           eq(altIdentitiesInAppPublic.guildId, guildIdBigInt),
-          eq(altIdentitiesInAppPublic.id, discardId),
+          inArray(altIdentitiesInAppPublic.id, discardIds),
         ),
       );
 
-    const identity = await this.loadIdentity(activeTx, guildId, keepId);
-
     return {
-      kind: "merged",
-      identity: identity!,
+      mergedIdentityIds: discardIds,
       keptNickname,
-      discardedNickname,
+      adoptedNickname,
+      discardedNicknames,
     };
   }
 
@@ -514,7 +556,11 @@ export class DrizzleAltAccountRepository implements AltAccountRepository {
           eq(altIdentityMembersInAppPublic.identityId, identityId),
         ),
       )
-      .orderBy(asc(altIdentityMembersInAppPublic.linkedAt));
+      // Batch inserts share one defaultNow(), so linkedAt alone ties arbitrarily.
+      .orderBy(
+        asc(altIdentityMembersInAppPublic.linkedAt),
+        asc(altIdentityMembersInAppPublic.userId),
+      );
 
     return {
       identity: AltIdentity.fromData({

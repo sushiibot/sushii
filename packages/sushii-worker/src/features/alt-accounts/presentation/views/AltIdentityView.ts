@@ -13,24 +13,156 @@ import { quoteMarkdownString } from "@/utils/markdown";
 import type { AltIdentityWithMembers } from "../../domain/types/AltIdentityWithMembers";
 import { buildNicknameButtonId } from "../customIds";
 
-const MAX_RENDERED_MEMBERS = 20;
+/** Discord rejects a Text Display above this many characters. */
+const TEXT_DISPLAY_LIMIT = 4000;
+/** Absorbs the joining newlines and the trailing "+N more" line. */
+const BUDGET_SLACK = 64;
 
-function formatMemberLine(
-  member: AltIdentityWithMembers["members"][number],
-  highlightUserId?: string,
-): string {
-  const linkedTimestamp = dayjs.utc(member.linkedAt).unix();
-  const mention =
-    member.userId === highlightUserId
-      ? `**<@${member.userId}>**`
-      : `<@${member.userId}>`;
-  let line = `${mention} — linked by <@${member.linkedBy}> <t:${linkedTimestamp}:R>`;
+type Member = AltIdentityWithMembers["members"][number];
 
-  if (member.reason) {
-    line += `\n${quoteMarkdownString(member.reason)}`;
+interface MemberGroup {
+  linkedBy: string;
+  linkedAt: Date;
+  reason: string | null;
+  members: Member[];
+}
+
+function formatMention(userId: string, highlighted: ReadonlySet<string>): string {
+  return highlighted.has(userId) ? `**<@${userId}>**` : `<@${userId}>`;
+}
+
+/**
+ * Collapses consecutive members sharing a linker, timestamp, and reason into
+ * one group. A bulk link writes identical values for every new member, so it
+ * always renders as a single group rather than N near-identical lines.
+ */
+function groupMembers(members: Member[]): MemberGroup[] {
+  const groups: MemberGroup[] = [];
+
+  for (const member of members) {
+    const last = groups.at(-1);
+    const sameBatch =
+      last !== undefined &&
+      last.linkedBy === member.linkedBy &&
+      last.reason === member.reason &&
+      dayjs.utc(last.linkedAt).unix() === dayjs.utc(member.linkedAt).unix();
+
+    if (sameBatch) {
+      last.members.push(member);
+    } else {
+      groups.push({
+        linkedBy: member.linkedBy,
+        linkedAt: member.linkedAt,
+        reason: member.reason,
+        members: [member],
+      });
+    }
   }
 
-  return line;
+  return groups;
+}
+
+interface RenderedGroup {
+  text: string;
+  shownMembers: number;
+}
+
+/**
+ * Renders one group, dropping trailing mentions if the group alone would
+ * exceed `budget`. Returns null when even the header doesn't fit.
+ */
+function formatGroup(
+  group: MemberGroup,
+  highlighted: ReadonlySet<string>,
+  budget: number,
+): RenderedGroup | null {
+  const timestamp = `<t:${dayjs.utc(group.linkedAt).unix()}:R>`;
+  const reasonLine = group.reason
+    ? `\n${quoteMarkdownString(group.reason)}`
+    : "";
+
+  // A lone member reads better on one line than as a header plus a list.
+  if (group.members.length === 1) {
+    const mention = formatMention(group.members[0].userId, highlighted);
+    const text = `${mention} — linked by <@${group.linkedBy}> ${timestamp}${reasonLine}`;
+
+    return text.length <= budget ? { text, shownMembers: 1 } : null;
+  }
+
+  const header = `Linked by <@${group.linkedBy}> ${timestamp}\n`;
+  const available = budget - header.length - reasonLine.length;
+
+  const mentions: string[] = [];
+  let used = 0;
+
+  for (const member of group.members) {
+    const mention = formatMention(member.userId, highlighted);
+    const cost = mentions.length === 0 ? mention.length : mention.length + 2;
+
+    if (used + cost > available) {
+      break;
+    }
+
+    mentions.push(mention);
+    used += cost;
+  }
+
+  if (mentions.length === 0) {
+    return null;
+  }
+
+  // Members dropped here are covered by the trailing "+N more" line.
+  return {
+    text: `${header}${mentions.join(", ")}${reasonLine}`,
+    shownMembers: mentions.length,
+  };
+}
+
+/**
+ * Renders groups in order until the character budget runs out. Groups holding
+ * highlighted members are always rendered — otherwise the accounts a `/alts
+ * link` just added could fall past the cut on a large identity.
+ */
+function renderGroups(
+  groups: MemberGroup[],
+  highlighted: ReadonlySet<string>,
+  totalMembers: number,
+  budget: number,
+): string {
+  const rendered = new Map<number, string>();
+  let used = 0;
+  let shownMembers = 0;
+
+  const take = (index: number): void => {
+    if (rendered.has(index)) {
+      return;
+    }
+
+    const group = formatGroup(groups[index], highlighted, budget - used);
+    if (!group) {
+      return;
+    }
+
+    rendered.set(index, group.text);
+    used += group.text.length + 1;
+    shownMembers += group.shownMembers;
+  };
+
+  groups.forEach((group, index) => {
+    if (group.members.some((member) => highlighted.has(member.userId))) {
+      take(index);
+    }
+  });
+
+  groups.forEach((_, index) => take(index));
+
+  const lines = [...rendered.keys()].sort((a, b) => a - b).map((index) => rendered.get(index)!);
+
+  if (shownMembers < totalMembers) {
+    lines.push(`*+${totalMembers - shownMembers} more*`);
+  }
+
+  return lines.join("\n");
 }
 
 export interface AltIdentityContainerOptions {
@@ -38,44 +170,62 @@ export interface AltIdentityContainerOptions {
   /** Extra line(s) shown above the member list, e.g. what a `/alts link` call just did. */
   note?: string;
   color?: Color;
-  /** Marks one member's line, e.g. the account just added by `/alts link`. */
-  highlightUserId?: string;
+  /** Members bolded in the list, e.g. the accounts just added by `/alts link`. */
+  highlightUserIds?: readonly string[];
 }
 
 /**
  * Builds the identity container shared by `/alts view` and `/alts link`:
- * nickname, optional note, capped member list, and a nickname edit button
+ * nickname, optional note, grouped member list, and a nickname edit button
  * accessory.
  */
 export function buildAltIdentityContainer(
   identity: AltIdentityWithMembers,
   options: AltIdentityContainerOptions = {},
 ): ContainerBuilder {
-  const { isDisabled = false, note, color = Color.Success, highlightUserId } =
-    options;
+  const {
+    isDisabled = false,
+    note,
+    color = Color.Success,
+    highlightUserIds = [],
+  } = options;
   const { identity: identityEntity, members } = identity;
 
   const title = identityEntity.nickname
     ? `## ${identityEntity.nickname}`
     : "## Linked Identity";
 
-  const memberLines = members
-    .slice(0, MAX_RENDERED_MEMBERS)
-    .map((member) => formatMemberLine(member, highlightUserId));
-
-  if (members.length > MAX_RENDERED_MEMBERS) {
-    memberLines.push(`*+${members.length - MAX_RENDERED_MEMBERS} more*`);
-  }
-
   const historyFooter =
     members.length > 1
       ? "-# Run `/history` on any account above to see all of them combined."
       : null;
 
+  // The member list gets whatever the surrounding text doesn't need, so a long
+  // note or reason shrinks the list instead of overflowing the whole component.
+  const memberBudget = Math.max(
+    0,
+    TEXT_DISPLAY_LIMIT -
+      title.length -
+      (note?.length ?? 0) -
+      (historyFooter?.length ?? 0) -
+      BUDGET_SLACK,
+  );
+
+  const memberText = renderGroups(
+    groupMembers(members),
+    new Set(highlightUserIds),
+    members.length,
+    memberBudget,
+  );
+
+  const content = [title, note, memberText, historyFooter]
+    .filter(Boolean)
+    .join("\n");
+
   const headerText = new TextDisplayBuilder().setContent(
-    [title, note, memberLines.join("\n"), historyFooter]
-      .filter(Boolean)
-      .join("\n"),
+    content.length > TEXT_DISPLAY_LIMIT
+      ? content.slice(0, TEXT_DISPLAY_LIMIT - 1) + "…"
+      : content,
   );
 
   const nicknameButton = new ButtonBuilder()

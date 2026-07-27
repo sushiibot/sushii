@@ -6,40 +6,57 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { AltIdentitySummary, AltIdentityWithMembers } from "../types/AltIdentityWithMembers";
 
 /**
- * Outcome of a `/alts link` call — the four cases, each carrying the
- * identity state to render back to the mod.
+ * Outcome of a `/alts link` call. Flat rather than a union: one call can
+ * create nothing, add some accounts, merge several identities, and no-op on
+ * the rest all at once, so there is no single "kind".
  */
-export type LinkOutcome =
-  | { kind: "created"; identity: AltIdentityWithMembers }
-  | { kind: "added"; identity: AltIdentityWithMembers; addedUserId: string }
-  | { kind: "alreadyLinked"; identity: AltIdentityWithMembers }
-  | {
-      kind: "merged";
-      identity: AltIdentityWithMembers;
-      /** Nickname on the identity that was kept, before the merge, if any. */
-      keptNickname: string | null;
-      /** Nickname on the identity that was discarded, if any. */
-      discardedNickname: string | null;
-    };
+export interface MultiLinkOutcome {
+  /** The surviving identity with every member, after all writes. */
+  identity: AltIdentityWithMembers;
+  /** True when no input account had an identity and a fresh one was created. */
+  identityCreated: boolean;
+  /** Input accounts newly inserted as members, in input order. */
+  addedUserIds: string[];
+  /** Input accounts that already had an identity, so no row was inserted. */
+  alreadyLinkedUserIds: string[];
+  /** Identities absorbed into the survivor, ascending. Empty when no merge. */
+  mergedIdentityIds: number[];
+  /** Nickname the surviving identity already had, if any. */
+  keptNickname: string | null;
+  /**
+   * Nickname taken from a merged-in identity because the survivor had none.
+   * Mutually exclusive with `keptNickname`.
+   */
+  adoptedNickname: string | null;
+  /** Non-null nicknames dropped by the merge, in discarded-identity id order. */
+  discardedNicknames: string[];
+}
 
 export type RemoveMemberOutcome =
   | { kind: "notLinked" }
   | { kind: "removed"; identityDeleted: boolean };
 
 /**
- * Repository for alt-identity linking. `link()` is the primary entry point
+ * Repository for alt-identity linking. `linkMany()` is the primary entry point
  * for creating/growing/merging identities — it performs the whole
  * read-decide-write sequence in one DB transaction.
  */
 export interface AltAccountRepository {
-  link(
+  /**
+   * Links accounts into a single identity, creating, growing, and merging as
+   * needed. `userIds` must be deduplicated and hold at least two entries.
+   *
+   * When `tx` is supplied the caller owns the transaction, so the internal
+   * unique-violation retry is skipped and the error propagates instead — a
+   * failed statement has already aborted the caller's transaction.
+   */
+  linkMany(
     guildId: string,
-    userIdA: string,
-    userIdB: string,
+    userIds: string[],
     linkedBy: string,
     reason: string | null,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<LinkOutcome, string>>;
+  ): Promise<Result<MultiLinkOutcome, string>>;
 
   findIdentityByUserId(
     guildId: string,

@@ -20,7 +20,7 @@ describe("SetNicknameService", () => {
 
   beforeEach(() => {
     mockRepository = {
-      link: mock(() => {
+      linkMany: mock(() => {
         throw new Error("not used");
       }),
       findIdentityByUserId: mock(() => Promise.resolve(Ok(makeIdentity(null)))),
