@@ -50,7 +50,7 @@ export const addLookupTabContent: ModViewTabContentBuilder = (
     addStateLine(
       container,
       "No cross-server bans found",
-      "Includes bans from servers that haven't opted into sharing details, so this isn't the same as some being hidden.",
+      "Searched all servers, including anonymous (non-sharing) ones.",
     );
     return;
   }
