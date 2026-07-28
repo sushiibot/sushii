@@ -4,6 +4,7 @@ import {
   ApplicationIntegrationType,
   ContextMenuCommandBuilder,
   InteractionContextType,
+  MessageFlags,
 } from "discord.js";
 import type { Logger } from "pino";
 
@@ -15,7 +16,10 @@ import { createUserInfoEmbed } from "../views/UserInfoView";
 /**
  * The always-visible counterpart to `/userinfo` and Mod View's moderator
  * branch — right-click account info for everyone, guild-optional like
- * `UserInfoCommand`, so it stays usable in DMs.
+ * `UserInfoCommand`, so it stays usable in DMs. Ephemeral, unlike
+ * `/userinfo`: a context menu click has none of a slash command's typing
+ * friction, so a public reply here would let anyone spam embeds into a
+ * channel by right-clicking repeatedly.
  */
 export class UserInfoContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
@@ -80,6 +84,6 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
       globalLevelResult.status === "fulfilled" ? globalLevelResult.value : null,
     );
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 }
