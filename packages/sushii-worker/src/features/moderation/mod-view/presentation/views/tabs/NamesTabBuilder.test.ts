@@ -130,7 +130,7 @@ const OLDEST = new Date("2024-01-01T00:00:00.000Z");
 const MIDDLE = new Date("2024-06-01T00:00:00.000Z");
 const NEWEST = new Date("2024-12-01T00:00:00.000Z");
 
-describe("NamesTabBuilder — 7.8 current-value marking", () => {
+describe("NamesTabBuilder — current-value marking", () => {
   it("marks the recorded row matching the live nickname as current", () => {
     const history = [
       makeNicknameEntry("NewNick", NEWEST),
@@ -189,10 +189,19 @@ describe("NamesTabBuilder — 7.8 current-value marking", () => {
 });
 
 describe("NamesTabBuilder — singular/plural counts", () => {
-  it("uses the singular noun in the scope block when there is exactly one name change", () => {
-    // No nickname history and a null live nickname keep the Nickname group
-    // empty; the live (non-null) username still synthesizes exactly one row.
+  // The scope block counts actually-recorded changes only — never the
+  // synthesized "unobserved live value" row buildRows inserts when a live
+  // value has no matching history, so this stays 0 even though the live
+  // (non-null) username still renders a synthesized current row below.
+  it("uses the plural noun in the scope block when there are zero recorded name changes", () => {
     const texts = render([], null);
+
+    expect(texts[0]).toBe("-# 0 name changes");
+  });
+
+  it("uses the singular noun in the scope block when there is exactly one recorded name change", () => {
+    const history = [makeNicknameEntry("SomeNick", OLDEST)];
+    const texts = render(history, null);
 
     expect(texts[0]).toBe("-# 1 name change");
   });

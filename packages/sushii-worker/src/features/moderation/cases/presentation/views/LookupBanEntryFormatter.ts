@@ -59,7 +59,7 @@ export function formatBanEntry(
  * Get guild feature badges based on Discord guild features.
  * Returns badges with trailing space if any exist, empty string otherwise.
  */
-export function getGuildBadges(guildFeatures: string[]): string {
+function getGuildBadges(guildFeatures: string[]): string {
   const badges: string[] = [];
 
   if (guildFeatures.includes("VERIFIED")) {
@@ -80,6 +80,6 @@ export function getGuildBadges(guildFeatures: string[]): string {
 /**
  * Escape markdown special characters to prevent formatting issues.
  */
-export function escapeMarkdown(text: string): string {
+function escapeMarkdown(text: string): string {
   return text.replace(/([*_`~|\\])/g, "\\$1");
 }

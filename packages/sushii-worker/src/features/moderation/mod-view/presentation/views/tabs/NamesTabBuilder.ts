@@ -2,6 +2,7 @@ import { TextDisplayBuilder } from "discord.js";
 
 import {
   buildNameGroupLines,
+  countRecordedNameChanges,
   formatNameValue,
   formatUsernameValue,
   groupNameHistory,
@@ -12,8 +13,8 @@ import { countWithNoun } from "@/shared/presentation/pluralize";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import {
   addOverflowLine,
-  addScopeBlock,
   addStateLine,
+  addSubtextBlock,
 } from "../components/ModViewChrome";
 
 const NAME_CHANGE_NOUN = "name change";
@@ -44,8 +45,9 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
     return;
   }
 
+  const nameHistoryGroups = groupNameHistory(names, options.guildId);
   const { usernameEntries, globalNameEntries, nicknameEntries } =
-    groupNameHistory(names, options.guildId);
+    nameHistoryGroups;
 
   const groups = [
     buildNameGroupLines(
@@ -71,7 +73,11 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
   const total = groups.reduce((sum, g) => sum + g.entryLines.length, 0);
   const hasRecordedRow = groups.some((g) => g.hasRecordedRow);
 
-  addScopeBlock(container, countWithNoun(total, NAME_CHANGE_NOUN));
+  // `total` also counts synthesized "unobserved live value" rows below (see
+  // `buildRows`) — the scope count states only changes actually observed, so
+  // it can disagree with `total` and doesn't drive the packing budget above.
+  const recordedCount = countRecordedNameChanges(nameHistoryGroups);
+  addSubtextBlock(container, countWithNoun(recordedCount, NAME_CHANGE_NOUN));
 
   const flat: FlatRow[] = [];
   groups.forEach((group, groupIndex) => {
@@ -80,9 +86,7 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
     }
   });
 
-  const packed = packItems(flat, (row) => row.text, {
-    noun: NAME_CHANGE_NOUN,
-  });
+  const packed = packItems(flat, (row) => row.text);
   const shownPrefix = flat.slice(0, packed.shown);
 
   const blocks: string[] = [];
@@ -104,7 +108,7 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
     new TextDisplayBuilder().setContent(blocks.join("\n")),
   );
 
-  if (packed.overflowLine) {
+  if (packed.shown < total) {
     addOverflowLine(container, total - packed.shown, NAME_CHANGE_NOUN);
   }
 
@@ -112,7 +116,7 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
   // observed) — the groups above still show what we know, but flag that
   // nothing was recorded rather than let the synthesized rows read as history.
   if (!hasRecordedRow) {
-    addScopeBlock(
+    addSubtextBlock(
       container,
       "Name history accumulates from changes observed after tracking began.",
     );

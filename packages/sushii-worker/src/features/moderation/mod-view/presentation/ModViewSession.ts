@@ -4,8 +4,8 @@ import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
   ContainerBuilder,
-  Guild,
   GuildMember,
+  Message,
   ModalSubmitInteraction,
   User,
   UserContextMenuCommandInteraction,
@@ -22,17 +22,14 @@ import type { Logger } from "pino";
 
 import { NICKNAME_MAX_LENGTH } from "@/features/alt-accounts/application/SetNicknameService";
 import type { SetNicknameService } from "@/features/alt-accounts/application/SetNicknameService";
-import type { BotEmojiRepository, EmojiMap } from "@/features/bot-emojis";
+import type { EmojiMap } from "@/features/bot-emojis";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
-import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
-import type {
-  ModViewResult,
-  ModViewService,
-} from "../application/ModViewService";
+import type { ModViewResult } from "../application/ModViewService";
 import { MODVIEW_CUSTOM_IDS } from "./customIds";
 import {
   MODVIEW_IDLE_TIMEOUT_MS,
@@ -46,13 +43,6 @@ import { chunkLookupBans } from "./views/tabs/LookupTabBuilder";
 export type ModViewEntryInteraction =
   | ChatInputCommandInteraction<"cached">
   | UserContextMenuCommandInteraction<"cached">;
-
-export interface ModViewDependencies {
-  modViewService: ModViewService;
-  emojiRepository: BotEmojiRepository;
-  setNicknameService: SetNicknameService;
-  logger: Logger;
-}
 
 /**
  * Kept under the collector's idle window so a modal left open can never
@@ -140,7 +130,16 @@ export class ModViewSession {
       ? await this.paginator.renderCurrentPage()
       : this.renderScreen({ disabled: false });
 
-    const msg = await this.interaction.reply(initialReply);
+    // `msg.edit()` on the `InteractionResponse` returned by `reply()` would
+    // delegate to `editReply`, which uses the original interaction's webhook
+    // token — Discord expires that 15 minutes after the interaction, well
+    // within the collector's idle window. Fetching the concrete message and
+    // editing it directly uses the bot token instead, which never expires.
+    const response = await this.interaction.reply(initialReply);
+    // `InteractionResponse#fetch()` is typed as `Promise<Message>` regardless
+    // of the interaction's own cache guarantee — `this.interaction` is
+    // guild-cached, so the fetched message is too.
+    const msg = (await response.fetch()) as Message<true>;
 
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -168,6 +167,27 @@ export class ModViewSession {
           { err, customId: i.customId, targetId: this.targetUser.id },
           "Failed to handle mod view interaction",
         );
+
+        // Defence-in-depth: acknowledge so the click doesn't sit unanswered
+        // for 3s and surface "This interaction failed". Not reachable by any
+        // known path today — `showModal` already marks the interaction
+        // replied, so this can't cover a throw from the modal flow.
+        try {
+          if (!i.replied && !i.deferred) {
+            await i.reply(
+              getErrorMessage(
+                "Failed to handle mod view interaction",
+                "Something went wrong. Try again.",
+                true,
+              ),
+            );
+          }
+        } catch (ackErr) {
+          this.logger.error(
+            { err: ackErr, customId: i.customId, targetId: this.targetUser.id },
+            "Failed to acknowledge mod view interaction after error",
+          );
+        }
       }
     });
 
@@ -309,7 +329,7 @@ export class ModViewSession {
 
     if (!result.ok) {
       await submission.reply(
-        getErrorMessage("Failed to set identity name", result.val),
+        getErrorMessage("Failed to set identity name", result.val, true),
       );
       return;
     }
@@ -352,23 +372,16 @@ export class ModViewSession {
       this.includeAlts,
     );
 
-    return new ComponentsV2Paginator<ModerationCase[]>({
-      interaction: i,
-      // Each page is one pre-packed bin, already oldest-at-top within itself.
-      pageSize: 1,
-      logger: this.logger,
-      callbacks: {
-        fetchPage: async (pageIndex) =>
-          pages[pageIndex] ? [pages[pageIndex]] : [],
-        getTotalCount: async () => pages.length,
-        renderContainer: ([pageCases], state, navButtons) =>
-          this.renderContainer({
-            disabled: state.isDisabled,
-            navButtons,
-            historyPageCases: pageCases ?? [],
-          }),
-      },
-    });
+    return this.createBinPaginator(
+      i,
+      pages,
+      (pageCases, navButtons, disabled) =>
+        this.renderContainer({
+          disabled,
+          navButtons,
+          historyPageCases: pageCases ?? [],
+        }),
+    );
   }
 
   private createLookupPaginator(
@@ -384,7 +397,32 @@ export class ModViewSession {
       lookup.currentGuildLookupOptIn,
     );
 
-    return new ComponentsV2Paginator<UserLookupBan[]>({
+    return this.createBinPaginator(i, pages, (pageBans, navButtons, disabled) =>
+      this.renderContainer({
+        disabled,
+        navButtons,
+        lookupPageBans: pageBans ?? [],
+      }),
+    );
+  }
+
+  /**
+   * Both mod-view paginators serve pre-packed "bins" — one page per array
+   * entry — rather than slicing a flat list, so `pageSize: 1` and the
+   * fetch/count callbacks are identical; only the container render differs.
+   * `Bin` is the whole-page type (e.g. `ModerationCase[]`), matching
+   * `ComponentsV2Paginator`'s own "one item per page" generic.
+   */
+  private createBinPaginator<Bin>(
+    i: ModViewPaginatorSource,
+    pages: Bin[],
+    toContainer: (
+      page: Bin | undefined,
+      navButtons: ActionRowBuilder<ButtonBuilder> | null,
+      disabled: boolean,
+    ) => ContainerBuilder,
+  ): ComponentsV2Paginator<Bin> {
+    return new ComponentsV2Paginator<Bin>({
       interaction: i,
       pageSize: 1,
       logger: this.logger,
@@ -392,12 +430,8 @@ export class ModViewSession {
         fetchPage: async (pageIndex) =>
           pages[pageIndex] ? [pages[pageIndex]] : [],
         getTotalCount: async () => pages.length,
-        renderContainer: ([pageBans], state, navButtons) =>
-          this.renderContainer({
-            disabled: state.isDisabled,
-            navButtons,
-            lookupPageBans: pageBans ?? [],
-          }),
+        renderContainer: ([page], state, navButtons) =>
+          toContainer(page, navButtons, state.isDisabled),
       },
     });
   }
@@ -450,109 +484,4 @@ interface RenderOptions {
   navButtons?: ActionRowBuilder<ButtonBuilder> | null;
   historyPageCases?: ModerationCase[];
   lookupPageBans?: UserLookupBan[];
-}
-
-/**
- * Resolves the target's member once at entry. Held for the session rather
- * than re-fetched per tab: a `ButtonInteraction` cannot re-resolve it, and a
- * fetch per navigation adds a fallible round-trip to every click.
- */
-export async function fetchTargetMember(
-  guild: Guild,
-  userId: string,
-  logger: Logger,
-): Promise<GuildMember | null> {
-  try {
-    return await guild.members.fetch(userId);
-  } catch (err) {
-    logger.debug({ err, userId }, "Mod view target is not a guild member");
-    return null;
-  }
-}
-
-/**
- * Loads the view's data and opens the session. Throws on infrastructure
- * failure — the entry points catch and respond, per the layering rule that
- * only presentation handles a throw.
- */
-export async function openModView(
-  interaction: ModViewEntryInteraction,
-  targetUser: User,
-  deps: ModViewDependencies,
-  initialTab: ModViewTab = "overview",
-): Promise<void> {
-  const member = await fetchTargetMember(
-    interaction.guild,
-    targetUser.id,
-    deps.logger,
-  );
-
-  const result = await deps.modViewService.getModView(
-    interaction.guildId,
-    targetUser.id,
-    member,
-  );
-
-  if (!result.ok) {
-    await interaction.reply(
-      getErrorMessage("Failed to open mod view", result.val),
-    );
-    return;
-  }
-
-  const emojis = await deps.emojiRepository.getEmojis(HISTORY_ACTION_EMOJIS);
-
-  const session = new ModViewSession(
-    interaction,
-    result.val,
-    targetUser,
-    member,
-    emojis,
-    deps.setNicknameService,
-    deps.logger,
-    initialTab,
-  );
-
-  await session.start();
-}
-
-/** Single error response for a thrown failure, at whichever stage it happened. */
-export async function respondWithModViewError(
-  interaction: ModViewEntryInteraction,
-  description: string,
-): Promise<void> {
-  const message = getErrorMessage("Failed to open mod view", description);
-
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(message);
-    return;
-  }
-
-  await interaction.reply(message);
-}
-
-/**
- * Shared entry-point wrapper for every deep-linking command: opens the view
- * on the given tab and converts a thrown infrastructure error into a reply,
- * per the layering rule that only presentation handles a throw.
- */
-export async function openModViewOrReportError(
-  interaction: ModViewEntryInteraction,
-  targetUser: User,
-  deps: ModViewDependencies,
-  initialTab: ModViewTab,
-  log: Logger,
-): Promise<void> {
-  try {
-    await openModView(interaction, targetUser, deps, initialTab);
-  } catch (err) {
-    log.error(
-      { err, guildId: interaction.guildId, targetId: targetUser.id },
-      "Failed to open mod view",
-    );
-    await respondWithModViewError(
-      interaction,
-      "Something went wrong loading this user's moderation data.",
-    );
-  }
 }

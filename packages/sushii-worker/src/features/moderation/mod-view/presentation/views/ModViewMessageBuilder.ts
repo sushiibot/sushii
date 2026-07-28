@@ -26,6 +26,11 @@ import { addLookupTabContent } from "./tabs/LookupTabBuilder";
 import { addNamesTabContent } from "./tabs/NamesTabBuilder";
 import { addOverviewTabContent } from "./tabs/OverviewTabBuilder";
 
+/** Idle window before the collector ends and the view renders disabled. */
+export const MODVIEW_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+const MODVIEW_EXPIRED_FOOTER = `-# Session expired after ${MODVIEW_IDLE_TIMEOUT_MS / 60_000} minutes of inactivity. Re-run the command.`;
+
 /**
  * Everything a tab content builder needs. Shared across all five tabs rather
  * than one shape per tab (mirrors `SettingsMessageOptions` /
@@ -33,20 +38,14 @@ import { addOverviewTabContent } from "./tabs/OverviewTabBuilder";
  * `createModViewMessage` can switch on `activeTab` without importing a
  * different options type per case.
  *
- * `data` is the full, once-resolved `ModViewResult` (design D4/D9 — no
- * per-tab re-fetch). Per-tab transient UI state (history page slice, alt
- * filter toggle, names/lookup page) is expected to grow here as tab builders
- * land; TODOs below mark where.
+ * `data` is the full, once-resolved `ModViewResult` — no per-tab re-fetch.
+ * Per-tab transient UI state (history page slice, alt filter toggle,
+ * names/lookup page) lives in the optional fields below.
  */
-/** Idle window before the collector ends and the view renders disabled. */
-export const MODVIEW_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-
-const MODVIEW_EXPIRED_FOOTER = `-# Session expired after ${MODVIEW_IDLE_TIMEOUT_MS / 60_000} minutes of inactivity. Re-run the command.`;
-
 export interface ModViewTabContentOptions {
   data: ModViewResult;
   disabled: boolean;
-  /** The target user — Names needs the live `globalName` to mark "· current" entries (D4: `UserInfo` deliberately omits it). */
+  /** The target user — Names needs the live `globalName` to mark "· current" entries (`UserInfo` deliberately omits it). */
   user: User;
   /** The target's member in this guild, if present — Names needs the live nickname for the same reason. */
   member: GuildMember | null;
@@ -55,7 +54,7 @@ export interface ModViewTabContentOptions {
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>;
   /** History's current page slice, oldest-at-top. Defaults to `buildHistoryTabPages`' first page when omitted. */
   historyPageCases?: ModerationCase[];
-  /** Design D11: defaults to `true` — all linked accounts shown. */
+  /** Defaults to `true` — all linked accounts shown. */
   includeAlts?: boolean;
   /** Lookup's current page slice. Defaults to `chunkLookupBans`' first page when omitted. */
   lookupPageBans?: UserLookupBan[];
@@ -73,17 +72,17 @@ export interface ModViewMessageOptions {
   activeTab: ModViewTab;
   disabled: boolean;
   tabContentOptions: ModViewTabContentOptions;
-  /** Non-null only for the paginated tabs (History, Lookup) once they exist. */
+  /** Non-null only for the paginated tabs (History, Lookup). */
   navButtons?: ActionRowBuilder<ButtonBuilder> | null;
 }
 
 /**
- * Builds one Mod View screen: chrome first (D2 — header then tab row, no
+ * Builds one Mod View screen: chrome first (header then tab row, no
  * separators around them), then the active tab's content, then the
  * paginator row or expiry footer.
  *
- * Called both for the initial reply and, per D3, from inside a paginated
- * tab's `renderContainer` callback — never call `ComponentsV2Paginator.start()`
+ * Called both for the initial reply and from inside a paginated tab's
+ * `renderContainer` callback — never call `ComponentsV2Paginator.start()`
  * from the mod-view collector, it double-replies (the view has already
  * replied by the time a tab is opened).
  */

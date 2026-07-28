@@ -1,7 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 

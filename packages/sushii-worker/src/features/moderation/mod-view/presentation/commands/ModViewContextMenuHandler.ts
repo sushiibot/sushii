@@ -14,8 +14,8 @@ import type { UserLevelRepository } from "@/features/leveling/domain/repositorie
 import { createUserInfoEmbed } from "@/features/user-profile/presentation/views/UserInfoView";
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
-import type { ModViewDependencies } from "../ModViewSession";
-import { openModView, respondWithModViewError } from "../ModViewSession";
+import type { ModViewDependencies } from "../ModViewEntry";
+import { openModViewOrReportError } from "../ModViewEntry";
 
 /**
  * No `setDefaultMemberPermissions`: the entry has to stay in every member's
@@ -46,29 +46,18 @@ export class ModViewContextMenuHandler extends ContextMenuHandler {
     }
 
     const { targetUser } = interaction;
-    const log = this.deps.logger.child({
-      guildId: interaction.guildId,
-      targetId: targetUser.id,
-      executorId: interaction.user.id,
-    });
 
     if (!interaction.memberPermissions.has(PermissionFlagsBits.BanMembers)) {
       await this.replyBasicInfo(interaction);
       return;
     }
 
-    try {
-      await openModView(interaction, targetUser, this.deps);
-    } catch (err) {
-      log.error(
-        { err, guildId: interaction.guildId, targetId: targetUser.id },
-        "Failed to open mod view",
-      );
-      await respondWithModViewError(
-        interaction,
-        "Something went wrong loading this user's moderation data.",
-      );
-    }
+    await openModViewOrReportError(
+      interaction,
+      targetUser,
+      this.deps,
+      "overview",
+    );
   }
 
   /**

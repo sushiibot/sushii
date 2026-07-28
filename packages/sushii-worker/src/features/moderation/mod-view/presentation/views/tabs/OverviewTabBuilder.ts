@@ -1,18 +1,21 @@
 import type { ContainerBuilder } from "discord.js";
 import { TextDisplayBuilder } from "discord.js";
 
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { formatModerationCase } from "@/features/moderation/cases/presentation/views/HistoryView";
 import {
-  formatActionTypeAsSentence,
-  getActionTypeBotEmoji,
-} from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+  countRecordedNameChanges,
+  groupNameHistory,
+} from "@/features/moderation/cases/presentation/views/UserNamesView";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { countWithNoun } from "@/shared/presentation/pluralize";
-import { quoteMarkdownString } from "@/utils/markdown";
-import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
-import { addScopeBlock, addSummaryRow } from "../components/ModViewChrome";
+import {
+  FIELD_SEPARATOR,
+  addSubtextBlock,
+  addSummaryRow,
+} from "../components/ModViewChrome";
 
 /**
  * Singular noun per type, in `ActionType`'s own declaration order — the
@@ -47,14 +50,14 @@ function formatBreakdown(
     ([type]) => (counts.get(type) ?? 0) > 0,
   ).map(([type, noun]) => countWithNoun(counts.get(type) ?? 0, noun));
 
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return parts.length > 0 ? parts.join(FIELD_SEPARATOR) : null;
 }
 
 export const addOverviewTabContent: ModViewTabContentBuilder = (
   container: ContainerBuilder,
   options,
 ): void => {
-  const { data, emojis } = options;
+  const { data, emojis, guildId } = options;
   const { history, identity, names, lookup, userInfo } = data;
 
   const historyCount = history.totalCases;
@@ -71,7 +74,7 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
 
   const breakdown = formatBreakdown(history.moderationHistory);
   if (breakdown) {
-    addScopeBlock(container, breakdown);
+    addSubtextBlock(container, breakdown);
   }
 
   const altsCount = identity ? identity.members.length : 0;
@@ -83,7 +86,12 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     altsCount === 0,
   );
 
-  const namesCount = names.history.length;
+  // Recorded-only, scoped to this guild — the same definition the Names tab
+  // itself states, never `names.history.length` raw: that field spans every
+  // guild the bot shares with this user (see `NamesUserService.getNames`), so
+  // counting it here would leak the user's nickname activity in other guilds
+  // and disagree with what the Names tab actually shows.
+  const namesCount = countRecordedNameChanges(groupNameHistory(names, guildId));
   addSummaryRow(
     container,
     "Names",
@@ -105,7 +113,7 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     lookupCount === null ? false : lookupCount === 0,
   );
 
-  // 4.10a: the exception to the entry-list empty-state rule — this statement
+  // The exception to the entry-list empty-state rule — this statement
   // renders alongside the rows above, never in place of them, so it is built
   // inline here rather than via the shared state-line helper.
   if (historyCount === 0 && altsCount === 0 && namesCount === 0) {
@@ -118,33 +126,16 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
 
   const mostRecentCase = history.moderationHistory.at(-1);
   if (mostRecentCase) {
-    addScopeBlock(container, "Most recent case");
-
-    const emoji = emojis[getActionTypeBotEmoji(mostRecentCase.actionType)];
-    const lines = [
-      `\`#${mostRecentCase.caseId}\``,
-      `${emoji} **${formatActionTypeAsSentence(mostRecentCase.actionType)}**`,
-    ];
-
-    if (mostRecentCase.userId !== userInfo.id) {
-      lines.push(`on <@${mostRecentCase.userId}>`);
-    }
-
-    if (mostRecentCase.executorId) {
-      lines.push(`by <@${mostRecentCase.executorId}>`);
-    }
-
-    lines.push(
-      `<t:${timestampToUnixTime(mostRecentCase.actionTime.getTime())}:R>`,
-    );
-
-    let content = lines.join(" · ");
-    if (mostRecentCase.reason) {
-      content += `\n${quoteMarkdownString(mostRecentCase.reason.value)}`;
-    }
+    addSubtextBlock(container, "Most recent case");
 
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(content),
+      new TextDisplayBuilder().setContent(
+        formatModerationCase(
+          mostRecentCase,
+          emojis,
+          mostRecentCase.userId !== userInfo.id,
+        ),
+      ),
     );
   }
 

@@ -233,13 +233,12 @@ function extractTextContents(container: ContainerBuilder): string[] {
 }
 
 /**
- * Lines exempt from the "ends in a relative timestamp or bare integer" rule.
- * Every exemption here is called out by name in tasks.md 7.5 as output that
- * is correct by design, plus the Alts tab's identity-name control line
- * (`Identity: **name**` / `No identity name set`) — a per-screen control
- * added by design D-4.8a that the entry-list body rules were never written
- * to describe (it is neither a scope block, a label/entry line, nor an
- * overflow line). Flagged in the test report rather than silently dropped.
+ * Lines exempt from the "ends in a relative timestamp or bare integer" rule:
+ * scope/state-line/overflow subtext, quoted continuations, Names'
+ * synthesized "not recorded" row, plus the Alts tab's identity-name control
+ * line (`Identity: **name**` / `No identity name set`) — a per-screen
+ * control that is neither a scope block, a label/entry line, nor an
+ * overflow line, so the general body-line rule was never meant to cover it.
  */
 function isLineShapeExempt(line: string): boolean {
   if (line.startsWith("-# ")) {
@@ -383,19 +382,18 @@ describe("Mod View grammar conformance", () => {
     }
 
     /**
-     * The Names tab's "No name changes recorded" state line (`addStateLine`
-     * branch, `total === 0`) is unreachable for any real Discord user:
      * `discord.js`'s `User.username` is a non-nullable string, so
      * `buildRows`'s `if (currentValue && !matched)` always synthesizes a
-     * username row — `total` can never be 0 even with zero history rows and
-     * a null `globalName`/nickname. Instead of the empty state, the tab
-     * renders the synthesized live value plus a `-#` caveat that nothing was
-     * actually recorded.
+     * username row even with zero history rows and a null
+     * `globalName`/nickname — there is no true "nothing to show" state for
+     * Names. The scope count states only actually-recorded changes (0 here),
+     * while the body still renders the synthesized live value plus a `-#`
+     * caveat that nothing was actually recorded.
      */
     it("names: with zero history rows still renders the synthesized live username plus the unrecorded caveat", () => {
       const texts = renderTab(addNamesTabContent, data, noLiveValues);
       expect(texts).toHaveLength(3);
-      expect(texts[0]).toBe("-# 1 name change");
+      expect(texts[0]).toBe("-# 0 name changes");
       expect(texts[1]).toBe(
         `**Username** · 1\n\`@${noLiveValueUser.username}\` · current · not recorded`,
       );

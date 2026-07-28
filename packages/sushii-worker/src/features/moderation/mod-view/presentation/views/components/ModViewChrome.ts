@@ -14,12 +14,16 @@ import {
 } from "discord.js";
 
 import type { ModViewStanding } from "@/features/moderation/mod-view/application/ModViewService";
-import { countWithNoun, pluralizeNoun } from "@/shared/presentation/pluralize";
+import {
+  countWithNoun,
+  formatOverflowLine,
+} from "@/shared/presentation/pluralize";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
 
-const FIELD_SEPARATOR = " · ";
+/** The mod view's one field separator — every `·`-joined line uses this, never a comma or dash. */
+export const FIELD_SEPARATOR = " · ";
 
 export type ModViewTab = "overview" | "history" | "alts" | "names" | "lookup";
 
@@ -90,7 +94,7 @@ export function addIdentityHeader(
   container.addSectionComponents(section);
 }
 
-/** Ported from `UserLookupView.buildUserHeaderSection` — same highest-role selection logic. */
+/** Same highest-role selection logic as the standalone user lookup view. */
 function formatHighestRoleLine(member: GuildMember | null): string | null {
   if (!member || member.roles.cache.size <= 1) {
     return null;
@@ -154,7 +158,7 @@ export function addTabRow(
  * Wraps the header + tab row so no tab builder can omit them or emit them
  * out of order. Must be called on the container the paginator's
  * `renderContainer` returns — chrome built outside that container is wiped
- * on every page turn (see design D3).
+ * on every page turn.
  */
 export function addChrome(
   container: ContainerBuilder,
@@ -197,20 +201,50 @@ export function addSummaryRow(
   container.addSectionComponents(section);
 }
 
-/**
- * The leading `-#` subtext line(s) of an entry-list screen — total, scope
- * qualifier, ordering. Accepts pre-joined multi-line text; each line gets
- * its own `-#` prefix.
- */
-export function addScopeBlock(container: ContainerBuilder, text: string): void {
-  const content = text
+function prefixSubtextLines(text: string): string {
+  return text
     .split("\n")
     .map((line) => `-# ${line}`)
     .join("\n");
+}
 
+/**
+ * A block of `-#` subtext line(s) — a leading scope qualifier (total, merge
+ * scope, ordering) or a trailing caveat. Accepts pre-joined multi-line text;
+ * each line gets its own `-#` prefix.
+ */
+export function addSubtextBlock(
+  container: ContainerBuilder,
+  text: string,
+): void {
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(content),
+    new TextDisplayBuilder().setContent(prefixSubtextLines(text)),
   );
+}
+
+/**
+ * Same `-#` prefixing as {@link addSubtextBlock}, but as a Section with a
+ * button accessory — for a scope line paired with an inline action, e.g.
+ * History's alt-filter toggle.
+ */
+export function addScopeBlockWithAction(
+  container: ContainerBuilder,
+  text: string,
+  action: { customId: string; label: string; disabled: boolean },
+): void {
+  const section = new SectionBuilder()
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(prefixSubtextLines(text)),
+    )
+    .setButtonAccessory(
+      new ButtonBuilder()
+        .setCustomId(action.customId)
+        .setLabel(action.label)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(action.disabled),
+    );
+
+  container.addSectionComponents(section);
 }
 
 /**
@@ -227,18 +261,13 @@ export function addStateLine(
   );
 }
 
-/**
- * `-# +{N} more {noun}` — matches `packItems`'s overflow line format exactly.
- * `noun` is singular; pluralized here to agree with `count`.
- */
+/** `-# +{N} more {noun}` — see {@link formatOverflowLine}. */
 export function addOverflowLine(
   container: ContainerBuilder,
   count: number,
   noun: string,
 ): void {
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `-# +${count} more ${pluralizeNoun(noun, count)}`,
-    ),
+    new TextDisplayBuilder().setContent(formatOverflowLine(count, noun)),
   );
 }

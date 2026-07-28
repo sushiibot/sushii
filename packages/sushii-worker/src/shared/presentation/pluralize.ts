@@ -30,3 +30,11 @@ export function pluralizeNoun(noun: string, count: number): string {
 export function countWithNoun(count: number, noun: string): string {
   return `${count} ${pluralizeNoun(noun, count)}`;
 }
+
+/**
+ * `-# +{N} more {noun}` — the one place this overflow-line literal is built.
+ * `noun` is singular; pluralized here to agree with `count`.
+ */
+export function formatOverflowLine(count: number, noun: string): string {
+  return `-# +${count} more ${pluralizeNoun(noun, count)}`;
+}

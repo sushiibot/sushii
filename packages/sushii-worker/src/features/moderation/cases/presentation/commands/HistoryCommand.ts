@@ -7,8 +7,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
-import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 export class HistoryCommand extends SlashCommandHandler {
@@ -57,7 +57,6 @@ export class HistoryCommand extends SlashCommandHandler {
       user,
       this.modViewDependencies,
       "history",
-      log,
     );
   }
 }

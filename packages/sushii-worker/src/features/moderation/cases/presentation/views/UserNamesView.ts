@@ -23,6 +23,22 @@ export function groupNameHistory(
   };
 }
 
+/**
+ * Count of actually-recorded name changes, scoped to `guildId` for
+ * nicknames. Deliberately excludes `buildNameGroupLines`' synthesized
+ * "unobserved live value" rows — those aren't a change anyone witnessed, so
+ * counting them would let a user with zero history still read as having
+ * changes. Shared so every surface that states "N name changes" (the Names
+ * tab's own scope block, Overview's summary row) agrees.
+ */
+export function countRecordedNameChanges(groups: NameHistoryGroups): number {
+  return (
+    groups.usernameEntries.length +
+    groups.globalNameEntries.length +
+    groups.nicknameEntries.length
+  );
+}
+
 export function formatUsernameValue(value: string): string {
   return `\`@${value}\``;
 }

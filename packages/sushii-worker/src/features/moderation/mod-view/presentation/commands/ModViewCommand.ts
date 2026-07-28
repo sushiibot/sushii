@@ -7,8 +7,11 @@ import {
 
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
-import type { ModViewDependencies } from "../ModViewSession";
-import { openModView, respondWithModViewError } from "../ModViewSession";
+import type { ModViewDependencies } from "../ModViewEntry";
+import {
+  openModViewOrReportError,
+  respondWithModViewError,
+} from "../ModViewEntry";
 
 export class ModViewCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
@@ -49,20 +52,11 @@ export class ModViewCommand extends SlashCommandHandler {
       return;
     }
 
-    // The application layer lets infrastructure errors throw, so this is the
-    // only place a failed query becomes a message rather than a dead
-    // interaction.
-    try {
-      await openModView(interaction, targetUser, this.deps);
-    } catch (err) {
-      log.error(
-        { err, guildId: interaction.guildId, targetId: targetUser.id },
-        "Failed to open mod view",
-      );
-      await respondWithModViewError(
-        interaction,
-        "Something went wrong loading this user's moderation data.",
-      );
-    }
+    await openModViewOrReportError(
+      interaction,
+      targetUser,
+      this.deps,
+      "overview",
+    );
   }
 }

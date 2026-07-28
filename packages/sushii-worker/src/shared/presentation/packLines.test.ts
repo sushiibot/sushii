@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { TAB_CONTENT_CHAR_BUDGET, chunkItems, packItems } from "./packLines";
+import {
+  TAB_CONTENT_CHAR_BUDGET,
+  chunkItems,
+  packItems,
+  packMentions,
+} from "./packLines";
 
 interface Entry {
   id: number;
@@ -20,10 +25,7 @@ function renderEntry(entry: Entry): string {
 
 describe("packItems", () => {
   test("keeps whole entries, never splitting an entry from its continuation line", () => {
-    const { text } = packItems(entries, renderEntry, {
-      budget: 50,
-      noun: "case",
-    });
+    const { text } = packItems(entries, renderEntry, 50);
 
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i += 1) {
@@ -33,43 +35,33 @@ describe("packItems", () => {
     }
   });
 
-  test("reports overflowLine === null when nothing was dropped", () => {
-    const result = packItems(entries, renderEntry, {
-      budget: TAB_CONTENT_CHAR_BUDGET,
-      noun: "case",
-    });
+  test("shows every entry when nothing needs to be dropped", () => {
+    const result = packItems(entries, renderEntry, TAB_CONTENT_CHAR_BUDGET);
 
-    expect(result.overflowLine).toBeNull();
     expect(result.shown).toBe(entries.length);
   });
 
-  test("reports a non-null overflow line interpolating the noun when items are dropped", () => {
-    const result = packItems(entries, renderEntry, {
-      budget: 50,
-      noun: "case",
-    });
+  test("drops the tail once the budget is exceeded", () => {
+    const result = packItems(entries, renderEntry, 50);
 
     expect(result.shown).toBeLessThan(entries.length);
-    expect(result.overflowLine).toBe("-# +1 more case");
   });
 
   test("packItems fills exactly to the budget boundary", () => {
-    const r = packItems(entries, renderEntry, { budget: 50, noun: "case" });
+    const r = packItems(entries, renderEntry, 50);
     expect(r.shown).toBe(3);
     expect(r.text.length).toBe(50);
-    expect(r.overflowLine).toBe("-# +1 more case");
 
-    expect(
-      packItems(entries, renderEntry, { budget: 49, noun: "case" }).shown,
-    ).toBe(2);
+    expect(packItems(entries, renderEntry, 49).shown).toBe(2);
   });
 
   test("defaults to TAB_CONTENT_CHAR_BUDGET when no budget is given", () => {
-    const withDefault = packItems(entries, renderEntry, { noun: "case" });
-    const withExplicitBudget = packItems(entries, renderEntry, {
-      budget: TAB_CONTENT_CHAR_BUDGET,
-      noun: "case",
-    });
+    const withDefault = packItems(entries, renderEntry);
+    const withExplicitBudget = packItems(
+      entries,
+      renderEntry,
+      TAB_CONTENT_CHAR_BUDGET,
+    );
 
     expect(withDefault).toEqual(withExplicitBudget);
   });
@@ -77,14 +69,38 @@ describe("packItems", () => {
   test("still emits an oversized single entry rather than looping forever", () => {
     const huge: Entry = { id: 99, reason: "x".repeat(200) };
 
-    const result = packItems([huge], renderEntry, {
-      budget: 50,
-      noun: "case",
-    });
+    const result = packItems([huge], renderEntry, 50);
 
     expect(result.shown).toBe(1);
     expect(result.text).toBe(renderEntry(huge));
-    expect(result.overflowLine).toBeNull();
+  });
+});
+
+describe("packMentions", () => {
+  const mentions = ["<@1>", "<@2>", "<@3>", "<@4>"];
+
+  test("joins mentions with a comma and space", () => {
+    const result = packMentions(mentions, (m) => m, TAB_CONTENT_CHAR_BUDGET);
+
+    expect(result.text).toBe("<@1>, <@2>, <@3>, <@4>");
+    expect(result.shownCount).toBe(mentions.length);
+  });
+
+  test("drops trailing mentions once the budget is exceeded", () => {
+    // "<@1>, <@2>" is 10 chars; a budget of 10 leaves no room for a third.
+    const result = packMentions(mentions, (m) => m, 10);
+
+    expect(result.text).toBe("<@1>, <@2>");
+    expect(result.shownCount).toBe(2);
+  });
+
+  test("still emits an oversized first mention rather than an empty result", () => {
+    const huge = ["<@" + "1".repeat(200) + ">", "<@2>"];
+
+    const result = packMentions(huge, (m) => m, 10);
+
+    expect(result.shownCount).toBe(1);
+    expect(result.text).toBe(huge[0]);
   });
 });
 

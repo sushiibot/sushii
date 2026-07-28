@@ -13,6 +13,7 @@ import { groupMembers } from "@/features/alt-accounts/presentation/views/AltIden
 import {
   TAB_CONTENT_CHAR_BUDGET,
   packItems,
+  packMentions,
 } from "@/shared/presentation/packLines";
 import { countWithNoun } from "@/shared/presentation/pluralize";
 import { quoteMarkdownString } from "@/utils/markdown";
@@ -21,12 +22,11 @@ import timestampToUnixTime from "@/utils/timestampToUnixTime";
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import {
+  FIELD_SEPARATOR,
   addOverflowLine,
-  addScopeBlock,
   addStateLine,
+  addSubtextBlock,
 } from "../components/ModViewChrome";
-
-const FIELD_SEPARATOR = " · ";
 
 interface RenderedEntry {
   text: string;
@@ -56,25 +56,15 @@ function formatEntry(
     budget - meta.length - reasonLine.length - FIELD_SEPARATOR.length - 1,
   );
 
-  const mentions: string[] = [];
-  let used = 0;
-
-  for (const member of group.members) {
-    const mention = formatMention(member, viewedUserId);
-    const cost = mentions.length === 0 ? mention.length : mention.length + 2;
-
-    // Always take the first mention, even oversized, so the entry is never blank.
-    if (mentions.length > 0 && used + cost > available) {
-      break;
-    }
-
-    mentions.push(mention);
-    used += cost;
-  }
+  const { text: mentionsText, shownCount } = packMentions(
+    group.members,
+    (member) => formatMention(member, viewedUserId),
+    available,
+  );
 
   return {
-    text: `${mentions.join(", ")}${FIELD_SEPARATOR}${meta}${reasonLine}`,
-    shownAccounts: mentions.length,
+    text: `${mentionsText}${FIELD_SEPARATOR}${meta}${reasonLine}`,
+    shownAccounts: shownCount,
   };
 }
 
@@ -91,8 +81,8 @@ function formatMention(member: Member, viewedUserId: string): string {
  * `buildAltIdentityContainer` — that container's button is claimed by the
  * globally-routed `AltNicknameButtonHandler` before this view's own
  * collector ever sees the click, which would replace the whole message with
- * a bare alt panel and destroy the chrome (see design D5). This builder only
- * borrows `groupMembers` for batching identical linked-by/time/reason rows.
+ * a bare alt panel and destroy the chrome. This builder only borrows
+ * `groupMembers` for batching identical linked-by/time/reason rows.
  */
 export const addAltsTabContent: ModViewTabContentBuilder = (
   container,
@@ -113,7 +103,7 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
   const { identity: identityEntity, members } = identity;
   const viewedUserId = data.userInfo.id;
 
-  addScopeBlock(
+  addSubtextBlock(
     container,
     `${countWithNoun(members.length, "account")}${FIELD_SEPARATOR}linked oldest first`,
   );
@@ -140,10 +130,11 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
     formatEntry(group, viewedUserId, TAB_CONTENT_CHAR_BUDGET),
   );
 
-  const { text, shown } = packItems(renderedEntries, (entry) => entry.text, {
-    budget: TAB_CONTENT_CHAR_BUDGET,
-    noun: "account",
-  });
+  const { text, shown } = packItems(
+    renderedEntries,
+    (entry) => entry.text,
+    TAB_CONTENT_CHAR_BUDGET,
+  );
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
 

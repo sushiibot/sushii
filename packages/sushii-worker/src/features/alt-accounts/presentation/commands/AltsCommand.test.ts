@@ -3,7 +3,7 @@ import { MessageFlags, PermissionFlagsBits } from "discord.js";
 import { pino } from "pino";
 import { Err, Ok } from "ts-results";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import { makeAltIdentity } from "@/test/fixtures/altIdentity";
 
 import type {
@@ -284,9 +284,9 @@ describe("AltsCommand", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await command.handler(interaction as any);
 
-      // Deep-links reuse ModViewSession's own entry point (D3) rather than a
-      // second view-rendering path — this pins that the target and guild
-      // reach it, not the rendered output, which ModViewSession already tests.
+      // Deep-links reuse the mod view's own entry point rather than a second
+      // view-rendering path — this pins that the target and guild reach it,
+      // not the rendered output, which ModViewMessageBuilder already tests.
       expect(getModView).toHaveBeenCalledWith(GUILD_ID, USER_A, null);
       expect(interaction.reply).toHaveBeenCalled();
     });

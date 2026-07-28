@@ -10,8 +10,9 @@ import dayjs from "@/shared/domain/dayjs";
 import {
   TAB_CONTENT_CHAR_BUDGET,
   packItems,
+  packMentions,
 } from "@/shared/presentation/packLines";
-import { pluralizeNoun } from "@/shared/presentation/pluralize";
+import { formatOverflowLine } from "@/shared/presentation/pluralize";
 import Color from "@/utils/colors";
 import { quoteMarkdownString } from "@/utils/markdown";
 
@@ -95,25 +96,15 @@ function formatGroup(
   const header = `Linked by <@${group.linkedBy}> · ${timestamp}`;
   const available = Math.max(0, budget - header.length - reasonLine.length - 1);
 
-  const mentions: string[] = [];
-  let used = 0;
-
-  for (const member of group.members) {
-    const mention = formatMention(member.userId, highlighted);
-    const cost = mentions.length === 0 ? mention.length : mention.length + 2;
-
-    // Always take the first mention, even oversized, so the group is never blank.
-    if (mentions.length > 0 && used + cost > available) {
-      break;
-    }
-
-    mentions.push(mention);
-    used += cost;
-  }
+  const { text: mentionsText, shownCount } = packMentions(
+    group.members,
+    (member) => formatMention(member.userId, highlighted),
+    available,
+  );
 
   return {
-    text: `${header}\n${mentions.join(", ")}${reasonLine}`,
-    shownMembers: mentions.length,
+    text: `${header}\n${mentionsText}${reasonLine}`,
+    shownMembers: shownCount,
   };
 }
 
@@ -193,24 +184,20 @@ export function buildAltIdentityContainer(
   const renderedGroups = orderedGroups.map((group) =>
     formatGroup(group, highlighted, memberBudget),
   );
-  // packItems' own overflowLine is never used below: it would count dropped
-  // *batches*, but shownMembers/overflowLine further down count dropped
-  // *accounts* — a different, correct number. `noun` (singular; packItems
-  // pluralizes it) still names what that discarded line counts, so an
-  // accidental switch to it doesn't also render the banned word "groups".
+  // `shown` counts dropped *batches*, but the overflow line below counts
+  // dropped *accounts* — a different, correct number derived from
+  // `shownMembers` instead.
   const { text: memberText, shown } = packItems(
     renderedGroups,
     (rendered) => rendered.text,
-    { budget: memberBudget, noun: "linked batch" },
+    memberBudget,
   );
   const shownMembers = renderedGroups
     .slice(0, shown)
     .reduce((total, rendered) => total + rendered.shownMembers, 0);
   const overflowCount = members.length - shownMembers;
   const overflowLine =
-    overflowCount > 0
-      ? `-# +${overflowCount} more ${pluralizeNoun("account", overflowCount)}`
-      : null;
+    overflowCount > 0 ? formatOverflowLine(overflowCount, "account") : null;
 
   const content = [title, note, memberText, overflowLine, historyFooter]
     .filter(Boolean)
@@ -231,14 +218,4 @@ export function buildAltIdentityContainer(
   return new ContainerBuilder()
     .setAccentColor(color)
     .addSectionComponents(headerSection);
-}
-
-export function buildNoIdentityContainer(userId: string): ContainerBuilder {
-  return new ContainerBuilder()
-    .setAccentColor(Color.Warning)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        `<@${userId}> has no linked accounts tracked in this server.`,
-      ),
-    );
 }

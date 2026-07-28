@@ -6,16 +6,15 @@ import { chunkItems } from "@/shared/presentation/packLines";
 import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
-import { addScopeBlock, addStateLine } from "../components/ModViewChrome";
+import { addStateLine, addSubtextBlock } from "../components/ModViewChrome";
 
-/** Verbatim copy from `LookupCommand.ts` — preserved per design D8, not paraphrased. */
+/** Verbatim copy from `LookupCommand.ts` — preserved as-is, not paraphrased. */
 const PUBLIC_SERVER_REQUIREMENT_COPY =
   "This feature is only available for public (discoverable) servers with 1000+ members. Partnered and verified servers are also eligible.";
 
 /**
- * Bin-pack cross-server bans into pages for the Lookup tab's paginator —
- * mirrors `buildUserLookupPages` in the standalone `UserLookupView.ts`.
- * Bans are expected pre-sorted largest-server-first by `LookupUserService`;
+ * Bin-pack cross-server bans into pages for the Lookup tab's paginator. Bans
+ * are expected pre-sorted largest-server-first by `LookupUserService`;
  * chunking preserves that order within and across pages. Drops nothing.
  */
 export function chunkLookupBans(
@@ -61,7 +60,7 @@ export const addLookupTabContent: ModViewTabContentBuilder = (
     `${countWithNoun(total, "ban")} · largest servers first`,
     "Names and reasons need mutual opt-in · /settings",
   ];
-  addScopeBlock(container, scopeLines.join("\n"));
+  addSubtextBlock(container, scopeLines.join("\n"));
 
   // Falls back to the first page when the paginator wiring hasn't supplied
   // a slice yet — see `ModViewTabContentOptions.lookupPageBans`.
@@ -69,6 +68,17 @@ export const addLookupTabContent: ModViewTabContentBuilder = (
     options.lookupPageBans ??
     chunkLookupBans(crossServerBans, currentGuildLookupOptIn)[0] ??
     [];
+
+  if (pageBans.length === 0) {
+    // `crossServerBans.length > 0` here (checked above) guarantees
+    // `chunkLookupBans`' first page is non-empty, and the paginator wiring
+    // clamps `lookupPageBans` to a valid page — this guard is a safety net
+    // against `setContent("")` throwing if either invariant ever breaks.
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent("**No bans on this page**"),
+    );
+    return;
+  }
 
   const entriesText = pageBans
     .map((ban) => formatBanEntry(ban, currentGuildLookupOptIn))

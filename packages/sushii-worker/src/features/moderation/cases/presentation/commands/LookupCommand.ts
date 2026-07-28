@@ -7,8 +7,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
-import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -47,9 +47,9 @@ export class LookupCommand extends SlashCommandHandler {
     });
 
     // The public-server gate lives in ModViewService/LookupTabBuilder now —
-    // the Lookup tab always renders and explains itself when unavailable
-    // (D8), so a hard refusal here would only disagree with what /modview
-    // already shows for the same target.
+    // the Lookup tab always renders and explains itself when unavailable, so
+    // a hard refusal here would only disagree with what /modview already
+    // shows for the same target.
     const targetUser = interaction.options.getUser("user");
     if (!targetUser) {
       await interaction.reply(getErrorMessage("Error", "No user provided"));
@@ -63,7 +63,6 @@ export class LookupCommand extends SlashCommandHandler {
       targetUser,
       this.modViewDependencies,
       "lookup",
-      log,
     );
   }
 }

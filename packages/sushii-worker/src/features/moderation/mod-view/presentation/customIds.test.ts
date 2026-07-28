@@ -60,7 +60,14 @@ function buildRegisteredHandlers(): (
 
 describe("modview_ custom IDs vs globally-routed handlers", () => {
   const handlers = buildRegisteredHandlers();
-  const modviewIds = Object.values(MODVIEW_CUSTOM_IDS);
+  const modviewIds = [
+    ...Object.values(MODVIEW_CUSTOM_IDS),
+    // The nickname modal actually transmits this suffixed form
+    // (`ModViewSession.ts`'s `renameIdentity`), not the bare literal above —
+    // a prefix or path-to-regexp matcher could claim the suffix while
+    // missing the bare ID this loop otherwise checks.
+    `${MODVIEW_CUSTOM_IDS.altsNicknameModal}:123456789012345678`,
+  ];
 
   it("enumerates every registered button/select/modal handler", () => {
     // Guards against the array above silently shrinking (e.g. a bad merge)
@@ -82,9 +89,9 @@ describe("modview_ custom IDs vs globally-routed handlers", () => {
     // ModLogReasonButtonHandler's matcher is `customIds.modLogReason.match`,
     // built via path-to-regexp against "/modlog/reason/:caseId" — a
     // different matcher flavor than the hand-rolled parsers above.
-    expect(
-      modLogReasonHandler?.customIDMatch("/modlog/reason/123"),
-    ).not.toBe(false);
+    expect(modLogReasonHandler?.customIDMatch("/modlog/reason/123")).not.toBe(
+      false,
+    );
   });
 
   for (const modviewId of modviewIds) {

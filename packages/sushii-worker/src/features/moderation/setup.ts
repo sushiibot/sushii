@@ -69,7 +69,7 @@ import {
   TempbanListCommand,
 } from "./management/presentation";
 // Mod view sub-feature
-import type { ModViewDependencies } from "./mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "./mod-view/presentation/ModViewEntry";
 import {
   createModViewDependencies,
   setupModViewFeature,

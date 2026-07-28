@@ -9,10 +9,7 @@ import {
   getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import dayjs from "@/shared/domain/dayjs";
-import {
-  TAB_CONTENT_CHAR_BUDGET,
-  chunkItems,
-} from "@/shared/presentation/packLines";
+import { TAB_CONTENT_CHAR_BUDGET } from "@/shared/presentation/packLines";
 import { quoteMarkdownString } from "@/utils/markdown";
 import { getCleanFilename } from "@/utils/url";
 
@@ -106,19 +103,4 @@ export function formatModerationCase(
 
 export function spansMultipleUsers(cases: ModerationCase[]): boolean {
   return new Set(cases.map((c) => c.userId)).size > 1;
-}
-
-/**
- * Splits history into pages sized to fit safely under Discord's Text Display
- * character limit. `formatModerationCase` caps a single case's rendered
- * length to `MAX_CASE_LENGTH`, so every page holds at least one case.
- */
-export function buildHistoryPages(
-  moderationHistory: ModerationCase[],
-  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
-  showTargetMention: boolean,
-): ModerationCase[][] {
-  return chunkItems(moderationHistory, (moderationCase) =>
-    formatModerationCase(moderationCase, emojis, showTargetMention),
-  );
 }

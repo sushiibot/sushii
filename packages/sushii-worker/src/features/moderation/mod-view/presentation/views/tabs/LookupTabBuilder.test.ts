@@ -95,7 +95,7 @@ function render(
   return extractTextContents(container);
 }
 
-describe("LookupTabBuilder — 7.6 privacy", () => {
+describe("LookupTabBuilder — privacy", () => {
   it("shows the member count and reason when both guilds opted in", () => {
     const ban = makeBan({
       guildFeatures: ["VERIFIED"],
@@ -148,7 +148,7 @@ describe("LookupTabBuilder — 7.6 privacy", () => {
   });
 });
 
-describe("LookupTabBuilder — 7.8a ordering", () => {
+describe("LookupTabBuilder — ordering", () => {
   it("states the size-descending ordering in the scope block", () => {
     const bans = [
       makeBan({ guildMembers: 5000 }),

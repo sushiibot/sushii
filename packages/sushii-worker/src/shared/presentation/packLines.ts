@@ -1,5 +1,3 @@
-import { pluralizeNoun } from "./pluralize";
-
 /**
  * Per-Text-Display budget shared by every mod view tab and the standalone views
  * they render through.
@@ -14,22 +12,16 @@ function entryCost(rendered: string, isFirst: boolean): number {
   return isFirst ? rendered.length : rendered.length + 1;
 }
 
-export interface PackItemsOptions {
-  budget?: number;
-  /** Singular noun for the overflow line: `-# +{N} more {noun}` — pluralized to agree with the dropped count. */
-  noun: string;
-}
-
 export interface PackItemsResult {
   text: string;
   shown: number;
-  overflowLine: string | null;
 }
 
 /**
  * Truncating pack: fills one Text Display and drops the tail, reporting how
- * many were dropped. For bounded screens only — a paginated screen must not
- * drop anything, use {@link chunkItems}.
+ * many were shown so the caller can derive its own dropped count and overflow
+ * line — see {@link formatOverflowLine} in `pluralize.ts`. For bounded screens
+ * only — a paginated screen must not drop anything, use {@link chunkItems}.
  *
  * A rendered entry is kept whole with its `>` continuation lines; it is never
  * split. An entry that alone exceeds the budget is still emitted when it is
@@ -38,10 +30,8 @@ export interface PackItemsResult {
 export function packItems<T>(
   items: readonly T[],
   render: (item: T) => string,
-  opts: PackItemsOptions,
+  budget: number = TAB_CONTENT_CHAR_BUDGET,
 ): PackItemsResult {
-  const budget = opts.budget ?? TAB_CONTENT_CHAR_BUDGET;
-
   const kept: string[] = [];
   let used = 0;
 
@@ -58,16 +48,45 @@ export function packItems<T>(
     used += cost;
   }
 
-  const dropped = items.length - kept.length;
-
   return {
     text: kept.join("\n"),
     shown: kept.length,
-    overflowLine:
-      dropped > 0
-        ? `-# +${dropped} more ${pluralizeNoun(opts.noun, dropped)}`
-        : null,
   };
+}
+
+export interface PackMentionsResult {
+  text: string;
+  shownCount: number;
+}
+
+/**
+ * Packs comma-joined mentions into a budget, always keeping the first even
+ * when it alone is oversized. Shared by `AltIdentityView` and
+ * `AltsTabBuilder`, which both render one group's mention list under its own
+ * per-group budget (the surrounding header/reason/meta text is the caller's).
+ */
+export function packMentions<T>(
+  members: readonly T[],
+  renderMention: (member: T) => string,
+  budget: number,
+): PackMentionsResult {
+  const mentions: string[] = [];
+  let used = 0;
+
+  for (const member of members) {
+    const mention = renderMention(member);
+    const cost = mentions.length === 0 ? mention.length : mention.length + 2;
+
+    // Always take the first mention, even oversized, so the entry is never blank.
+    if (mentions.length > 0 && used + cost > budget) {
+      break;
+    }
+
+    mentions.push(mention);
+    used += cost;
+  }
+
+  return { text: mentions.join(", "), shownCount: mentions.length };
 }
 
 /**
@@ -75,7 +94,7 @@ export function packItems<T>(
  * nothing and returning no overflow line. For paginated screens.
  *
  * Generic over items rather than strings because callers page over the objects
- * themselves — `buildHistoryPages` returns `ModerationCase[][]` and the
+ * themselves — `buildHistoryTabPages` returns `ModerationCase[][]` and the
  * paginator's `fetchPage`/`renderContainer` consume the case objects.
  *
  * An item that alone exceeds the budget gets its own bin rather than looping.

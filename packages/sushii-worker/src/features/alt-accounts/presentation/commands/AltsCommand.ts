@@ -8,8 +8,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
-import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -303,18 +303,12 @@ export class AltsCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
     const user = interaction.options.getUser("user", true);
-    const log = this.logger.child({
-      guildId: interaction.guildId,
-      targetId: user.id,
-      executorId: interaction.user.id,
-    });
 
     await openModViewOrReportError(
       interaction,
       user,
       this.modViewDependencies,
       "alts",
-      log,
     );
   }
 

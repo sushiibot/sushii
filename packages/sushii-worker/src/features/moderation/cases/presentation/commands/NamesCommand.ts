@@ -7,8 +7,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
-import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewEntry";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewEntry";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -40,12 +40,6 @@ export class NamesCommand extends SlashCommandHandler {
       throw new Error("Not in cached guild");
     }
 
-    const log = this.logger.child({
-      command: "names",
-      guildId: interaction.guildId,
-      executorId: interaction.user.id,
-    });
-
     const targetUser = interaction.options.getUser("user");
     if (!targetUser) {
       await interaction.reply(getErrorMessage("Error", "No user provided"));
@@ -57,7 +51,6 @@ export class NamesCommand extends SlashCommandHandler {
       targetUser,
       this.modViewDependencies,
       "names",
-      log,
     );
   }
 }

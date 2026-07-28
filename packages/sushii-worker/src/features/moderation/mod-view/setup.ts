@@ -13,7 +13,7 @@ import type { NamesUserService } from "../cases/application/NamesUserService";
 import type { TempBanRepository } from "../shared/domain/repositories/TempBanRepository";
 import type { TimeoutDetectionService } from "../shared/domain/services/TimeoutDetectionService";
 import { ModViewService } from "./application/ModViewService";
-import type { ModViewDependencies } from "./presentation/ModViewSession";
+import type { ModViewDependencies } from "./presentation/ModViewEntry";
 import { ModViewCommand } from "./presentation/commands/ModViewCommand";
 import { ModViewContextMenuHandler } from "./presentation/commands/ModViewContextMenuHandler";
 

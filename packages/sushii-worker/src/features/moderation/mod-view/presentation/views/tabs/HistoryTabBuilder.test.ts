@@ -146,7 +146,7 @@ function makeData(overrides: {
   };
 }
 
-describe("HistoryTabBuilder — 7.7 linked-account filter", () => {
+describe("HistoryTabBuilder — linked-account filter", () => {
   const linkedIdentity = makeAltIdentity({
     guildId: GUILD_ID,
     memberIds: [TARGET_ID, ALT_ID],
@@ -263,7 +263,7 @@ describe("HistoryTabBuilder — singular/plural counts", () => {
   });
 });
 
-describe("HistoryTabBuilder — 7.8a ordering", () => {
+describe("HistoryTabBuilder — ordering", () => {
   it("does not state an ordering sentence in the scope block", () => {
     const cases = Array.from({ length: 5 }, (_, i) =>
       makeCase({ caseId: `${i + 1}` }),

@@ -4,13 +4,10 @@ import type { EmojiMap } from "@/features/bot-emojis";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import { chunkItems } from "@/shared/presentation/packLines";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
-import {
-  HISTORY_ACTION_EMOJIS,
-  buildHistoryPages,
-  formatModerationCase,
-} from "./HistoryView";
+import { HISTORY_ACTION_EMOJIS, formatModerationCase } from "./HistoryView";
 
 const GUILD_ID = "111111111111111111";
 const USER_A = "222222222222222222";
@@ -27,6 +24,16 @@ function makeCase(userId: string, caseId: string) {
     userId,
     executorId: USER_A,
   });
+}
+
+/** Exercises `chunkItems` the same way `buildHistoryTabPages` does, without pulling in the mod-view module. */
+function buildPages(
+  moderationHistory: ModerationCase[],
+  showTargetMention: boolean,
+): ModerationCase[][] {
+  return chunkItems(moderationHistory, (c) =>
+    formatModerationCase(c, emojis, showTargetMention),
+  );
 }
 
 describe("formatModerationCase", () => {
@@ -99,23 +106,21 @@ describe("formatModerationCase", () => {
       manyAttachments,
     );
 
-    expect(() =>
-      buildHistoryPages([moderationCase], emojis, false),
-    ).not.toThrow();
+    expect(() => buildPages([moderationCase], false)).not.toThrow();
 
-    const pages = buildHistoryPages([moderationCase], emojis, false);
+    const pages = buildPages([moderationCase], false);
     expect(pages).toHaveLength(1);
     expect(pages[0]).toHaveLength(1);
   });
 });
 
-describe("buildHistoryPages", () => {
+describe("chunkItems (via formatModerationCase)", () => {
   it("packs many short cases onto a single page", () => {
     const history = Array.from({ length: 30 }, (_, i) =>
       makeCase(USER_A, String(i + 1)),
     );
 
-    const pages = buildHistoryPages(history, emojis, false);
+    const pages = buildPages(history, false);
 
     expect(pages).toHaveLength(1);
     expect(pages[0]).toHaveLength(30);
@@ -133,7 +138,7 @@ describe("buildHistoryPages", () => {
       }),
     );
 
-    const pages = buildHistoryPages(history, emojis, false);
+    const pages = buildPages(history, false);
 
     // 4 max-length (1024-char) reasons don't fit in one 3600-char-budget
     // page, but no case is ever dropped or shortened across however many
@@ -158,13 +163,13 @@ describe("buildHistoryPages", () => {
       }),
     ];
 
-    const pages = buildHistoryPages(history, emojis, false);
+    const pages = buildPages(history, false);
 
     expect(pages).toHaveLength(1);
     expect(pages[0]).toHaveLength(1);
   });
 
   it("returns no pages for empty history", () => {
-    expect(buildHistoryPages([], emojis, false)).toHaveLength(0);
+    expect(buildPages([], false)).toHaveLength(0);
   });
 });
