@@ -60,8 +60,9 @@ function makeEmptyData(): ModViewResult {
 
 /**
  * Bare enough to drive `start()`: a fresh chat-input interaction whose
- * `reply()` resolves to a fetchable `InteractionResponse`-shaped stub, itself
- * resolving to a `Message`-shaped stub with `edit` and a fake collector.
+ * `reply()` resolves to a `withResponse: true`-shaped `InteractionCallbackResponse`
+ * stub carrying the `Message`-shaped stub directly on `resource.message`
+ * (no separate `fetch()` round trip), with `edit` and a fake collector.
  */
 function makeInteraction() {
   const editReply = mock(() =>
@@ -82,7 +83,7 @@ function makeInteraction() {
   };
 
   const response = {
-    fetch: mock(() => Promise.resolve(msg)),
+    resource: { message: msg },
   };
 
   const interaction = {
@@ -99,7 +100,7 @@ function makeInteraction() {
 
 describe("ModViewSession expiry", () => {
   it("edits the fetched message on collector end, never the interaction's webhook reply", async () => {
-    const { interaction, response, msg, collectorHandlers } = makeInteraction();
+    const { interaction, msg, collectorHandlers } = makeInteraction();
 
     const session = new ModViewSession(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,19 +116,23 @@ describe("ModViewSession expiry", () => {
 
     await session.start();
 
-    // FIX 1: the message actually collected on is the one `response.fetch()`
-    // returns, not the `InteractionResponse` itself.
-    expect(response.fetch).toHaveBeenCalled();
+    // FIX 1: the message actually collected on is the one `reply()`'s
+    // `withResponse: true` result carries on `resource.message`, not the
+    // `InteractionCallbackResponse` itself.
     expect(msg.createMessageComponentCollector).toHaveBeenCalled();
+    // Round 2 fix: a single `reply()` call, not a `reply()` followed by a
+    // second, independently-fallible `fetch()` — closing the window where the
+    // public message posts but nothing (no collector, no error path) is
+    // watching it.
+    expect(interaction.reply).toHaveBeenCalledTimes(1);
 
     // Simulate the collector idling out after 15+ minutes.
     await collectorHandlers.end();
 
     // The fetched `Message#edit` uses the bot token and never expires.
+    // (`interaction.editReply` is stubbed to reject if called at all — the
+    // original webhook-token bug this regression pins — so a pre-fix
+    // implementation would already have thrown above, before this line.)
     expect(msg.edit).toHaveBeenCalled();
-    // `InteractionResponse#edit`/`editReply` would use the original
-    // interaction's webhook token, which Discord expires after 15 minutes —
-    // exactly the bug this regression pins.
-    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });

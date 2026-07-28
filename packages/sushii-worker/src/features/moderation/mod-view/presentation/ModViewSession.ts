@@ -5,7 +5,6 @@ import type {
   ChatInputCommandInteraction,
   ContainerBuilder,
   GuildMember,
-  Message,
   ModalSubmitInteraction,
   User,
   UserContextMenuCommandInteraction,
@@ -130,16 +129,25 @@ export class ModViewSession {
       ? await this.paginator.renderCurrentPage()
       : this.renderScreen({ disabled: false });
 
-    // `msg.edit()` on the `InteractionResponse` returned by `reply()` would
-    // delegate to `editReply`, which uses the original interaction's webhook
-    // token — Discord expires that 15 minutes after the interaction, well
-    // within the collector's idle window. Fetching the concrete message and
-    // editing it directly uses the bot token instead, which never expires.
-    const response = await this.interaction.reply(initialReply);
-    // `InteractionResponse#fetch()` is typed as `Promise<Message>` regardless
-    // of the interaction's own cache guarantee — `this.interaction` is
-    // guild-cached, so the fetched message is too.
-    const msg = (await response.fetch()) as Message<true>;
+    // `msg.edit()` on the `InteractionResponse` returned by a plain `reply()`
+    // would delegate to `editReply`, which uses the original interaction's
+    // webhook token — Discord expires that 15 minutes after the interaction,
+    // well within the collector's idle window. `withResponse: true` returns
+    // the concrete `Message` in the same round trip (`resource.message`)
+    // instead of a second, independently-fallible `fetch()` call — so there
+    // is no window where the reply has posted but nothing (no collector, no
+    // error path) is watching it.
+    const response = await this.interaction.reply({
+      ...initialReply,
+      withResponse: true,
+    });
+    const msg = response.resource?.message;
+    if (!msg) {
+      // Not reachable for a message-creating interaction response today —
+      // Discord always includes `resource.message` for it — but the type is
+      // nullable, so fail loudly instead of silently operating on `undefined`.
+      throw new Error("Mod view reply did not return a message resource");
+    }
 
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,

@@ -136,6 +136,18 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
     TAB_CONTENT_CHAR_BUDGET,
   );
 
+  if (text.length === 0) {
+    // `members.length > 0` here (the `!identity` branch above returns early
+    // otherwise), so `groupMembers` always yields at least one group and
+    // `packItems` always keeps at least its first item — this guard is a
+    // safety net against `setContent("")` throwing if either invariant ever
+    // breaks, matching `LookupTabBuilder`'s guard.
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent("**No linked accounts**"),
+    );
+    return;
+  }
+
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
 
   // packItems' `dropped` is per-item (a batch), not per-account, so the

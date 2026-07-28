@@ -116,7 +116,12 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
   // The exception to the entry-list empty-state rule — this statement
   // renders alongside the rows above, never in place of them, so it is built
   // inline here rather than via the shared state-line helper.
-  if (historyCount === 0 && altsCount === 0 && namesCount === 0) {
+  if (
+    historyCount === 0 &&
+    altsCount === 0 &&
+    namesCount === 0 &&
+    !names.eligibilityDenied
+  ) {
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         "**Nothing recorded**\n-# No moderation records, linked accounts or name changes exist for this user in this guild.",
@@ -134,6 +139,7 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
           mostRecentCase,
           emojis,
           mostRecentCase.userId !== userInfo.id,
+          true,
         ),
       ),
     );

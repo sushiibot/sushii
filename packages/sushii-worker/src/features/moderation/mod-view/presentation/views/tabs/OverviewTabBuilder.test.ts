@@ -117,6 +117,7 @@ function makeNicknameEntry(
 function makeData(overrides: {
   moderationHistory?: ModerationCase[];
   namesHistory?: UserNameHistoryEntry[];
+  namesEligibilityDenied?: boolean;
 }): ModViewResult {
   const moderationHistory = overrides.moderationHistory ?? [];
 
@@ -132,7 +133,7 @@ function makeData(overrides: {
     names: {
       userInfo,
       history: overrides.namesHistory ?? [],
-      eligibilityDenied: false,
+      eligibilityDenied: overrides.namesEligibilityDenied ?? false,
     },
     identity: null,
     standing: null,
@@ -232,10 +233,19 @@ describe("OverviewTabBuilder — Names count parity", () => {
     const { texts } = renderOverview(data);
     expect(texts.some((t) => t.startsWith("**Nothing recorded**"))).toBe(true);
   });
+
+  it("does not claim 'Nothing recorded' when Names is merely unavailable, not empty", () => {
+    const data = makeData({ namesEligibilityDenied: true });
+
+    const { texts } = renderOverview(data);
+    const namesRow = texts.find((t) => t.startsWith("**Names**"));
+    expect(namesRow).toBe("**Names** · not available");
+    expect(texts.some((t) => t.startsWith("**Nothing recorded**"))).toBe(false);
+  });
 });
 
 describe("OverviewTabBuilder — most recent case rendering", () => {
-  it("renders the case identically to the History tab's formatModerationCase", () => {
+  it("uses History's dropped-preposition grammar, not the raw `on`/`by` form", () => {
     const moderationCase = makeModerationCase({
       guildId: GUILD_ID,
       caseId: "1",
@@ -248,8 +258,19 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
     const data = makeData({ moderationHistory: [moderationCase] });
     const { texts } = renderOverview(data);
 
-    const expected = formatModerationCase(moderationCase, emojis, false);
+    // Pinned against the same arguments HistoryTabBuilder actually passes
+    // (dropPrepositions: true) rather than Overview's own arguments, so a
+    // future regression to the `on`/`by` form fails this test.
+    const expected = formatModerationCase(moderationCase, emojis, false, true);
     expect(texts).toContain(expected);
+
+    const withPrepositions = formatModerationCase(
+      moderationCase,
+      emojis,
+      false,
+      false,
+    );
+    expect(texts).not.toContain(withPrepositions);
   });
 
   it("preserves timeout duration and attachment lines, which the old hand-built line dropped", () => {
@@ -269,7 +290,7 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
     const data = makeData({ moderationHistory: [moderationCase] });
     const { texts } = renderOverview(data);
 
-    const expected = formatModerationCase(moderationCase, emojis, false);
+    const expected = formatModerationCase(moderationCase, emojis, false, true);
     expect(texts).toContain(expected);
     expect(expected).toContain("hour");
     expect(expected).toContain("proof.png");
