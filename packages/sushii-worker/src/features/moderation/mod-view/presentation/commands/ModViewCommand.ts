@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -18,6 +19,7 @@ export class ModViewCommand extends SlashCommandHandler {
     .setName("modview")
     .setDescription("Show the full moderation view for a user.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((o) =>
       o

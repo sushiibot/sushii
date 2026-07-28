@@ -4,6 +4,7 @@ import type {
 } from "discord.js";
 import {
   ApplicationCommandType,
+  ApplicationIntegrationType,
   ContextMenuCommandBuilder,
   InteractionContextType,
   MessageFlags,
@@ -26,6 +27,7 @@ export class ModViewContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("Mod View")
     .setType(ApplicationCommandType.User)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();
 
