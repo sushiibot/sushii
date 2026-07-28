@@ -58,7 +58,7 @@ export const addLookupTabContent: ModViewTabContentBuilder = (
 
   const total = crossServerBans.length;
   const scopeLines = [
-    `${countWithNoun(total, "ban")}, largest servers first`,
+    `${countWithNoun(total, "ban")} · largest servers first`,
     "Names and reasons need mutual opt-in · /settings",
   ];
   addScopeBlock(container, scopeLines.join("\n"));

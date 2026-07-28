@@ -292,6 +292,30 @@ function assertLineShapes(texts: string[]): void {
   }
 }
 
+/**
+ * Scope blocks and overflow lines (`-# …`) state structured fields — count,
+ * qualifier, ordering — so a comma there is always a field separator
+ * standing in for the grammar's one true separator (` · `), never prose.
+ * Deliberately scoped to `-# ` lines only: body/entry lines legitimately
+ * contain commas that aren't field separators (thousands-grouped numbers,
+ * comma-joined mention lists), and state-line/empty-state subtext is free
+ * prose exempted by design — this check would false-positive on both.
+ */
+function assertScopeBlocksUseOnlyDotSeparator(texts: string[]): void {
+  for (const block of texts) {
+    for (const line of block.split("\n")) {
+      if (!line.startsWith("-# ")) {
+        continue;
+      }
+
+      expect(
+        line,
+        `scope/overflow line uses a comma instead of the single field separator: ${JSON.stringify(line)}`,
+      ).not.toMatch(/,\s/);
+    }
+  }
+}
+
 const ENTRY_LIST_TABS: readonly [
   name: string,
   builder: ModViewTabContentBuilder,
@@ -314,6 +338,10 @@ describe("Mod View grammar conformance", () => {
       it(`${name}: every body line ends in a relative timestamp or a bare integer`, () => {
         assertLineShapes(renderTab(builder, data));
       });
+
+      it(`${name}: scope/overflow lines use only the single field separator`, () => {
+        assertScopeBlocksUseOnlyDotSeparator(renderTab(builder, data));
+      });
     }
 
     it("overview: has no heading syntax, bullets, spaced dashes or absolute timestamps", () => {
@@ -321,6 +349,12 @@ describe("Mod View grammar conformance", () => {
       // entry-list line-shape rule, but the universal grammar rules still
       // apply everywhere (grammar scope: "Rules bind standalone views too").
       assertGrammar(renderTab(addOverviewTabContent, data));
+    });
+
+    it("overview: scope/overflow lines use only the single field separator", () => {
+      assertScopeBlocksUseOnlyDotSeparator(
+        renderTab(addOverviewTabContent, data),
+      );
     });
   });
 

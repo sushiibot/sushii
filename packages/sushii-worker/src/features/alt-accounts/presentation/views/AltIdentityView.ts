@@ -11,6 +11,7 @@ import {
   TAB_CONTENT_CHAR_BUDGET,
   packItems,
 } from "@/shared/presentation/packLines";
+import { pluralizeNoun } from "@/shared/presentation/pluralize";
 import Color from "@/utils/colors";
 import { quoteMarkdownString } from "@/utils/markdown";
 
@@ -194,20 +195,21 @@ export function buildAltIdentityContainer(
   );
   // packItems' own overflowLine is never used below: it would count dropped
   // *batches*, but shownMembers/overflowLine further down count dropped
-  // *accounts* — a different, correct number. `noun` is set to match what
-  // that discarded line would actually say, so an accidental switch to it
-  // doesn't also render the banned word "groups".
+  // *accounts* — a different, correct number. `noun` (singular; packItems
+  // pluralizes it) still names what that discarded line counts, so an
+  // accidental switch to it doesn't also render the banned word "groups".
   const { text: memberText, shown } = packItems(
     renderedGroups,
     (rendered) => rendered.text,
-    { budget: memberBudget, noun: "linked batches" },
+    { budget: memberBudget, noun: "linked batch" },
   );
   const shownMembers = renderedGroups
     .slice(0, shown)
     .reduce((total, rendered) => total + rendered.shownMembers, 0);
+  const overflowCount = members.length - shownMembers;
   const overflowLine =
-    shownMembers < members.length
-      ? `-# +${members.length - shownMembers} more accounts`
+    overflowCount > 0
+      ? `-# +${overflowCount} more ${pluralizeNoun("account", overflowCount)}`
       : null;
 
   const content = [title, note, memberText, overflowLine, historyFooter]

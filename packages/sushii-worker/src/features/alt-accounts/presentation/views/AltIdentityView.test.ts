@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
+import { TAB_CONTENT_CHAR_BUDGET } from "@/shared/presentation/packLines";
+
 import { AltIdentity } from "../../domain/entities/AltIdentity";
 import { AltIdentityMember } from "../../domain/entities/AltIdentityMember";
 import type { AltIdentityWithMembers } from "../../domain/types";
@@ -190,6 +192,23 @@ describe("buildAltIdentityContainer", () => {
 
     expect(totalTextDisplayLength(container)).toBeLessThanOrEqual(4000);
     expect(renderedText(identity)).toContain("more accounts");
+  });
+
+  it("uses singular 'account' when exactly one is omitted", () => {
+    // Different reasons put each member in its own group. An oversized reason
+    // on the first group consumes the whole budget, so packItems (which
+    // always keeps a first, even-oversized entry) renders that group alone
+    // and drops the second group's one member.
+    const reason = "x".repeat(TAB_CONTENT_CHAR_BUDGET);
+    const members: MemberSpec[] = [
+      { userId: userId(1), reason },
+      { userId: userId(2) },
+    ];
+
+    const text = renderedText(makeIdentity(members));
+
+    expect(text).toContain("+1 more account");
+    expect(text).not.toContain("+1 more accounts");
   });
 
   it("counts every unrendered member in the '+N more' line", () => {
