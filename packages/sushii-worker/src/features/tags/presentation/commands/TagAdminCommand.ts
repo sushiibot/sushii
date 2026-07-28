@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   ContainerBuilder,
   InteractionContextType,
   MessageFlags,
@@ -31,6 +32,7 @@ export class TagAdminCommand extends SlashCommandHandler {
     .setDescription("Modify server tags.")
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((c) =>
       c
         .setName(TagAdminSubcommand.Delete)

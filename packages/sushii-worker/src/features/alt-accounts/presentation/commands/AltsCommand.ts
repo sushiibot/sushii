@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
@@ -43,6 +44,7 @@ export class AltsCommand extends SlashCommandHandler {
     .setName("alts")
     .setDescription("Track and look up alt-account relationships.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((c) =>
       c

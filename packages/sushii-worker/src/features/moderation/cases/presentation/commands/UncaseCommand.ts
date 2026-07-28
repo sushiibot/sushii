@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -20,6 +21,7 @@ export class UncaseCommand extends SlashCommandHandler {
     .setName("uncase")
     .setDescription("Delete mod cases.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
-import { PermissionFlagsBits } from "discord.js";
+import { ApplicationIntegrationType, PermissionFlagsBits } from "discord.js";
 
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -33,6 +33,7 @@ export default class LevelRoleCommand extends SlashCommandHandler {
     .setName("levelrole")
     .setDescription("Configure level roles.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((c) =>
       c

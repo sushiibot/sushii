@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   ContainerBuilder,
   MessageFlags,
   PermissionFlagsBits,
@@ -31,6 +32,7 @@ export class ScamHashCommand extends SlashCommandHandler {
     .setName("scam-hash")
     .setDescription("Manage known scam image hashes")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((sub) =>
       sub
         .setName("add")

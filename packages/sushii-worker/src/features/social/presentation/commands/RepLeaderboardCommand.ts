@@ -1,5 +1,9 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+import {
+  ApplicationIntegrationType,
+  InteractionContextType,
+  SlashCommandBuilder,
+} from "discord.js";
 
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -12,6 +16,7 @@ export class RepLeaderboardCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("rep-leaderboard")
     .setDescription("Show the reputation leaderboard for this server")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();
 

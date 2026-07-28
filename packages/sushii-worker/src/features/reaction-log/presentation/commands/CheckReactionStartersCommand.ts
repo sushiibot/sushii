@@ -4,6 +4,7 @@ import {
 } from "discord.js";
 import {
   ApplicationCommandType,
+  ApplicationIntegrationType,
   ContextMenuCommandBuilder,
   PermissionFlagsBits,
 } from "discord.js";
@@ -41,6 +42,7 @@ export class CheckReactionStartersCommand extends ContextMenuHandler {
     .setName("View Reaction Starters")
     .setType(ApplicationCommandType.Message)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();
 

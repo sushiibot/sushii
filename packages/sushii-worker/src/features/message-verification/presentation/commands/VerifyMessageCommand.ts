@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -23,6 +24,7 @@ export class VerifyMessageCommand extends SlashCommandHandler {
     )
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addStringOption((o) =>
       o
         .setName("code")

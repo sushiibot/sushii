@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction, ContainerComponent, MediaGalleryComponent } from "discord.js";
 import {
+  ApplicationIntegrationType,
   AttachmentBuilder,
   ComponentType,
   InteractionContextType,
@@ -24,6 +25,7 @@ export class TagAddCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("tag-add")
     .setDescription("Create a new tag.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

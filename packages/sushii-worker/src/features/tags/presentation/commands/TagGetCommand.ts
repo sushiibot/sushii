@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
@@ -16,6 +17,7 @@ export class TagGetCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("t")
     .setDescription("Use a tag.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

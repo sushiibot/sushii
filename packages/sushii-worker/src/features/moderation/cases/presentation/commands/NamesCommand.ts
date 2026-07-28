@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   PermissionsBitField,
@@ -19,6 +20,7 @@ export class NamesCommand extends SlashCommandHandler {
     .setName("names")
     .setDescription("Show name history for a user.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((option) =>
       option

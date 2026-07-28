@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   PermissionsBitField,
@@ -19,6 +20,7 @@ export class LookupCommand extends SlashCommandHandler {
     .setName("lookup")
     .setDescription("Look up cross-server bans for a user.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((option) =>
       option

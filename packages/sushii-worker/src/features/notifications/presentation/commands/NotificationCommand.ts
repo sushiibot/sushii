@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   ChannelType,
   ContainerBuilder,
   EmbedBuilder,
@@ -44,6 +45,7 @@ export class NotificationCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("notification")
     .setDescription("Get notifications when someone says something.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((c) =>
       c

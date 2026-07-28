@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   EmbedBuilder,
   InteractionContextType,
   MessageFlags,
@@ -29,6 +30,7 @@ export class TagInfoCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("tag")
     .setDescription("Browse and discover server tags.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((c) =>
       c

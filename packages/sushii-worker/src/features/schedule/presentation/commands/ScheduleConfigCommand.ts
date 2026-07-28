@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  ApplicationIntegrationType,
   ButtonBuilder,
   ButtonStyle,
   ChatInputCommandInteraction,
@@ -40,6 +41,7 @@ export class ScheduleConfigCommand extends SlashCommandHandler {
     .setName("schedule-config")
     .setDescription("Configure and manage schedule channels synced from Google Calendar.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((c) =>
       c
         .setName(SCHEDULE_CONFIG_SUBCOMMANDS.NEW)

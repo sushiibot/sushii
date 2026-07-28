@@ -1,5 +1,9 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+import {
+  ApplicationIntegrationType,
+  InteractionContextType,
+  SlashCommandBuilder,
+} from "discord.js";
 
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -21,6 +25,7 @@ export default class GlobalLeaderboardCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("global-leaderboard")
     .setDescription("Show the global leaderboard ranked by total XP across all servers.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

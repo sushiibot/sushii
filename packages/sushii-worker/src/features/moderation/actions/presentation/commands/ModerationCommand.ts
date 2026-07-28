@@ -6,7 +6,11 @@ import type {
   RESTPostAPIApplicationCommandsJSONBody,
   SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
-import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+import {
+  ApplicationIntegrationType,
+  InteractionContextType,
+  SlashCommandBuilder,
+} from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
@@ -81,7 +85,8 @@ export class ModerationCommand extends SlashCommandHandler {
       .setName(this.config.name)
       .setDescription(this.config.description)
       .setContexts(InteractionContextType.Guild)
-      .setDefaultMemberPermissions(this.config.permissions);
+      .setDefaultMemberPermissions(this.config.permissions)
+      .setIntegrationTypes(ApplicationIntegrationType.GuildInstall);
 
     this.command = this.config.options(builder).toJSON();
   }

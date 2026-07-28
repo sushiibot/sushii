@@ -8,6 +8,7 @@ import type {
   StringSelectMenuInteraction,
 } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -62,6 +63,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     .setName("settings")
     .setDescription("Configure sushii server settings.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();
 

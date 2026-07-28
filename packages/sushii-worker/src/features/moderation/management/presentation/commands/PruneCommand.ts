@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
@@ -32,6 +33,7 @@ export class PruneCommand extends SlashCommandHandler {
     .setName("prune")
     .setDescription("Bulk delete messages with optional filters.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addIntegerOption((o) =>
       o

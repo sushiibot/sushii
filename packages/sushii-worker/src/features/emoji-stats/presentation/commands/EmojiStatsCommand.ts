@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   EmbedBuilder,
   InteractionContextType,
   SlashCommandBuilder,
@@ -58,6 +59,7 @@ export class EmojiStatsCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("emojistats")
     .setDescription("Get stats for server emoji use.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

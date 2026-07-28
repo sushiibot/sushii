@@ -4,7 +4,7 @@ import {
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
-import { PermissionFlagsBits } from "discord.js";
+import { ApplicationIntegrationType, PermissionFlagsBits } from "discord.js";
 
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -39,6 +39,7 @@ export default class XpCommand extends SlashCommandHandler {
     .setName("xp")
     .setDescription("Configure xp options and level roles.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommandGroup((g) =>
       g

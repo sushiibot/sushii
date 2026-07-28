@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   ComponentType,
   InteractionContextType,
   MessageFlags,
@@ -29,6 +30,7 @@ export class ReasonCommand extends SlashCommandHandler {
     .setName("reason")
     .setDescription("Set the reason for mod cases.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

@@ -1,4 +1,5 @@
 import {
+  ApplicationIntegrationType,
   ChatInputCommandInteraction,
   ContainerBuilder,
   MessageFlags,
@@ -30,6 +31,7 @@ export class ScheduleCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("schedule")
     .setDescription("Show upcoming scheduled events for this server.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addStringOption((o) =>
       o
         .setName("calendar")

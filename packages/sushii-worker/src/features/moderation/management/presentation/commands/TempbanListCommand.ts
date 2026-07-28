@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   PermissionFlagsBits,
   PermissionsBitField,
@@ -24,6 +25,7 @@ export class TempbanListCommand extends SlashCommandHandler {
     .setName("tempban-list")
     .setDescription("List all active temporary bans in the server.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();
 

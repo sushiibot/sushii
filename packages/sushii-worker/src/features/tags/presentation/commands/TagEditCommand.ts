@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
+  ApplicationIntegrationType,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
@@ -23,6 +24,7 @@ export class TagEditCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("tag-edit")
     .setDescription("Edit a tag's content, rename it, or delete it.")
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o

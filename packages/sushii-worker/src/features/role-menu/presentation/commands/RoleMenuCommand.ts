@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ActionRowBuilder,
+  ApplicationIntegrationType,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
@@ -43,6 +44,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
     .setDescription("Create a role menu.")
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((c) =>
       c
         .setName("create")

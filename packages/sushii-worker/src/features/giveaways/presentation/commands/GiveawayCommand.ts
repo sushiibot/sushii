@@ -3,6 +3,7 @@ import type {
   GuildTextBasedChannel,
 } from "discord.js";
 import {
+  ApplicationIntegrationType,
   DiscordAPIError,
   EmbedBuilder,
   InteractionContextType,
@@ -53,6 +54,7 @@ export class GiveawayCommand extends SlashCommandHandler {
     .setName("giveaway")
     .setDescription("Host giveaways in your server.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((c) =>
       c
