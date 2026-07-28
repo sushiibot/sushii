@@ -2,7 +2,9 @@ import { describe, expect, it } from "bun:test";
 
 import type { AltIdentityWithMembers } from "@/features/alt-accounts/domain/types";
 import type { EmojiMap } from "@/features/bot-emojis";
-import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { makeAltIdentity } from "@/test/fixtures/altIdentity";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
@@ -11,7 +13,6 @@ import {
   HISTORY_ACTION_EMOJIS,
   buildHistoryPageContainer,
   buildHistoryPages,
-  buildUserHistoryContextEmbed,
   formatModerationCase,
   spansMultipleUsers,
 } from "./HistoryView";
@@ -24,7 +25,10 @@ function getContainerText(container: { toJSON: () => unknown }): string {
       return;
     }
 
-    if ("content" in node && typeof (node as { content?: unknown }).content === "string") {
+    if (
+      "content" in node &&
+      typeof (node as { content?: unknown }).content === "string"
+    ) {
       texts.push((node as { content: string }).content);
     }
 
@@ -107,97 +111,70 @@ describe("formatModerationCase", () => {
     expect(line).toContain(`by <@${USER_A}>`);
     expect(line).toContain(`on <@${USER_B}>`);
   });
-});
 
-describe("buildUserHistoryContextEmbed", () => {
-  it("shows the 3 most recent cases newest-first, not the oldest 3", () => {
-    // moderationHistory arrives oldest-first (ascending case ID), matching
-    // the repository's ordering.
-    const history = [
-      makeCase(USER_A, "1"),
-      makeCase(USER_A, "2"),
-      makeCase(USER_A, "3"),
-      makeCase(USER_A, "4"),
-      makeCase(USER_A, "5"),
-    ];
-
-    const embed = buildUserHistoryContextEmbed(
-      { id: USER_A } as never,
-      null,
-      makeHistoryResult(history, null),
-      emojis,
+  it("caps a case with a huge reason and many attachments instead of overflowing", () => {
+    // Newline-heavy reason: quoteMarkdownString prefixes "> " per line, so a
+    // 1024-char reason of alternating "a\n" balloons well past its raw length.
+    const hugeReason = "a\n".repeat(512).slice(0, 1024);
+    const manyAttachments = Array.from(
+      { length: 10 },
+      (_, i) =>
+        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222 + i}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
     );
 
-    const description = embed.data.description ?? "";
-    const case5Index = description.indexOf("#5");
-    const case4Index = description.indexOf("#4");
-    const case3Index = description.indexOf("#3");
+    const moderationCase = ModerationCase.create(
+      GUILD_ID,
+      "1",
+      ActionType.Warn,
+      USER_A,
+      "TestUser#0001",
+      USER_A,
+      Reason.create(hugeReason).unwrap(),
+      undefined,
+      manyAttachments,
+    );
 
-    expect(description).toContain("#5");
-    expect(description).toContain("#4");
-    expect(description).toContain("#3");
-    expect(description).not.toContain("#1");
-    expect(description).not.toContain("#2");
-    // Newest case shown first.
-    expect(case5Index).toBeLessThan(case4Index);
-    expect(case4Index).toBeLessThan(case3Index);
+    const line = formatModerationCase(moderationCase, emojis);
+
+    expect(line.length).toBeLessThan(3700);
+    expect(line).toContain("(truncated)");
+    // The head — identifier, type, attribution, timestamp — must survive intact.
+    expect(line).toContain("`#1`");
+    expect(line).toContain(":R>");
   });
 
-  it("does not tag the target when the merged identity has no cases for other members", () => {
-    const history = [makeCase(USER_A, "1")];
-    const identity = makeIdentity([USER_A, USER_B]);
-
-    const embed = buildUserHistoryContextEmbed(
-      { id: USER_A } as never,
-      null,
-      makeHistoryResult(history, identity),
-      emojis,
+  it("never throws building a page from a case with a huge reason and many attachments", () => {
+    const hugeReason = "a\n".repeat(512).slice(0, 1024);
+    const manyAttachments = Array.from(
+      { length: 10 },
+      (_, i) =>
+        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222 + i}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
     );
 
-    expect(embed.data.description ?? "").not.toContain("on <@");
-  });
-
-  it("tags each case with its target when cases span multiple linked accounts", () => {
-    const history = [makeCase(USER_A, "1"), makeCase(USER_B, "2")];
-    const identity = makeIdentity([USER_A, USER_B]);
-
-    const embed = buildUserHistoryContextEmbed(
-      { id: USER_A } as never,
-      null,
-      makeHistoryResult(history, identity),
-      emojis,
+    const moderationCase = ModerationCase.create(
+      GUILD_ID,
+      "1",
+      ActionType.Warn,
+      USER_A,
+      "TestUser#0001",
+      USER_A,
+      Reason.create(hugeReason).unwrap(),
+      undefined,
+      manyAttachments,
     );
 
-    const description = embed.data.description ?? "";
-    expect(description).toContain(`on <@${USER_A}>`);
-    expect(description).toContain(`on <@${USER_B}>`);
-  });
+    expect(() =>
+      buildHistoryPages([moderationCase], emojis, false),
+    ).not.toThrow();
 
-  it("adds a merged-accounts footer only when the identity has more than one member", () => {
-    const history = [makeCase(USER_A, "1")];
-
-    const withoutIdentity = buildUserHistoryContextEmbed(
-      { id: USER_A } as never,
-      null,
-      makeHistoryResult(history, null),
-      emojis,
-    );
-    expect(withoutIdentity.data.footer?.text ?? "").not.toContain("Merged");
-
-    const withIdentity = buildUserHistoryContextEmbed(
-      { id: USER_A } as never,
-      null,
-      makeHistoryResult(history, makeIdentity([USER_A, USER_B])),
-      emojis,
-    );
-    expect(withIdentity.data.footer?.text ?? "").toContain(
-      "Merged across 2 linked accounts",
-    );
+    const pages = buildHistoryPages([moderationCase], emojis, false);
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toHaveLength(1);
   });
 });
 
 describe("buildHistoryPageContainer", () => {
-  it("shows both absolute and relative account-created timestamps", () => {
+  it("uses relative timestamps only, never an absolute one", () => {
     const history = [makeCase(USER_A, "1")];
     const historyResult = makeHistoryResult(history, null);
 
@@ -213,7 +190,8 @@ describe("buildHistoryPageContainer", () => {
     );
 
     const text = getContainerText(container);
-    expect(text).toContain(":F>");
+    expect(text).not.toContain(":F>");
+    expect(text).not.toContain(":f>");
     expect(text).toContain(":R>");
   });
 
@@ -256,9 +234,9 @@ describe("buildHistoryPageContainer", () => {
     expect(text).toContain(`<@${USER_A}> <@${USER_B}>`);
     expect(text).toContain("-# use `/alts` to manage alts");
 
-    // The merged-accounts block sits below the summary, not in the header.
+    // The merged-accounts block sits below the case list, not in the header.
     expect(text.indexOf("Merged history")).toBeGreaterThan(
-      text.indexOf("**Summary**"),
+      text.indexOf(`\`#1\``),
     );
   });
 
@@ -304,24 +282,6 @@ describe("buildHistoryPageContainer", () => {
     expect(getContainerText(container)).toContain(`on <@${USER_A}>`);
   });
 
-  it("shows a summary of the full history, not just the current page", () => {
-    const history = [makeCase(USER_A, "1"), makeCase(USER_A, "2")];
-    const historyResult = makeHistoryResult(history, null);
-
-    const container = buildHistoryPageContainer(
-      fakeTargetUser,
-      null,
-      historyResult,
-      [history[0]],
-      emojis,
-      spansMultipleUsers(history),
-      null,
-      false,
-    );
-
-    expect(getContainerText(container)).toContain("– 2");
-  });
-
   it("shows an empty-page message when the current page has no cases", () => {
     const history = [makeCase(USER_A, "1")];
     const historyResult = makeHistoryResult(history, null);
@@ -337,26 +297,7 @@ describe("buildHistoryPageContainer", () => {
       false,
     );
 
-    expect(getContainerText(container)).toContain(
-      "No moderation cases found",
-    );
-  });
-
-  it("reports the User ID subtext when there are no cases at all", () => {
-    const historyResult = makeHistoryResult([], null);
-
-    const container = buildHistoryPageContainer(
-      fakeTargetUser,
-      null,
-      historyResult,
-      [],
-      emojis,
-      false,
-      null,
-      false,
-    );
-
-    expect(getContainerText(container)).toContain(`User ID: ${USER_A}`);
+    expect(getContainerText(container)).toContain("No moderation cases found");
   });
 });
 
@@ -386,7 +327,7 @@ describe("buildHistoryPages", () => {
 
     const pages = buildHistoryPages(history, emojis, false);
 
-    // 4 max-length (1024-char) reasons don't fit in one 3500-char-budget
+    // 4 max-length (1024-char) reasons don't fit in one 3600-char-budget
     // page, but no case is ever dropped or shortened across however many
     // pages it takes.
     expect(pages.length).toBeGreaterThan(1);

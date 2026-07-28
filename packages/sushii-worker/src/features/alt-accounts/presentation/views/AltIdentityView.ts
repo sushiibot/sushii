@@ -6,28 +6,30 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import Color from "@/utils/colors";
 import dayjs from "@/shared/domain/dayjs";
+import {
+  TAB_CONTENT_CHAR_BUDGET,
+  packItems,
+} from "@/shared/presentation/packLines";
+import Color from "@/utils/colors";
 import { quoteMarkdownString } from "@/utils/markdown";
 
 import type { AltIdentityWithMembers } from "../../domain/types/AltIdentityWithMembers";
 import { buildNicknameButtonId } from "../customIds";
 
-/** Discord rejects a Text Display above this many characters. */
-const TEXT_DISPLAY_LIMIT = 4000;
-/** Absorbs the joining newlines and the trailing "+N more" line. */
-const BUDGET_SLACK = 64;
+export type Member = AltIdentityWithMembers["members"][number];
 
-type Member = AltIdentityWithMembers["members"][number];
-
-interface MemberGroup {
+export interface MemberGroup {
   linkedBy: string;
   linkedAt: Date;
   reason: string | null;
   members: Member[];
 }
 
-function formatMention(userId: string, highlighted: ReadonlySet<string>): string {
+function formatMention(
+  userId: string,
+  highlighted: ReadonlySet<string>,
+): string {
   return highlighted.has(userId) ? `**<@${userId}>**` : `<@${userId}>`;
 }
 
@@ -36,7 +38,7 @@ function formatMention(userId: string, highlighted: ReadonlySet<string>): string
  * one group. A bulk link writes identical values for every new member, so it
  * always renders as a single group rather than N near-identical lines.
  */
-function groupMembers(members: Member[]): MemberGroup[] {
+export function groupMembers(members: Member[]): MemberGroup[] {
   const groups: MemberGroup[] = [];
 
   for (const member of members) {
@@ -62,20 +64,19 @@ function groupMembers(members: Member[]): MemberGroup[] {
   return groups;
 }
 
-interface RenderedGroup {
-  text: string;
-  shownMembers: number;
-}
-
 /**
- * Renders one group, dropping trailing mentions if the group alone would
- * exceed `budget`. Returns null when even the header doesn't fit.
+ * Renders one linked-by batch as a single body item; never split across the
+ * cut. `budget` caps the whole rendered group, including its header and
+ * reason line, so a batch large enough to blow past a Text Display's limit on
+ * its own (a single `/alts link` can add hundreds of accounts at once) still
+ * yields a group that fits — trailing mentions are dropped and folded into
+ * the caller's overflow count instead.
  */
 function formatGroup(
   group: MemberGroup,
   highlighted: ReadonlySet<string>,
   budget: number,
-): RenderedGroup | null {
+): { text: string; shownMembers: number } {
   const timestamp = `<t:${dayjs.utc(group.linkedAt).unix()}:R>`;
   const reasonLine = group.reason
     ? `\n${quoteMarkdownString(group.reason)}`
@@ -84,13 +85,14 @@ function formatGroup(
   // A lone member reads better on one line than as a header plus a list.
   if (group.members.length === 1) {
     const mention = formatMention(group.members[0].userId, highlighted);
-    const text = `${mention} — linked by <@${group.linkedBy}> ${timestamp}${reasonLine}`;
-
-    return text.length <= budget ? { text, shownMembers: 1 } : null;
+    return {
+      text: `${mention} · linked by <@${group.linkedBy}> · ${timestamp}${reasonLine}`,
+      shownMembers: 1,
+    };
   }
 
-  const header = `Linked by <@${group.linkedBy}> ${timestamp}\n`;
-  const available = budget - header.length - reasonLine.length;
+  const header = `Linked by <@${group.linkedBy}> · ${timestamp}`;
+  const available = Math.max(0, budget - header.length - reasonLine.length - 1);
 
   const mentions: string[] = [];
   let used = 0;
@@ -99,7 +101,8 @@ function formatGroup(
     const mention = formatMention(member.userId, highlighted);
     const cost = mentions.length === 0 ? mention.length : mention.length + 2;
 
-    if (used + cost > available) {
+    // Always take the first mention, even oversized, so the group is never blank.
+    if (mentions.length > 0 && used + cost > available) {
       break;
     }
 
@@ -107,62 +110,29 @@ function formatGroup(
     used += cost;
   }
 
-  if (mentions.length === 0) {
-    return null;
-  }
-
-  // Members dropped here are covered by the trailing "+N more" line.
   return {
-    text: `${header}${mentions.join(", ")}${reasonLine}`,
+    text: `${header}\n${mentions.join(", ")}${reasonLine}`,
     shownMembers: mentions.length,
   };
 }
 
 /**
- * Renders groups in order until the character budget runs out. Groups holding
- * highlighted members are always rendered — otherwise the accounts a `/alts
- * link` just added could fall past the cut on a large identity.
+ * Orders groups so ones holding highlighted members come first — otherwise the
+ * accounts a `/alts link` just added could fall past the packing cut on a
+ * large identity. A no-op when nothing is highlighted, which keeps `/alts
+ * view` in chronological order.
  */
-function renderGroups(
+function prioritizeHighlighted(
   groups: MemberGroup[],
   highlighted: ReadonlySet<string>,
-  totalMembers: number,
-  budget: number,
-): string {
-  const rendered = new Map<number, string>();
-  let used = 0;
-  let shownMembers = 0;
+): MemberGroup[] {
+  const isHighlighted = (group: MemberGroup): boolean =>
+    group.members.some((member) => highlighted.has(member.userId));
 
-  const take = (index: number): void => {
-    if (rendered.has(index)) {
-      return;
-    }
-
-    const group = formatGroup(groups[index], highlighted, budget - used);
-    if (!group) {
-      return;
-    }
-
-    rendered.set(index, group.text);
-    used += group.text.length + 1;
-    shownMembers += group.shownMembers;
-  };
-
-  groups.forEach((group, index) => {
-    if (group.members.some((member) => highlighted.has(member.userId))) {
-      take(index);
-    }
-  });
-
-  groups.forEach((_, index) => take(index));
-
-  const lines = [...rendered.keys()].sort((a, b) => a - b).map((index) => rendered.get(index)!);
-
-  if (shownMembers < totalMembers) {
-    lines.push(`*+${totalMembers - shownMembers} more*`);
-  }
-
-  return lines.join("\n");
+  return [
+    ...groups.filter(isHighlighted),
+    ...groups.filter((group) => !isHighlighted(group)),
+  ];
 }
 
 export interface AltIdentityContainerOptions {
@@ -176,8 +146,8 @@ export interface AltIdentityContainerOptions {
 
 /**
  * Builds the identity container shared by `/alts view` and `/alts link`:
- * nickname, optional note, grouped member list, and a nickname edit button
- * accessory.
+ * identity name, optional note, grouped member list, and a name/rename
+ * identity button accessory.
  */
 export function buildAltIdentityContainer(
   identity: AltIdentityWithMembers,
@@ -192,45 +162,63 @@ export function buildAltIdentityContainer(
   const { identity: identityEntity, members } = identity;
 
   const title = identityEntity.nickname
-    ? `## ${identityEntity.nickname}`
-    : "## Linked Identity";
+    ? `-# Identity: **${identityEntity.nickname}**`
+    : "-# Identity: **Unnamed**";
 
   const historyFooter =
     members.length > 1
       ? "-# Run `/history` on any account above to see all of them combined."
       : null;
 
+  const highlighted = new Set(highlightUserIds);
+
   // The member list gets whatever the surrounding text doesn't need, so a long
   // note or reason shrinks the list instead of overflowing the whole component.
   const memberBudget = Math.max(
     0,
-    TEXT_DISPLAY_LIMIT -
+    TAB_CONTENT_CHAR_BUDGET -
       title.length -
       (note?.length ?? 0) -
-      (historyFooter?.length ?? 0) -
-      BUDGET_SLACK,
+      (historyFooter?.length ?? 0),
   );
 
-  const memberText = renderGroups(
+  const orderedGroups = prioritizeHighlighted(
     groupMembers(members),
-    new Set(highlightUserIds),
-    members.length,
-    memberBudget,
+    highlighted,
   );
+  // Cap each group's own rendered size to memberBudget up front, so a single
+  // oversized batch (packItems always keeps the first item) can never itself
+  // exceed the Text Display limit — see formatGroup.
+  const renderedGroups = orderedGroups.map((group) =>
+    formatGroup(group, highlighted, memberBudget),
+  );
+  // packItems' own overflowLine is never used below: it would count dropped
+  // *batches*, but shownMembers/overflowLine further down count dropped
+  // *accounts* — a different, correct number. `noun` is set to match what
+  // that discarded line would actually say, so an accidental switch to it
+  // doesn't also render the banned word "groups".
+  const { text: memberText, shown } = packItems(
+    renderedGroups,
+    (rendered) => rendered.text,
+    { budget: memberBudget, noun: "linked batches" },
+  );
+  const shownMembers = renderedGroups
+    .slice(0, shown)
+    .reduce((total, rendered) => total + rendered.shownMembers, 0);
+  const overflowLine =
+    shownMembers < members.length
+      ? `-# +${members.length - shownMembers} more accounts`
+      : null;
 
-  const content = [title, note, memberText, historyFooter]
+  const content = [title, note, memberText, overflowLine, historyFooter]
     .filter(Boolean)
     .join("\n");
 
-  const headerText = new TextDisplayBuilder().setContent(
-    content.length > TEXT_DISPLAY_LIMIT
-      ? content.slice(0, TEXT_DISPLAY_LIMIT - 1) + "…"
-      : content,
-  );
+  const headerText = new TextDisplayBuilder().setContent(content);
 
   const nicknameButton = new ButtonBuilder()
     .setCustomId(buildNicknameButtonId(identityEntity.id))
-    .setLabel(identityEntity.nickname ? "Edit Nickname" : "Set Nickname")
+    .setLabel(identityEntity.nickname ? "Rename Identity" : "Name Identity")
     .setStyle(ButtonStyle.Secondary)
     .setDisabled(isDisabled);
 

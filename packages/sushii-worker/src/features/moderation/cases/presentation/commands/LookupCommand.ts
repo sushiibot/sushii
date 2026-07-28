@@ -9,10 +9,14 @@ import type { Logger } from "pino";
 
 import { isPublicServer } from "@/features/moderation/shared/domain/services/PublicServerValidationService";
 import { getErrorMessage } from "@/interactions/responses/error";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { LookupUserService } from "../../application/LookupUserService";
-import { buildUserLookupReply } from "../views/UserLookupView";
+import {
+  buildUserLookupPageContainer,
+  buildUserLookupPages,
+} from "../views/UserLookupView";
 
 export class LookupCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -97,16 +101,37 @@ export class LookupCommand extends SlashCommandHandler {
       member = null;
     }
 
-    const message = buildUserLookupReply(targetUser, member, lookupResult.val);
+    const { crossServerBans, currentGuildLookupOptIn } = lookupResult.val;
+    const pages = buildUserLookupPages(crossServerBans, currentGuildLookupOptIn);
+
+    const paginator = new ComponentsV2Paginator({
+      interaction,
+      pageSize: 1,
+      callbacks: {
+        fetchPage: async (pageIndex) =>
+          pages[pageIndex] ? [pages[pageIndex]] : [],
+        getTotalCount: async () => pages.length,
+        renderContainer: ([pageBans], state, navButtons) =>
+          buildUserLookupPageContainer(
+            targetUser,
+            member,
+            crossServerBans.length,
+            pageBans ?? [],
+            currentGuildLookupOptIn,
+            navButtons,
+            state.isDisabled,
+          ),
+      },
+    });
+
+    await paginator.start(false);
 
     log.info(
       {
         targetUserId: targetUser.id,
-        crossServerBans: lookupResult.val.crossServerBans.length,
+        crossServerBans: crossServerBans.length,
       },
       "User lookup completed",
     );
-
-    await interaction.reply(message);
   }
 }

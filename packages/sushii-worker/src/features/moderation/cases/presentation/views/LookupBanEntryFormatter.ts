@@ -26,8 +26,12 @@ export function formatBanEntry(
     } else {
       parts.push(`**${escapedGuildName}**`);
     }
+
+    // Server size is withholdable identity signal: only shown alongside the
+    // name it would otherwise help re-identify.
+    parts.push(`${ban.guildMembers.toLocaleString()} members`);
   } else {
-    // Either guild hasn't opted in - hide server name
+    // Either guild hasn't opted in - hide server name and size
     if (guildBadges) {
       parts.push(`${guildBadges} **Anonymous**`);
     } else {
@@ -40,7 +44,7 @@ export function formatBanEntry(
     parts.push(`<t:${timestamp}:R>`);
   }
 
-  const header = parts.join(" – ");
+  const header = parts.join(" · ");
   let entry = header;
 
   // Only show reason if both guilds opted in

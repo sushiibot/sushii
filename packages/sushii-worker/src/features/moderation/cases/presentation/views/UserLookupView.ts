@@ -1,50 +1,68 @@
-import type { GuildMember, InteractionReplyOptions, User } from "discord.js";
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  GuildMember,
+  User,
+} from "discord.js";
 import {
   ContainerBuilder,
-  MessageFlags,
   SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
   ThumbnailBuilder,
 } from "discord.js";
 
-import type { UserLookupResult } from "@/features/moderation/cases/application/LookupUserService";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
-import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
-import { getActionTypeEmoji } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
+import { chunkItems } from "@/shared/presentation/packLines";
 import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { formatBanEntry } from "./LookupBanEntryFormatter";
 
 /**
- * Build user lookup container using components v2 - shows ALL cross-server bans
- * for comprehensive lookup command display.
+ * Bin-pack cross-server bans into pages. Bans are expected to already be
+ * ordered largest-server-first by the caller (LookupUserService sorts them);
+ * chunking preserves that order within and across pages.
  */
-export function buildUserLookupReply(
+export function buildUserLookupPages(
+  crossServerBans: UserLookupBan[],
+  currentGuildLookupOptIn: boolean,
+): UserLookupBan[][] {
+  return chunkItems(crossServerBans, (ban) =>
+    formatBanEntry(ban, currentGuildLookupOptIn),
+  );
+}
+
+/**
+ * Build one page of the user lookup container using components v2.
+ */
+export function buildUserLookupPageContainer(
   targetUser: User,
   member: GuildMember | null,
-  lookupResult: UserLookupResult,
-): InteractionReplyOptions {
-  const { crossServerBans, currentGuildLookupOptIn } = lookupResult;
-
+  totalBans: number,
+  pageBans: UserLookupBan[],
+  currentGuildLookupOptIn: boolean,
+  navButtons: ActionRowBuilder<ButtonBuilder> | null,
+  isDisabled: boolean,
+): ContainerBuilder {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
-  // User header with avatar thumbnail
   const headerSection = buildUserHeaderSection(targetUser, member);
   container.addSectionComponents(headerSection);
 
   container.addSeparatorComponents(new SeparatorBuilder());
 
-  // Cross-server bans section
-  const bansText = buildBansText(crossServerBans, currentGuildLookupOptIn);
+  const bansText = buildBansText(
+    pageBans,
+    totalBans,
+    currentGuildLookupOptIn,
+  );
   container.addTextDisplayComponents(bansText);
 
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
+  ComponentsV2Paginator.addNavigationSection(container, navButtons, isDisabled);
+
+  return container;
 }
 
 function buildUserHeaderSection(
@@ -62,13 +80,11 @@ function buildUserHeaderSection(
     : `### ${targetUser.username} — \`${targetUser.id}\``;
 
   const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  const parts: string[] = [
-    `Created <t:${createdTimestamp}:f> (<t:${createdTimestamp}:R>)`,
-  ];
+  const parts: string[] = [`Created <t:${createdTimestamp}:R>`];
 
   if (member?.joinedTimestamp) {
     const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
-    parts.push(`Joined <t:${joinedTimestamp}:f> (<t:${joinedTimestamp}:R>)`);
+    parts.push(`Joined <t:${joinedTimestamp}:R>`);
   }
 
   if (member?.nickname) {
@@ -101,45 +117,24 @@ function buildUserHeaderSection(
 }
 
 function buildBansText(
-  crossServerBans: UserLookupBan[],
+  pageBans: UserLookupBan[],
+  totalBans: number,
   currentGuildLookupOptIn: boolean,
 ): TextDisplayBuilder {
-  const lookupEmoji = getActionTypeEmoji(ActionType.Lookup);
-  const totalBans = crossServerBans.length;
-
-  let content = `### ${lookupEmoji} **Cross-Server Bans** (${totalBans})\n`;
-
   if (totalBans === 0) {
-    content += "> No bans found.";
-  } else {
-    // Character limit to prevent Discord message overflow (leaving room for other sections)
-    const MAX_CONTENT_LENGTH = 3500;
-    const banEntries: string[] = [];
-    let currentLength = content.length;
-    let bansShown = 0;
+    // Opt-in only withholds names/reasons on entries that exist, never the
+    // entries themselves, so zero here always means zero, not "hidden".
+    const content =
+      "**No cross-server bans found.**\n" +
+      "-# Includes bans from servers that haven't opted into sharing details.";
 
-    for (const ban of crossServerBans) {
-      const banEntry = formatBanEntry(ban, currentGuildLookupOptIn);
-      const entryWithNewline = bansShown === 0 ? banEntry : `\n${banEntry}`;
-
-      // Check if adding this ban would exceed the limit
-      if (currentLength + entryWithNewline.length > MAX_CONTENT_LENGTH) {
-        break;
-      }
-
-      banEntries.push(entryWithNewline);
-      currentLength += entryWithNewline.length;
-      bansShown++;
-    }
-
-    content += banEntries.join("");
-
-    // Add "and X more" message if we truncated
-    const remainingBans = totalBans - bansShown;
-    if (remainingBans > 0) {
-      content += `\n\n*and ${remainingBans} more ban${remainingBans === 1 ? "" : "s"}...*`;
-    }
+    return new TextDisplayBuilder().setContent(content);
   }
 
-  return new TextDisplayBuilder().setContent(content);
+  const scopeLine = `-# ${totalBans} ban${totalBans === 1 ? "" : "s"}, largest servers first`;
+  const entries = pageBans
+    .map((ban) => formatBanEntry(ban, currentGuildLookupOptIn))
+    .join("\n");
+
+  return new TextDisplayBuilder().setContent(`${scopeLine}\n${entries}`);
 }

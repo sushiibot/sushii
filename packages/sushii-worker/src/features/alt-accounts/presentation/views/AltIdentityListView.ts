@@ -11,7 +11,7 @@ function formatIdentityRow(identity: AltIdentitySummary): string {
   const memberWord = identity.memberCount === 1 ? "account" : "accounts";
   const mentions = identity.memberIds.map((id) => `<@${id}>`).join(" ");
 
-  return `**${name}** — ${identity.memberCount} ${memberWord}\n${mentions}`;
+  return `**${name}** · ${identity.memberCount} ${memberWord}\n${mentions}`;
 }
 
 export function buildAltIdentityListContainer(
@@ -21,14 +21,10 @@ export function buildAltIdentityListContainer(
 ): ContainerBuilder {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("## Tracked Identities"),
-  );
-
   if (identities.length === 0) {
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        "No tracked identities yet in this server.",
+        "**No tracked identities yet**\n-# No accounts have been linked into an identity in this server.",
       ),
     );
   } else {
