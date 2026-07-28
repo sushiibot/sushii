@@ -46,6 +46,7 @@ export async function openModView(
   targetUser: User,
   deps: ModViewDependencies,
   initialTab: ModViewTab = "overview",
+  ephemeral = false,
 ): Promise<void> {
   const member = await fetchTargetMember(
     interaction.guild,
@@ -77,6 +78,7 @@ export async function openModView(
     deps.setNicknameService,
     deps.logger,
     initialTab,
+    ephemeral,
   );
 
   await session.start();
@@ -107,6 +109,7 @@ export async function openModViewOrReportError(
   targetUser: User,
   deps: ModViewDependencies,
   initialTab: ModViewTab,
+  ephemeral = false,
 ): Promise<void> {
   const log = deps.logger.child({
     guildId: interaction.guildId,
@@ -115,7 +118,7 @@ export async function openModViewOrReportError(
   });
 
   try {
-    await openModView(interaction, targetUser, deps, initialTab);
+    await openModView(interaction, targetUser, deps, initialTab, ephemeral);
   } catch (err) {
     log.error({ err }, "Failed to open mod view");
     await respondWithModViewError(

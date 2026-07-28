@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { MessageFlags } from "discord.js";
 import type { User } from "discord.js";
 import { pino } from "pino";
 
@@ -88,7 +89,7 @@ function makeInteraction() {
 
   const interaction = {
     isChatInputCommand: () => false,
-    reply: mock(() => Promise.resolve(response)),
+    reply: mock((_opts?: { flags?: number }) => Promise.resolve(response)),
     editReply,
     guildId: GUILD_ID,
     guild: { id: GUILD_ID },
@@ -132,5 +133,53 @@ describe("ModViewSession expiry", () => {
     // The fetched `Message#edit` uses the bot token and never expires.
     expect(msg.edit).toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+});
+
+describe("ModViewSession ephemeral", () => {
+  it("does not set the Ephemeral flag by default", async () => {
+    const { interaction } = makeInteraction();
+
+    const session = new ModViewSession(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      interaction as any,
+      makeEmptyData(),
+      makeUser(),
+      null,
+      mockEmojis,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
+      pino({ level: "silent" }),
+    );
+
+    await session.start();
+
+    const replyArg = interaction.reply.mock.calls[0][0];
+    expect((replyArg?.flags as number) & MessageFlags.Ephemeral).toBe(0);
+  });
+
+  it("sets the Ephemeral flag when constructed with ephemeral: true", async () => {
+    const { interaction } = makeInteraction();
+
+    const session = new ModViewSession(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      interaction as any,
+      makeEmptyData(),
+      makeUser(),
+      null,
+      mockEmojis,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
+      pino({ level: "silent" }),
+      "overview",
+      true,
+    );
+
+    await session.start();
+
+    const replyArg = interaction.reply.mock.calls[0][0];
+    expect((replyArg?.flags as number) & MessageFlags.Ephemeral).toBe(
+      MessageFlags.Ephemeral,
+    );
   });
 });

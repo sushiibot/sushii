@@ -57,6 +57,7 @@ export class ModViewContextMenuHandler extends ContextMenuHandler {
       targetUser,
       this.deps,
       "overview",
+      true,
     );
   }
 

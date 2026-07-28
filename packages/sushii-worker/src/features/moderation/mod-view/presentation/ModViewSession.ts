@@ -108,6 +108,7 @@ export class ModViewSession {
     private readonly setNicknameService: SetNicknameService,
     private readonly logger: Logger,
     initialTab: ModViewTab = "overview",
+    private readonly ephemeral = false,
   ) {
     this.activeTab = initialTab;
   }
@@ -139,6 +140,9 @@ export class ModViewSession {
     // error path) is watching it.
     const response = await this.interaction.reply({
       ...initialReply,
+      flags: this.ephemeral
+        ? initialReply.flags | MessageFlags.Ephemeral
+        : initialReply.flags,
       withResponse: true,
     });
     const msg = response.resource?.message;
