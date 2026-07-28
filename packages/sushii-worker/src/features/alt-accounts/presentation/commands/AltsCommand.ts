@@ -8,6 +8,8 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -18,18 +20,15 @@ import type {
 import type { ListIdentitiesService } from "../../application/ListIdentitiesService";
 import type { SetNicknameService } from "../../application/SetNicknameService";
 import type { UnlinkAccountService } from "../../application/UnlinkAccountService";
-import type { ViewIdentityService } from "../../application/ViewIdentityService";
 import {
   parseAccountTokens,
   resolveAdditionalAccounts,
   validateAccountTokens,
 } from "../AdditionalAccountsResolver";
 import {
-  buildAltIdentityContainer,
   buildAltIdentityListContainer,
   buildLinkOutcomeContainer,
   buildNicknameOutcomeContainer,
-  buildNoIdentityContainer,
   buildUnlinkOutcomeContainer,
 } from "../views";
 
@@ -82,10 +81,16 @@ export class AltsCommand extends SlashCommandHandler {
         .setName("unlink")
         .setDescription("Remove an account from its identity.")
         .addUserOption((o) =>
-          o.setName("user").setDescription("Account to unlink.").setRequired(true),
+          o
+            .setName("user")
+            .setDescription("Account to unlink.")
+            .setRequired(true),
         )
         .addStringOption((o) =>
-          o.setName("reason").setDescription("Optional reason.").setRequired(false),
+          o
+            .setName("reason")
+            .setDescription("Optional reason.")
+            .setRequired(false),
         ),
     )
     .addSubcommand((c) =>
@@ -93,13 +98,16 @@ export class AltsCommand extends SlashCommandHandler {
         .setName("view")
         .setDescription("View an account's linked identity.")
         .addUserOption((o) =>
-          o.setName("user").setDescription("Account to look up.").setRequired(true),
+          o
+            .setName("user")
+            .setDescription("Account to look up.")
+            .setRequired(true),
         ),
     )
     .addSubcommand((c) =>
       c
-        .setName("nickname")
-        .setDescription("Set or clear an identity's nickname.")
+        .setName("rename")
+        .setDescription("Set or clear an identity's name.")
         .addUserOption((o) =>
           o
             .setName("user")
@@ -109,21 +117,23 @@ export class AltsCommand extends SlashCommandHandler {
         .addStringOption((o) =>
           o
             .setName("text")
-            .setDescription("New nickname. Omit to clear.")
+            .setDescription("New identity name. Omit to clear.")
             .setRequired(false),
         ),
     )
     .addSubcommand((c) =>
-      c.setName("list").setDescription("Browse every tracked identity in this server."),
+      c
+        .setName("list")
+        .setDescription("Browse every tracked identity in this server."),
     )
     .toJSON();
 
   constructor(
     private readonly linkAccountsService: LinkAccountsService,
     private readonly unlinkAccountService: UnlinkAccountService,
-    private readonly viewIdentityService: ViewIdentityService,
     private readonly setNicknameService: SetNicknameService,
     private readonly listIdentitiesService: ListIdentitiesService,
+    private readonly modViewDependencies: ModViewDependencies,
     private readonly logger: Logger,
   ) {
     super();
@@ -143,7 +153,7 @@ export class AltsCommand extends SlashCommandHandler {
         return this.handleUnlink(interaction);
       case "view":
         return this.handleView(interaction);
-      case "nickname":
+      case "rename":
         return this.handleNickname(interaction);
       case "list":
         return this.handleList(interaction);
@@ -293,34 +303,19 @@ export class AltsCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
     const user = interaction.options.getUser("user", true);
-
-    const result = await this.viewIdentityService.view(
-      interaction.guildId,
-      user.id,
-    );
-
-    if (result.err) {
-      await interaction.reply({
-        content: `Failed to view identity: ${result.val}`,
-        ephemeral: true,
-      });
-      return;
-    }
-
-    if (!result.val) {
-      await interaction.reply({
-        components: [buildNoIdentityContainer(user.id)],
-        flags: ["IsComponentsV2"],
-        allowedMentions: { parse: [] },
-      });
-      return;
-    }
-
-    await interaction.reply({
-      components: [buildAltIdentityContainer(result.val)],
-      flags: ["IsComponentsV2"],
-      allowedMentions: { parse: [] },
+    const log = this.logger.child({
+      guildId: interaction.guildId,
+      targetId: user.id,
+      executorId: interaction.user.id,
     });
+
+    await openModViewOrReportError(
+      interaction,
+      user,
+      this.modViewDependencies,
+      "alts",
+      log,
+    );
   }
 
   private async handleNickname(

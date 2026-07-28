@@ -13,6 +13,7 @@ import { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import type { SlashCommandHandler } from "@/shared/presentation/handlers";
+import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 // Actions sub-feature
@@ -23,6 +24,8 @@ import {
   TargetResolutionService,
 } from "./actions/application";
 import { ModerationCommand } from "./actions/presentation";
+import { AutomodAlertActionButtonHandler } from "./actions/presentation/components/AutomodAlertActionButtonHandler";
+import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
 import { AuditLogEventHandler } from "./audit-logs";
 // Audit logs sub-feature
 import {
@@ -35,8 +38,6 @@ import {
   ModLogDeleteDMButtonHandler,
   ModLogReasonButtonHandler,
 } from "./audit-logs/presentation/components";
-import { AutomodAlertActionButtonHandler } from "./actions/presentation/components/AutomodAlertActionButtonHandler";
-import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -53,7 +54,6 @@ import {
   NamesCommand,
   ReasonCommand,
   UncaseCommand,
-  UserInfoContextMenuHandler,
 } from "./cases/presentation";
 // Tasks
 import { TempbanTask } from "./infrastructure/tasks/TempbanTask";
@@ -69,7 +69,11 @@ import {
   TempbanListCommand,
 } from "./management/presentation";
 // Mod view sub-feature
-import { setupModViewFeature } from "./mod-view/setup";
+import type { ModViewDependencies } from "./mod-view/presentation/ModViewSession";
+import {
+  createModViewDependencies,
+  setupModViewFeature,
+} from "./mod-view/setup";
 // Shared components
 import { DMNotificationService } from "./shared/application";
 import { SoftbanSuppressionSet } from "./shared/application/SoftbanSuppressionSet";
@@ -99,7 +103,6 @@ interface ModerationDependencies {
 interface ModerationTaskDependencies extends ModerationDependencies {
   deploymentService: DeploymentService;
 }
-
 
 export function createModerationServices({
   db,
@@ -280,13 +283,10 @@ export function createModerationServices({
 export function createModerationCommands(
   services: ReturnType<typeof createModerationServices>,
   logger: Logger,
-  userLevelRepository: UserLevelRepository,
+  modViewDependencies: ModViewDependencies,
 ) {
   const {
     moderationService,
-    lookupUserService,
-    historyUserService,
-    namesUserService,
     targetResolutionService,
     tempBanListService,
     slowmodeService,
@@ -313,12 +313,11 @@ export function createModerationCommands(
 
   commands.push(
     new LookupCommand(
-      lookupUserService,
+      modViewDependencies,
       logger.child({ commandHandler: "lookup" }),
     ),
     new HistoryCommand(
-      historyUserService,
-      emojiRepository,
+      modViewDependencies,
       logger.child({ commandHandler: "history" }),
     ),
     // Utility commands
@@ -343,7 +342,7 @@ export function createModerationCommands(
       logger.child({ commandHandler: "reason" }),
     ),
     new NamesCommand(
-      namesUserService,
+      modViewDependencies,
       logger.child({ commandHandler: "names" }),
     ),
   );
@@ -355,15 +354,7 @@ export function createModerationCommands(
     ),
   ];
 
-  const contextMenuHandlers = [
-    new UserInfoContextMenuHandler(
-      historyUserService,
-      lookupUserService,
-      emojiRepository,
-      logger.child({ contextMenuHandler: "userInfoContextMenu" }),
-      userLevelRepository,
-    ),
-  ];
+  const contextMenuHandlers: ContextMenuHandler[] = [];
 
   const buttonHandlers = [
     new ModLogReasonButtonHandler(
@@ -435,7 +426,9 @@ export function setupModerationFeature({
   altAccountRepository,
   setNicknameService,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
-  ReturnType<typeof createModerationServices>
+  ReturnType<typeof createModerationServices> & {
+    modViewDependencies: ModViewDependencies;
+  }
 > {
   const services = createModerationServices({
     db,
@@ -449,13 +442,11 @@ export function setupModerationFeature({
     altAccountRepository,
     setNicknameService,
   });
-  const commands = createModerationCommands(services, logger, userLevelRepository);
-  const events = createModerationEventHandlers(services, logger);
-  const tasks = createModerationTasks(services, client, deploymentService);
 
-  // Sub-feature: the mod view fans out over the per-user services above, so it
-  // is constructed here rather than from the cluster bootstrap.
-  const modView = setupModViewFeature({
+  // Built ahead of both createModerationCommands (History/Names/Lookup
+  // deep-link into it) and setupModViewFeature (which registers /modview and
+  // the context menu on top of the same instance).
+  const modViewDependencies = createModViewDependencies({
     client,
     logger: logger.child({ feature: "ModView" }),
     emojiRepository,
@@ -466,11 +457,25 @@ export function setupModerationFeature({
     tempBanRepository: services.tempBanRepository,
     timeoutDetectionService: services.timeoutDetectionService,
     setNicknameService,
+  });
+
+  const commands = createModerationCommands(
+    services,
+    logger,
+    modViewDependencies,
+  );
+  const events = createModerationEventHandlers(services, logger);
+  const tasks = createModerationTasks(services, client, deploymentService);
+
+  // Sub-feature: the mod view fans out over the per-user services above, so it
+  // is constructed here rather than from the cluster bootstrap.
+  const modView = setupModViewFeature({
+    modViewDependencies,
     userLevelRepository,
   });
 
   return {
-    services,
+    services: { ...services, modViewDependencies },
     commands: [...commands.commands, ...modView.commands],
     autocompletes: commands.autocompletes,
     contextMenuHandlers: [

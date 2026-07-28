@@ -1,16 +1,5 @@
-import type { GuildMember, InteractionReplyOptions, User } from "discord.js";
-import {
-  ContainerBuilder,
-  MessageFlags,
-  SectionBuilder,
-  SeparatorBuilder,
-  TextDisplayBuilder,
-  ThumbnailBuilder,
-} from "discord.js";
-
 import type { NamesResult } from "@/features/moderation/cases/application/NamesUserService";
 import type { UserNameHistoryEntry } from "@/features/user-name-history";
-import Color from "@/utils/colors";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 export interface NameHistoryGroups {
@@ -32,92 +21,6 @@ export function groupNameHistory(
       (e) => e.nameType === "nickname" && e.guildId?.toString() === guildId,
     ),
   };
-}
-
-export function buildUserNamesReply(
-  targetUser: User,
-  member: GuildMember | null,
-  result: NamesResult,
-  guildId: string,
-): InteractionReplyOptions {
-  const container = new ContainerBuilder().setAccentColor(Color.Info);
-
-  container.addSectionComponents(buildUserHeaderSection(targetUser, member));
-  container.addSeparatorComponents(new SeparatorBuilder());
-
-  const { usernameEntries, globalNameEntries, nicknameEntries } =
-    groupNameHistory(result, guildId);
-
-  // A group with zero recorded entries can still have a row to show — a
-  // synthesized "current value, not recorded" row — so gate on the built
-  // section rather than on `entries.length`.
-  const sections = [
-    buildHistorySection(
-      "Username",
-      usernameEntries,
-      formatUsernameValue,
-      targetUser.username,
-    ),
-    buildHistorySection(
-      "Display Name",
-      globalNameEntries,
-      formatNameValue,
-      targetUser.globalName,
-    ),
-    buildHistorySection(
-      "Nickname (this server)",
-      nicknameEntries,
-      formatNameValue,
-      member?.nickname,
-    ),
-  ].filter((section): section is TextDisplayBuilder => section !== null);
-
-  if (sections.length === 0) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        "**No name history recorded**\n-# Name history accumulates from changes observed after tracking began.",
-      ),
-    );
-  } else {
-    for (const section of sections) {
-      container.addTextDisplayComponents(section);
-    }
-  }
-
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
-}
-
-function buildUserHeaderSection(
-  targetUser: User,
-  member: GuildMember | null,
-): SectionBuilder {
-  const hasGlobalName =
-    targetUser.globalName !== null &&
-    targetUser.globalName !== targetUser.username;
-
-  const title = hasGlobalName
-    ? `### ${targetUser.globalName} (\`${targetUser.username}\`) — \`${targetUser.id}\``
-    : `### ${targetUser.username} — \`${targetUser.id}\``;
-
-  const createdTimestamp = timestampToUnixTime(targetUser.createdTimestamp);
-  const parts: string[] = [`Created <t:${createdTimestamp}:R>`];
-
-  if (member?.joinedTimestamp) {
-    const joinedTimestamp = timestampToUnixTime(member.joinedTimestamp);
-    parts.push(`Joined <t:${joinedTimestamp}:R>`);
-  }
-
-  return new SectionBuilder()
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`${title}\n${parts.join("\n")}`),
-    )
-    .setThumbnailAccessory(
-      new ThumbnailBuilder().setURL(targetUser.displayAvatarURL({ size: 512 })),
-    );
 }
 
 export function formatUsernameValue(value: string): string {
@@ -166,28 +69,6 @@ export function buildNameGroupLines(
   });
 
   return { labelLine: `**${label}** · ${rows.length}`, entryLines };
-}
-
-function buildHistorySection(
-  label: string,
-  entries: UserNameHistoryEntry[],
-  formatDisplay: (value: string) => string,
-  currentValue: string | null | undefined,
-): TextDisplayBuilder | null {
-  const { labelLine, entryLines } = buildNameGroupLines(
-    label,
-    entries,
-    formatDisplay,
-    currentValue,
-  );
-
-  if (entryLines.length === 0) {
-    return null;
-  }
-
-  return new TextDisplayBuilder().setContent(
-    `${labelLine}\n${entryLines.join("\n")}`,
-  );
 }
 
 function buildRows(

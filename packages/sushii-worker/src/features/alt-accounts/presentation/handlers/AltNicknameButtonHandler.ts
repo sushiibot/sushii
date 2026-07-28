@@ -14,6 +14,17 @@ import type { SetNicknameService } from "../../application/SetNicknameService";
 import { parseNicknameButtonId } from "../customIds";
 import { buildAltIdentityContainer } from "../views";
 
+/**
+ * Globally routed — claims any `alts:nickname:` button, including the one on
+ * `/alts link`/`unlink` outcome messages (via `AltResponseView`). Deliberately
+ * NOT reused for the Mod View's in-tab identity rename: `InteractionRouter`
+ * would claim that click before the view's own collector ever saw it, and
+ * `processModalSubmission`'s `interaction.update` replaces the whole message
+ * with a bare alt panel, destroying the tab row and identity header. The Mod
+ * View instead renders its own `modview_alts_nickname` button and handles the
+ * rename in `ModViewSession.renameIdentity`, writing through the same
+ * `setNicknameService`. Do not merge these two paths.
+ */
 export class AltNicknameButtonHandler extends ButtonHandler {
   customIDMatch = (customId: string) =>
     parseNicknameButtonId(customId) !== null
@@ -109,7 +120,9 @@ export class AltNicknameButtonHandler extends ButtonHandler {
     }
 
     if (!interaction.isFromMessage()) {
-      throw new Error("Alt nickname modal should be from a button on a message");
+      throw new Error(
+        "Alt nickname modal should be from a button on a message",
+      );
     }
 
     await interaction.update({

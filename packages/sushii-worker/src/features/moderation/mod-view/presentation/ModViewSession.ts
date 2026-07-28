@@ -328,9 +328,7 @@ export class ModViewSession {
     await submission.update(this.renderScreen({ disabled: this.expired }));
   }
 
-  private createPaginator(
-    i: ModViewPaginatorSource,
-  ): ModViewPaginator | null {
+  private createPaginator(i: ModViewPaginatorSource): ModViewPaginator | null {
     if (this.activeTab === "history") {
       return this.createHistoryPaginator(i);
     }
@@ -481,6 +479,7 @@ export async function openModView(
   interaction: ModViewEntryInteraction,
   targetUser: User,
   deps: ModViewDependencies,
+  initialTab: ModViewTab = "overview",
 ): Promise<void> {
   const member = await fetchTargetMember(
     interaction.guild,
@@ -511,6 +510,7 @@ export async function openModView(
     emojis,
     deps.setNicknameService,
     deps.logger,
+    initialTab,
   );
 
   await session.start();
@@ -529,4 +529,30 @@ export async function respondWithModViewError(
   }
 
   await interaction.reply(message);
+}
+
+/**
+ * Shared entry-point wrapper for every deep-linking command: opens the view
+ * on the given tab and converts a thrown infrastructure error into a reply,
+ * per the layering rule that only presentation handles a throw.
+ */
+export async function openModViewOrReportError(
+  interaction: ModViewEntryInteraction,
+  targetUser: User,
+  deps: ModViewDependencies,
+  initialTab: ModViewTab,
+  log: Logger,
+): Promise<void> {
+  try {
+    await openModView(interaction, targetUser, deps, initialTab);
+  } catch (err) {
+    log.error(
+      { err, guildId: interaction.guildId, targetId: targetUser.id },
+      "Failed to open mod view",
+    );
+    await respondWithModViewError(
+      interaction,
+      "Something went wrong loading this user's moderation data.",
+    );
+  }
 }

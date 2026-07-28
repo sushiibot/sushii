@@ -1,13 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
-import type { NamesResult } from "@/features/moderation/cases/application/NamesUserService";
 import type { UserNameHistoryEntry } from "@/features/user-name-history";
 
-import {
-  buildNameGroupLines,
-  buildUserNamesReply,
-  formatNameValue,
-} from "./UserNamesView";
+import { buildNameGroupLines, formatNameValue } from "./UserNamesView";
 
 let nextId = 1;
 
@@ -143,97 +138,5 @@ describe("buildNameGroupLines", () => {
         new RegExp(`^\\*\\*${escapedLabel}\\*\\* · \\d+$`),
       );
     }
-  });
-});
-
-function getContainerText(container: { toJSON: () => unknown }): string {
-  const texts: string[] = [];
-
-  const walk = (node: unknown): void => {
-    if (!node || typeof node !== "object") {
-      return;
-    }
-
-    if (
-      "content" in node &&
-      typeof (node as { content?: unknown }).content === "string"
-    ) {
-      texts.push((node as { content: string }).content);
-    }
-
-    if (
-      "components" in node &&
-      Array.isArray((node as { components?: unknown }).components)
-    ) {
-      for (const child of (node as { components: unknown[] }).components) {
-        walk(child);
-      }
-    }
-  };
-
-  walk(container.toJSON());
-  return texts.join("\n");
-}
-
-const GUILD_ID = "444444444444444444";
-
-const fakeTargetUser = {
-  id: "555555555555555555",
-  username: "target",
-  globalName: null as string | null,
-  createdTimestamp: Date.parse("2020-01-01T00:00:00.000Z"),
-  displayAvatarURL: () => "https://example.com/avatar.png",
-};
-
-function makeNamesResult(history: UserNameHistoryEntry[]): NamesResult {
-  return {
-    userInfo: {
-      id: "555555555555555555",
-      username: "target",
-      avatarURL: "https://example.com/avatar.png",
-      joinedAt: null,
-      isBot: false,
-    },
-    history,
-    eligibilityDenied: false,
-  };
-}
-
-describe("buildUserNamesReply", () => {
-  it("synthesizes the current value for a group with zero recorded entries", () => {
-    // Display name was set before tracking began and never changed since —
-    // globalNameEntries is empty, but the live value should still appear.
-    const result = makeNamesResult([]);
-    const targetUser = { ...fakeTargetUser, globalName: "LiveDisplayName" };
-
-    const reply = buildUserNamesReply(
-      targetUser as never,
-      null,
-      result,
-      GUILD_ID,
-    );
-    const text = getContainerText(
-      reply.components![0] as { toJSON: () => unknown },
-    );
-
-    expect(text).toContain("**Display Name** · 1");
-    expect(text).toContain("`LiveDisplayName` · current · not recorded");
-  });
-
-  it("omits a group entirely when it has no recorded entries and no live value", () => {
-    const result = makeNamesResult([]);
-
-    const reply = buildUserNamesReply(
-      fakeTargetUser as never,
-      null,
-      result,
-      GUILD_ID,
-    );
-    const text = getContainerText(
-      reply.components![0] as { toJSON: () => unknown },
-    );
-
-    expect(text).not.toContain("Display Name");
-    expect(text).not.toContain("Nickname (this server)");
   });
 });

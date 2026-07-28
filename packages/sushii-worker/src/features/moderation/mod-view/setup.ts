@@ -17,7 +17,7 @@ import type { ModViewDependencies } from "./presentation/ModViewSession";
 import { ModViewCommand } from "./presentation/commands/ModViewCommand";
 import { ModViewContextMenuHandler } from "./presentation/commands/ModViewContextMenuHandler";
 
-interface SetupModViewFeatureDeps {
+interface CreateModViewDependenciesDeps {
   client: Client;
   logger: Logger;
   emojiRepository: BotEmojiRepository;
@@ -28,16 +28,20 @@ interface SetupModViewFeatureDeps {
   tempBanRepository: TempBanRepository;
   timeoutDetectionService: TimeoutDetectionService;
   setNicknameService: SetNicknameService;
-  userLevelRepository: UserLevelRepository;
 }
 
 export interface ModViewFeatureServices {
   modViewService: ModViewService;
 }
 
-export function setupModViewFeature(
-  deps: SetupModViewFeatureDeps,
-): FullFeatureSetupReturn<ModViewFeatureServices> {
+/**
+ * Built ahead of `setupModViewFeature` so the deep-linking commands
+ * (`/history`, `/names`, `/lookup`, `/alts view`) can be constructed with the
+ * same `ModViewDependencies` instance, wherever their own feature setup runs.
+ */
+export function createModViewDependencies(
+  deps: CreateModViewDependenciesDeps,
+): ModViewDependencies {
   const modViewService = new ModViewService(
     deps.client,
     deps.historyUserService,
@@ -49,12 +53,23 @@ export function setupModViewFeature(
     deps.logger.child({ module: "modViewService" }),
   );
 
-  const modViewDependencies: ModViewDependencies = {
+  return {
     modViewService,
     emojiRepository: deps.emojiRepository,
     setNicknameService: deps.setNicknameService,
     logger: deps.logger.child({ feature: "modView" }),
   };
+}
+
+interface SetupModViewFeatureDeps {
+  modViewDependencies: ModViewDependencies;
+  userLevelRepository: UserLevelRepository;
+}
+
+export function setupModViewFeature(
+  deps: SetupModViewFeatureDeps,
+): FullFeatureSetupReturn<ModViewFeatureServices> {
+  const { modViewDependencies } = deps;
 
   return {
     commands: [new ModViewCommand(modViewDependencies)],
@@ -69,7 +84,7 @@ export function setupModViewFeature(
     eventHandlers: [],
     tasks: [],
     services: {
-      modViewService,
+      modViewService: modViewDependencies.modViewService,
     },
   };
 }

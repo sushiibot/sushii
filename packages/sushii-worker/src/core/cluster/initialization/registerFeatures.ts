@@ -2,15 +2,16 @@ import type { Client } from "discord.js";
 import { Events, Message } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { setupAltAccountsFeature } from "@/features/alt-accounts/setup";
+import {
+  createAltAccountsServices,
+  setupAltAccountsFeature,
+} from "@/features/alt-accounts/setup";
 import { ScamImageStore } from "@/features/automod/infrastructure/ScamImageStore";
 import { ScamImageMetrics } from "@/features/automod/infrastructure/metrics/ScamImageMetrics";
 import { setupAutomodFeature } from "@/features/automod/setup";
-import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
-import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
 import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
@@ -25,14 +26,16 @@ import { setupMessageLog } from "@/features/message-log/setup";
 import { setupMessageVerificationFeature } from "@/features/message-verification/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
+import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
-import { setupScheduleFeature } from "@/features/schedule/setup";
 import { setupRoleMenuFeature } from "@/features/role-menu/setup";
+import { setupScheduleFeature } from "@/features/schedule/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
 import { setupStatusFeature } from "@/features/status/setup";
 import { setupTagFeature } from "@/features/tags/setup";
+import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import type * as schema from "@/infrastructure/database/schema";
@@ -201,7 +204,8 @@ export function registerFeatures(
     config.scamImageStoreAccessKeyId,
     config.scamImageStoreSecretAccessKey,
   ];
-  const scamImageStoreConfiguredCount = scamImageStoreVars.filter(Boolean).length;
+  const scamImageStoreConfiguredCount =
+    scamImageStoreVars.filter(Boolean).length;
 
   const scamImageMetrics = new ScamImageMetrics();
   let scamImageStore: ScamImageStore | undefined;
@@ -283,7 +287,11 @@ export function registerFeatures(
     db,
     logger: logger.child({ feature: "RoleMenu" }),
   });
-  const altAccountsFeature = setupAltAccountsFeature({
+  // Split into services-then-command: AltsCommand deep-links into the mod
+  // view (built inside setupModerationFeature below), which in turn needs
+  // altAccountRepository/setNicknameService from here — so the command can't
+  // be constructed until after moderation returns its modViewDependencies.
+  const altAccountsServices = createAltAccountsServices({
     db,
     logger: logger.child({ feature: "AltAccounts" }),
   });
@@ -298,8 +306,13 @@ export function registerFeatures(
     spamAlertUpdateService: automodFeature.services.spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingFeature.services.userLevelRepository,
-    altAccountRepository: altAccountsFeature.services.altAccountRepository,
-    setNicknameService: altAccountsFeature.services.setNicknameService,
+    altAccountRepository: altAccountsServices.altAccountRepository,
+    setNicknameService: altAccountsServices.setNicknameService,
+  });
+  const altAccountsFeature = setupAltAccountsFeature({
+    logger: logger.child({ feature: "AltAccounts" }),
+    services: altAccountsServices,
+    modViewDependencies: moderationFeature.services.modViewDependencies,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,

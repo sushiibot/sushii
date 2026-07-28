@@ -3,14 +3,17 @@ import { MessageFlags, PermissionFlagsBits } from "discord.js";
 import { pino } from "pino";
 import { Err, Ok } from "ts-results";
 
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
 import { makeAltIdentity } from "@/test/fixtures/altIdentity";
 
-import type { LinkAccountsOutcome, LinkAccountsService } from "../../application/LinkAccountsService";
+import type {
+  LinkAccountsOutcome,
+  LinkAccountsService,
+} from "../../application/LinkAccountsService";
 import { MAX_LINKED_ACCOUNTS } from "../../application/LinkAccountsService";
 import type { ListIdentitiesService } from "../../application/ListIdentitiesService";
 import type { SetNicknameService } from "../../application/SetNicknameService";
 import type { UnlinkAccountService } from "../../application/UnlinkAccountService";
-import type { ViewIdentityService } from "../../application/ViewIdentityService";
 import { AltsCommand } from "./AltsCommand";
 
 const GUILD_ID = "111111111111111111";
@@ -68,10 +71,22 @@ function makeInteraction(
     options: {
       getSubcommand: () => subcommand,
       getUser: (name: string) => options[name] ?? null,
-      getString: (name: string) => (options[name] as string | undefined) ?? null,
+      getString: (name: string) =>
+        (options[name] as string | undefined) ?? null,
       resolved: { users: new Map() },
     },
   };
+}
+
+function makeModViewDependencies(): ModViewDependencies {
+  return {
+    modViewService: {
+      getModView: mock(() => Promise.resolve(Err("boom"))),
+    },
+    emojiRepository: {},
+    setNicknameService: {},
+    logger: pino({ level: "silent" }),
+  } as unknown as ModViewDependencies;
 }
 
 describe("AltsCommand", () => {
@@ -79,9 +94,9 @@ describe("AltsCommand", () => {
     const command = new AltsCommand(
       {} as LinkAccountsService,
       {} as UnlinkAccountService,
-      {} as ViewIdentityService,
       {} as SetNicknameService,
       {} as ListIdentitiesService,
+      makeModViewDependencies(),
       pino({ level: "silent" }),
     );
 
@@ -96,15 +111,17 @@ describe("AltsCommand", () => {
 
     beforeEach(() => {
       linkAccountsService = {
-        link: mock(() => Promise.resolve(Err("You can't link an account to itself."))),
+        link: mock(() =>
+          Promise.resolve(Err("You can't link an account to itself.")),
+        ),
       } as unknown as LinkAccountsService;
 
       command = new AltsCommand(
         linkAccountsService,
         {} as UnlinkAccountService,
-        {} as ViewIdentityService,
         {} as SetNicknameService,
         {} as ListIdentitiesService,
+        makeModViewDependencies(),
         pino({ level: "silent" }),
       );
     });
@@ -244,17 +261,21 @@ describe("AltsCommand", () => {
   });
 
   describe("view", () => {
-    it("shows a 'no linked accounts' response when there is no identity", async () => {
-      const viewIdentityService = {
-        view: mock(() => Promise.resolve(Ok(null))),
-      } as unknown as ViewIdentityService;
+    it("opens the mod view on the alts tab", async () => {
+      const getModView = mock(() => Promise.resolve(Err("boom")));
+      const modViewDependencies = {
+        modViewService: { getModView },
+        emojiRepository: {},
+        setNicknameService: {},
+        logger: pino({ level: "silent" }),
+      } as unknown as ModViewDependencies;
 
       const command = new AltsCommand(
         {} as LinkAccountsService,
         {} as UnlinkAccountService,
-        viewIdentityService,
         {} as SetNicknameService,
         {} as ListIdentitiesService,
+        modViewDependencies,
         pino({ level: "silent" }),
       );
 
@@ -263,9 +284,11 @@ describe("AltsCommand", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await command.handler(interaction as any);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({ flags: ["IsComponentsV2"] }),
-      );
+      // Deep-links reuse ModViewSession's own entry point (D3) rather than a
+      // second view-rendering path — this pins that the target and guild
+      // reach it, not the rendered output, which ModViewSession already tests.
+      expect(getModView).toHaveBeenCalledWith(GUILD_ID, USER_A, null);
+      expect(interaction.reply).toHaveBeenCalled();
     });
   });
 
@@ -279,9 +302,9 @@ describe("AltsCommand", () => {
       const command = new AltsCommand(
         {} as LinkAccountsService,
         {} as UnlinkAccountService,
-        {} as ViewIdentityService,
         {} as SetNicknameService,
         listIdentitiesService,
+        makeModViewDependencies(),
         pino({ level: "silent" }),
       );
 

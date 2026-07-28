@@ -7,11 +7,10 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
+import { openModViewOrReportError } from "@/features/moderation/mod-view/presentation/ModViewSession";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
-
-import type { NamesUserService } from "../../application/NamesUserService";
-import { buildUserNamesReply } from "../views/UserNamesView";
 
 export class NamesCommand extends SlashCommandHandler {
   requiredBotPermissions = new PermissionsBitField();
@@ -30,7 +29,7 @@ export class NamesCommand extends SlashCommandHandler {
     .toJSON();
 
   constructor(
-    private readonly namesUserService: NamesUserService,
+    private readonly modViewDependencies: ModViewDependencies,
     private readonly logger: Logger,
   ) {
     super();
@@ -53,50 +52,12 @@ export class NamesCommand extends SlashCommandHandler {
       return;
     }
 
-    try {
-      const result = await this.namesUserService.getNames(
-        interaction.guildId,
-        targetUser.id,
-      );
-
-      if (!result.ok) {
-        log.warn(
-          { err: result.val, targetUserId: targetUser.id },
-          "Failed to get user name history",
-        );
-        await interaction.reply(getErrorMessage("Error", result.val));
-        return;
-      }
-
-      if (result.val.eligibilityDenied) {
-        await interaction.reply(
-          getErrorMessage(
-            "Access Denied",
-            "This user is not a current member of this server and has no moderation history here.",
-            true,
-          ),
-        );
-        return;
-      }
-
-      const member = interaction.options.getMember("user");
-
-      const message = buildUserNamesReply(
-        targetUser,
-        member,
-        result.val,
-        interaction.guildId,
-      );
-
-      await interaction.reply(message);
-    } catch (error) {
-      log.error(
-        { err: error, targetUserId: targetUser.id },
-        "Unexpected error fetching user name history",
-      );
-      await interaction.reply(
-        getErrorMessage("Error", "An unexpected error occurred."),
-      );
-    }
+    await openModViewOrReportError(
+      interaction,
+      targetUser,
+      this.modViewDependencies,
+      "names",
+      log,
+    );
   }
 }

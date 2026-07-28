@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { ModViewDependencies } from "@/features/moderation/mod-view/presentation/ModViewSession";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
@@ -9,16 +10,12 @@ import {
   ListIdentitiesService,
   SetNicknameService,
   UnlinkAccountService,
-  ViewIdentityService,
 } from "./application";
 import type { AltAccountRepository } from "./domain/repositories";
 import { DrizzleAltAccountRepository } from "./infrastructure";
-import {
-  AltNicknameButtonHandler,
-  AltsCommand,
-} from "./presentation";
+import { AltNicknameButtonHandler, AltsCommand } from "./presentation";
 
-interface SetupAltAccountsFeatureDeps {
+interface CreateAltAccountsServicesDeps {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
 }
@@ -29,9 +26,13 @@ export interface AltAccountsFeatureServices {
   setNicknameService: SetNicknameService;
 }
 
-export function setupAltAccountsFeature(
-  deps: SetupAltAccountsFeatureDeps,
-): FullFeatureSetupReturn<AltAccountsFeatureServices> {
+/**
+ * Built ahead of `setupAltAccountsFeature` — `moderation/setup.ts` needs
+ * `altAccountRepository`/`setNicknameService` to build its `ModViewService`
+ * before `AltsCommand` (which deep-links into the mod view) can be
+ * constructed, so the two halves can't be built in one pass.
+ */
+export function createAltAccountsServices(deps: CreateAltAccountsServicesDeps) {
   const { db, logger } = deps;
 
   const altAccountRepository = new DrizzleAltAccountRepository(
@@ -47,10 +48,6 @@ export function setupAltAccountsFeature(
     altAccountRepository,
     logger.child({ component: "UnlinkAccountService" }),
   );
-  const viewIdentityService = new ViewIdentityService(
-    altAccountRepository,
-    logger.child({ component: "ViewIdentityService" }),
-  );
   const setNicknameService = new SetNicknameService(
     altAccountRepository,
     logger.child({ component: "SetNicknameService" }),
@@ -60,12 +57,39 @@ export function setupAltAccountsFeature(
     logger.child({ component: "ListIdentitiesService" }),
   );
 
+  return {
+    altAccountRepository,
+    linkAccountsService,
+    unlinkAccountService,
+    setNicknameService,
+    listIdentitiesService,
+  };
+}
+
+interface SetupAltAccountsFeatureDeps {
+  logger: Logger;
+  services: ReturnType<typeof createAltAccountsServices>;
+  modViewDependencies: ModViewDependencies;
+}
+
+export function setupAltAccountsFeature(
+  deps: SetupAltAccountsFeatureDeps,
+): FullFeatureSetupReturn<AltAccountsFeatureServices> {
+  const { logger, services, modViewDependencies } = deps;
+  const {
+    altAccountRepository,
+    linkAccountsService,
+    unlinkAccountService,
+    setNicknameService,
+    listIdentitiesService,
+  } = services;
+
   const altsCommand = new AltsCommand(
     linkAccountsService,
     unlinkAccountService,
-    viewIdentityService,
     setNicknameService,
     listIdentitiesService,
+    modViewDependencies,
     logger.child({ component: "AltsCommand" }),
   );
 

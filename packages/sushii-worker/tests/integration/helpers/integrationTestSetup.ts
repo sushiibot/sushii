@@ -2,18 +2,18 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 
+import { createAltAccountsServices } from "@/features/alt-accounts/setup";
 import { AutomodAlertCache } from "@/features/automod/application/AutomodAlertCache";
 import { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import { SpamAlertCache } from "@/features/automod/application/SpamAlertCache";
 import { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import { DrizzleBotEmojiRepository } from "@/features/bot-emojis";
-import { setupAltAccountsFeature } from "@/features/alt-accounts/setup";
-import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { createLevelingServices } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
+import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import type { DeploymentConfig } from "@/shared/infrastructure/config/config";
@@ -96,7 +96,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     logger,
   );
   const userNameHistoryFeature = setupUserNameHistoryFeature({ db });
-  const altAccountsFeature = setupAltAccountsFeature({ db, logger });
+  const altAccountsServices = createAltAccountsServices({ db, logger });
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
@@ -107,8 +107,8 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     spamAlertUpdateService,
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingServices.userLevelRepository,
-    altAccountRepository: altAccountsFeature.services.altAccountRepository,
-    setNicknameService: altAccountsFeature.services.setNicknameService,
+    altAccountRepository: altAccountsServices.altAccountRepository,
+    setNicknameService: altAccountsServices.setNicknameService,
   });
 
   // Create giveaway services with mock client
