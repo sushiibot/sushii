@@ -73,7 +73,7 @@ describe("buildNameGroupLines", () => {
     );
 
     expect(entryLines).toHaveLength(2);
-    expect(entryLines[0]).toBe("`Livename` · current · not recorded");
+    expect(entryLines[0]).toBe("`Livename` · current");
     expect(entryLines[1]).not.toContain("current");
   });
 

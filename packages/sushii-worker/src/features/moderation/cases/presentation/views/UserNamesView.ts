@@ -80,8 +80,11 @@ export function buildNameGroupLines(
   const entryLines = rows.map((row) => {
     const current = row.isCurrent ? " · current" : "";
 
+    // The synthesized live-value row (see `buildRows`) always has both
+    // `recordedAt === null` and `isCurrent === true` — "current" already
+    // says what this is, so no separate "not recorded" marker is needed.
     if (row.recordedAt === null) {
-      return `${row.display}${current} · not recorded`;
+      return `${row.display}${current}`;
     }
 
     const ts = timestampToUnixTime(row.recordedAt.getTime());

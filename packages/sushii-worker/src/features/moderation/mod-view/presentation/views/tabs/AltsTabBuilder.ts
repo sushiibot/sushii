@@ -5,19 +5,12 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import type {
-  Member,
-  MemberGroup,
-} from "@/features/alt-accounts/presentation/views/AltIdentityView";
-import { groupMembers } from "@/features/alt-accounts/presentation/views/AltIdentityView";
+import type { Member } from "@/features/alt-accounts/presentation/views/AltIdentityView";
 import {
   TAB_CONTENT_CHAR_BUDGET,
-  packItems,
   packMentions,
 } from "@/shared/presentation/packLines";
 import { countWithNoun } from "@/shared/presentation/pluralize";
-import { quoteMarkdownString } from "@/utils/markdown";
-import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
@@ -28,46 +21,13 @@ import {
   addSubtextBlock,
 } from "../components/ModViewChrome";
 
-interface RenderedEntry {
-  text: string;
-  shownAccounts: number;
-}
-
 /**
- * Renders one linked-by batch as a single entry line, capped to `budget`
- * (never split — a group is taken whole or its trailing mentions dropped).
- * `groupMembers` is reused only to collapse a bulk `/alts link` into one
- * batch; the line shape and the viewed-account `· viewing` marker here are
- * specific to this tab, not shared with `buildAltIdentityContainer`.
+ * Plain, flat mention list — who's linked, full stop. Linker/timestamp/reason
+ * belong to the full alt-identity history (`buildAltIdentityContainer`), not
+ * this at-a-glance overview: repeating them per account was noisy, and the
+ * grouping they required (same linker, same second) just as often split
+ * accounts linked moments apart onto separate lines.
  */
-function formatEntry(
-  group: MemberGroup,
-  viewedUserId: string,
-  budget: number,
-): RenderedEntry {
-  const timestamp = `<t:${timestampToUnixTime(group.linkedAt.getTime())}:R>`;
-  const reasonLine = group.reason
-    ? `\n${quoteMarkdownString(group.reason)}`
-    : "";
-
-  const meta = `linked by <@${group.linkedBy}>${FIELD_SEPARATOR}${timestamp}`;
-  const available = Math.max(
-    0,
-    budget - meta.length - reasonLine.length - FIELD_SEPARATOR.length - 1,
-  );
-
-  const { text: mentionsText, shownCount } = packMentions(
-    group.members,
-    (member) => formatMention(member, viewedUserId),
-    available,
-  );
-
-  return {
-    text: `${mentionsText}${FIELD_SEPARATOR}${meta}${reasonLine}`,
-    shownAccounts: shownCount,
-  };
-}
-
 function formatMention(member: Member, viewedUserId: string): string {
   if (member.userId === viewedUserId) {
     return `**<@${member.userId}>**${FIELD_SEPARATOR}viewing`;
@@ -81,8 +41,7 @@ function formatMention(member: Member, viewedUserId: string): string {
  * `buildAltIdentityContainer` — that container's button is claimed by the
  * globally-routed `AltNicknameButtonHandler` before this view's own
  * collector ever sees the click, which would replace the whole message with
- * a bare alt panel and destroy the chrome. This builder only borrows
- * `groupMembers` for batching identical linked-by/time/reason rows.
+ * a bare alt panel and destroy the chrome.
  */
 export const addAltsTabContent: ModViewTabContentBuilder = (
   container,
@@ -125,24 +84,18 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
     );
   container.addSectionComponents(nameSection);
 
-  const groups = groupMembers(members);
-  const renderedEntries = groups.map((group) =>
-    formatEntry(group, viewedUserId, TAB_CONTENT_CHAR_BUDGET),
-  );
-
-  const { text, shown } = packItems(
-    renderedEntries,
-    (entry) => entry.text,
+  const { text, shownCount } = packMentions(
+    members,
+    (member) => formatMention(member, viewedUserId),
     TAB_CONTENT_CHAR_BUDGET,
   );
 
   if (text.length === 0) {
     // `members.length > 0` here — `ModViewService` includes single-member
-    // identities and never returns a zero-member one — so `groupMembers`
-    // always yields at least one group and `packItems` always keeps at
-    // least its first item. This guard is a safety net against
-    // `setContent("")` throwing if either invariant ever breaks, matching
-    // `LookupTabBuilder`'s guard.
+    // identities and never returns a zero-member one — so `packMentions`
+    // always keeps at least the first mention. This guard is a safety net
+    // against `setContent("")` throwing if that invariant ever breaks,
+    // matching `LookupTabBuilder`'s guard.
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent("**No linked accounts**"),
     );
@@ -151,13 +104,7 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
 
-  // packItems' `dropped` is per-item (a batch), not per-account, so the
-  // overflow count is derived from how many accounts actually rendered.
-  const shownAccounts = renderedEntries
-    .slice(0, shown)
-    .reduce((total, entry) => total + entry.shownAccounts, 0);
-
-  if (shownAccounts < members.length) {
-    addOverflowLine(container, members.length - shownAccounts, "account");
+  if (shownCount < members.length) {
+    addOverflowLine(container, members.length - shownCount, "account");
   }
 };

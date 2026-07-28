@@ -235,10 +235,13 @@ function extractTextContents(container: ContainerBuilder): string[] {
 /**
  * Lines exempt from the "ends in a relative timestamp or bare integer" rule:
  * scope/state-line/overflow subtext, quoted continuations, Names'
- * synthesized "not recorded" row, plus the Alts tab's identity-name control
- * line (`Identity: **name**` / `No identity name set`) — a per-screen
- * control that is neither a scope block, a label/entry line, nor an
- * overflow line, so the general body-line rule was never meant to cover it.
+ * synthesized live-value row (ends in "current", no timestamp — never
+ * observed, so there is no true timestamp to show), the Alts tab's flat
+ * mention list (no per-line timestamp by design, see `AltsTabBuilder`), plus
+ * the Alts tab's identity-name control line (`Identity: **name**` / `No
+ * identity name set`) — a per-screen control that is neither a scope block,
+ * a label/entry line, nor an overflow line, so the general body-line rule
+ * was never meant to cover it.
  */
 function isLineShapeExempt(line: string): boolean {
   if (line.startsWith("-# ")) {
@@ -250,8 +253,11 @@ function isLineShapeExempt(line: string): boolean {
   if (/^\*\*[^*]+\*\*$/.test(line)) {
     return true; // state line's bold fragment half
   }
-  if (line.endsWith("not recorded")) {
-    return true; // Names' synthesized current-value row
+  if (line.endsWith("current")) {
+    return true; // Names' synthesized live-value row
+  }
+  if (/<@\d+>(\*\*)?( · viewing)?$/.test(line)) {
+    return true; // Alts' flat mention list, see doc comment above
   }
   if (/^Identity: \*\*.+\*\*$/.test(line) || line === "No identity name set") {
     return true; // Alts identity-name control line, see doc comment above
@@ -395,7 +401,7 @@ describe("Mod View grammar conformance", () => {
       expect(texts).toHaveLength(3);
       expect(texts[0]).toBe("-# 0 name changes");
       expect(texts[1]).toBe(
-        `**Username** · 1\n\`@${noLiveValueUser.username}\` · current · not recorded`,
+        `**Username** · 1\n\`@${noLiveValueUser.username}\` · current`,
       );
       expect(texts[2]).toBe(
         "-# Name history accumulates from changes observed after tracking began.",

@@ -151,7 +151,7 @@ describe("NamesTabBuilder — current-value marking", () => {
 
     // labelLine, synthesized row, then the one recorded row.
     expect(lines).toHaveLength(3);
-    expect(lines[1]).toBe("`LiveNick` · current · not recorded");
+    expect(lines[1]).toBe("`LiveNick` · current");
     expect(lines[2]).not.toContain("current");
     expect(countCurrentMarkers(lines.join("\n"))).toBe(1);
   });
