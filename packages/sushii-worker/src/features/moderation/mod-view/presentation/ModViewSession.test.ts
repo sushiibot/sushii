@@ -99,7 +99,7 @@ function makeInteraction() {
 }
 
 describe("ModViewSession expiry", () => {
-  it("edits the fetched message on collector end, never the interaction's webhook reply", async () => {
+  it("edits the reply's message on collector end, never the interaction's webhook reply", async () => {
     const { interaction, msg, collectorHandlers } = makeInteraction();
 
     const session = new ModViewSession(
@@ -130,9 +130,7 @@ describe("ModViewSession expiry", () => {
     await collectorHandlers.end();
 
     // The fetched `Message#edit` uses the bot token and never expires.
-    // (`interaction.editReply` is stubbed to reject if called at all — the
-    // original webhook-token bug this regression pins — so a pre-fix
-    // implementation would already have thrown above, before this line.)
     expect(msg.edit).toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });

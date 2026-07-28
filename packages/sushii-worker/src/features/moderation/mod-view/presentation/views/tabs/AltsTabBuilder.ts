@@ -137,11 +137,12 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
   );
 
   if (text.length === 0) {
-    // `members.length > 0` here (the `!identity` branch above returns early
-    // otherwise), so `groupMembers` always yields at least one group and
-    // `packItems` always keeps at least its first item — this guard is a
-    // safety net against `setContent("")` throwing if either invariant ever
-    // breaks, matching `LookupTabBuilder`'s guard.
+    // `members.length > 0` here — `ModViewService` includes single-member
+    // identities and never returns a zero-member one — so `groupMembers`
+    // always yields at least one group and `packItems` always keeps at
+    // least its first item. This guard is a safety net against
+    // `setContent("")` throwing if either invariant ever breaks, matching
+    // `LookupTabBuilder`'s guard.
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent("**No linked accounts**"),
     );
