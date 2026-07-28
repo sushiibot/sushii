@@ -14,6 +14,7 @@ import {
   TAB_CONTENT_CHAR_BUDGET,
   packItems,
 } from "@/shared/presentation/packLines";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 import { quoteMarkdownString } from "@/utils/markdown";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
@@ -114,7 +115,7 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
 
   addScopeBlock(
     container,
-    `${members.length} account${members.length === 1 ? "" : "s"}${FIELD_SEPARATOR}linked oldest first`,
+    `${countWithNoun(members.length, "account")}${FIELD_SEPARATOR}linked oldest first`,
   );
 
   const nameSection = new SectionBuilder()
@@ -141,7 +142,7 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
 
   const { text, shown } = packItems(renderedEntries, (entry) => entry.text, {
     budget: TAB_CONTENT_CHAR_BUDGET,
-    noun: "accounts",
+    noun: "account",
   });
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
@@ -153,6 +154,6 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
     .reduce((total, entry) => total + entry.shownAccounts, 0);
 
   if (shownAccounts < members.length) {
-    addOverflowLine(container, members.length - shownAccounts, "accounts");
+    addOverflowLine(container, members.length - shownAccounts, "account");
   }
 };

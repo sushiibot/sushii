@@ -22,7 +22,7 @@ describe("packItems", () => {
   test("keeps whole entries, never splitting an entry from its continuation line", () => {
     const { text } = packItems(entries, renderEntry, {
       budget: 50,
-      noun: "cases",
+      noun: "case",
     });
 
     const lines = text.split("\n");
@@ -36,7 +36,7 @@ describe("packItems", () => {
   test("reports overflowLine === null when nothing was dropped", () => {
     const result = packItems(entries, renderEntry, {
       budget: TAB_CONTENT_CHAR_BUDGET,
-      noun: "cases",
+      noun: "case",
     });
 
     expect(result.overflowLine).toBeNull();
@@ -46,29 +46,29 @@ describe("packItems", () => {
   test("reports a non-null overflow line interpolating the noun when items are dropped", () => {
     const result = packItems(entries, renderEntry, {
       budget: 50,
-      noun: "cases",
+      noun: "case",
     });
 
     expect(result.shown).toBeLessThan(entries.length);
-    expect(result.overflowLine).toBe("-# +1 more cases");
+    expect(result.overflowLine).toBe("-# +1 more case");
   });
 
   test("packItems fills exactly to the budget boundary", () => {
-    const r = packItems(entries, renderEntry, { budget: 50, noun: "cases" });
+    const r = packItems(entries, renderEntry, { budget: 50, noun: "case" });
     expect(r.shown).toBe(3);
     expect(r.text.length).toBe(50);
-    expect(r.overflowLine).toBe("-# +1 more cases");
+    expect(r.overflowLine).toBe("-# +1 more case");
 
     expect(
-      packItems(entries, renderEntry, { budget: 49, noun: "cases" }).shown,
+      packItems(entries, renderEntry, { budget: 49, noun: "case" }).shown,
     ).toBe(2);
   });
 
   test("defaults to TAB_CONTENT_CHAR_BUDGET when no budget is given", () => {
-    const withDefault = packItems(entries, renderEntry, { noun: "cases" });
+    const withDefault = packItems(entries, renderEntry, { noun: "case" });
     const withExplicitBudget = packItems(entries, renderEntry, {
       budget: TAB_CONTENT_CHAR_BUDGET,
-      noun: "cases",
+      noun: "case",
     });
 
     expect(withDefault).toEqual(withExplicitBudget);
@@ -79,7 +79,7 @@ describe("packItems", () => {
 
     const result = packItems([huge], renderEntry, {
       budget: 50,
-      noun: "cases",
+      noun: "case",
     });
 
     expect(result.shown).toBe(1);

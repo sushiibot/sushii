@@ -6,6 +6,7 @@ import {
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 import { quoteMarkdownString } from "@/utils/markdown";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
@@ -33,22 +34,6 @@ const BREAKDOWN_NOUNS: readonly [ActionType, string][] = [
   [ActionType.Lookup, "lookup"],
 ];
 
-function pluralize(noun: string, count: number): string {
-  if (count === 1) {
-    return noun;
-  }
-
-  if (noun.endsWith("y") && !/[aeiou]y$/.test(noun)) {
-    return `${noun.slice(0, -1)}ies`;
-  }
-
-  return `${noun}s`;
-}
-
-function countWithNoun(count: number, noun: string): string {
-  return `${count} ${pluralize(noun, count)}`;
-}
-
 /** `2 bans · 1 unban · 3 timeouts · 1 warn · 6 notes` — zero counts omitted. */
 function formatBreakdown(
   cases: readonly { actionType: ActionType }[],
@@ -74,7 +59,7 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
 
   const historyCount = history.totalCases;
   const historyValue = history.linkedIdentity
-    ? `${countWithNoun(historyCount, "case")} across ${history.linkedIdentity.members.length} accounts`
+    ? `${countWithNoun(historyCount, "case")} across ${countWithNoun(history.linkedIdentity.members.length, "account")}`
     : countWithNoun(historyCount, "case");
   addSummaryRow(
     container,

@@ -14,6 +14,7 @@ import {
 } from "discord.js";
 
 import type { ModViewStanding } from "@/features/moderation/mod-view/application/ModViewService";
+import { countWithNoun, pluralizeNoun } from "@/shared/presentation/pluralize";
 import timestampToUnixTime from "@/utils/timestampToUnixTime";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
@@ -107,7 +108,7 @@ function formatHighestRoleLine(member: GuildMember | null): string | null {
   }
 
   const count = nonEveryoneRoles.size;
-  return `${highestPermRole}${FIELD_SEPARATOR}${count} role${count === 1 ? "" : "s"}`;
+  return `${highestPermRole}${FIELD_SEPARATOR}${countWithNoun(count, "role")}`;
 }
 
 function formatStandingLine(standing: ModViewStanding): string {
@@ -226,13 +227,18 @@ export function addStateLine(
   );
 }
 
-/** `-# +{N} more {noun}` — matches `packItems`'s overflow line format exactly. */
+/**
+ * `-# +{N} more {noun}` — matches `packItems`'s overflow line format exactly.
+ * `noun` is singular; pluralized here to agree with `count`.
+ */
 export function addOverflowLine(
   container: ContainerBuilder,
   count: number,
   noun: string,
 ): void {
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`-# +${count} more ${noun}`),
+    new TextDisplayBuilder().setContent(
+      `-# +${count} more ${pluralizeNoun(noun, count)}`,
+    ),
   );
 }

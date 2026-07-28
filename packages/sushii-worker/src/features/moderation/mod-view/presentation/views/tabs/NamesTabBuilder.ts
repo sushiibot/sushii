@@ -7,6 +7,7 @@ import {
   groupNameHistory,
 } from "@/features/moderation/cases/presentation/views/UserNamesView";
 import { packItems } from "@/shared/presentation/packLines";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import {
@@ -15,7 +16,7 @@ import {
   addStateLine,
 } from "../components/ModViewChrome";
 
-const NAME_CHANGE_NOUN = "name changes";
+const NAME_CHANGE_NOUN = "name change";
 
 interface FlatRow {
   text: string;
@@ -70,7 +71,7 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
   const total = groups.reduce((sum, g) => sum + g.entryLines.length, 0);
   const hasRecordedRow = groups.some((g) => g.hasRecordedRow);
 
-  addScopeBlock(container, `${total} ${NAME_CHANGE_NOUN}`);
+  addScopeBlock(container, countWithNoun(total, NAME_CHANGE_NOUN));
 
   const flat: FlatRow[] = [];
   groups.forEach((group, groupIndex) => {

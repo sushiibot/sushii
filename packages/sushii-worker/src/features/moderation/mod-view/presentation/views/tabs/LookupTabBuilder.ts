@@ -3,6 +3,7 @@ import { TextDisplayBuilder } from "discord.js";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import { formatBanEntry } from "@/features/moderation/cases/presentation/views/LookupBanEntryFormatter";
 import { chunkItems } from "@/shared/presentation/packLines";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import { addScopeBlock, addStateLine } from "../components/ModViewChrome";
@@ -57,7 +58,7 @@ export const addLookupTabContent: ModViewTabContentBuilder = (
 
   const total = crossServerBans.length;
   const scopeLines = [
-    `${total} ban${total === 1 ? "" : "s"}, largest servers first`,
+    `${countWithNoun(total, "ban")}, largest servers first`,
     "Names and reasons need mutual opt-in · /settings",
   ];
   addScopeBlock(container, scopeLines.join("\n"));

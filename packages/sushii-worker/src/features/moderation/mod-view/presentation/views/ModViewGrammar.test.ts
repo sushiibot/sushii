@@ -361,7 +361,7 @@ describe("Mod View grammar conformance", () => {
     it("names: with zero history rows still renders the synthesized live username plus the unrecorded caveat", () => {
       const texts = renderTab(addNamesTabContent, data, noLiveValues);
       expect(texts).toHaveLength(3);
-      expect(texts[0]).toBe("-# 1 name changes");
+      expect(texts[0]).toBe("-# 1 name change");
       expect(texts[1]).toBe(
         `**Username** · 1\n\`@${noLiveValueUser.username}\` · current · not recorded`,
       );

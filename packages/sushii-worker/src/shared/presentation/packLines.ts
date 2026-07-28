@@ -1,3 +1,5 @@
+import { pluralizeNoun } from "./pluralize";
+
 /**
  * Per-Text-Display budget shared by every mod view tab and the standalone views
  * they render through.
@@ -14,7 +16,7 @@ function entryCost(rendered: string, isFirst: boolean): number {
 
 export interface PackItemsOptions {
   budget?: number;
-  /** Noun for the overflow line: `-# +{N} more {noun}`. */
+  /** Singular noun for the overflow line: `-# +{N} more {noun}` — pluralized to agree with the dropped count. */
   noun: string;
 }
 
@@ -61,7 +63,10 @@ export function packItems<T>(
   return {
     text: kept.join("\n"),
     shown: kept.length,
-    overflowLine: dropped > 0 ? `-# +${dropped} more ${opts.noun}` : null,
+    overflowLine:
+      dropped > 0
+        ? `-# +${dropped} more ${pluralizeNoun(opts.noun, dropped)}`
+        : null,
   };
 }
 

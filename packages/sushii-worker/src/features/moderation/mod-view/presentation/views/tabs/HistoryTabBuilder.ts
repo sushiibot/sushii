@@ -15,6 +15,7 @@ import {
 } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { chunkItems } from "@/shared/presentation/packLines";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
@@ -86,10 +87,6 @@ export function deriveHistoryTabView(
   };
 }
 
-function pluralCount(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
-}
-
 /**
  * The `-# …` scope text — total plus merge scope, deliberately never the sort
  * order (4.7a): pages run newest-first while rows within a page run
@@ -105,17 +102,17 @@ function buildScopeText(
   const { totalCases, linkedIdentity } = history;
 
   if (!hasLinkedIdentity || !linkedIdentity) {
-    return pluralCount(totalCases, "case");
+    return countWithNoun(totalCases, "case");
   }
 
   if (includeAlts) {
-    return `${pluralCount(totalCases, "case")} across ${linkedIdentity.members.length} accounts`;
+    return `${countWithNoun(totalCases, "case")} across ${countWithNoun(linkedIdentity.members.length, "account")}`;
   }
 
   // 4.7b: one merged line, not three separate whispers.
   const hidden = totalCases - filteredCount;
   const hiddenAccounts = linkedIdentity.members.length - 1;
-  return `${pluralCount(filteredCount, "case")} on this account · ${hidden} hidden on ${pluralCount(hiddenAccounts, "linked account")}`;
+  return `${countWithNoun(filteredCount, "case")} on this account · ${hidden} hidden on ${countWithNoun(hiddenAccounts, "linked account")}`;
 }
 
 function addScopeSection(

@@ -233,6 +233,36 @@ describe("HistoryTabBuilder — 7.7 linked-account filter", () => {
   });
 });
 
+describe("HistoryTabBuilder — singular/plural counts", () => {
+  it("uses the singular noun when there is exactly one unfiltered case", () => {
+    const { texts } = render(
+      makeData({ moderationHistory: [makeCase({ caseId: "1" })] }),
+    );
+
+    expect(texts[0]).toBe("-# 1 case");
+  });
+
+  it("uses the singular noun on both halves of the filtered scope line when each count is 1", () => {
+    const linkedIdentity = makeAltIdentity({
+      guildId: GUILD_ID,
+      memberIds: [TARGET_ID, ALT_ID],
+    });
+    const data = makeData({
+      moderationHistory: [
+        makeCase({ caseId: "1", userId: TARGET_ID }),
+        makeCase({ caseId: "2", userId: ALT_ID }),
+      ],
+      linkedIdentity,
+    });
+
+    const { texts } = render(data, { includeAlts: false });
+
+    expect(texts[0]).toBe(
+      "-# 1 case on this account · 1 hidden on 1 linked account",
+    );
+  });
+});
+
 describe("HistoryTabBuilder — 7.8a ordering", () => {
   it("does not state an ordering sentence in the scope block", () => {
     const cases = Array.from({ length: 5 }, (_, i) =>

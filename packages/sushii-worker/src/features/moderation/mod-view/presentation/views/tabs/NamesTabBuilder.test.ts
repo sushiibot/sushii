@@ -187,3 +187,13 @@ describe("NamesTabBuilder — 7.8 current-value marking", () => {
     expect(countCurrentMarkers(lines.join("\n"))).toBe(0);
   });
 });
+
+describe("NamesTabBuilder — singular/plural counts", () => {
+  it("uses the singular noun in the scope block when there is exactly one name change", () => {
+    // No nickname history and a null live nickname keep the Nickname group
+    // empty; the live (non-null) username still synthesizes exactly one row.
+    const texts = render([], null);
+
+    expect(texts[0]).toBe("-# 1 name change");
+  });
+});
