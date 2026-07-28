@@ -77,6 +77,27 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     addSubtextBlock(container, breakdown);
   }
 
+  // Oldest-at-top, like a History page — `moderationHistory` is already
+  // ascending, so the tail slice needs no reversing. Directly under the
+  // History row it summarizes, rather than at the bottom of the tab.
+  const recentCases = history.moderationHistory.slice(-3);
+  if (recentCases.length > 0) {
+    addSubtextBlock(
+      container,
+      recentCases.length > 1 ? "Recent cases" : "Most recent case",
+    );
+
+    const entriesText = recentCases
+      .map((c) =>
+        formatModerationCase(c, emojis, c.userId !== userInfo.id, true),
+      )
+      .join("\n");
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(entriesText),
+    );
+  }
+
   container.addSeparatorComponents(new SeparatorBuilder());
 
   const altsCount = identity ? identity.members.length : 0;
@@ -132,27 +153,6 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
       new TextDisplayBuilder().setContent(
         "**Nothing recorded**\n-# No moderation records, linked accounts or name changes exist for this user in this guild.",
       ),
-    );
-  }
-
-  // Oldest-at-top, like a History page — `moderationHistory` is already
-  // ascending, so the tail slice needs no reversing.
-  const recentCases = history.moderationHistory.slice(-3);
-  if (recentCases.length > 0) {
-    container.addSeparatorComponents(new SeparatorBuilder());
-    addSubtextBlock(
-      container,
-      recentCases.length > 1 ? "Recent cases" : "Most recent case",
-    );
-
-    const entriesText = recentCases
-      .map((c) =>
-        formatModerationCase(c, emojis, c.userId !== userInfo.id, true),
-      )
-      .join("\n");
-
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(entriesText),
     );
   }
 
