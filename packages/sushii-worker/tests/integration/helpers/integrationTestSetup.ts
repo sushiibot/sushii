@@ -108,6 +108,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingServices.userLevelRepository,
     altAccountRepository: altAccountsFeature.services.altAccountRepository,
+    setNicknameService: altAccountsFeature.services.setNicknameService,
   });
 
   // Create giveaway services with mock client

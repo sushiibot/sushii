@@ -299,6 +299,7 @@ export function registerFeatures(
     nameHistoryService: userNameHistoryFeature.service,
     userLevelRepository: levelingFeature.services.userLevelRepository,
     altAccountRepository: altAccountsFeature.services.altAccountRepository,
+    setNicknameService: altAccountsFeature.services.setNicknameService,
   });
   const giveawayFeature = setupGiveawayFeature({
     db,

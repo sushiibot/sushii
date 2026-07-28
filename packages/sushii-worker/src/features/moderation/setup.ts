@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { SetNicknameService } from "@/features/alt-accounts/application/SetNicknameService";
 import type { AltAccountRepository } from "@/features/alt-accounts/domain/repositories";
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
@@ -67,6 +68,8 @@ import {
   SlowmodeCommand,
   TempbanListCommand,
 } from "./management/presentation";
+// Mod view sub-feature
+import { setupModViewFeature } from "./mod-view/setup";
 // Shared components
 import { DMNotificationService } from "./shared/application";
 import { SoftbanSuppressionSet } from "./shared/application/SoftbanSuppressionSet";
@@ -90,6 +93,7 @@ interface ModerationDependencies {
   nameHistoryService: UserNameHistoryService;
   userLevelRepository: UserLevelRepository;
   altAccountRepository: AltAccountRepository;
+  setNicknameService: SetNicknameService;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -248,6 +252,7 @@ export function createModerationServices({
     modLogRepository,
     guildConfigRepository,
     tempBanRepository,
+    timeoutDetectionService,
     dmPolicyService,
     dmNotificationService,
     moderationService,
@@ -428,6 +433,7 @@ export function setupModerationFeature({
   nameHistoryService,
   userLevelRepository,
   altAccountRepository,
+  setNicknameService,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices>
 > {
@@ -441,16 +447,36 @@ export function setupModerationFeature({
     nameHistoryService,
     userLevelRepository,
     altAccountRepository,
+    setNicknameService,
   });
   const commands = createModerationCommands(services, logger, userLevelRepository);
   const events = createModerationEventHandlers(services, logger);
   const tasks = createModerationTasks(services, client, deploymentService);
 
+  // Sub-feature: the mod view fans out over the per-user services above, so it
+  // is constructed here rather than from the cluster bootstrap.
+  const modView = setupModViewFeature({
+    client,
+    logger: logger.child({ feature: "ModView" }),
+    emojiRepository,
+    historyUserService: services.historyUserService,
+    lookupUserService: services.lookupUserService,
+    namesUserService: services.namesUserService,
+    altAccountRepository,
+    tempBanRepository: services.tempBanRepository,
+    timeoutDetectionService: services.timeoutDetectionService,
+    setNicknameService,
+    userLevelRepository,
+  });
+
   return {
     services,
-    commands: commands.commands,
+    commands: [...commands.commands, ...modView.commands],
     autocompletes: commands.autocompletes,
-    contextMenuHandlers: commands.contextMenuHandlers,
+    contextMenuHandlers: [
+      ...commands.contextMenuHandlers,
+      ...modView.contextMenuHandlers,
+    ],
     buttonHandlers: commands.buttonHandlers,
     eventHandlers: events.eventHandlers,
     tasks: tasks.tasks,

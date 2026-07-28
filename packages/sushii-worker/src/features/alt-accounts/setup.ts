@@ -25,6 +25,8 @@ interface SetupAltAccountsFeatureDeps {
 
 export interface AltAccountsFeatureServices {
   altAccountRepository: AltAccountRepository;
+  /** Shared with the mod view's in-tab identity rename, which writes through the same service. */
+  setNicknameService: SetNicknameService;
 }
 
 export function setupAltAccountsFeature(
@@ -81,6 +83,7 @@ export function setupAltAccountsFeature(
     tasks: [],
     services: {
       altAccountRepository,
+      setNicknameService,
     },
   };
 }
