@@ -68,15 +68,7 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
   ];
 
   const total = groups.reduce((sum, g) => sum + g.entryLines.length, 0);
-
-  if (total === 0) {
-    addStateLine(
-      container,
-      "No name changes recorded",
-      "History accumulates from changes observed after tracking began.",
-    );
-    return;
-  }
+  const hasRecordedRow = groups.some((g) => g.hasRecordedRow);
 
   addScopeBlock(container, `${total} ${NAME_CHANGE_NOUN}`);
 
@@ -113,5 +105,15 @@ export const addNamesTabContent: ModViewTabContentBuilder = (
 
   if (packed.overflowLine) {
     addOverflowLine(container, total - packed.shown, NAME_CHANGE_NOUN);
+  }
+
+  // Every group's rows are synthesized live values (no history actually
+  // observed) — the groups above still show what we know, but flag that
+  // nothing was recorded rather than let the synthesized rows read as history.
+  if (!hasRecordedRow) {
+    addScopeBlock(
+      container,
+      "Name history accumulates from changes observed after tracking began.",
+    );
   }
 };

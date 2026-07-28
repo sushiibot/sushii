@@ -18,7 +18,7 @@ import { addScopeBlock, addSummaryRow } from "../components/ModViewChrome";
  * breakdown line must follow this order rather than any severity ranking
  * (the enum has none, and inventing one is explicitly out per the spec).
  */
-const BREAKDOWN_NOUNS: ReadonlyArray<[ActionType, string]> = [
+const BREAKDOWN_NOUNS: readonly [ActionType, string][] = [
   [ActionType.Ban, "ban"],
   [ActionType.TempBan, "temp ban"],
   [ActionType.BanRemove, "unban"],
@@ -51,7 +51,7 @@ function countWithNoun(count: number, noun: string): string {
 
 /** `2 bans · 1 unban · 3 timeouts · 1 warn · 6 notes` — zero counts omitted. */
 function formatBreakdown(
-  cases: ReadonlyArray<{ actionType: ActionType }>,
+  cases: readonly { actionType: ActionType }[],
 ): string | null {
   const counts = new Map<ActionType, number>();
   for (const c of cases) {

@@ -1,5 +1,6 @@
 import type {
   ButtonBuilder as ButtonBuilderType,
+  ContainerBuilder,
   GuildMember,
   User,
 } from "discord.js";
@@ -7,7 +8,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ContainerBuilder,
   SectionBuilder,
   TextDisplayBuilder,
   ThumbnailBuilder,
@@ -22,11 +22,11 @@ const FIELD_SEPARATOR = " · ";
 
 export type ModViewTab = "overview" | "history" | "alts" | "names" | "lookup";
 
-const TAB_DEFS: ReadonlyArray<{
+const TAB_DEFS: readonly {
   tab: ModViewTab;
   label: string;
   customId: string;
-}> = [
+}[] = [
   {
     tab: "overview",
     label: "Overview",

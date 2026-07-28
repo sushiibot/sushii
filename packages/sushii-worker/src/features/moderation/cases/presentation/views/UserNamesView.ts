@@ -42,6 +42,10 @@ interface NameRow {
 export interface NameGroupLines {
   labelLine: string;
   entryLines: string[];
+  // False when every row is the synthesized "unobserved live value" row
+  // (`recordedAt === null`) — callers use this to tell a group that has
+  // genuine history from one that only has a live value to show.
+  hasRecordedRow: boolean;
 }
 
 /**
@@ -68,7 +72,11 @@ export function buildNameGroupLines(
     return `${row.display}${current} · <t:${ts}:R>`;
   });
 
-  return { labelLine: `**${label}** · ${rows.length}`, entryLines };
+  return {
+    labelLine: `**${label}** · ${rows.length}`,
+    entryLines,
+    hasRecordedRow: rows.some((row) => row.recordedAt !== null),
+  };
 }
 
 function buildRows(

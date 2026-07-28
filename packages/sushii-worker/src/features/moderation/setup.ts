@@ -9,7 +9,7 @@ import type { SpamAlertUpdateService } from "@/features/automod/application/Spam
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
-import { UserNameHistoryService } from "@/features/user-name-history";
+import type { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
 import type { SlashCommandHandler } from "@/shared/presentation/handlers";

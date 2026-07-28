@@ -55,7 +55,7 @@ describe("formatModerationCase", () => {
     const manyAttachments = Array.from(
       { length: 10 },
       (_, i) =>
-        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222 + i}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
+        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222n + BigInt(i)}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
     );
 
     const moderationCase = ModerationCase.create(
@@ -84,7 +84,7 @@ describe("formatModerationCase", () => {
     const manyAttachments = Array.from(
       { length: 10 },
       (_, i) =>
-        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222 + i}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
+        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222n + BigInt(i)}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
     );
 
     const moderationCase = ModerationCase.create(
