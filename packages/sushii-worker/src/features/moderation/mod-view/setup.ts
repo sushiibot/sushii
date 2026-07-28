@@ -4,7 +4,6 @@ import type { Logger } from "pino";
 import type { SetNicknameService } from "@/features/alt-accounts/application/SetNicknameService";
 import type { AltAccountRepository } from "@/features/alt-accounts/domain/repositories";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
-import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import type { HistoryUserService } from "../cases/application/HistoryUserService";
@@ -63,7 +62,6 @@ export function createModViewDependencies(
 
 interface SetupModViewFeatureDeps {
   modViewDependencies: ModViewDependencies;
-  userLevelRepository: UserLevelRepository;
 }
 
 export function setupModViewFeature(
@@ -74,12 +72,7 @@ export function setupModViewFeature(
   return {
     commands: [new ModViewCommand(modViewDependencies)],
     autocompletes: [],
-    contextMenuHandlers: [
-      new ModViewContextMenuHandler(
-        modViewDependencies,
-        deps.userLevelRepository,
-      ),
-    ],
+    contextMenuHandlers: [new ModViewContextMenuHandler(modViewDependencies)],
     buttonHandlers: [],
     eventHandlers: [],
     tasks: [],

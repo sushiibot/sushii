@@ -10,6 +10,7 @@ import { DrizzleUserProfileRepository } from "./infrastructure/DrizzleUserProfil
 import { AvatarCommand } from "./presentation/commands/AvatarCommand";
 import { BannerCommand } from "./presentation/commands/BannerCommand";
 import { UserInfoCommand } from "./presentation/commands/UserInfoCommand";
+import { UserInfoContextMenuHandler } from "./presentation/commands/UserInfoContextMenuHandler";
 
 interface UserProfileFeatureServices {
   userProfileRepository: DrizzleUserProfileRepository;
@@ -35,6 +36,10 @@ export function setupUserProfileFeature({
   const avatarCommand = new AvatarCommand(client, logger);
   const bannerCommand = new BannerCommand(client, logger);
   const userInfoCommand = new UserInfoCommand(client, logger, userLevelRepository);
+  const userInfoContextMenuHandler = new UserInfoContextMenuHandler(
+    userLevelRepository,
+    logger,
+  );
 
   return {
     services: {
@@ -42,7 +47,7 @@ export function setupUserProfileFeature({
     },
     commands: [avatarCommand, bannerCommand, userInfoCommand],
     autocompletes: [],
-    contextMenuHandlers: [],
+    contextMenuHandlers: [userInfoContextMenuHandler],
     buttonHandlers: [],
     eventHandlers: [],
     tasks: [],

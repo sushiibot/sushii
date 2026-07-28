@@ -471,7 +471,6 @@ export function setupModerationFeature({
   // is constructed here rather than from the cluster bootstrap.
   const modView = setupModViewFeature({
     modViewDependencies,
-    userLevelRepository,
   });
 
   return {
