@@ -5,7 +5,7 @@ import type {
   InteractionReplyOptions,
   User,
 } from "discord.js";
-import { ContainerBuilder, MessageFlags } from "discord.js";
+import { ContainerBuilder, MessageFlags, SeparatorBuilder } from "discord.js";
 
 import type { EmojiMap } from "@/features/bot-emojis";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
@@ -77,8 +77,8 @@ export interface ModViewMessageOptions {
 }
 
 /**
- * Builds one Mod View screen: chrome first (header then tab row, no
- * separators around them), then the active tab's content, then the
+ * Builds one Mod View screen: chrome first (header then tab row), a
+ * separator, then the active tab's content, then a separator, then the
  * paginator row or expiry footer.
  *
  * Called both for the initial reply and from inside a paginated tab's
@@ -103,6 +103,8 @@ export function createModViewMessage(
     options.disabled,
   );
 
+  container.addSeparatorComponents(new SeparatorBuilder());
+
   switch (options.activeTab) {
     case "overview":
       addOverviewTabContent(container, options.tabContentOptions);
@@ -119,6 +121,10 @@ export function createModViewMessage(
     case "lookup":
       addLookupTabContent(container, options.tabContentOptions);
       break;
+  }
+
+  if (options.disabled || options.navButtons) {
+    container.addSeparatorComponents(new SeparatorBuilder());
   }
 
   // Not `addNavigationSection`: its default expiry copy states a 2-minute

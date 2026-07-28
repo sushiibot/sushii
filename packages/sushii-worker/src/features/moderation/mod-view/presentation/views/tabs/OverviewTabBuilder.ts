@@ -1,5 +1,5 @@
 import type { ContainerBuilder } from "discord.js";
-import { TextDisplayBuilder } from "discord.js";
+import { SeparatorBuilder, TextDisplayBuilder } from "discord.js";
 
 import { formatModerationCase } from "@/features/moderation/cases/presentation/views/HistoryView";
 import {
@@ -77,6 +77,8 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     addSubtextBlock(container, breakdown);
   }
 
+  container.addSeparatorComponents(new SeparatorBuilder());
+
   const altsCount = identity ? identity.members.length : 0;
   addSummaryRow(
     container,
@@ -85,6 +87,8 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     MODVIEW_CUSTOM_IDS.openAlts,
     altsCount === 0,
   );
+
+  container.addSeparatorComponents(new SeparatorBuilder());
 
   // Recorded-only, scoped to this guild — the same definition the Names tab
   // itself states, never `names.history.length` raw: that field spans every
@@ -101,6 +105,8 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     MODVIEW_CUSTOM_IDS.openNames,
     names.eligibilityDenied ? false : namesCount === 0,
   );
+
+  container.addSeparatorComponents(new SeparatorBuilder());
 
   const lookupCount = lookup ? lookup.crossServerBans.length : null;
   addSummaryRow(
@@ -129,22 +135,28 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
     );
   }
 
-  const mostRecentCase = history.moderationHistory.at(-1);
-  if (mostRecentCase) {
-    addSubtextBlock(container, "Most recent case");
+  // Oldest-at-top, like a History page — `moderationHistory` is already
+  // ascending, so the tail slice needs no reversing.
+  const recentCases = history.moderationHistory.slice(-3);
+  if (recentCases.length > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    addSubtextBlock(
+      container,
+      recentCases.length > 1 ? "Recent cases" : "Most recent case",
+    );
+
+    const entriesText = recentCases
+      .map((c) =>
+        formatModerationCase(c, emojis, c.userId !== userInfo.id, true),
+      )
+      .join("\n");
 
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        formatModerationCase(
-          mostRecentCase,
-          emojis,
-          mostRecentCase.userId !== userInfo.id,
-          true,
-        ),
-      ),
+      new TextDisplayBuilder().setContent(entriesText),
     );
   }
 
+  container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       "-# Use a tab above to view full details.",
