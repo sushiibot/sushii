@@ -78,7 +78,9 @@ const BUTTON_EMOJIS = {
 } as const;
 
 export interface PaginationOptions<T> {
-  interaction: ChatInputCommandInteraction<"cached">;
+  interaction:
+    | ChatInputCommandInteraction<"cached">
+    | ButtonInteraction<"cached">;
   pageSize: number;
   callbacks: PaginationCallbacks<T>;
   config?: Partial<PaginationConfig>;
@@ -96,7 +98,9 @@ export interface PaginationOptions<T> {
  * - Supports any data type T
  */
 export class ComponentsV2Paginator<T> {
-  private readonly interaction: ChatInputCommandInteraction<"cached">;
+  private readonly interaction:
+    | ChatInputCommandInteraction<"cached">
+    | ButtonInteraction<"cached">;
   private readonly pageSize: number;
   private readonly callbacks: PaginationCallbacks<T>;
   private readonly config: PaginationConfig;
@@ -353,6 +357,14 @@ export class ComponentsV2Paginator<T> {
 
   /**
    * Start pagination - sends initial message and sets up collector only when needed
+   *
+   * Calls `interaction.reply()` internally, so the caller must not have
+   * replied (or deferred) already — the widened interaction type accepts
+   * both fresh and already-acknowledged interactions, so this isn't caught
+   * by the type checker. On a `ButtonInteraction` specifically, `reply()`
+   * posts a brand-new message rather than editing the one the button lives
+   * on — calling `start()` from a button/tab handler silently duplicates the
+   * message and binds the collector to the wrong one, with no error.
    */
   async start(wait: boolean): Promise<void> {
     // Send initial message
