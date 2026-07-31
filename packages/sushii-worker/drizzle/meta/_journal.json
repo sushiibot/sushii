@@ -421,6 +421,13 @@
       "when": 1784826036090,
       "tag": "0059_add-alt-account-linking",
       "breakpoints": false
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1785534575596,
+      "tag": "0060_add_scam_candidate_message_content",
+      "breakpoints": false
     }
   ]
 }

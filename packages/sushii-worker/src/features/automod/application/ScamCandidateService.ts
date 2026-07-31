@@ -48,6 +48,9 @@ const tracer = opentelemetry.trace.getTracer("automod");
 const WINDOW_MS = 2 * 60 * 1000;
 const CHANNEL_THRESHOLD = 3;
 const CLAIMED_ORPHAN_TTL_MS = 15 * 60 * 1000;
+// Matches the render-time truncation in ScamCandidateReviewView so stored rows never
+// retain more raw user text than mods can ever actually see.
+const MAX_STORED_CONTENT_LENGTH = 500;
 
 // UnknownMessage is handled in editReviewMessage — it transitions state to 'ignored'.
 // MissingPermissions/MissingAccess are swallowed silently since they reflect channel config.
@@ -78,6 +81,7 @@ export interface CandidateInput {
   guildId: string;
   channelId: string;
   images: CandidateImage[];
+  content?: string | null;
 }
 
 export class ScamCandidateService {
@@ -98,6 +102,7 @@ export class ScamCandidateService {
 
   async track(input: CandidateInput): Promise<void> {
     const { userId, guildId, channelId, images } = input;
+    const content = input.content?.slice(0, MAX_STORED_CONTENT_LENGTH) ?? null;
 
     if (images.length === 0) {
       return;
@@ -140,7 +145,7 @@ export class ScamCandidateService {
     let thresholdResult;
     try {
       thresholdResult = await this.candidateRepository.recordSightingAndCheckThreshold(
-        { key: sightingKey, guildId, channelId, attachmentUrls },
+        { key: sightingKey, guildId, channelId, attachmentUrls, content },
         WINDOW_MS,
         CHANNEL_THRESHOLD,
       );
@@ -166,6 +171,7 @@ export class ScamCandidateService {
       channelCount: thresholdResult.channelCount,
       guildIds: new Set(thresholdResult.guildIds),
       trigger: "threshold",
+      content: thresholdResult.content,
     }).catch((err) => {
       this.logger.error({ err, userId }, "Scam candidate review failed");
     });
@@ -572,7 +578,7 @@ export class ScamCandidateService {
 
     const reviewOverrides = { guildNames: state.guildNames, imageResults: successfulResults, classificationResult: storedClassification };
 
-    const { components, flags } = await this.buildReviewFromState(
+    const { components, flags, allowedMentions } = await this.buildReviewFromState(
       state,
       initialResolved,
       reviewOverrides,
@@ -581,6 +587,7 @@ export class ScamCandidateService {
     const msg = await reviewChannel.send({
       components,
       flags,
+      allowedMentions,
       files: successfulFiles,
     });
 
@@ -720,8 +727,9 @@ export class ScamCandidateService {
     channelCount: number;
     guildIds: Set<string>;
     trigger: ScamCandidateTrigger;
+    content: string | null;
   }): Promise<void> {
-    const { userId, attachmentUrls, channelCount, guildIds, trigger } = opts;
+    const { userId, attachmentUrls, channelCount, guildIds, trigger, content } = opts;
 
     const results: ImageResult[] = [];
 
@@ -850,6 +858,7 @@ export class ScamCandidateService {
       guildIdsArray,
       trigger,
       attachmentUrls,
+      content,
     );
 
     if (!claimed) {
@@ -928,6 +937,7 @@ export class ScamCandidateService {
       guildNames,
       imageResults,
       classificationResult: effectiveClassification,
+      content: state.content,
       reviewId: state.reviewId,
       seenByUserCount: state.seenByUserIds.length,
       revertable,

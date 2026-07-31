@@ -23,6 +23,7 @@ import type {
   StoredImageResult,
 } from "../../domain/repositories/ScamCandidateRepository";
 
+const MAX_CONTENT_PREVIEW_LENGTH = 500;
 
 export interface ScamCandidateReviewViewOpts {
   userId: string;
@@ -32,6 +33,8 @@ export interface ScamCandidateReviewViewOpts {
   guildNames: string[];
   imageResults: StoredImageResult[];
   classificationResult: StoredClassificationResult | null;
+  /** Text content of the triggering message, for mod context (e.g. a scam link sent alongside the image) */
+  content: string | null;
   reviewId: string;
   seenByUserCount: number;
   /** When true, an active Revert button is shown alongside the resolved status (for added reviews) */
@@ -47,6 +50,7 @@ export interface ScamCandidateReviewViewOpts {
 export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpts): {
   components: ContainerBuilder[];
   flags: number;
+  allowedMentions: { parse: [] };
 } {
   const {
     userId,
@@ -55,6 +59,7 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     guildNames,
     imageResults,
     classificationResult,
+    content,
     reviewId,
     seenByUserCount,
     revertable,
@@ -154,6 +159,18 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
     container.addMediaGalleryComponents(gallery);
   }
 
+  if (content) {
+    const truncated =
+      content.length > MAX_CONTENT_PREVIEW_LENGTH
+        ? `${content.slice(0, MAX_CONTENT_PREVIEW_LENGTH)}…`
+        : content;
+    container
+      .addSeparatorComponents(new SeparatorBuilder())
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`**Message content**\n>>> ${truncated}`),
+      );
+  }
+
   if (classificationResult) {
     let aiLine: string;
     if ("error" in classificationResult) {
@@ -181,5 +198,6 @@ export function buildScamCandidateReviewMessage(opts: ScamCandidateReviewViewOpt
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
   };
 }

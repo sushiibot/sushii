@@ -38,6 +38,8 @@ export interface ScamCandidateState {
   classificationResult: StoredClassificationResult | null;
   attachmentUrls: string[];
   guildNames: string[];
+  /** Text content of the message that triggered the review, for mod context */
+  content: string | null;
   claimedAt: Date;
   updatedAt: Date;
 }
@@ -47,12 +49,14 @@ export interface NewScamCandidateSighting {
   guildId: string;
   channelId: string;
   attachmentUrls: string[];
+  content: string | null;
 }
 
 export interface SightingThresholdResult {
   guildIds: string[];
   channelCount: number;
   attachmentUrls: string[];
+  content: string | null;
 }
 
 export interface ScamCandidateRepository {
@@ -79,6 +83,7 @@ export interface ScamCandidateRepository {
     guildIds: string[],
     trigger: ScamCandidateTrigger,
     attachmentUrls: string[],
+    content: string | null,
   ): Promise<ScamCandidateState | null>;
 
   /**

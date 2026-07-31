@@ -174,6 +174,7 @@ export class AutomodMessageHandler extends EventHandler<Events.Raw> {
               guildId,
               channelId: payload.channel_id,
               images: candidateImages,
+              content: spamContent,
             })
             .catch((err) => {
               this.logger.error(

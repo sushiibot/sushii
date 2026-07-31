@@ -27,7 +27,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     windowMs: number,
     channelThreshold: number,
   ): Promise<SightingThresholdResult | null> {
-    const { key, guildId, channelId, attachmentUrls } = sighting;
+    const { key, guildId, channelId, attachmentUrls, content } = sighting;
     const cutoff = new Date(Date.now() - windowMs);
 
     return this.db.transaction(async (tx) => {
@@ -36,6 +36,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         guildId,
         channelId,
         attachmentUrls,
+        content,
       });
 
       const [counts] = await tx
@@ -58,6 +59,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         .select({
           guildId: scamCandidateSightingsInAppPublic.guildId,
           attachmentUrls: scamCandidateSightingsInAppPublic.attachmentUrls,
+          content: scamCandidateSightingsInAppPublic.content,
         })
         .from(scamCandidateSightingsInAppPublic)
         .where(
@@ -73,11 +75,13 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
 
       const guildIds = [...new Set(recentSightings.map((s) => s.guildId))];
       const latestAttachmentUrls = recentSightings[0]?.attachmentUrls ?? [];
+      const latestContent = recentSightings[0]?.content ?? null;
 
       return {
         guildIds,
         channelCount: counts.channels,
         attachmentUrls: latestAttachmentUrls,
+        content: latestContent,
       };
     });
   }
@@ -90,6 +94,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
     guildIds: string[],
     trigger: ScamCandidateTrigger,
     attachmentUrls: string[],
+    content: string | null,
   ): Promise<ScamCandidateState | null> {
     const rows = await this.db
       .insert(scamCandidateStateInAppPublic)
@@ -103,6 +108,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
         guildIds,
         seenByUserIds: [triggeredByUserId],
         attachmentUrls,
+        content,
       })
       .onConflictDoNothing()
       .returning();
@@ -310,6 +316,7 @@ export class DrizzleScamCandidateRepository implements ScamCandidateRepository {
       classificationResult: row.classificationResult as StoredClassificationResult | null,
       attachmentUrls: row.attachmentUrls,
       guildNames: row.guildNames,
+      content: row.content,
       claimedAt: row.claimedAt,
       updatedAt: row.updatedAt,
     };

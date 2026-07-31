@@ -276,6 +276,7 @@ export const scamCandidateSightingsInAppPublic = appPublic.table(
     guildId: text("guild_id").notNull(),
     channelId: text("channel_id").notNull(),
     attachmentUrls: text("attachment_urls").array().notNull(),
+    content: text("content"),
     seenAt: timestamp("seen_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
@@ -305,6 +306,7 @@ export const scamCandidateStateInAppPublic = appPublic.table(
     classificationResult: jsonb("classification_result"),
     attachmentUrls: text("attachment_urls").array().notNull().default(sql`'{}'::text[]`),
     guildNames: text("guild_names").array().notNull().default(sql`'{}'::text[]`),
+    content: text("content"),
     claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },

@@ -23,7 +23,7 @@ describe("DrizzleScamCandidateRepository", () => {
 
   async function insertClaimed(key: string, guildIds: string[]): Promise<string> {
     const reviewId = crypto.randomUUID();
-    await repo.claimByHashKey(key, reviewId, "100000000000000001", 1, guildIds, "threshold", []);
+    await repo.claimByHashKey(key, reviewId, "100000000000000001", 1, guildIds, "threshold", [], null);
     return reviewId;
   }
 
@@ -38,6 +38,53 @@ describe("DrizzleScamCandidateRepository", () => {
     });
     return reviewId;
   }
+
+  describe("content", () => {
+    beforeEach(async () => {
+      await db.delete(schema.scamCandidateStateInAppPublic);
+      await db.delete(schema.scamCandidateSightingsInAppPublic);
+    });
+
+    test("round-trips message content through claimByHashKey and getByReviewId", async () => {
+      const reviewId = crypto.randomUUID();
+      await repo.claimByHashKey(
+        "content-key1",
+        reviewId,
+        "100000000000000001",
+        1,
+        ["111111111111111111"],
+        "threshold",
+        [],
+        "check out this free nitro giveaway",
+      );
+
+      const result = await repo.getByReviewId(reviewId);
+
+      expect(result).not.toBeNull();
+      expect(result!.content).toBe("check out this free nitro giveaway");
+    });
+
+    test("recordSightingAndCheckThreshold returns the latest sighting's content", async () => {
+      await repo.recordSightingAndCheckThreshold(
+        { key: "content-key2", guildId: "1", channelId: "1", attachmentUrls: [], content: "first message" },
+        60_000,
+        3,
+      );
+      await repo.recordSightingAndCheckThreshold(
+        { key: "content-key2", guildId: "2", channelId: "2", attachmentUrls: [], content: "second message" },
+        60_000,
+        3,
+      );
+      const result = await repo.recordSightingAndCheckThreshold(
+        { key: "content-key2", guildId: "3", channelId: "3", attachmentUrls: [], content: "third message" },
+        60_000,
+        3,
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!.content).toBe("third message");
+    });
+  });
 
   describe("appendSeenUser", () => {
     beforeEach(async () => {
