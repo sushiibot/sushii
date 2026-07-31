@@ -35,10 +35,6 @@ function computeBackoffNextPollAt(
   return new Date(Date.now() + backoffSec * 1000);
 }
 
-function isSameMonth(date: Date, year: number, month: number): boolean {
-  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
-}
-
 export class SchedulePollService {
   private readonly inProgressSchedules = new Set<string>();
   // Limit concurrent Google Calendar HTTP requests
@@ -106,8 +102,6 @@ export class SchedulePollService {
           const previousEvents = await this.calendarSync.getPreviousEvents(
             schedule.guildId,
             schedule.calendarId,
-            year,
-            month,
           );
 
           // Archive check: detect messages from previous month that aren't archived yet
@@ -210,20 +204,7 @@ export class SchedulePollService {
             nextPollAt,
           );
 
-          // Filter changed items to current month for notifications
-          const currentMonthChanges = changedItems.filter((item) => {
-            const startStr = item.start?.dateTime ?? item.start?.date;
-            if (!startStr) {
-              const prevEvent = previousEvents.get(item.id);
-              if (!prevEvent) return false;
-              const prevDate = prevEvent.getDate();
-              return prevDate ? isSameMonth(prevDate, year, month) : false;
-            }
-            const d = new Date(startStr);
-            return isSameMonth(d, year, month);
-          });
-
-          // On full fetch, alert about any problematic events in the current month
+          // On full fetch, alert about any problematic events found
           if (isFullFetch) {
             const problemItems = changedItems.filter(
               (item) => item.status !== "cancelled" && calendarItemIssues(item) !== null,
@@ -233,11 +214,12 @@ export class SchedulePollService {
             }
           }
 
-          // Only send change notifications for incremental syncs
-          if (!isFullFetch && currentMonthChanges.length > 0) {
+          // Only send change notifications for incremental syncs — a full fetch
+          // (first sync, or sync token reset) touches every event and would spam.
+          if (!isFullFetch && changedItems.length > 0) {
             await this.discordPublisher.sendEventChangeNotifications(
               schedule,
-              currentMonthChanges,
+              changedItems,
               previousEvents,
             );
           }
@@ -268,7 +250,6 @@ export class SchedulePollService {
               calendarId: schedule.calendarId,
               fetchType: isFullFetch ? "full" : "incremental",
               changedItems: changedItems.length,
-              currentMonthChanges: currentMonthChanges.length,
               storedEvents: currentMonthEvents.length,
               messageChunks: chunks.length,
             },

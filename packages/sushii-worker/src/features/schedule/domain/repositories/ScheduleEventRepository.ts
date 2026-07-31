@@ -23,6 +23,12 @@ export interface ScheduleEventRepository {
     to: Date,
   ): Promise<ScheduleEvent[]>;
 
+  /** Returns all stored events for one calendar, regardless of date. */
+  findAllEventsByCalendar(
+    guildId: bigint,
+    calendarId: string,
+  ): Promise<ScheduleEvent[]>;
+
   /**
    * Returns up to `limit` past events across all calendars in a guild.
    * Results are ordered most-recent-first.

@@ -151,16 +151,16 @@ export class CalendarSyncService {
     return active.map(toScheduleEvent);
   }
 
-  /** Snapshot of stored events for a calendar month, used for change detection. */
+  /**
+   * Snapshot of stored events for a calendar, used for change detection.
+   * Unbounded by date — `classifyChanges` looks events up by ID, so any date
+   * window here would make out-of-window edits misclassify as newly "added".
+   */
   async getPreviousEvents(
     guildId: bigint,
     calendarId: string,
-    year: number,
-    month: number,
   ): Promise<Map<string, ScheduleEvent>> {
-    const from = new Date(Date.UTC(year, month - 1, 1));
-    const to = new Date(Date.UTC(year, month, 1));
-    const events = await this.eventRepo.findEventsByCalendar(guildId, calendarId, from, to);
+    const events = await this.eventRepo.findAllEventsByCalendar(guildId, calendarId);
     return new Map(events.map((e) => [e.id, e]));
   }
 }

@@ -599,6 +599,23 @@ export class DrizzleScheduleRepository
     return rows.map(mapEvent);
   }
 
+  async findAllEventsByCalendar(
+    guildId: bigint,
+    calendarId: string,
+  ): Promise<ScheduleEvent[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.scheduleEventsInAppPublic)
+      .where(
+        and(
+          eq(schema.scheduleEventsInAppPublic.guildId, guildId),
+          eq(schema.scheduleEventsInAppPublic.calendarId, calendarId),
+        ),
+      )
+      .orderBy(asc(eventSortExpr(schema.scheduleEventsInAppPublic)));
+    return rows.map(mapEvent);
+  }
+
   async findRecentPastByGuild(
     guildId: bigint,
     before: Date,
