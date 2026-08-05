@@ -3,8 +3,6 @@ import {
   ActionRowBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   TextDisplayBuilder,
 } from "discord.js";
 
@@ -133,43 +131,6 @@ export function addLoggingContent(
     disabled,
   );
 
-  // Separator
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
-
-  const ignoredChannelIds =
-    options.messageLogBlocks?.map((block) => block.channelId) || [];
-  const count = ignoredChannelIds.length;
-  const countLine =
-    count > 0
-      ? `-# ${count} channel${count === 1 ? "" : "s"}`
-      : "-# None selected";
-
-  const msgLogText = new TextDisplayBuilder().setContent(
-    `### ${emojis.sound_off} Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.\n${countLine}`,
-  );
-  container.addTextDisplayComponents(msgLogText);
-
-  // Multi-select channel menu for managing ignored channels
-  const msgLogChannelSelectRow =
-    new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
-      new ChannelSelectMenuBuilder()
-        .setCustomId(SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE)
-        .setPlaceholder("Add channels to ignore")
-        .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-        .setMinValues(0)
-        .setMaxValues(25)
-        .setDefaultChannels(ignoredChannelIds.slice(0, 25))
-        .setDisabled(disabled),
-    );
-  container.addActionRowComponents(msgLogChannelSelectRow);
-
-  // Separator
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
-
   // Reaction Logs Section
   createLogSection(
     container,
@@ -187,4 +148,32 @@ export function addLoggingContent(
     options,
     disabled,
   );
+
+  // Message Log Ignored Channels — last, so its heading isn't followed by an
+  // unrelated log-type section that would read as belonging to it.
+  const ignoredChannelIds =
+    options.messageLogBlocks?.map((block) => block.channelId) || [];
+  const count = ignoredChannelIds.length;
+  const countLine =
+    count > 0
+      ? `-# ${count} channel${count === 1 ? "" : "s"}`
+      : "-# None selected";
+
+  const msgLogText = new TextDisplayBuilder().setContent(
+    `### ${emojis.sound_off} Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.\n${countLine}`,
+  );
+  container.addTextDisplayComponents(msgLogText);
+
+  const msgLogChannelSelectRow =
+    new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId(SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE)
+        .setPlaceholder("Add channels to ignore")
+        .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        .setMinValues(0)
+        .setMaxValues(25)
+        .setDefaultChannels(ignoredChannelIds.slice(0, 25))
+        .setDisabled(disabled),
+    );
+  container.addActionRowComponents(msgLogChannelSelectRow);
 }

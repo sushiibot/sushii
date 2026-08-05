@@ -103,15 +103,33 @@ const pages: SettingsPage[] = [
 // Locked in so any increase requires a deliberate test update, not a silent
 // creep toward the 40-component ceiling below.
 const EXPECTED_MAX_COMPONENTS: Record<SettingsPage, number> = {
-  overview: 37,
+  overview: 38,
   logging: 39,
-  moderation: 26,
-  lookup: 17,
-  "mod-dms": 33,
-  automod: 28,
-  messages: 31,
-  more: 20,
+  moderation: 28,
+  lookup: 19,
+  "mod-dms": 35,
+  automod: 30,
+  messages: 33,
+  more: 22,
 };
+
+describe("SettingsMessageBuilder chrome ordering", () => {
+  for (const page of pages) {
+    test(`${page} page renders the tab bar first and the footer last`, () => {
+      const message = createSettingsMessage({
+        page,
+        config: defaultConfig,
+        emojis: mockEmojis,
+      });
+      const container = message.components[0].toJSON() as unknown as {
+        components: { type: number }[];
+      };
+
+      expect(container.components[0].type).toBe(1); // ActionRow (tab bar)
+      expect(container.components.at(-1)?.type).toBe(10); // TextDisplay (footer)
+    });
+  }
+});
 
 describe("SettingsMessageBuilder component limits", () => {
   describe("default config", () => {

@@ -214,7 +214,6 @@ export function addOverviewContent(
     SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_MESSAGES,
     disabled,
   );
-  container.addSeparatorComponents(new SeparatorBuilder());
 
   addCategoryRow(
     container,

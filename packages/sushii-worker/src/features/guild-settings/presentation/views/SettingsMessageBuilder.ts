@@ -3,7 +3,7 @@ import type {
   Interaction,
   InteractionReplyOptions,
 } from "discord.js";
-import { ContainerBuilder, MessageFlags } from "discord.js";
+import { ContainerBuilder, MessageFlags, SeparatorBuilder } from "discord.js";
 
 import Color from "@/utils/colors";
 
@@ -28,7 +28,9 @@ export function createSettingsMessage(
 } {
   const container = new ContainerBuilder().setAccentColor(Color.Info);
 
-  // Add page-specific content
+  addTabRows(container, options.page, options.disabled ?? false);
+  container.addSeparatorComponents(new SeparatorBuilder());
+
   switch (options.page) {
     case "overview":
       addOverviewContent(container, options, interaction);
@@ -56,10 +58,7 @@ export function createSettingsMessage(
       break;
   }
 
-  // Add tab bar navigation
-  addTabRows(container, options.page, options.disabled ?? false);
-
-  // Add footer (after navigation)
+  container.addSeparatorComponents(new SeparatorBuilder());
   const footerText = createFooter(options.disabled);
   container.addTextDisplayComponents(footerText);
 
