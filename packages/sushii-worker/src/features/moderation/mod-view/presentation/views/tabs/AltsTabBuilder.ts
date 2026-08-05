@@ -54,7 +54,7 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
     addStateLine(
       container,
       "No linked accounts",
-      "This account has no accounts linked to it in this guild.",
+      "This account has no accounts linked to it in this guild. Use `/alts link` to link one.",
     );
     return;
   }
@@ -107,4 +107,6 @@ export const addAltsTabContent: ModViewTabContentBuilder = (
   if (shownCount < members.length) {
     addOverflowLine(container, members.length - shownCount, "account");
   }
+
+  addSubtextBlock(container, "Use `/alts link` to link another account.");
 };
