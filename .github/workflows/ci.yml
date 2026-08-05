@@ -131,9 +131,11 @@ jobs:
   deploy-production:
     needs: [docker-build, deploy-staging]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Never cancel — a new commit landing mid-deploy must queue behind the
+    # in-progress blue-green cutover, not cancel it.
     concurrency:
       group: deploy-production
-      cancel-in-progress: true
+      cancel-in-progress: false
     uses: sushiibot/sushii-workflows/.github/workflows/deploy-blue-green.yml@main
     with:
       image_version: ${{ needs.docker-build.outputs.sha_short }}
