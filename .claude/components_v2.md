@@ -251,6 +251,10 @@ const disabledMessage = createSettingsMessage({
    // Update page based on navigation buttons
    ```
 
+   For navigation itself, prefer a **button tab bar** over a `StringSelectMenuBuilder` dropdown once the page count is small enough to fit (Discord caps an ActionRow at 5 buttons — wrap to a second row past that). A dropdown must be opened to see what it contains and doesn't visually read as navigation; a row of buttons is always visible and its active state is obvious. Active tab = `Primary` + disabled (can't click your own tab); everything else = `Secondary`; on expiry, every tab becomes `Secondary` + disabled instead, so the "live" and "expired" states stay visually distinct. See `ModViewChrome.addTabRow`/`addChrome` (`features/moderation/mod-view/presentation/views/components/ModViewChrome.ts`) and `SettingsChrome.addTabRows` (`features/guild-settings/presentation/views/components/SettingsChrome.ts`) for two implementations of the same pattern.
+
+   For a landing/overview page that lists other pages as rows (name + description + status + a "View ›" button), route the button clicks through a single `customId → page` lookup map shared with the tab bar itself, rather than writing a separate handler per row. The "View ›" buttons need their own customIds (Discord rejects duplicate `custom_id`s on one message), but they can resolve through the same map as the tab row. See `ModViewSession`'s `TAB_BY_CUSTOM_ID` and `SettingsChrome`'s `SETTINGS_TAB_BY_CUSTOM_ID`.
+
 4. **Message Titles**: Use `##` headings for status/error message titles so they render at heading size and don't look oddly small next to body text. Pair with an emoji for visual context.
    ```typescript
    // ✓ error
