@@ -13,9 +13,7 @@ export function addLookupContent(
   const { config, disabled = false, emojis } = options;
 
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `## ${emojis.lookup} Lookup`,
-    ),
+    new TextDisplayBuilder().setContent(`## ${emojis.lookup} Lookup`),
   );
 
   // Explanation

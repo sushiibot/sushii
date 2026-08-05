@@ -7,9 +7,9 @@ import { ContainerBuilder, MessageFlags } from "discord.js";
 
 import Color from "@/utils/colors";
 
+import { addTabRows } from "./components/SettingsChrome";
 import { createFooter } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
-import { addTabRows } from "./components/SettingsChrome";
 import { addAutomodContent } from "./pages/AutomodPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
 import { addLookupContent } from "./pages/LookupPageBuilder";

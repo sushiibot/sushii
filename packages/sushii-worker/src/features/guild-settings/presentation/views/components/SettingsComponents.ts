@@ -28,7 +28,6 @@ export function createFooter(disabled = false): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(footerContent);
 }
 
-
 export function createToggleButton(
   currentlyEnabled: boolean,
   customId: string,

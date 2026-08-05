@@ -1,9 +1,5 @@
 import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
-import {
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  TextDisplayBuilder,
-} from "discord.js";
+import { TextDisplayBuilder } from "discord.js";
 
 import { addToggleSetting } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
@@ -17,9 +13,7 @@ export function addModerationContent(
   const { config, disabled = false, emojis } = options;
 
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `## ${emojis.ban} Moderation`,
-    ),
+    new TextDisplayBuilder().setContent(`## ${emojis.ban} Moderation`),
   );
 
   container.addTextDisplayComponents(
@@ -64,9 +58,5 @@ export function addModerationContent(
     config.moderationSettings.kickDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,
     disabled,
-  );
-
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 }

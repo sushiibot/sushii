@@ -1,6 +1,9 @@
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { MessageLogBlock } from "@/features/message-log/domain/entities/MessageLogBlock";
-import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type {
+  GuildConfig,
+  ToggleableSetting,
+} from "@/shared/domain/entities/GuildConfig";
 
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
@@ -117,3 +120,70 @@ export const SETTINGS_CUSTOM_IDS = {
     EDIT_KICK_DM_TEXT: "settings_edit_kick_dm_text",
   },
 } as const;
+
+/** Which page each modal's edit lands back on after submission. */
+export const MODAL_TARGET_PAGE_BY_CUSTOM_ID: ReadonlyMap<string, SettingsPage> =
+  new Map([
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE, "messages"],
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE, "messages"],
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT, "mod-dms"],
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT, "mod-dms"],
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT, "mod-dms"],
+    [SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT, "mod-dms"],
+  ]);
+
+/** Which setting each toggle button flips, and which page it re-renders. */
+export const TOGGLE_SETTING_PAGE_BY_CUSTOM_ID: ReadonlyMap<
+  string,
+  { setting: ToggleableSetting; page: SettingsPage }
+> = new Map([
+  [SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG, { setting: "modLog", page: "logging" }],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.MEMBER_LOG,
+    { setting: "memberLog", page: "logging" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.MESSAGE_LOG,
+    { setting: "messageLog", page: "logging" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG,
+    { setting: "reactionLog", page: "logging" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG,
+    { setting: "joinMessage", page: "messages" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG,
+    { setting: "leaveMessage", page: "messages" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.LOOKUP_OPT_IN,
+    { setting: "lookupOptIn", page: "lookup" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM,
+    { setting: "timeoutCommandDm", page: "moderation" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM,
+    { setting: "timeoutNativeDm", page: "moderation" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM,
+    { setting: "banDm", page: "moderation" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,
+    { setting: "kickDm", page: "moderation" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM,
+    { setting: "automodSpam", page: "automod" },
+  ],
+  [
+    SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SCAM_IMAGE,
+    { setting: "automodScamImage", page: "automod" },
+  ],
+]);

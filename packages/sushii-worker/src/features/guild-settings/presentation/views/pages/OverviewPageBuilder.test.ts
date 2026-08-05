@@ -122,23 +122,25 @@ describe("isEssentiallyUnconfigured", () => {
 
 describe("SETTINGS_TAB_BY_CUSTOM_ID", () => {
   test("Overview's View › customIds all resolve to their target page", () => {
-    expect(SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_LOGGING)).toBe(
-      "logging",
-    );
     expect(
-      SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_MODERATION),
+      SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_LOGGING),
+    ).toBe("logging");
+    expect(
+      SETTINGS_TAB_BY_CUSTOM_ID.get(
+        SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_MODERATION,
+      ),
     ).toBe("moderation");
     expect(
       SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_MOD_DMS),
     ).toBe("mod-dms");
-    expect(SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_LOOKUP)).toBe(
-      "lookup",
-    );
+    expect(
+      SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_LOOKUP),
+    ).toBe("lookup");
     expect(
       SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_MESSAGES),
     ).toBe("messages");
-    expect(SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_AUTOMOD)).toBe(
-      "automod",
-    );
+    expect(
+      SETTINGS_TAB_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.OVERVIEW.VIEW_AUTOMOD),
+    ).toBe("automod");
   });
 });

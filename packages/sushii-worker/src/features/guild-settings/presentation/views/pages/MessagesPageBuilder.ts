@@ -11,9 +11,7 @@ import {
 } from "discord.js";
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
-import {
-  addToggleSetting,
-} from "../components/SettingsComponents";
+import { addToggleSetting } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
@@ -55,7 +53,10 @@ export function addMessagesContent(
 
   // Channel subsection
   let channelLabel = "### Welcome Channel";
-  if (config.messageSettings.messageChannel && options.channelPermissions?.[config.messageSettings.messageChannel]) {
+  if (
+    config.messageSettings.messageChannel &&
+    options.channelPermissions?.[config.messageSettings.messageChannel]
+  ) {
     const warning = formatPermissionWarning(
       options.channelPermissions[config.messageSettings.messageChannel],
     );
@@ -94,9 +95,13 @@ export function addMessagesContent(
     config.messageSettings.joinMessage,
     interaction,
   );
-  const exampleJoinPreview = renderMessagePreview(exampleJoinTemplate, interaction);
+  const exampleJoinPreview = renderMessagePreview(
+    exampleJoinTemplate,
+    interaction,
+  );
 
-  let joinDescription = "Message sent when new members join.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
+  let joinDescription =
+    "Message sent when new members join.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
   if (config.messageSettings.joinMessage && joinPreview) {
     joinDescription += `\n**Preview:** ${joinPreview}`;
   } else if (exampleJoinPreview) {
@@ -142,9 +147,13 @@ export function addMessagesContent(
     config.messageSettings.leaveMessage,
     interaction,
   );
-  const exampleLeavePreview = renderMessagePreview(exampleLeaveTemplate, interaction);
+  const exampleLeavePreview = renderMessagePreview(
+    exampleLeaveTemplate,
+    interaction,
+  );
 
-  let leaveDescription = "Message sent when members leave.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
+  let leaveDescription =
+    "Message sent when members leave.\n-# Placeholders: `<mention>` · `<server>` · `<member_number>`";
   if (config.messageSettings.leaveMessage && leavePreview) {
     leaveDescription += `\n**Preview:** ${leavePreview}`;
   } else if (exampleLeavePreview) {

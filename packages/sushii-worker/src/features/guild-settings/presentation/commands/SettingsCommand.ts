@@ -4,6 +4,7 @@ import type {
   ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
   MessageComponentInteraction,
+  ModalBuilder,
   RoleSelectMenuInteraction,
 } from "discord.js";
 import {
@@ -16,7 +17,6 @@ import type { ModalMessageModalSubmitInteraction } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
-import type { ToggleableSetting } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -41,8 +41,10 @@ import {
 } from "../views/components/SettingsComponents";
 import type { SettingsPage } from "../views/components/SettingsConstants";
 import {
+  MODAL_TARGET_PAGE_BY_CUSTOM_ID,
   SETTINGS_CUSTOM_IDS,
   SETTINGS_EMOJI_NAMES,
+  TOGGLE_SETTING_PAGE_BY_CUSTOM_ID,
 } from "../views/components/SettingsConstants";
 
 export default class SettingsCommand extends SlashCommandHandler {
@@ -379,6 +381,42 @@ export default class SettingsCommand extends SlashCommandHandler {
     return this.renderPage(currentPage, interaction, guildId);
   }
 
+  /**
+   * Shows the modal and awaits its submission, filtered to this user and this
+   * exact modal — without both filters, `awaitModalSubmit` accepts the first
+   * matching-type submission from anyone on the shard, which could apply
+   * another user's guild's edit here and overwrite their in-progress panel.
+   */
+  private async openModalAndAwaitSubmission(
+    interaction: ButtonInteraction<"cached">,
+    modal: ModalBuilder,
+    modalCustomId: string,
+    guildId: string,
+    timeoutLogMessage: string,
+  ): Promise<SettingsPage | undefined> {
+    await interaction.showModal(modal);
+
+    try {
+      const modalSubmission = await interaction.awaitModalSubmit({
+        time: 300000,
+        filter: (i) =>
+          i.user.id === interaction.user.id && i.customId === modalCustomId,
+      });
+
+      if (!modalSubmission.isFromMessage()) {
+        throw new Error("Modal submission is not from a message interaction");
+      }
+
+      return await this.handleModalSubmissionDirect(modalSubmission, guildId);
+    } catch (err) {
+      this.logger.debug(
+        { interactionId: interaction.id, err },
+        timeoutLogMessage,
+      );
+      return undefined;
+    }
+  }
+
   private async handleButtonInteraction(
     interaction: ButtonInteraction<"cached">,
     guildId: string,
@@ -396,26 +434,13 @@ export default class SettingsCommand extends SlashCommandHandler {
       const modal = createJoinMessageModal(
         currentConfig.messageSettings.joinMessage,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Join message modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE,
+        guildId,
+        "Join message modal submission timed out or failed",
+      );
     }
 
     if (
@@ -424,26 +449,13 @@ export default class SettingsCommand extends SlashCommandHandler {
       const modal = createLeaveMessageModal(
         currentConfig.messageSettings.leaveMessage,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Leave message modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE,
+        guildId,
+        "Leave message modal submission timed out or failed",
+      );
     }
 
     if (
@@ -452,206 +464,114 @@ export default class SettingsCommand extends SlashCommandHandler {
       const modal = createTimeoutDmTextModal(
         currentConfig.moderationSettings.timeoutDmText,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Timeout DM text modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT,
+        guildId,
+        "Timeout DM text modal submission timed out or failed",
+      );
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT) {
       const modal = createWarnDmTextModal(
         currentConfig.moderationSettings.warnDmText,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Warn DM text modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT,
+        guildId,
+        "Warn DM text modal submission timed out or failed",
+      );
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT) {
       const modal = createBanDmTextModal(
         currentConfig.moderationSettings.banDmText,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Ban DM text modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT,
+        guildId,
+        "Ban DM text modal submission timed out or failed",
+      );
     }
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT) {
       const modal = createKickDmTextModal(
         currentConfig.moderationSettings.kickDmText,
       );
-      await interaction.showModal(modal);
-
-      try {
-        const modalSubmission = await interaction.awaitModalSubmit({
-          time: 300000,
-        });
-
-        if (!modalSubmission.isFromMessage()) {
-          throw new Error("Modal submission is not from a message interaction");
-        }
-
-        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
-      } catch (err) {
-        this.logger.debug(
-          { interactionId: interaction.id, err },
-          "Kick DM text modal submission timed out or failed",
-        );
-      }
-
-      return undefined;
+      return this.openModalAndAwaitSubmission(
+        interaction,
+        modal,
+        SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT,
+        guildId,
+        "Kick DM text modal submission timed out or failed",
+      );
     }
 
     // Handle toggle buttons
-    const { setting, page } = this.getSettingAndPageFromButton(
-      interaction.customId,
-    );
-
-    if (!setting) {
+    const toggle = TOGGLE_SETTING_PAGE_BY_CUSTOM_ID.get(interaction.customId);
+    if (!toggle) {
       throw new Error("Unknown button custom ID");
     }
 
-    await this.guildSettingsService.toggleSetting(guildId, setting);
-    return this.renderPage(page, interaction, guildId);
-  }
-
-  private getSettingAndPageFromButton(customId: string): {
-    setting: ToggleableSetting | null;
-    page: SettingsPage;
-  } {
-    switch (customId) {
-      case SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG:
-        return { setting: "modLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.MEMBER_LOG:
-        return { setting: "memberLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.MESSAGE_LOG:
-        return { setting: "messageLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.REACTION_LOG:
-        return { setting: "reactionLog", page: "logging" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.JOIN_MSG:
-        return { setting: "joinMessage", page: "messages" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.LEAVE_MSG:
-        return { setting: "leaveMessage", page: "messages" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.LOOKUP_OPT_IN:
-        return { setting: "lookupOptIn", page: "lookup" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_COMMAND_DM:
-        return { setting: "timeoutCommandDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.TIMEOUT_NATIVE_DM:
-        return { setting: "timeoutNativeDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.BAN_DM:
-        return { setting: "banDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM:
-        return { setting: "kickDm", page: "moderation" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SPAM:
-        return { setting: "automodSpam", page: "automod" };
-      case SETTINGS_CUSTOM_IDS.TOGGLES.AUTOMOD_SCAM_IMAGE:
-        return { setting: "automodScamImage", page: "automod" };
-      default:
-        this.logger.warn(
-          { customId },
-          "Unknown button custom ID for toggle setting",
-        );
-        return { setting: null, page: "logging" };
-    }
+    await this.guildSettingsService.toggleSetting(guildId, toggle.setting);
+    return this.renderPage(toggle.page, interaction, guildId);
   }
 
   private async handleModalSubmissionDirect(
     interaction: ModalMessageModalSubmitInteraction<"cached">,
     guildId: string,
   ): Promise<SettingsPage> {
-    let targetPage: SettingsPage = "messages";
+    const targetPage = MODAL_TARGET_PAGE_BY_CUSTOM_ID.get(interaction.customId);
+    if (!targetPage) {
+      throw new Error("Unknown settings modal custom ID");
+    }
 
-    if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE) {
-      const newMessage =
-        interaction.fields.getTextInputValue("join_message_input");
-      await this.guildSettingsService.updateJoinMessage(guildId, newMessage);
-      targetPage = "messages";
-    } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE
-    ) {
-      const newMessage = interaction.fields.getTextInputValue(
-        "leave_message_input",
-      );
-      await this.guildSettingsService.updateLeaveMessage(guildId, newMessage);
-      targetPage = "messages";
-    } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT
-    ) {
-      const newText = interaction.fields.getTextInputValue(
-        "timeout_dm_text_input",
-      );
-      await this.guildSettingsService.updateTimeoutDmText(guildId, newText);
-      targetPage = "mod-dms";
-    } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT
-    ) {
-      const newText =
-        interaction.fields.getTextInputValue("warn_dm_text_input");
-      await this.guildSettingsService.updateWarnDmText(guildId, newText);
-      targetPage = "mod-dms";
-    } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT
-    ) {
-      const newText = interaction.fields.getTextInputValue("ban_dm_text_input");
-      await this.guildSettingsService.updateBanDmText(guildId, newText);
-      targetPage = "mod-dms";
-    } else if (
-      interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT
-    ) {
-      const newText =
-        interaction.fields.getTextInputValue("kick_dm_text_input");
-      await this.guildSettingsService.updateKickDmText(guildId, newText);
-      targetPage = "mod-dms";
+    switch (interaction.customId) {
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE: {
+        const newMessage =
+          interaction.fields.getTextInputValue("join_message_input");
+        await this.guildSettingsService.updateJoinMessage(guildId, newMessage);
+        break;
+      }
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_LEAVE_MESSAGE: {
+        const newMessage = interaction.fields.getTextInputValue(
+          "leave_message_input",
+        );
+        await this.guildSettingsService.updateLeaveMessage(guildId, newMessage);
+        break;
+      }
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_TIMEOUT_DM_TEXT: {
+        const newText = interaction.fields.getTextInputValue(
+          "timeout_dm_text_input",
+        );
+        await this.guildSettingsService.updateTimeoutDmText(guildId, newText);
+        break;
+      }
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_WARN_DM_TEXT: {
+        const newText =
+          interaction.fields.getTextInputValue("warn_dm_text_input");
+        await this.guildSettingsService.updateWarnDmText(guildId, newText);
+        break;
+      }
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_BAN_DM_TEXT: {
+        const newText =
+          interaction.fields.getTextInputValue("ban_dm_text_input");
+        await this.guildSettingsService.updateBanDmText(guildId, newText);
+        break;
+      }
+      case SETTINGS_CUSTOM_IDS.MODALS.EDIT_KICK_DM_TEXT: {
+        const newText =
+          interaction.fields.getTextInputValue("kick_dm_text_input");
+        await this.guildSettingsService.updateKickDmText(guildId, newText);
+        break;
+      }
+      default:
+        throw new Error("Unknown settings modal custom ID");
     }
 
     return this.renderPage(targetPage, interaction, guildId);

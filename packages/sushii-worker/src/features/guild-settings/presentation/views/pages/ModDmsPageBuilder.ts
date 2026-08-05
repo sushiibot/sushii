@@ -1,12 +1,7 @@
 import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
-import {
-  SeparatorBuilder,
-  TextDisplayBuilder,
-} from "discord.js";
+import { SeparatorBuilder, TextDisplayBuilder } from "discord.js";
 
-import {
-  createEditSection,
-} from "../components/SettingsComponents";
+import { createEditSection } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
@@ -27,7 +22,7 @@ export function addModDmsContent(
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       "### Additional DM Text\n" +
-      "Extra text shown to members in moderation DMs, in addition to the reason. Use this for server rules, appeal links, or any other info you want members to see.",
+        "Extra text shown to members in moderation DMs, in addition to the reason. Use this for server rules, appeal links, or any other info you want members to see.",
     ),
   );
 

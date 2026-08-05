@@ -9,9 +9,7 @@ import {
 } from "discord.js";
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
-import {
-  addToggleSetting,
-} from "../components/SettingsComponents";
+import { addToggleSetting } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "../components/SettingsConstants";
 
@@ -43,7 +41,14 @@ function createLogSection(
     }
   }
 
-  addToggleSetting(container, config.title, description, config.enabled, config.toggleCustomId, disabled);
+  addToggleSetting(
+    container,
+    config.title,
+    description,
+    config.enabled,
+    config.toggleCustomId,
+    disabled,
+  );
 
   // Channel Selection
   const channelSelectRow = new ActionRowBuilder<ChannelSelectMenuBuilder>();
@@ -137,7 +142,9 @@ export function addLoggingContent(
     options.messageLogBlocks?.map((block) => block.channelId) || [];
   const count = ignoredChannelIds.length;
   const countLine =
-    count > 0 ? `-# ${count} channel${count === 1 ? "" : "s"}` : "-# None selected";
+    count > 0
+      ? `-# ${count} channel${count === 1 ? "" : "s"}`
+      : "-# None selected";
 
   const msgLogText = new TextDisplayBuilder().setContent(
     `### ${emojis.sound_off} Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.\n${countLine}`,

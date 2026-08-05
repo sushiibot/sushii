@@ -99,6 +99,20 @@ const pages: SettingsPage[] = [
   "more",
 ];
 
+// Current worst-case component count per page (the higher of default/all-enabled).
+// Locked in so any increase requires a deliberate test update, not a silent
+// creep toward the 40-component ceiling below.
+const EXPECTED_MAX_COMPONENTS: Record<SettingsPage, number> = {
+  overview: 37,
+  logging: 39,
+  moderation: 26,
+  lookup: 17,
+  "mod-dms": 33,
+  automod: 28,
+  messages: 31,
+  more: 20,
+};
+
 describe("SettingsMessageBuilder component limits", () => {
   describe("default config", () => {
     for (const page of pages) {
@@ -110,6 +124,7 @@ describe("SettingsMessageBuilder component limits", () => {
         });
         const count = totalComponentCount(message);
         expect(count).toBeLessThanOrEqual(DISCORD_MAX_COMPONENTS);
+        expect(count).toBeLessThanOrEqual(EXPECTED_MAX_COMPONENTS[page]);
       });
     }
   });
@@ -124,6 +139,7 @@ describe("SettingsMessageBuilder component limits", () => {
         });
         const count = totalComponentCount(message);
         expect(count).toBeLessThanOrEqual(DISCORD_MAX_COMPONENTS);
+        expect(count).toBeLessThanOrEqual(EXPECTED_MAX_COMPONENTS[page]);
       });
     }
   });

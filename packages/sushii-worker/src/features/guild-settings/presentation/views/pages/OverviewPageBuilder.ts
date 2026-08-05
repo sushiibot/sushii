@@ -18,11 +18,18 @@ export interface CategoryStatus {
 }
 
 export function computeLoggingStatus(config: GuildConfig): CategoryStatus {
-  const { modLogChannel, memberLogChannel, messageLogChannel, reactionLogChannel } =
-    config.loggingSettings;
-  const count = [modLogChannel, memberLogChannel, messageLogChannel, reactionLogChannel].filter(
-    (channel) => channel !== null,
-  ).length;
+  const {
+    modLogChannel,
+    memberLogChannel,
+    messageLogChannel,
+    reactionLogChannel,
+  } = config.loggingSettings;
+  const count = [
+    modLogChannel,
+    memberLogChannel,
+    messageLogChannel,
+    reactionLogChannel,
+  ].filter((channel) => channel !== null).length;
 
   return {
     statusText: `${count}/4 log channels set`,
@@ -53,9 +60,11 @@ export function computeModerationStatus(config: GuildConfig): CategoryStatus {
 }
 
 export function computeModDmsStatus(config: GuildConfig): CategoryStatus {
-  const { timeoutDmText, warnDmText, banDmText, kickDmText } = config.moderationSettings;
+  const { timeoutDmText, warnDmText, banDmText, kickDmText } =
+    config.moderationSettings;
+  // Boolean(), not `!== null` — legacy rows can hold "" rather than null for "no custom text".
   const count = [timeoutDmText, warnDmText, banDmText, kickDmText].filter(
-    (text) => text !== null,
+    Boolean,
   ).length;
 
   return {
@@ -74,17 +83,21 @@ export function computeLookupStatus(config: GuildConfig): CategoryStatus {
 }
 
 export function computeMessagesStatus(config: GuildConfig): CategoryStatus {
-  const isSet = config.messageSettings.messageChannel !== null;
+  const { messageChannel, joinMessage, leaveMessage } = config.messageSettings;
+  const channelSet = messageChannel !== null;
 
   return {
-    statusText: isSet ? "Welcome channel set" : "Welcome channel not set",
-    isConfigured: isSet,
+    statusText: channelSet ? "Welcome channel set" : "Welcome channel not set",
+    isConfigured: channelSet || Boolean(joinMessage) || Boolean(leaveMessage),
   };
 }
 
 export function computeAutomodStatus(config: GuildConfig): CategoryStatus {
-  const { automodAlertsChannelId, automodScamImageEnabled, automodSpamEnabled } =
-    config.moderationSettings;
+  const {
+    automodAlertsChannelId,
+    automodScamImageEnabled,
+    automodSpamEnabled,
+  } = config.moderationSettings;
   const channelSet = automodAlertsChannelId !== null;
 
   return {
