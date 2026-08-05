@@ -66,7 +66,6 @@ export function addLoggingContent(
 ): void {
   const { config, disabled = false } = options;
 
-  // Header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   const headerText = new TextDisplayBuilder().setContent(
     `## ${options.emojis.logs} Logging`,
   );
@@ -97,9 +96,6 @@ export function addLoggingContent(
     disabled,
   );
 
-  // Divider
-  container.addSeparatorComponents(new SeparatorBuilder());
-
   // Member Logs Section
   createLogSection(
     container,
@@ -115,9 +111,6 @@ export function addLoggingContent(
     options,
     disabled,
   );
-
-  // Divider
-  container.addSeparatorComponents(new SeparatorBuilder());
 
   // Message Logs Section
   createLogSection(
@@ -140,15 +133,18 @@ export function addLoggingContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
+  const ignoredChannelIds =
+    options.messageLogBlocks?.map((block) => block.channelId) || [];
+  const count = ignoredChannelIds.length;
+  const countLine =
+    count > 0 ? `-# ${count} channel${count === 1 ? "" : "s"}` : "-# None selected";
+
   const msgLogText = new TextDisplayBuilder().setContent(
-    `${emojis.sound_off} **Message Log Ignored Channels**\nSelect busy channels to skip logging there and reduce spam.`,
+    `### ${emojis.sound_off} Message Log Ignored Channels\nSelect busy channels to skip logging there and reduce spam.\n${countLine}`,
   );
   container.addTextDisplayComponents(msgLogText);
 
   // Multi-select channel menu for managing ignored channels
-  const ignoredChannelIds =
-    options.messageLogBlocks?.map((block) => block.channelId) || [];
-
   const msgLogChannelSelectRow =
     new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
@@ -161,12 +157,6 @@ export function addLoggingContent(
         .setDisabled(disabled),
     );
   container.addActionRowComponents(msgLogChannelSelectRow);
-
-  const count = ignoredChannelIds.length;
-  const countText = new TextDisplayBuilder().setContent(
-    count > 0 ? `-# ${count} channel${count === 1 ? "" : "s"}` : "-# None selected",
-  );
-  container.addTextDisplayComponents(countText);
 
   // Separator
   container.addSeparatorComponents(

@@ -5,12 +5,14 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { ChannelPermissionsMap } from "../../utils/PermissionChecker";
 
 export type SettingsPage =
+  | "overview"
   | "logging"
   | "moderation"
   | "lookup"
   | "mod-dms"
   | "automod"
-  | "messages";
+  | "messages"
+  | "more";
 
 export const SETTINGS_EMOJI_NAMES = [
   "save",
@@ -43,7 +45,23 @@ export interface SettingsMessageOptions {
 
 export const SETTINGS_CUSTOM_IDS = {
   NAVIGATION: {
-    SELECT: "settings_nav_select",
+    TAB_OVERVIEW: "settings_tab_overview",
+    TAB_LOGGING: "settings_tab_logging",
+    TAB_MODERATION: "settings_tab_moderation",
+    TAB_MOD_DMS: "settings_tab_mod_dms",
+    TAB_LOOKUP: "settings_tab_lookup",
+    TAB_MESSAGES: "settings_tab_messages",
+    TAB_AUTOMOD: "settings_tab_automod",
+    TAB_MORE: "settings_tab_more",
+  },
+
+  OVERVIEW: {
+    VIEW_LOGGING: "settings_overview_view_logging",
+    VIEW_MODERATION: "settings_overview_view_moderation",
+    VIEW_MOD_DMS: "settings_overview_view_mod_dms",
+    VIEW_LOOKUP: "settings_overview_view_lookup",
+    VIEW_MESSAGES: "settings_overview_view_messages",
+    VIEW_AUTOMOD: "settings_overview_view_automod",
   },
 
   TOGGLES: {

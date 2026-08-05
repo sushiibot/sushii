@@ -17,7 +17,6 @@ export function addModDmsContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
-  // Header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `## ${emojis.dm_message} Moderation DMs`,

@@ -5,7 +5,6 @@ import {
   ButtonStyle,
   ModalBuilder,
   SectionBuilder,
-  StringSelectMenuBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -13,18 +12,7 @@ import {
 
 import { MODERATION_DM_CUSTOM_EXAMPLES } from "@/features/guild-settings/domain/constants/ModerationDefaults";
 
-import type { EmojiMap } from "@/features/bot-emojis/domain";
-
-import type { SETTINGS_EMOJI_NAMES, SettingsPage } from "./SettingsConstants";
 import { SETTINGS_CUSTOM_IDS } from "./SettingsConstants";
-
-export function parseEmojiForSelect(
-  emojiString: string,
-): { name: string; id: string } | undefined {
-  const match = emojiString.match(/^<a?:(\w+):(\d+)>$/);
-  if (!match) return undefined;
-  return { name: match[1], id: match[2] };
-}
 
 export function createFooter(disabled = false): TextDisplayBuilder {
   let footerContent: string;
@@ -40,66 +28,6 @@ export function createFooter(disabled = false): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(footerContent);
 }
 
-
-export function createNavigationDropdown(
-  currentPage: SettingsPage,
-  disabled = false,
-  emojis: EmojiMap<typeof SETTINGS_EMOJI_NAMES>,
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  // IMPORTANT: Each nav option's emoji must match the `## emoji PageName` header
-  // in its corresponding *PageBuilder.ts file. Keep these in sync when changing
-  // page header emojis.
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT)
-      .setPlaceholder("Go to settings page...")
-      .setDisabled(disabled)
-      .addOptions(
-        {
-          label: "Logging",
-          description: "Log channels and toggles",
-          value: "logging",
-          default: currentPage === "logging",
-          emoji: parseEmojiForSelect(emojis.logs), // matches LoggingPageBuilder `## logs Logging`
-        },
-        {
-          label: "Moderation",
-          description: "DM settings for moderation actions",
-          value: "moderation",
-          default: currentPage === "moderation",
-          emoji: parseEmojiForSelect(emojis.ban),
-        },
-        {
-          label: "Moderation DMs",
-          description: "DM message templates",
-          value: "mod-dms",
-          default: currentPage === "mod-dms",
-          emoji: parseEmojiForSelect(emojis.dm_message),
-        },
-        {
-          label: "Lookup",
-          description: "Lookup data sharing",
-          value: "lookup",
-          default: currentPage === "lookup",
-          emoji: parseEmojiForSelect(emojis.lookup),
-        },
-        {
-          label: "Welcome Messages",
-          description: "Join/leave messages",
-          value: "messages",
-          default: currentPage === "messages",
-          emoji: parseEmojiForSelect(emojis.dm_message),
-        },
-        {
-          label: "Automod",
-          description: "Automated moderation",
-          value: "automod",
-          default: currentPage === "automod",
-          emoji: parseEmojiForSelect(emojis.shield),
-        },
-      ),
-  );
-}
 
 export function createToggleButton(
   currentlyEnabled: boolean,
@@ -123,7 +51,7 @@ export function addToggleSetting(
   customId: string,
   disabled = false,
 ): void {
-  const content = `**${name}**\n${description}`;
+  const content = `### ${name}\n${description}`;
 
   container.addSectionComponents(
     new SectionBuilder()
@@ -138,7 +66,7 @@ export function createEditSection(
   editCustomId: string,
   disabled = false,
 ): SectionBuilder {
-  const content = `**${name}**\n${description}`;
+  const content = `### ${name}\n${description}`;
 
   return new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))

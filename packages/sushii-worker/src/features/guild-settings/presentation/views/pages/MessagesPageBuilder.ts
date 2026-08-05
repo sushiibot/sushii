@@ -40,7 +40,6 @@ export function addMessagesContent(
 
   const { emojis } = options;
 
-  // Header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `## ${emojis.dm_message} Welcome Messages`,
@@ -55,7 +54,7 @@ export function addMessagesContent(
   );
 
   // Channel subsection
-  let channelLabel = "**Channel**";
+  let channelLabel = "### Welcome Channel";
   if (config.messageSettings.messageChannel && options.channelPermissions?.[config.messageSettings.messageChannel]) {
     const warning = formatPermissionWarning(
       options.channelPermissions[config.messageSettings.messageChannel],

@@ -5,7 +5,6 @@ import type {
   ChatInputCommandInteraction,
   MessageComponentInteraction,
   RoleSelectMenuInteraction,
-  StringSelectMenuInteraction,
 } from "discord.js";
 import {
   ApplicationIntegrationType,
@@ -31,6 +30,7 @@ import {
   createSettingsMessage,
   formatButtonRejectionResponse,
 } from "../views/SettingsMessageBuilder";
+import { SETTINGS_TAB_BY_CUSTOM_ID } from "../views/components/SettingsChrome";
 import {
   createBanDmTextModal,
   createJoinMessageModal,
@@ -110,6 +110,38 @@ export default class SettingsCommand extends SlashCommandHandler {
     );
   }
 
+  private async renderPage(
+    page: SettingsPage,
+    interaction:
+      | ButtonInteraction<"cached">
+      | ChannelSelectMenuInteraction<"cached">
+      | RoleSelectMenuInteraction<"cached">
+      | ModalMessageModalSubmitInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage> {
+    const [config, messageLogBlocks, emojis] = await Promise.all([
+      this.guildSettingsService.getGuildSettings(guildId),
+      this.messageLogBlockService.getIgnoredChannels(guildId),
+      this.getEmojis(),
+    ]);
+    const channelPermissions = this.getChannelPermissions(interaction, config);
+
+    const updatedMessage = createSettingsMessage(
+      {
+        page,
+        config,
+        messageLogBlocks,
+        channelPermissions,
+        disabled: false,
+        emojis,
+      },
+      interaction,
+    );
+
+    await interaction.update(updatedMessage);
+    return page;
+  }
+
   private async showSettingsPanel(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
@@ -119,7 +151,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       this.getEmojis(),
     ]);
 
-    let currentPage: SettingsPage = "logging";
+    let currentPage: SettingsPage = "overview";
     const channelPermissions = this.getChannelPermissions(interaction, config);
 
     const settingsMessage = createSettingsMessage(
@@ -173,6 +205,8 @@ export default class SettingsCommand extends SlashCommandHandler {
       }
     });
 
+    // Edits via `msg.edit()`, not `renderPage`/`interaction.update()` — there's
+    // no live interaction to update once the collector has expired.
     collector.on("end", async () => {
       try {
         const [currentConfig, currentBlocks, currentEmojis] = await Promise.all(
@@ -218,65 +252,8 @@ export default class SettingsCommand extends SlashCommandHandler {
       return this.handleRoleSelectInteraction(interaction, guildId);
     }
 
-    if (interaction.isStringSelectMenu()) {
-      return this.handleNavigationSelect(interaction, guildId);
-    }
-
     if (interaction.isButton()) {
       return this.handleButtonInteraction(interaction, guildId);
-    }
-  }
-
-  private async handleNavigationSelect(
-    interaction: StringSelectMenuInteraction<"cached">,
-    guildId: string,
-  ): Promise<SettingsPage | undefined> {
-    const page = this.getPageFromNavigationSelect(interaction);
-    if (!page) {
-      return undefined;
-    }
-
-    const [config, messageLogBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const channelPermissions = this.getChannelPermissions(interaction, config);
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page,
-        config,
-        messageLogBlocks,
-        channelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
-    return page;
-  }
-
-  private getPageFromNavigationSelect(
-    interaction: StringSelectMenuInteraction<"cached">,
-  ): SettingsPage | null {
-    if (interaction.customId !== SETTINGS_CUSTOM_IDS.NAVIGATION.SELECT) {
-      return null;
-    }
-
-    const value = interaction.values[0];
-    switch (value) {
-      case "logging":
-      case "moderation":
-      case "lookup":
-      case "mod-dms":
-      case "automod":
-      case "messages":
-        return value;
-      default:
-        return null;
     }
   }
 
@@ -287,8 +264,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (
       interaction.customId === SETTINGS_CUSTOM_IDS.CHANNELS.MESSAGE_LOG_IGNORE
     ) {
-      await this.handleMessageLogIgnoreChannels(interaction, guildId);
-      return "logging";
+      return this.handleMessageLogIgnoreChannels(interaction, guildId);
     }
 
     if (
@@ -310,30 +286,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       channelId,
     );
 
-    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page: "automod",
-        config: updatedConfig,
-        messageLogBlocks: updatedBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
-    return "automod";
+    return this.renderPage("automod", interaction, guildId);
   }
 
   private async handleRoleSelectInteraction(
@@ -350,36 +303,13 @@ export default class SettingsCommand extends SlashCommandHandler {
     const roleIds = interaction.values.filter((id) => id !== guildId);
     await this.guildSettingsService.updateAutomodExemptRoles(guildId, roleIds);
 
-    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page: "automod",
-        config: updatedConfig,
-        messageLogBlocks: updatedBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
-    return "automod";
+    return this.renderPage("automod", interaction, guildId);
   }
 
   private async handleMessageLogIgnoreChannels(
     interaction: ChannelSelectMenuInteraction<"cached">,
     guildId: string,
-  ): Promise<void> {
+  ): Promise<SettingsPage> {
     const selectedChannelIds = interaction.values;
     const currentBlocks =
       await this.messageLogBlockService.getIgnoredChannels(guildId);
@@ -400,29 +330,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       }
     }
 
-    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page: "logging",
-        config: updatedConfig,
-        messageLogBlocks: updatedBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
+    return this.renderPage("logging", interaction, guildId);
   }
 
   private async handleLogChannelSelection(
@@ -468,36 +376,18 @@ export default class SettingsCommand extends SlashCommandHandler {
       );
     }
 
-    const [updatedConfig, updatedBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page: currentPage,
-        config: updatedConfig,
-        messageLogBlocks: updatedBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
-    return currentPage;
+    return this.renderPage(currentPage, interaction, guildId);
   }
 
   private async handleButtonInteraction(
     interaction: ButtonInteraction<"cached">,
     guildId: string,
   ): Promise<SettingsPage | undefined> {
+    const tabPage = SETTINGS_TAB_BY_CUSTOM_ID.get(interaction.customId);
+    if (tabPage) {
+      return this.renderPage(tabPage, interaction, guildId);
+    }
+
     const currentConfig =
       await this.guildSettingsService.getGuildSettings(guildId);
 
@@ -517,7 +407,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -545,7 +435,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -573,7 +463,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -599,7 +489,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -625,7 +515,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -651,7 +541,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           throw new Error("Modal submission is not from a message interaction");
         }
 
-        await this.handleModalSubmissionDirect(modalSubmission, guildId);
+        return await this.handleModalSubmissionDirect(modalSubmission, guildId);
       } catch (err) {
         this.logger.debug(
           { interactionId: interaction.id, err },
@@ -671,30 +561,8 @@ export default class SettingsCommand extends SlashCommandHandler {
       throw new Error("Unknown button custom ID");
     }
 
-    const [updatedConfig, messageLogBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.toggleSetting(guildId, setting),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page,
-        config: updatedConfig,
-        messageLogBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
-    return page;
+    await this.guildSettingsService.toggleSetting(guildId, setting);
+    return this.renderPage(page, interaction, guildId);
   }
 
   private getSettingAndPageFromButton(customId: string): {
@@ -740,7 +608,7 @@ export default class SettingsCommand extends SlashCommandHandler {
   private async handleModalSubmissionDirect(
     interaction: ModalMessageModalSubmitInteraction<"cached">,
     guildId: string,
-  ): Promise<void> {
+  ): Promise<SettingsPage> {
     let targetPage: SettingsPage = "messages";
 
     if (interaction.customId === SETTINGS_CUSTOM_IDS.MODALS.EDIT_JOIN_MESSAGE) {
@@ -786,28 +654,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       targetPage = "mod-dms";
     }
 
-    const [updatedConfig, messageLogBlocks, emojis] = await Promise.all([
-      this.guildSettingsService.getGuildSettings(guildId),
-      this.messageLogBlockService.getIgnoredChannels(guildId),
-      this.getEmojis(),
-    ]);
-    const updatedChannelPermissions = this.getChannelPermissions(
-      interaction,
-      updatedConfig,
-    );
-
-    const updatedMessage = createSettingsMessage(
-      {
-        page: targetPage,
-        config: updatedConfig,
-        messageLogBlocks,
-        channelPermissions: updatedChannelPermissions,
-        disabled: false,
-        emojis,
-      },
-      interaction,
-    );
-
-    await interaction.update(updatedMessage);
+    return this.renderPage(targetPage, interaction, guildId);
   }
 }

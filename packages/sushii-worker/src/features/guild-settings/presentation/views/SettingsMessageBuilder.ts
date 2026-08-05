@@ -3,27 +3,21 @@ import type {
   Interaction,
   InteractionReplyOptions,
 } from "discord.js";
-import {
-  ContainerBuilder,
-  MessageFlags,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  TextDisplayBuilder,
-} from "discord.js";
+import { ContainerBuilder, MessageFlags } from "discord.js";
 
 import Color from "@/utils/colors";
 
-import {
-  createFooter,
-  createNavigationDropdown,
-} from "./components/SettingsComponents";
+import { createFooter } from "./components/SettingsComponents";
 import type { SettingsMessageOptions } from "./components/SettingsConstants";
+import { addTabRows } from "./components/SettingsChrome";
 import { addAutomodContent } from "./pages/AutomodPageBuilder";
 import { addLoggingContent } from "./pages/LoggingPageBuilder";
 import { addLookupContent } from "./pages/LookupPageBuilder";
 import { addMessagesContent } from "./pages/MessagesPageBuilder";
 import { addModDmsContent } from "./pages/ModDmsPageBuilder";
 import { addModerationContent } from "./pages/ModerationPageBuilder";
+import { addMoreContent } from "./pages/MorePageBuilder";
+import { addOverviewContent } from "./pages/OverviewPageBuilder";
 
 export function createSettingsMessage(
   options: SettingsMessageOptions,
@@ -36,6 +30,9 @@ export function createSettingsMessage(
 
   // Add page-specific content
   switch (options.page) {
+    case "overview":
+      addOverviewContent(container, options, interaction);
+      break;
     case "logging":
       addLoggingContent(container, options, interaction);
       break;
@@ -54,19 +51,13 @@ export function createSettingsMessage(
     case "messages":
       addMessagesContent(container, options, interaction);
       break;
+    case "more":
+      addMoreContent(container, options, interaction);
+      break;
   }
 
-  // Add navigation dropdown
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
-  );
-
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("-# Navigate between settings pages"),
-  );
-
-  const navigationRow = createNavigationDropdown(options.page, options.disabled, options.emojis);
-  container.addActionRowComponents(navigationRow);
+  // Add tab bar navigation
+  addTabRows(container, options.page, options.disabled ?? false);
 
   // Add footer (after navigation)
   const footerText = createFooter(options.disabled);

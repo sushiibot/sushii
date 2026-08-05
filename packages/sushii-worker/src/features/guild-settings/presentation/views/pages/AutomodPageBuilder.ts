@@ -23,7 +23,6 @@ export function addAutomodContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
-  // Page header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(`## ${emojis.shield} Automod`),
   );

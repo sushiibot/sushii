@@ -89,12 +89,14 @@ const allEnabledConfig = new GuildConfig(
 );
 
 const pages: SettingsPage[] = [
+  "overview",
   "logging",
   "moderation",
   "lookup",
   "mod-dms",
   "automod",
   "messages",
+  "more",
 ];
 
 describe("SettingsMessageBuilder component limits", () => {

@@ -1,5 +1,9 @@
 import type { CacheType, ContainerBuilder, Interaction } from "discord.js";
-import { TextDisplayBuilder } from "discord.js";
+import {
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  TextDisplayBuilder,
+} from "discord.js";
 
 import { addToggleSetting } from "../components/SettingsComponents";
 import type { SettingsMessageOptions } from "../components/SettingsConstants";
@@ -12,7 +16,6 @@ export function addModerationContent(
 ): void {
   const { config, disabled = false, emojis } = options;
 
-  // Page header — emoji must match the nav option in SettingsComponents.createNavigationDropdown
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `## ${emojis.ban} Moderation`,
@@ -21,7 +24,8 @@ export function addModerationContent(
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      "Choose when the bot sends DMs to users for moderation actions.\n" +
+      "### DM Notifications\n" +
+        "Choose when the bot sends DMs to users for moderation actions.\n" +
         "-# You can override these per command using the `dm_reason` option.",
     ),
   );
@@ -60,5 +64,9 @@ export function addModerationContent(
     config.moderationSettings.kickDmEnabled,
     SETTINGS_CUSTOM_IDS.TOGGLES.KICK_DM,
     disabled,
+  );
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 }
