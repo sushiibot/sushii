@@ -9,7 +9,10 @@ import {
 
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
-import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  REASON_MAX_LENGTH,
+  Reason,
+} from "@/features/moderation/shared/domain/value-objects/Reason";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -253,13 +256,15 @@ describe("ModLog Reason Button Integration", () => {
       expect(nullReasonResult.val).toBeNull();
 
       // Test reason validation with too long string
-      const longReason = "a".repeat(1025);
+      const longReason = "a".repeat(REASON_MAX_LENGTH + 1);
       const longReasonResult = Reason.create(longReason);
       expect(longReasonResult.err).toBe(true);
       if (longReasonResult.ok) {
         throw new Error("Expected error for long reason");
       }
-      expect(longReasonResult.val).toContain("1024 characters");
+      expect(longReasonResult.val).toContain(
+        `${REASON_MAX_LENGTH} characters`,
+      );
     });
 
     test("should handle case not found scenario", async () => {
