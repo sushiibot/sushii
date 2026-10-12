@@ -61,11 +61,6 @@ export default async function buildModLogEmbed(
     inline: false,
   });
 
-  fields.push({
-    name: "Reason",
-    value: modCase.reason || "No reason provided.",
-    inline: false,
-  });
 
   // Add tempban duration and expiry
   if (
@@ -185,6 +180,7 @@ export default async function buildModLogEmbed(
         executorUser.displayAvatarURL?.() ||
         `https://cdn.discordapp.com/avatars/${executorUser.id}/avatar.png`,
     })
+    .setDescription(`**Reason**\n${modCase.reason || "No reason provided."}`)
     .setFields(fields)
     .setColor(color)
     .setFooter({

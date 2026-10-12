@@ -4,7 +4,10 @@ import type { Logger } from "pino";
 
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
-import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  REASON_MAX_LENGTH,
+  Reason,
+} from "@/features/moderation/shared/domain/value-objects/Reason";
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
@@ -41,6 +44,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       .setRequired(true)
       .setPlaceholder("Enter a reason. This will be saved in the mod log.")
       .setStyle(TextInputStyle.Paragraph)
+      .setMaxLength(REASON_MAX_LENGTH)
       .setCustomId("reason");
 
     const row = new ActionRowBuilder<TextInputBuilder>().addComponents(

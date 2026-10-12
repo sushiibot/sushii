@@ -41,13 +41,6 @@ export class DMNotificationService {
   ): EmbedBuilder {
     const fields = [];
 
-    if (shouldDMReason && reason) {
-      fields.push({
-        name: "Reason",
-        value: reason.value,
-      });
-    }
-
     // Timeout or tempban
     if (durationEnd) {
       const actionName = this.getActionDisplayName(action);
@@ -71,7 +64,7 @@ export class DMNotificationService {
     // Always use the informational title
     const title = this.getDMTitle(action);
 
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setTitle(title)
       .setAuthor({
         name: guild.name,
@@ -79,6 +72,12 @@ export class DMNotificationService {
       })
       .setFields(fields)
       .setColor(Color.Warning);
+
+    if (shouldDMReason && reason) {
+      embed.setDescription(`**Reason**\n${reason.value}`);
+    }
+
+    return embed;
   }
 
   /**

@@ -42,7 +42,10 @@ import {
   ExecutionContext,
   ExecutionContextWithCaseId,
 } from "./ExecutionContext";
-import { ModerationExecutionPipeline } from "./ModerationExecutionPipeline";
+import {
+  ModerationExecutionPipeline,
+  buildAuditLogReason,
+} from "./ModerationExecutionPipeline";
 
 // Mock factories
 
@@ -918,5 +921,23 @@ describe("ModerationExecutionPipeline", () => {
       expect(completeContext.hasModerationCase()).toBe(true);
       expect(completeContext.hasCaseCreated()).toBe(true);
     });
+  });
+});
+
+describe("buildAuditLogReason", () => {
+  test("omits reason when none given", () => {
+    expect(buildAuditLogReason("mod", null, "12")).toBe("By mod");
+  });
+
+  test("keeps short reasons intact", () => {
+    expect(buildAuditLogReason("mod", "spam", "12")).toBe("By mod: spam");
+  });
+
+  test("fits long reasons in 512 chars and points to the case", () => {
+    const result = buildAuditLogReason("mod", "x".repeat(3000), "12");
+
+    expect(result.length).toBe(512);
+    expect(result.startsWith("By mod: xxx")).toBe(true);
+    expect(result.endsWith("… (full reason in case #12)")).toBe(true);
   });
 });

@@ -93,9 +93,14 @@ export class ModerationCommand extends SlashCommandHandler {
 
   private parseAllOptions(
     interaction: ChatInputCommandInteraction,
-  ): ParsedOptions {
-    return {
-      reason: this.parseReason(interaction),
+  ): Result<ParsedOptions, string> {
+    const reasonResult = this.parseReason(interaction);
+    if (!reasonResult.ok) {
+      return reasonResult;
+    }
+
+    return Ok({
+      reason: reasonResult.val,
       attachment: interaction.options.getAttachment(OPTION_NAMES.ATTACHMENT),
       dmChoice: this.parseDmChoice(interaction),
       deleteMessageDays: interaction.options.getInteger(
@@ -107,17 +112,18 @@ export class ModerationCommand extends SlashCommandHandler {
       duration: interaction.options.getString(OPTION_NAMES.DURATION),
       channelId:
         interaction.options.getChannel(OPTION_NAMES.CHANNEL)?.id ?? null,
-    };
+    });
   }
 
-  private parseReason(interaction: ChatInputCommandInteraction): Reason | null {
+  private parseReason(
+    interaction: ChatInputCommandInteraction,
+  ): Result<Reason | null, string> {
     // For note commands, check the "note" option, otherwise check "reason"
     const reasonString =
       this.config.actionType === ActionType.Note
         ? interaction.options.getString(OPTION_NAMES.NOTE)
         : interaction.options.getString(OPTION_NAMES.REASON);
-    const result = Reason.create(reasonString);
-    return result.ok ? result.val : null;
+    return Reason.create(reasonString);
   }
 
   private parseDmChoice(interaction: ChatInputCommandInteraction): DMChoice {
@@ -306,7 +312,13 @@ export class ModerationCommand extends SlashCommandHandler {
       throw new Error("Not in cached guild");
     }
 
-    const options = this.parseAllOptions(interaction);
+    const optionsResult = this.parseAllOptions(interaction);
+    if (!optionsResult.ok) {
+      await interaction.reply(getErrorMessage("Error", optionsResult.val));
+      return;
+    }
+
+    const options = optionsResult.val;
 
     // Validate reason if required
     if (this.config.requiresReason && !options.reason) {

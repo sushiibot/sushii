@@ -10,6 +10,7 @@ import {
 import type { Logger } from "pino";
 
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { REASON_MAX_LENGTH } from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds from "@/interactions/customIds";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -43,6 +44,7 @@ export class ReasonCommand extends SlashCommandHandler {
       o
         .setName("reason")
         .setDescription("Reason for the mod case.")
+        .setMaxLength(REASON_MAX_LENGTH)
         .setRequired(true),
     )
     .toJSON();

@@ -29,6 +29,28 @@ import type { DMPolicyService } from "./DMPolicyService";
 // Constants
 const DEFAULT_DELETE_MESSAGE_DAYS = 0;
 
+const AUDIT_LOG_REASON_MAX_LENGTH = 512;
+
+// Discord rejects or cuts audit log reasons over 512 chars; the full reason stays in the case.
+export function buildAuditLogReason(
+  executorUsername: string,
+  reason: string | null,
+  caseId: string,
+): string {
+  const prefix = `By ${executorUsername}`;
+  if (!reason) {
+    return prefix;
+  }
+
+  const full = `${prefix}: ${reason}`;
+  if (full.length <= AUDIT_LOG_REASON_MAX_LENGTH) {
+    return full;
+  }
+
+  const suffix = `… (full reason in case #${caseId})`;
+  return full.slice(0, AUDIT_LOG_REASON_MAX_LENGTH - suffix.length) + suffix;
+}
+
 /**
  * Handles the execution pipeline for single moderation actions.
  * Extracted from ModerationService to follow Single Responsibility Principle.
@@ -136,6 +158,7 @@ export class ModerationExecutionPipeline {
         action,
         target,
         finalActionType,
+        caseId,
       );
       if (!discordActionResult.ok) {
         // If it failed, we need to delete the DM sent and case if they were created
@@ -364,6 +387,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     finalActionType: ActionType,
+    caseId: string,
   ): Promise<Result<void, string>> {
     if (!actionTypeRequiresDiscordAction(finalActionType)) {
       return Ok.EMPTY; // Nothing to do for actions like Warn or Note
@@ -374,6 +398,7 @@ export class ModerationExecutionPipeline {
       action,
       target,
       finalActionType,
+      caseId,
     );
 
     if (!discordResult.ok) {
@@ -683,16 +708,18 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     actionType: ActionType,
+    caseId: string,
   ): Promise<Result<void, string>> {
     const guild = this.client.guilds.cache.get(guildId);
     if (!guild) {
       return Err("Guild not found");
     }
 
-    let reason = `By ${action.executor.username}`;
-    if (action.reason?.value) {
-      reason += `: ${action.reason.value}`;
-    }
+    const reason = buildAuditLogReason(
+      action.executor.username,
+      action.reason?.value ?? null,
+      caseId,
+    );
 
     try {
       switch (actionType) {

@@ -30,11 +30,7 @@ export function reasonWarningView(
 
   const embed = new EmbedBuilder()
     .setTitle("Warning")
-    .setDescription(description)
-    .setFields({
-      name: "New Reason",
-      value: newReason,
-    })
+    .setDescription(`**New Reason**\n${newReason}\n\n${description}`)
     .setFooter({
       text: "Cancels in 2 minutes",
     })
@@ -110,11 +106,8 @@ export function reasonSuccessView(
 
   const embed = new EmbedBuilder()
     .setTitle(`Reason updated for case ${caseRange}`)
+    .setDescription(`**Reason**\n${reason}`)
     .addFields([
-      {
-        name: "Reason",
-        value: reason,
-      },
       {
         name: "Affected user histories",
         value: affectedUsersStr,

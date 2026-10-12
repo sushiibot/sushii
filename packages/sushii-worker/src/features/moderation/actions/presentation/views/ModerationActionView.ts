@@ -150,6 +150,7 @@ export function buildActionResultMessage(
   // Build header and user list
   const summary = `${actionResults.length} ${actionResults.length === 1 ? "user" : "users"} processed`;
   let fullContent = `### ${title}\n**${summary}**\n`;
+  const textSections: string[] = [];
 
   // Format users in order with failure indicators
   for (const actionResult of actionResults) {
@@ -173,12 +174,14 @@ export function buildActionResultMessage(
   if (successful.length > 0) {
     const firstSuccessfulCase = successful[0].result.val as ModerationCase;
 
-    // Add reason if available
+    // Own Text Display so a max-length reason never shares the per-component char limit.
     if (firstSuccessfulCase.reason) {
-      fullContent += `### ${emojis.reason} Reason`;
-      fullContent += `\n`;
-      fullContent += quoteMarkdownString(firstSuccessfulCase.reason.value);
-      fullContent += `\n`;
+      textSections.push(fullContent);
+      textSections.push(
+        `### ${emojis.reason} Reason\n` +
+          quoteMarkdownString(firstSuccessfulCase.reason.value),
+      );
+      fullContent = "";
     }
 
     // Add DM status
@@ -296,9 +299,14 @@ export function buildActionResultMessage(
     }
   }
 
-  // Add all text content in a single TextDisplayBuilder
-  const text = new TextDisplayBuilder().setContent(fullContent);
-  container.addTextDisplayComponents(text);
+  textSections.push(fullContent);
+  for (const section of textSections) {
+    if (section.trim().length > 0) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(section),
+      );
+    }
+  }
 
   return {
     components: [container],

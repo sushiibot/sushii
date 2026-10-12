@@ -4,6 +4,7 @@ import type {
   SlashCommandStringOption,
 } from "discord.js";
 
+import { REASON_MAX_LENGTH } from "../../domain/value-objects/Reason";
 import { OPTION_NAMES } from "./ModerationCommandConstants";
 
 export function addUsersOption(option: SlashCommandStringOption) {
@@ -22,6 +23,7 @@ export function addReasonOption(
   return option
     .setName(OPTION_NAMES.REASON)
     .setDescription("Reason for this action.")
+    .setMaxLength(REASON_MAX_LENGTH)
     .setRequired(required);
 }
 
@@ -80,5 +82,6 @@ export function addNoteOption(
   return option
     .setName("note")
     .setDescription("Mod-only note to add to the user.")
+    .setMaxLength(REASON_MAX_LENGTH)
     .setRequired(required);
 }

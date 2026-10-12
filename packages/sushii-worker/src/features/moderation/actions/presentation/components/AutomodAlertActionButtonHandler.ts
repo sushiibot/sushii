@@ -27,7 +27,10 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
-import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  REASON_MAX_LENGTH,
+  Reason,
+} from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 
@@ -72,6 +75,7 @@ function buildReasonInput(): TextInputBuilder {
     .setCustomId(REASON_CUSTOM_ID)
     .setLabel("Reason")
     .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(REASON_MAX_LENGTH)
     .setRequired(false);
 }
 
