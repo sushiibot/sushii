@@ -1,4 +1,4 @@
-FROM oven/bun:1.3-debian
+FROM oven/bun:1.4-debian
 
 LABEL org.opencontainers.image.source=https://github.com/sushiibot/sushii
 LABEL org.opencontainers.image.description="sushii bot"
