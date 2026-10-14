@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ChatInputCommandInteraction } from "discord.js";
+import { type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { EventEmitter } from "node:events";
 import pino from "pino";
 import { Err, Ok } from "ts-results";
@@ -120,7 +120,7 @@ async function flush() {
 }
 
 describe("PermissionAuditSession", () => {
-  test("replies ephemerally", async () => {
+  test("replies publicly", async () => {
     const { interaction, session } = setup();
 
     await session.start();
@@ -129,7 +129,7 @@ describe("PermissionAuditSession", () => {
       { flags: number; withResponse: boolean },
     ];
     expect(options.withResponse).toBe(true);
-    expect(options.flags & 64).toBe(64);
+    expect(options.flags & MessageFlags.Ephemeral).toBe(0);
   });
 
   test("expires through the original interaction when nothing was clicked", async () => {

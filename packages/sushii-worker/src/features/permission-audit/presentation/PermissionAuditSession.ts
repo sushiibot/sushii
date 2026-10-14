@@ -49,9 +49,9 @@ export class PermissionAuditSession {
   /** Set after a change: the report is rebuilt when the user goes back to it. */
   private needsRefresh = false;
   /**
-   * Ephemeral messages can only be edited through an interaction webhook, and
-   * each token lasts 15 minutes. The latest click is never older than the
-   * idle timeout, so expiry edits through it.
+   * Expiry edits through an interaction webhook, which works even where
+   * sushii can't view the channel. Each token lasts 15 minutes, and the
+   * latest click is never older than the idle timeout.
    */
   private latestInteraction:
     | ChatInputCommandInteraction<"cached">
@@ -72,7 +72,7 @@ export class PermissionAuditSession {
   async start(): Promise<void> {
     const response = await this.interaction.reply({
       ...this.renderScreen(false),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      flags: MessageFlags.IsComponentsV2,
       withResponse: true,
     });
     const msg = response.resource?.message;
