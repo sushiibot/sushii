@@ -90,6 +90,14 @@ const THREAD_ACTIONS = new Set<AuditLogEvent>([
   AuditLogEvent.ThreadDelete,
 ]);
 
+/** Every action type that can produce usage; the backfill fetches only these. */
+export const TRACKED_AUDIT_LOG_ACTIONS: readonly AuditLogEvent[] = [
+  ...Object.keys(ACTION_PERMISSIONS).map(Number),
+  AuditLogEvent.MemberUpdate,
+  ...Object.keys(ACTIONS_ON_OTHERS_ONLY).map(Number),
+  ...THREAD_ACTIONS,
+];
+
 export class AuditLogUsageDetector
   implements PermissionUsageDetector<AuditLogEntryInput>
 {

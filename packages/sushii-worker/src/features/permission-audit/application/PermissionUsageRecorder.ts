@@ -41,6 +41,13 @@ export class PermissionUsageRecorder {
     );
   }
 
+  /** Unlike live recording this throws, so the backfill can release its claim. */
+  async recordBackfill(entries: readonly AuditLogEntryInput[]): Promise<void> {
+    await this.repository.record(
+      entries.flatMap((entry) => this.auditLogDetector.detect(entry)),
+    );
+  }
+
   async recordMessage(message: MessageInput): Promise<void> {
     const usages = this.messageDetector.detect(message);
     if (usages.length === 0) {

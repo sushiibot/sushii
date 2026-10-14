@@ -11,6 +11,9 @@ import type { PermissionUsage } from "../domain/PermissionUsage";
 import type { PermissionUsageRepository } from "../domain/PermissionUsageRepository";
 import { mergeUsages } from "../domain/mergeUsages";
 
+/** Keeps each insert well under Postgres' 65535 bind parameter limit. */
+const INSERT_CHUNK_SIZE = 1000;
+
 export class DrizzlePermissionUsageRepository
   implements PermissionUsageRepository
 {
@@ -28,24 +31,22 @@ export class DrizzlePermissionUsageRepository
       useCount: BigInt(usage.useCount),
     }));
 
-    if (rows.length === 0) {
-      return;
-    }
-
     const table = permissionUsageInAppPublic;
 
-    await this.db
-      .insert(table)
-      .values(rows)
-      .onConflictDoUpdate({
-        target: [table.guildId, table.userId, table.permission, table.source],
-        set: {
-          firstUsedAt: sql`LEAST(${table.firstUsedAt}, excluded.first_used_at)`,
-          lastUsedAt: sql`GREATEST(${table.lastUsedAt}, excluded.last_used_at)`,
-          channelId: sql`CASE WHEN excluded.last_used_at >= ${table.lastUsedAt} THEN excluded.channel_id ELSE ${table.channelId} END`,
-          useCount: sql`${table.useCount} + excluded.use_count`,
-        },
-      });
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+      await this.db
+        .insert(table)
+        .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
+        .onConflictDoUpdate({
+          target: [table.guildId, table.userId, table.permission, table.source],
+          set: {
+            firstUsedAt: sql`LEAST(${table.firstUsedAt}, excluded.first_used_at)`,
+            lastUsedAt: sql`GREATEST(${table.lastUsedAt}, excluded.last_used_at)`,
+            channelId: sql`CASE WHEN excluded.last_used_at >= ${table.lastUsedAt} THEN excluded.channel_id ELSE ${table.channelId} END`,
+            useCount: sql`${table.useCount} + excluded.use_count`,
+          },
+        });
+    }
   }
 
   async ensureTrackingStarted(guildId: string, startedAt: Date): Promise<void> {
