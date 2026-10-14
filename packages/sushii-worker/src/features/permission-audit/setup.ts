@@ -7,6 +7,7 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { PermissionAuditService } from "./application/PermissionAuditService";
+import { PermissionChangeService } from "./application/PermissionChangeService";
 import { PermissionUsageRecorder } from "./application/PermissionUsageRecorder";
 import { AuditLogUsageDetector } from "./domain/detectors/AuditLogUsageDetector";
 import { MessageUsageDetector } from "./domain/detectors/MessageUsageDetector";
@@ -64,7 +65,13 @@ export function setupPermissionAuditFeature({
 
   return {
     services: { permissionUsageRecorder },
-    commands: [new PermissionAuditCommand(auditService, logger)],
+    commands: [
+      new PermissionAuditCommand(
+        auditService,
+        new PermissionChangeService(logger),
+        logger,
+      ),
+    ],
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],

@@ -17,6 +17,7 @@ export interface OverwriteSnapshot {
   targetId: string;
   targetType: "role" | "member";
   allow: bigint;
+  deny: bigint;
 }
 
 export interface MemberSnapshot {

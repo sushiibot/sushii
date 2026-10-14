@@ -11,6 +11,7 @@ import type {
   AuditResult,
 } from "../../application/PermissionAuditService";
 import type { AuditReport, Finding, RatedFinding } from "../../domain/Finding";
+import type { GuildSnapshot, RoleSnapshot } from "../../domain/GuildSnapshot";
 import { PERMISSION_AUDIT_CUSTOM_IDS } from "../customIds";
 import {
   type AuditViewTab,
@@ -43,6 +44,8 @@ const ALL_FINDINGS: Finding[] = [
     holderCount: 4,
     usedPermissions: ["KickMembers"],
     isBotRole: false,
+    lowConfidence: false,
+    actionableAt: null,
   },
   {
     type: "administrator_grant",
@@ -50,6 +53,8 @@ const ALL_FINDINGS: Finding[] = [
     holderCount: 1,
     usedPermissions: [],
     isBotRole: true,
+    lowConfidence: false,
+    actionableAt: null,
   },
   {
     type: "unused_role_permission",
@@ -173,6 +178,50 @@ function report(overrides: Partial<AuditReport> = {}): AuditReport {
   };
 }
 
+function snapshotRole(id: string): RoleSnapshot {
+  return {
+    id,
+    name: `role-${id}`,
+    position: 1,
+    permissions: 0n,
+    botUserId: null,
+    createdAt: new Date(0),
+    holderIds: [],
+  };
+}
+
+const SNAPSHOT: GuildSnapshot = {
+  guildId: EVERYONE,
+  ownerId: "9",
+  everyoneRoleId: EVERYONE,
+  mfaRequired: true,
+  roles: [EVERYONE, "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map(
+    snapshotRole,
+  ),
+  overwrites: [
+    {
+      channelId: "c1",
+      channelName: "general",
+      targetId: "3",
+      targetType: "role",
+      allow: 1n,
+      deny: 0n,
+    },
+    {
+      channelId: "c2",
+      channelName: "mod-chat",
+      targetId: "1",
+      targetType: "role",
+      allow: 1n,
+      deny: 0n,
+    },
+  ],
+  members: new Map(),
+  memberCacheComplete: true,
+  selfAssignable: [],
+  now: new Date(),
+};
+
 function result(
   reportOverrides: Partial<AuditReport> = {},
   context: Partial<AuditContext> = {},
@@ -180,6 +229,7 @@ function result(
   return {
     report: report(reportOverrides),
     context: { ...CONTEXT, ...context },
+    snapshot: SNAPSHOT,
   };
 }
 
@@ -376,6 +426,53 @@ describe("createAuditMessage", () => {
   });
 });
 
+describe("fix buttons", () => {
+  function fixButtonIds(container: ContainerBuilder): string[] {
+    const json = container.toJSON() as {
+      components: { type: number; accessory?: { custom_id?: string } }[];
+    };
+    return json.components
+      .map((c) => c.accessory?.custom_id)
+      .filter((id): id is string => id !== undefined);
+  }
+
+  test("only findings with a planned change get a Review button", () => {
+    const res = result();
+    const blocks = tabPages(res, "roles", EVERYONE).flat();
+    const types = blocks
+      .filter((b) => b.fixIndex !== null)
+      .map((b) => res.report.findings[b.fixIndex as number]?.finding.type);
+
+    expect(types.sort()).toEqual([
+      "administrator_grant",
+      "everyone_dangerous",
+      "partially_used_role",
+    ]);
+  });
+
+  test("low confidence unused permissions have no button", () => {
+    const blocks = tabPages(result(), "unused", EVERYONE).flat();
+    const lowConfidence = blocks.find((b) =>
+      b.text.includes("isn't enough history"),
+    );
+
+    expect(lowConfidence?.fixIndex).toBeNull();
+  });
+
+  test("split uses its own label", () => {
+    const blocks = tabPages(result(), "roles", EVERYONE).flat();
+
+    expect(blocks.some((b) => b.fixLabel === "Review split…")).toBe(true);
+  });
+
+  test("buttons render as section accessories with the finding index", () => {
+    expect(fixButtonIds(render("channels"))).toEqual([
+      "permaudit_fix:11",
+      "permaudit_fix:12",
+    ]);
+  });
+});
+
 describe("worst-case pages", () => {
   const longName = "x".repeat(32);
   const roleIds = [
@@ -448,13 +545,13 @@ describe("tabPages", () => {
   test("roles tab ends with the bots group", () => {
     const pages = tabPages(result(), "roles", EVERYONE);
 
-    expect(pages.at(-1)?.[0]).toBe("### Bots");
+    expect(pages.at(-1)?.[0]?.text).toBe("### Bots");
   });
 
   test("unused tab ends with the not-tracked note", () => {
     const pages = tabPages(result(), "unused", EVERYONE);
 
-    expect(pages.at(-1)?.at(-1)).toContain("Not tracked");
+    expect(pages.at(-1)?.at(-1)?.text).toContain("Not tracked");
   });
 
   test("findings are paged by five", () => {

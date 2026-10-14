@@ -59,6 +59,11 @@ export function formatFinding(
       if (f.isBotRole) {
         return `${head}${role(f.roleId, everyoneRoleId)} (bot role) has **Administrator**\n-# Manual: bots rely on permissions sushii can't track. Re-invite the bot with only the permissions it needs.`;
       }
+      if (f.lowConfidence) {
+        return f.actionableAt
+          ? `${head}${role(f.roleId, everyoneRoleId)} has **Administrator** (${plural(f.holderCount, "holder")})\n-# Not enough history yet to suggest a replacement. Check again after ${discordDate(f.actionableAt)}.`
+          : `${head}${role(f.roleId, everyoneRoleId)} has **Administrator** (${plural(f.holderCount, "holder")})\n-# sushii needs View Audit Log to see which permissions it's actually used for.`;
+      }
       return f.usedPermissions.length > 0
         ? `${head}${role(f.roleId, everyoneRoleId)} has **Administrator** (${plural(f.holderCount, "holder")})\n-# Only used ${formatPermissions(f.usedPermissions)} in 45 days. Suggested: replace with those plus the non-dangerous permissions.`
         : `${head}${role(f.roleId, everyoneRoleId)} has **Administrator** (${plural(f.holderCount, "holder")})\n-# None of its dangerous permissions were used in 45 days. Suggested: replace it with non-dangerous permissions.`;

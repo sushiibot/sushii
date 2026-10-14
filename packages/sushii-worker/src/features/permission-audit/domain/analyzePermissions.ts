@@ -71,6 +71,8 @@ export function analyzePermissions(
               holderCount: role.holderIds.length,
               usedPermissions: context.permissionsUsedBy(role.holderIds),
               isBotRole: true,
+              lowConfidence: false,
+              actionableAt: null,
             },
             "critical",
           ),
@@ -88,6 +90,7 @@ export function analyzePermissions(
             holderCount: role.holderIds.length,
             usedPermissions: context.permissionsUsedBy(role.holderIds),
             isBotRole: false,
+            ...context.administratorConfidence(role),
           },
           "critical",
         ),
@@ -185,6 +188,35 @@ class AnalysisContext {
     return DANGEROUS_PERMISSIONS.filter((permission) =>
       userIds.some((userId) => this.usedInWindow(userId, permission)),
     );
+  }
+
+  /**
+   * Replacing Administrator removes everything not seen in use, so it needs
+   * the same history as an unused finding, across every dangerous permission.
+   */
+  administratorConfidence(role: RoleSnapshot): {
+    lowConfidence: boolean;
+    actionableAt: Date | null;
+  } {
+    const starts = DANGEROUS_PERMISSIONS.map((p) =>
+      this.usage.observedSince.get(p),
+    ).filter((date): date is Date => date !== undefined);
+
+    if (starts.length === 0) {
+      return { lowConfidence: true, actionableAt: null };
+    }
+
+    const observedFrom = this.latest([
+      role.createdAt,
+      new Date(Math.min(...starts.map((date) => date.getTime()))),
+    ]);
+    const actionableAt = new Date(
+      observedFrom.getTime() + MIN_CONFIDENCE_DAYS * DAY_MS,
+    );
+
+    return actionableAt > this.guild.now
+      ? { lowConfidence: true, actionableAt }
+      : { lowConfidence: false, actionableAt: null };
   }
 
   analyzeRoleUsage(role: RoleSnapshot): {

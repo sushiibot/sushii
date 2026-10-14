@@ -58,7 +58,7 @@ export function buildGuildSnapshot(
     }
 
     for (const overwrite of channel.permissionOverwrites.cache.values()) {
-      if (overwrite.allow.bitfield === 0n) {
+      if (overwrite.allow.bitfield === 0n && overwrite.deny.bitfield === 0n) {
         continue;
       }
 
@@ -68,6 +68,7 @@ export function buildGuildSnapshot(
         targetId: overwrite.id,
         targetType: overwrite.type === OverwriteType.Role ? "role" : "member",
         allow: overwrite.allow.bitfield,
+        deny: overwrite.deny.bitfield,
       });
     }
   }

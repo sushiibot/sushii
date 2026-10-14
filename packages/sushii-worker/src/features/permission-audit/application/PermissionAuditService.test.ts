@@ -77,6 +77,7 @@ function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
                 id: "50",
                 type: OverwriteType.Role,
                 allow: { bitfield: PermissionFlagsBits.ManageWebhooks },
+                deny: { bitfield: 0n },
               },
             ],
           ]),

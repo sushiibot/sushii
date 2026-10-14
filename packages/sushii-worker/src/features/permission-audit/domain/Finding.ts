@@ -15,6 +15,10 @@ export type Finding =
       holderCount: number;
       usedPermissions: PermissionName[];
       isBotRole: boolean;
+      /** Too little history to know what the role is used for. */
+      lowConfidence: boolean;
+      /** When low confidence, the date it becomes actionable, or null if it never will without audit log access. */
+      actionableAt: Date | null;
     }
   | {
       type: "unused_role_permission";

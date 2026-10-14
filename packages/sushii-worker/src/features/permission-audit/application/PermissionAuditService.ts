@@ -2,7 +2,7 @@ import type { Guild } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
 import type { AuditReport } from "../domain/Finding";
-import type { UsageSnapshot } from "../domain/GuildSnapshot";
+import type { GuildSnapshot, UsageSnapshot } from "../domain/GuildSnapshot";
 import type {
   PermissionAuditReadRepository,
   UsageRow,
@@ -34,6 +34,7 @@ export interface AuditContext {
 export interface AuditResult {
   report: AuditReport;
   context: AuditContext;
+  snapshot: GuildSnapshot;
 }
 
 export class PermissionAuditService {
@@ -92,6 +93,7 @@ export class PermissionAuditService {
 
     const historyStarts = [...since.values()];
     return {
+      snapshot,
       report: analyzePermissions(snapshot, usage),
       context: {
         guildName: guild.name,

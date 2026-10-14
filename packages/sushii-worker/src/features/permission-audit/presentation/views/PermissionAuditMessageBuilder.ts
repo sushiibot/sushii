@@ -5,6 +5,7 @@ import {
   ButtonStyle,
   ContainerBuilder,
   MessageFlags,
+  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
@@ -22,7 +23,8 @@ import {
   SEVERITY_ORDER,
   permissionLabel,
 } from "../../domain/permissionCatalog";
-import { PERMISSION_AUDIT_CUSTOM_IDS } from "../customIds";
+import { planChange } from "../../domain/planChange";
+import { PERMISSION_AUDIT_CUSTOM_IDS, fixCustomId } from "../customIds";
 import {
   discordDate,
   formatBot,
@@ -80,7 +82,15 @@ const TAB_TITLES: Record<Exclude<AuditViewTab, "overview">, string> = {
 };
 
 export type PagedTab = Exclude<AuditViewTab, "overview">;
-export type AuditPages = Record<PagedTab, string[][]>;
+
+export interface PageBlock {
+  text: string;
+  /** Index into `report.findings` when the finding has an automatic fix. */
+  fixIndex: number | null;
+  fixLabel?: string;
+}
+
+export type AuditPages = Record<PagedTab, PageBlock[][]>;
 
 /** Formatting every finding is the expensive part, so a session does it once. */
 export function buildAuditPages(
@@ -101,43 +111,62 @@ export interface AuditMessageOptions {
   everyoneRoleId: string;
   tab: AuditViewTab;
   /** Blocks for the current page of a paginated tab. */
-  pageBlocks?: readonly string[];
+  pageBlocks?: readonly PageBlock[];
   navButtons?: ActionRowBuilder<ButtonBuilderType> | null;
   disabled: boolean;
 }
 
-/** Each page is a list of markdown blocks; overview is never paginated. */
+/** Each page is a list of blocks; overview is never paginated. */
 export function tabPages(
   result: AuditResult,
   tab: PagedTab,
   everyoneRoleId: string,
-): string[][] {
+): PageBlock[][] {
   const { report } = result;
+  const text = (value: string): PageBlock => ({ text: value, fixIndex: null });
 
   if (tab === "members") {
-    return chunk(report.members.map(formatMember), MEMBERS_PER_PAGE);
+    return chunk(
+      report.members.map((m) => text(formatMember(m))),
+      MEMBERS_PER_PAGE,
+    );
   }
 
-  const blocks = report.findings
-    .filter((rated) => rated.tab === tab)
-    .map((rated) => formatFinding(rated, everyoneRoleId));
+  const blocks: PageBlock[] = [];
+  report.findings.forEach((rated, index) => {
+    if (rated.tab !== tab) {
+      return;
+    }
+    const fixable = planChange(rated.finding, result.snapshot) !== null;
+    blocks.push({
+      text: formatFinding(rated, everyoneRoleId),
+      fixIndex: fixable ? index : null,
+      fixLabel:
+        rated.finding.type === "partially_used_role"
+          ? "Review split…"
+          : "Review fix…",
+    });
+  });
   const pages = chunk(blocks, FINDINGS_PER_PAGE);
 
   if (tab === "roles" && report.bots.length > 0) {
     pages.push(
-      ...chunk(report.bots.map(formatBot), FINDINGS_PER_PAGE).map((page, i) =>
-        i === 0 ? ["### Bots", ...page] : page,
-      ),
+      ...chunk(
+        report.bots.map((b) => text(formatBot(b))),
+        FINDINGS_PER_PAGE,
+      ).map((page, i) => (i === 0 ? [text("### Bots"), ...page] : page)),
     );
   }
 
   if (tab === "unused" && report.notTracked.length > 0) {
-    const notTracked = `-# **Not tracked:** sushii can't tell whether these are used, so they're never suggested for removal: ${report.notTracked
-      .map(
-        (entry) =>
-          `<@&${entry.roleId}> (${entry.permissions.map(permissionLabel).join(", ")})`,
-      )
-      .join(" · ")}`;
+    const notTracked = text(
+      `-# **Not tracked:** sushii can't tell whether these are used, so they're never suggested for removal: ${report.notTracked
+        .map(
+          (entry) =>
+            `<@&${entry.roleId}> (${entry.permissions.map(permissionLabel).join(", ")})`,
+        )
+        .join(" · ")}`,
+    );
     const last = pages.at(-1);
     if (last) {
       last.push(notTracked);
@@ -188,9 +217,7 @@ export function createAuditMessage(options: AuditMessageOptions): {
       new TextDisplayBuilder().setContent(`### ${TAB_TITLES[tab]}`),
     );
     for (const block of options.pageBlocks ?? []) {
-      container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(block),
-      );
+      addBlock(container, block, disabled);
     }
   }
 
@@ -306,6 +333,31 @@ function addOverview(
     new TextDisplayBuilder().setContent(
       `### Members who can use\n${concentration}`,
     ),
+  );
+}
+
+function addBlock(
+  container: ContainerBuilder,
+  block: PageBlock,
+  disabled: boolean,
+): void {
+  if (block.fixIndex === null) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(block.text),
+    );
+    return;
+  }
+
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(block.text))
+      .setButtonAccessory(
+        new ButtonBuilder()
+          .setCustomId(fixCustomId(block.fixIndex))
+          .setLabel(block.fixLabel ?? "Review fix…")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(disabled),
+      ),
   );
 }
 

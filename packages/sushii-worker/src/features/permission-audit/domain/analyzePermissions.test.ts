@@ -328,6 +328,64 @@ describe("analyzePermissions", () => {
     expect(findingsOf(report, "unused_role_permission")).toEqual([]);
   });
 
+  describe("Administrator confidence", () => {
+    const adminRole = role({
+      id: "60",
+      position: 9,
+      permissions: bits("Administrator"),
+      holderIds: ["1"],
+    });
+
+    test("enough history is actionable", () => {
+      const report = analyze({
+        roles: [adminRole],
+        members: [member({ id: "1" })],
+      });
+
+      expect(findingsOf(report, "administrator_grant")[0]).toMatchObject({
+        lowConfidence: false,
+        actionableAt: null,
+      });
+    });
+
+    test("first run with history starting now is low confidence", () => {
+      const report = analyze({
+        roles: [adminRole],
+        members: [member({ id: "1" })],
+        observedSince: NOW,
+      });
+
+      expect(findingsOf(report, "administrator_grant")[0]).toMatchObject({
+        lowConfidence: true,
+        actionableAt: new Date(NOW.getTime() + 14 * DAY),
+      });
+    });
+
+    test("no tracked permissions (no audit log) is never actionable", () => {
+      const report = analyze({
+        roles: [adminRole],
+        members: [member({ id: "1" })],
+        observed: [],
+      });
+
+      expect(findingsOf(report, "administrator_grant")[0]).toMatchObject({
+        lowConfidence: true,
+        actionableAt: null,
+      });
+    });
+
+    test("a role newer than 14 days is low confidence", () => {
+      const report = analyze({
+        roles: [{ ...adminRole, createdAt: daysAgo(3) }],
+        members: [member({ id: "1" })],
+      });
+
+      expect(findingsOf(report, "administrator_grant")[0]?.lowConfidence).toBe(
+        true,
+      );
+    });
+  });
+
   test("bot roles are summarised, admin is a finding, no unused findings", () => {
     const report = analyze({
       roles: [
@@ -421,6 +479,7 @@ describe("analyzePermissions", () => {
             targetId: "61",
             targetType: "role",
             allow: bits("ManageWebhooks", "SendMessages"),
+            deny: 0n,
           },
           {
             channelId: "c2",
@@ -428,6 +487,7 @@ describe("analyzePermissions", () => {
             targetId: "60",
             targetType: "role",
             allow: bits("SendMessages"),
+            deny: 0n,
           },
           {
             channelId: "c3",
@@ -435,6 +495,7 @@ describe("analyzePermissions", () => {
             targetId: "61",
             targetType: "role",
             allow: bits("AttachFiles"),
+            deny: 0n,
           },
         ],
       },

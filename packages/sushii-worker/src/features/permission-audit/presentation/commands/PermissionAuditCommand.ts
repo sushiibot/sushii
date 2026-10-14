@@ -11,6 +11,7 @@ import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { PermissionAuditService } from "../../application/PermissionAuditService";
+import type { PermissionChangeService } from "../../application/PermissionChangeService";
 import { PermissionAuditSession } from "../PermissionAuditSession";
 
 export class PermissionAuditCommand extends SlashCommandHandler {
@@ -26,6 +27,7 @@ export class PermissionAuditCommand extends SlashCommandHandler {
 
   constructor(
     private readonly auditService: PermissionAuditService,
+    private readonly changeService: PermissionChangeService,
     private readonly logger: Logger,
   ) {
     super();
@@ -60,6 +62,12 @@ export class PermissionAuditCommand extends SlashCommandHandler {
       "Permission audit generated",
     );
 
-    await new PermissionAuditSession(interaction, result, this.logger).start();
+    await new PermissionAuditSession(
+      interaction,
+      result,
+      this.auditService,
+      this.changeService,
+      this.logger,
+    ).start();
   }
 }

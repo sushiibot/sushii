@@ -12,11 +12,21 @@ import type { Logger } from "pino";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
+import type { PermissionAuditService } from "../application/PermissionAuditService";
 import type { AuditResult } from "../application/PermissionAuditService";
+import type { PermissionChangeService } from "../application/PermissionChangeService";
+import { type PlannedChange, planChange } from "../domain/planChange";
+import { PERMISSION_AUDIT_CUSTOM_IDS, parseFixCustomId } from "./customIds";
+import {
+  type FixOutcome,
+  createFixPreview,
+  createFixResult,
+} from "./views/FixPreviewBuilder";
 import {
   type AuditPages,
   type AuditViewTab,
   PERMISSION_AUDIT_IDLE_TIMEOUT_MS,
+  type PageBlock,
   type PagedTab,
   TAB_BY_CUSTOM_ID,
   buildAuditPages,
@@ -28,11 +38,16 @@ const REJECTION_MESSAGE =
 
 type AuditMessage = ReturnType<typeof createAuditMessage>;
 
-/** One audit message, its collector, and the tab/page state for its lifetime. */
+/** One audit message, its collector, and the tab/page/fix state for its lifetime. */
 export class PermissionAuditSession {
   private activeTab: AuditViewTab = "overview";
-  private paginator: ComponentsV2Paginator<string[]> | null = null;
-  private readonly pages: AuditPages;
+  private paginator: ComponentsV2Paginator<PageBlock[]> | null = null;
+  private result: AuditResult;
+  private pages: AuditPages;
+  private pendingChange: PlannedChange | null = null;
+  private returnPage = 0;
+  /** Set after a change: the report is rebuilt when the user goes back to it. */
+  private needsRefresh = false;
   /**
    * Ephemeral messages can only be edited through an interaction webhook, and
    * each token lasts 15 minutes. The latest click is never older than the
@@ -44,9 +59,12 @@ export class PermissionAuditSession {
 
   constructor(
     private readonly interaction: ChatInputCommandInteraction<"cached">,
-    private readonly result: AuditResult,
+    result: AuditResult,
+    private readonly auditService: PermissionAuditService,
+    private readonly changeService: PermissionChangeService,
     private readonly logger: Logger,
   ) {
+    this.result = result;
     this.pages = buildAuditPages(result, interaction.guildId);
     this.latestInteraction = interaction;
   }
@@ -123,32 +141,138 @@ export class PermissionAuditSession {
       return;
     }
 
-    const tab = TAB_BY_CUSTOM_ID.get(i.customId);
-    if (!tab) {
-      this.logger.warn(
-        { customId: i.customId, guildId: this.interaction.guildId },
-        "Unknown permission audit button",
-      );
+    const fixIndex = parseFixCustomId(i.customId);
+    if (fixIndex !== null) {
+      await this.openFix(i, fixIndex);
       return;
     }
 
+    switch (i.customId) {
+      case PERMISSION_AUDIT_CUSTOM_IDS.confirm:
+        await this.confirmFix(i);
+        return;
+      case PERMISSION_AUDIT_CUSTOM_IDS.cancel:
+      case PERMISSION_AUDIT_CUSTOM_IDS.back:
+        this.pendingChange = null;
+        await this.returnToReport(i);
+        return;
+    }
+
+    const tab = TAB_BY_CUSTOM_ID.get(i.customId);
+    if (tab) {
+      await this.showTab(i, tab, 0);
+      return;
+    }
+
+    this.logger.warn(
+      { customId: i.customId, guildId: this.interaction.guildId },
+      "Unknown permission audit button",
+    );
+  }
+
+  private async openFix(
+    i: ButtonInteraction<"cached">,
+    findingIndex: number,
+  ): Promise<void> {
+    const rated = this.result.report.findings[findingIndex];
+    const change = rated
+      ? planChange(rated.finding, this.result.snapshot)
+      : null;
+    if (!change) {
+      await i.update(await this.renderReport(false));
+      return;
+    }
+
+    this.returnPage = this.paginator?.getState().currentPage ?? 0;
+    this.pendingChange = change;
+
+    const authorized = this.changeService.authorize(i.guild, i.member, change);
+    await i.update(
+      createFixPreview({
+        change,
+        snapshot: this.result.snapshot,
+        refusal: authorized.err ? authorized.val : null,
+      }),
+    );
+  }
+
+  private async confirmFix(i: ButtonInteraction<"cached">): Promise<void> {
+    // Claimed before any await, so a double click can't apply it twice.
+    const change = this.pendingChange;
+    this.pendingChange = null;
+
+    await i.deferUpdate();
+    if (!change) {
+      return;
+    }
+
+    let outcome: FixOutcome;
+    try {
+      const applied = await this.changeService.apply(i.guild, i.member, change);
+      outcome = applied.ok
+        ? { ok: true, warning: applied.val.warning }
+        : { ok: false, message: applied.val };
+    } catch (err) {
+      this.logger.error(
+        { err, guildId: i.guildId, kind: change.kind },
+        "Failed to apply permission audit change",
+      );
+      outcome = {
+        ok: false,
+        message: `Discord rejected the change: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    // Shown before refreshing: the gateway may not have updated the cache yet,
+    // and a refresh failure must not hide that the change went through.
+    this.needsRefresh ||= outcome.ok;
+    await i.editReply(createFixResult(change, this.result.snapshot, outcome));
+  }
+
+  private async returnToReport(i: ButtonInteraction<"cached">): Promise<void> {
+    if (!this.needsRefresh) {
+      await this.showTab(i, this.activeTab, this.returnPage);
+      return;
+    }
+
+    await i.deferUpdate();
+    this.result = await this.auditService.generate(i.guild);
+    this.pages = buildAuditPages(this.result, i.guildId);
+    this.needsRefresh = false;
+    await this.selectTab(i, this.activeTab, this.returnPage);
+    await i.editReply(await this.renderReport(false));
+  }
+
+  private async showTab(
+    i: ButtonInteraction<"cached">,
+    tab: AuditViewTab,
+    page: number,
+  ): Promise<void> {
+    await this.selectTab(i, tab, page);
+    await i.update(await this.renderReport(false));
+  }
+
+  private async selectTab(
+    i: ButtonInteraction<"cached">,
+    tab: AuditViewTab,
+    page: number,
+  ): Promise<void> {
     this.activeTab = tab;
     this.paginator = tab === "overview" ? null : this.createPaginator(i, tab);
 
-    await i.update(
-      this.paginator
-        ? await this.paginator.renderCurrentPage()
-        : this.renderScreen(false),
-    );
+    if (this.paginator) {
+      await this.paginator.getTotalPages();
+      this.paginator.goToPage(page);
+    }
   }
 
   private createPaginator(
     i: ButtonInteraction<"cached">,
     tab: PagedTab,
-  ): ComponentsV2Paginator<string[]> {
+  ): ComponentsV2Paginator<PageBlock[]> {
     const pages = this.pages[tab];
 
-    return new ComponentsV2Paginator<string[]>({
+    return new ComponentsV2Paginator<PageBlock[]>({
       interaction: i,
       pageSize: 1,
       logger: this.logger,
@@ -162,18 +286,22 @@ export class PermissionAuditSession {
     });
   }
 
-  private async renderExpired(): Promise<AuditMessage> {
+  private async renderReport(disabled: boolean): Promise<AuditMessage> {
     if (this.paginator) {
-      return this.paginator.renderCurrentPage({ disabled: true });
+      return this.paginator.renderCurrentPage({ disabled });
     }
 
-    return this.renderScreen(true);
+    return this.renderScreen(disabled);
+  }
+
+  private async renderExpired(): Promise<AuditMessage> {
+    return this.renderReport(true);
   }
 
   /** The paginator sends only this container, so it must be the whole frame. */
   private renderContainer(
     disabled: boolean,
-    pageBlocks: readonly string[],
+    pageBlocks: readonly PageBlock[],
     navButtons: ActionRowBuilder<ButtonBuilder> | null,
   ): ContainerBuilder {
     return createAuditMessage({
