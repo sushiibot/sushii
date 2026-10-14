@@ -31,6 +31,7 @@ function role(overrides: Partial<RoleSnapshot> & { id: string }): RoleSnapshot {
     botUserId: null,
     createdAt: daysAgo(365),
     holderIds: [],
+    holderCount: overrides.holderIds?.length ?? 0,
     ...overrides,
   };
 }
@@ -43,7 +44,6 @@ function member(
     isBot: false,
     roleIds: [],
     joinedAt: daysAgo(365),
-    lastActiveAt: daysAgo(1),
     ...overrides,
   };
 }
@@ -57,6 +57,7 @@ interface Setup {
   auditLogLastUsed?: Record<string, Partial<Record<PermissionName, Date>>>;
   observed?: PermissionName[];
   observedSince?: Date;
+  unresolved?: PermissionName[];
 }
 
 function analyze(setup: Setup) {
@@ -69,8 +70,8 @@ function analyze(setup: Setup) {
     mfaRequired: true,
     roles,
     overwrites: [],
+    memberCount: 100,
     members: new Map(members.map((m) => [m.id, m])),
-    memberCacheComplete: true,
     selfAssignable: [],
     now: NOW,
     ...setup.guild,
@@ -98,6 +99,7 @@ function analyze(setup: Setup) {
     observedSince: new Map(
       observed.map((p) => [p, setup.observedSince ?? daysAgo(45)]),
     ),
+    unresolved: new Set(setup.unresolved ?? []),
     backfillPending: false,
   };
 
@@ -244,65 +246,66 @@ describe("analyzePermissions", () => {
       ).toEqual(["BanMembers"]);
     });
 
-    test("split suggested when active holders didn't use it", () => {
-      const holders = ["1", "2", "3", "4"].map((id) => member({ id }));
+    test("holders who were never resolved still make a permission unused", () => {
       const report = analyze({
-        roles: [{ ...modRole, holderIds: ["1", "2", "3", "4"] }],
-        members: holders,
-        lastUsed: {
-          "1": { BanMembers: daysAgo(1), ManageWebhooks: daysAgo(1) },
-        },
+        roles: [{ ...modRole, holderIds: [], holderCount: 3 }],
+        lastUsed: {},
       });
 
-      const partials = findingsOf(report, "partially_used_role");
-      expect(partials.map((f) => f.permission).sort()).toEqual([
-        "BanMembers",
-        "ManageWebhooks",
-      ]);
-      const partial = partials.find((f) => f.permission === "BanMembers");
-      expect(partial).toMatchObject({
-        permission: "BanMembers",
-        holderCount: 4,
-        activeCount: 4,
-        usedByIds: ["1"],
+      expect(findingsOf(report, "unused_role_permission")[0]).toMatchObject({
+        permissions: ["ManageWebhooks", "BanMembers"],
+        holderCount: 3,
       });
     });
 
-    test("inactive holders instead of a split when most are inactive", () => {
-      const holders = [
-        member({ id: "1" }),
-        member({ id: "2", lastActiveAt: daysAgo(90) }),
-        member({ id: "3", lastActiveAt: null }),
-      ];
+    test("use by any resolved holder counts for the whole role", () => {
       const report = analyze({
-        roles: [{ ...modRole, holderIds: ["1", "2", "3"] }],
-        members: holders,
-        lastUsed: {
-          "1": { BanMembers: daysAgo(1), ManageWebhooks: daysAgo(1) },
-        },
+        roles: [{ ...modRole, holderIds: ["1"], holderCount: 12 }],
+        members: [member({ id: "1" })],
+        lastUsed: { "1": { BanMembers: daysAgo(1) } },
       });
 
-      expect(findingsOf(report, "partially_used_role")).toEqual([]);
-      expect(findingsOf(report, "inactive_holders")[0]?.inactiveIds).toEqual([
-        "2",
-        "3",
-      ]);
+      expect(
+        findingsOf(report, "unused_role_permission")[0]?.permissions,
+      ).toEqual(["ManageWebhooks"]);
     });
 
-    test("recent joiners don't count against usage", () => {
-      const holders = [
-        member({ id: "1" }),
-        member({ id: "2", joinedAt: daysAgo(2) }),
-      ];
+    test("a role a bot holds gets no unused finding", () => {
       const report = analyze({
-        roles: [modRole],
-        members: holders,
-        lastUsed: {
-          "1": { BanMembers: daysAgo(1), ManageWebhooks: daysAgo(1) },
-        },
+        roles: [{ ...modRole, holderIds: ["77"], holderCount: 4 }],
+        members: [member({ id: "77", isBot: true })],
       });
 
-      expect(findingsOf(report, "partially_used_role")).toEqual([]);
+      expect(findingsOf(report, "unused_role_permission")).toEqual([]);
+    });
+
+    test("an Administrator role a bot holds has no automatic fix", () => {
+      const report = analyze({
+        roles: [
+          role({
+            id: "61",
+            position: 9,
+            permissions: bits("Administrator"),
+            holderIds: ["77"],
+          }),
+        ],
+        members: [member({ id: "77", isBot: true })],
+      });
+
+      expect(findingsOf(report, "administrator_grant")[0]?.isBotRole).toBe(
+        true,
+      );
+    });
+
+    test("usage by unresolved users counts as used", () => {
+      const report = analyze({
+        roles: [{ ...modRole, holderIds: [], holderCount: 3 }],
+        unresolved: ["BanMembers"],
+      });
+
+      expect(
+        findingsOf(report, "unused_role_permission")[0]?.permissions,
+      ).toEqual(["ManageWebhooks"]);
     });
   });
 
@@ -326,6 +329,34 @@ describe("analyzePermissions", () => {
       isBotRole: false,
     });
     expect(findingsOf(report, "unused_role_permission")).toEqual([]);
+  });
+
+  describe("Administrator with no holders", () => {
+    const emptyAdmin = role({
+      id: "61",
+      position: 9,
+      permissions: bits("Administrator"),
+    });
+
+    test("is low", () => {
+      const report = analyze({ roles: [emptyAdmin] });
+
+      expect(
+        report.findings.find((f) => f.finding.type === "administrator_grant")
+          ?.severity,
+      ).toBe("low");
+    });
+
+    test("stays critical with holders none of whom were resolved", () => {
+      const report = analyze({
+        roles: [{ ...emptyAdmin, holderCount: 2 }],
+      });
+
+      expect(
+        report.findings.find((f) => f.finding.type === "administrator_grant")
+          ?.severity,
+      ).toBe("critical");
+    });
   });
 
   describe("Administrator confidence", () => {
@@ -523,29 +554,6 @@ describe("analyzePermissions", () => {
     });
 
     expect(findingsOf(report, "mfa_disabled")[0]?.roleIds).toEqual(["50"]);
-  });
-
-  test("members view skips the owner and bots, lists never-used first", () => {
-    const report = analyze({
-      roles: [
-        role({
-          id: "50",
-          permissions: bits("BanMembers"),
-          holderIds: ["1", "2", OWNER, "77"],
-        }),
-      ],
-      members: [
-        member({ id: "1", roleIds: ["50"] }),
-        member({ id: "2", roleIds: ["50"] }),
-        member({ id: OWNER, roleIds: ["50"] }),
-        member({ id: "77", isBot: true, roleIds: ["50"] }),
-      ],
-      lastUsed: { "1": { BanMembers: daysAgo(1) } },
-    });
-
-    expect(report.members.map((m) => m.memberId)).toEqual(["2", "1"]);
-    expect(report.members[0]?.viaRoleIds).toEqual(["50"]);
-    expect(report.holderCounts.BanMembers).toBe(3);
   });
 
   test("findings are sorted most severe first", () => {

@@ -94,8 +94,6 @@ function grantedBits(change: PlannedChange): bigint {
   switch (change.kind) {
     case "set_role_permissions":
       return change.after & ~change.before;
-    case "create_role":
-      return change.permissions;
     case "edit_overwrite":
     case "delete_overwrite":
       return 0n;

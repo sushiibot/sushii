@@ -3,7 +3,7 @@ import { PermissionFlagsBits } from "discord.js";
 import type { Finding } from "./Finding";
 import type { GuildSnapshot } from "./GuildSnapshot";
 import type { PermissionName } from "./PermissionUsage";
-import { permissionLabel, permissionsIn } from "./permissionCatalog";
+import { permissionsIn } from "./permissionCatalog";
 
 /**
  * Granted in place of Administrator. Pinned rather than "everything not
@@ -76,17 +76,7 @@ export type PlannedChange =
       targetId: string;
       beforeAllow: bigint;
       beforeDeny: bigint;
-    }
-  | {
-      kind: "create_role";
-      sourceRoleId: string;
-      name: string;
-      permissions: bigint;
-      assignToIds: string[];
     };
-
-/** Discord caps role names at 100 characters. */
-const ROLE_NAME_MAX = 100;
 
 /** Null when the finding has no automatic fix. */
 export function planChange(
@@ -144,25 +134,7 @@ export function planChange(
       };
     }
 
-    case "partially_used_role": {
-      const role = guild.roles.find((r) => r.id === finding.roleId);
-      if (!role) {
-        return null;
-      }
-      return {
-        kind: "create_role",
-        sourceRoleId: role.id,
-        name: `${role.name} · ${permissionLabel(finding.permission)}`.slice(
-          0,
-          ROLE_NAME_MAX,
-        ),
-        permissions: PermissionFlagsBits[finding.permission],
-        assignToIds: finding.usedByIds,
-      };
-    }
-
     case "possibly_used_through_bots":
-    case "inactive_holders":
     case "self_assignable_role":
     case "escalation":
     case "mfa_disabled":
@@ -197,9 +169,7 @@ function removeFromRole(
     before: role.permissions,
     after: role.permissions & ~bitsOf(permissions),
     affectedMembers:
-      roleId === guild.everyoneRoleId
-        ? guild.members.size
-        : role.holderIds.length,
+      roleId === guild.everyoneRoleId ? guild.memberCount : role.holderCount,
     channelLosses: [],
   };
 }
@@ -221,7 +191,7 @@ function replaceAdministrator(
     roleId,
     before: role.permissions,
     after,
-    affectedMembers: role.holderIds.length,
+    affectedMembers: role.holderCount,
     channelLosses: channelLosses(guild, roleId, after),
   };
 }

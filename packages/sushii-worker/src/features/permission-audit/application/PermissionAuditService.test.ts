@@ -13,14 +13,17 @@ import type {
   PermissionUsageCoverageRepository,
 } from "../domain/PermissionUsageCoverageRepository";
 import type { AuditLogBackfillService } from "../infrastructure/AuditLogBackfillService";
-import { PermissionAuditService } from "./PermissionAuditService";
+import {
+  type AuditMemberSource,
+  PermissionAuditService,
+} from "./PermissionAuditService";
 
 const GUILD_ID = "1000";
 const MOD_ID = "2000";
 const DAY = 24 * 60 * 60 * 1000;
 
-function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
-  const modMember = {
+function fakeModMember() {
+  return {
     id: MOD_ID,
     user: { username: "jisoo", bot: false },
     joinedAt: new Date(Date.now() - 400 * DAY),
@@ -31,7 +34,11 @@ function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
       ]),
     },
   };
-  const members = new Collection([[MOD_ID, modMember]]);
+}
+
+function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
+  // Holds the mod, so a report built from the cache would look different.
+  const members = new Collection([[MOD_ID, fakeModMember()]]);
 
   const roles = new Collection([
     [
@@ -95,7 +102,7 @@ function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
     roles: { cache: roles },
     channels: { cache: channels },
     members: {
-      cache: members,
+      cache: new Collection(),
       me: { permissions: { has: () => options.canViewAuditLog } },
     },
   } as unknown as Guild;
@@ -104,7 +111,7 @@ function fakeGuild(options: { canViewAuditLog: boolean }): Guild {
 describe("PermissionAuditService", () => {
   let coverage: PermissionUsageCoverage | null;
   let startIfNeeded: ReturnType<typeof mock>;
-  let lastActiveAt: ReturnType<typeof mock>;
+  let membersById: ReturnType<typeof mock>;
   let service: PermissionAuditService;
 
   beforeEach(() => {
@@ -114,7 +121,12 @@ describe("PermissionAuditService", () => {
       backfillCoverage: {},
     };
     startIfNeeded = mock(() => undefined);
-    lastActiveAt = mock(() => Promise.resolve(new Map([[MOD_ID, new Date()]])));
+    membersById = mock(() =>
+      Promise.resolve({
+        members: new Map([[MOD_ID, fakeModMember()]]),
+        unresolvedIds: new Set(),
+      }),
+    );
     service = new PermissionAuditService(
       {
         listUsage: mock(() =>
@@ -126,19 +138,22 @@ describe("PermissionAuditService", () => {
             },
           ]),
         ),
-        lastActiveAt,
         listSelfAssignableRoles: mock(() => Promise.resolve([])),
       } as unknown as PermissionAuditReadRepository,
       {
         get: mock(() => Promise.resolve(coverage)),
       } as unknown as PermissionUsageCoverageRepository,
       { startIfNeeded } as unknown as AuditLogBackfillService,
+      {
+        roleMemberCounts: mock(() => Promise.resolve(new Map([["50", 3]]))),
+        membersById,
+      } as unknown as AuditMemberSource,
       new Set(["BanMembers", "KickMembers"]),
       new Set(["MentionEveryone"]),
     );
   });
 
-  test("reports unused permissions from cache and usage", async () => {
+  test("reports unused permissions from holder counts and usage", async () => {
     const { report, context } = await service.generate(
       fakeGuild({ canViewAuditLog: true }),
     );
@@ -146,7 +161,10 @@ describe("PermissionAuditService", () => {
     const unused = report.findings.find(
       (f) => f.finding.type === "unused_role_permission",
     );
-    expect(unused?.finding).toMatchObject({ permissions: ["KickMembers"] });
+    expect(unused?.finding).toMatchObject({
+      permissions: ["KickMembers"],
+      holderCount: 3,
+    });
     expect(
       report.findings.some((f) => f.finding.type === "dangerous_overwrite"),
     ).toBe(true);
@@ -154,16 +172,45 @@ describe("PermissionAuditService", () => {
       guildName: "Lisa Fan Server",
       canViewAuditLog: true,
       backfillPending: false,
-      cachedMembers: 1,
-      totalMembers: 1,
     });
     expect(startIfNeeded).not.toHaveBeenCalled();
   });
 
-  test("only looks up activity for dangerous role holders", async () => {
-    await service.generate(fakeGuild({ canViewAuditLog: true }));
+  test("only fetches members who used a permission", async () => {
+    const guild = fakeGuild({ canViewAuditLog: true });
+    await service.generate(guild);
 
-    expect(lastActiveAt).toHaveBeenCalledWith(GUILD_ID, [MOD_ID]);
+    expect(membersById).toHaveBeenCalledWith(guild, [MOD_ID]);
+  });
+
+  test("a user who left no longer holds the role", async () => {
+    membersById.mockImplementation(() =>
+      Promise.resolve({ members: new Map(), unresolvedIds: new Set() }),
+    );
+
+    const { report } = await service.generate(
+      fakeGuild({ canViewAuditLog: true }),
+    );
+
+    expect(
+      report.findings.find((f) => f.finding.type === "unused_role_permission")
+        ?.finding,
+    ).toMatchObject({ permissions: ["BanMembers", "KickMembers"] });
+  });
+
+  test("permissions of users who couldn't be fetched count as used", async () => {
+    membersById.mockImplementation(() =>
+      Promise.resolve({ members: new Map(), unresolvedIds: new Set([MOD_ID]) }),
+    );
+
+    const { report } = await service.generate(
+      fakeGuild({ canViewAuditLog: true }),
+    );
+
+    expect(
+      report.findings.find((f) => f.finding.type === "unused_role_permission")
+        ?.finding,
+    ).toMatchObject({ permissions: ["KickMembers"] });
   });
 
   test("starts the backfill without waiting when it hasn't run", async () => {

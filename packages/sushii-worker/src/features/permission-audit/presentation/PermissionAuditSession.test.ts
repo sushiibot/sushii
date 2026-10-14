@@ -28,17 +28,13 @@ const RESULT: AuditResult = {
       },
     ],
     bots: [],
-    members: [],
     notTracked: [],
-    holderCounts: {},
   },
   context: {
     guildName: "Test",
     canViewAuditLog: true,
     historyStart: new Date(),
     backfillPending: false,
-    cachedMembers: 1,
-    totalMembers: 1,
   },
   snapshot: {
     guildId: "1000",
@@ -53,12 +49,13 @@ const RESULT: AuditResult = {
         permissions: 1n << 17n,
         botUserId: null,
         createdAt: new Date(0),
+        holderCount: 1,
         holderIds: [],
       },
     ],
     overwrites: [],
+    memberCount: 1,
     members: new Map(),
-    memberCacheComplete: true,
     selfAssignable: [],
     now: new Date(),
   },
@@ -78,14 +75,9 @@ function setup(options: { refusal?: string; applyError?: string } = {}) {
   const interaction = {
     guildId: "1000",
     user: { id: OWNER_ID },
-    reply: mock(() =>
-      Promise.resolve({
-        resource: {
-          message: { createMessageComponentCollector: () => collector },
-        },
-      }),
+    editReply: mock((_options: unknown) =>
+      Promise.resolve({ createMessageComponentCollector: () => collector }),
     ),
-    editReply: mock(() => Promise.resolve()),
   };
   const session = new PermissionAuditSession(
     interaction as unknown as ChatInputCommandInteraction<"cached">,
@@ -120,16 +112,17 @@ async function flush() {
 }
 
 describe("PermissionAuditSession", () => {
-  test("replies publicly", async () => {
+  test("renders into the deferred reply", async () => {
     const { interaction, session } = setup();
 
     await session.start();
 
-    const [options] = interaction.reply.mock.calls[0] as unknown as [
-      { flags: number; withResponse: boolean },
+    const [options] = interaction.editReply.mock.calls[0] as unknown as [
+      { flags: number },
     ];
-    expect(options.withResponse).toBe(true);
-    expect(options.flags & MessageFlags.Ephemeral).toBe(0);
+    expect(options.flags & MessageFlags.IsComponentsV2).toBe(
+      MessageFlags.IsComponentsV2,
+    );
   });
 
   test("expires through the original interaction when nothing was clicked", async () => {
@@ -139,7 +132,7 @@ describe("PermissionAuditSession", () => {
     collector.emit("end");
     await flush();
 
-    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
   });
 
   test("expires through the latest click, whose token is still valid", async () => {
@@ -154,7 +147,7 @@ describe("PermissionAuditSession", () => {
 
     expect(button.update).toHaveBeenCalledTimes(1);
     expect(button.editReply).toHaveBeenCalledTimes(1);
-    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
   });
 
   test("rejects other users without changing the view", async () => {

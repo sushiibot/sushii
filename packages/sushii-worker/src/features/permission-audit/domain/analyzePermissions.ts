@@ -3,7 +3,6 @@ import type {
   AuditTab,
   BotRoleSummary,
   Finding,
-  MemberInsight,
   RatedFinding,
 } from "./Finding";
 import type {
@@ -21,18 +20,11 @@ import {
   hasPermission,
   highestSeverity,
   permissionsIn,
-  severityOf,
 } from "./permissionCatalog";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const AUDIT_WINDOW_DAYS = 45;
 export const MIN_CONFIDENCE_DAYS = 14;
-
-const CONCENTRATION_PERMISSIONS: readonly PermissionName[] = [
-  "Administrator",
-  "ManageRoles",
-  "BanMembers",
-];
 
 export function analyzePermissions(
   guild: GuildSnapshot,
@@ -68,7 +60,7 @@ export function analyzePermissions(
             {
               type: "administrator_grant",
               roleId: role.id,
-              holderCount: role.holderIds.length,
+              holderCount: role.holderCount,
               usedPermissions: context.permissionsUsedBy(role.holderIds),
               isBotRole: true,
               lowConfidence: false,
@@ -87,12 +79,12 @@ export function analyzePermissions(
           {
             type: "administrator_grant",
             roleId: role.id,
-            holderCount: role.holderIds.length,
+            holderCount: role.holderCount,
             usedPermissions: context.permissionsUsedBy(role.holderIds),
-            isBotRole: false,
+            isBotRole: context.heldByBot(role),
             ...context.administratorConfidence(role),
           },
-          "critical",
+          role.holderCount === 0 ? "low" : "critical",
         ),
       );
       continue;
@@ -117,17 +109,13 @@ export function analyzePermissions(
   return {
     findings,
     bots,
-    members: context.memberInsights(),
     notTracked,
-    holderCounts: context.holderCounts(),
   };
 }
 
 const TAB_BY_TYPE: Record<Finding["type"], AuditTab> = {
   everyone_dangerous: "roles",
   administrator_grant: "roles",
-  partially_used_role: "roles",
-  inactive_holders: "roles",
   self_assignable_role: "roles",
   escalation: "roles",
   mfa_disabled: "roles",
@@ -185,8 +173,10 @@ class AnalysisContext {
   }
 
   permissionsUsedBy(userIds: readonly string[]): PermissionName[] {
-    return DANGEROUS_PERMISSIONS.filter((permission) =>
-      userIds.some((userId) => this.usedInWindow(userId, permission)),
+    return DANGEROUS_PERMISSIONS.filter(
+      (permission) =>
+        this.usage.unresolved.has(permission) ||
+        userIds.some((userId) => this.usedInWindow(userId, permission)),
     );
   }
 
@@ -227,22 +217,10 @@ class AnalysisContext {
     const notTracked: PermissionName[] = [];
     const unused: PermissionName[] = [];
     const viaBots: PermissionName[] = [];
-    const humans = this.humans(role.holderIds);
-
-    if (humans.length === 0) {
+    // Removing a permission a bot holds could break it, and its use isn't tracked per role.
+    if (role.holderCount === 0 || this.heldByBot(role)) {
       return { findings, notTracked };
     }
-
-    const settled = humans.filter(
-      (member) =>
-        member.joinedAt == null ||
-        this.guild.now.getTime() - member.joinedAt.getTime() >=
-          MIN_CONFIDENCE_DAYS * DAY_MS,
-    );
-    const active = settled.filter(
-      (member) =>
-        member.lastActiveAt != null && member.lastActiveAt >= this.windowStart,
-    );
 
     for (const permission of permissionsIn(
       role.permissions,
@@ -253,30 +231,13 @@ class AnalysisContext {
         continue;
       }
 
-      const usedBy = humans.filter((member) =>
-        this.usedInWindow(member.id, permission),
-      );
-
-      if (usedBy.length === 0) {
-        (this.botExecuted.has(permission) ? viaBots : unused).push(permission);
-        continue;
-      }
-
-      const mostlyActive = active.length * 2 >= settled.length;
-      if (mostlyActive && usedBy.length < active.length) {
-        findings.push(
-          rate(
-            {
-              type: "partially_used_role",
-              roleId: role.id,
-              permission,
-              holderCount: humans.length,
-              activeCount: active.length,
-              usedByIds: usedBy.map((member) => member.id),
-            },
-            severityOf(permission),
-          ),
+      const used =
+        this.usage.unresolved.has(permission) ||
+        this.humans(role.holderIds).some((member) =>
+          this.usedInWindow(member.id, permission),
         );
+      if (!used) {
+        (this.botExecuted.has(permission) ? viaBots : unused).push(permission);
       }
     }
 
@@ -296,7 +257,7 @@ class AnalysisContext {
             type: "unused_role_permission",
             roleId: role.id,
             permissions: unused,
-            holderCount: humans.length,
+            holderCount: role.holderCount,
             lowConfidence,
             actionableAt: lowConfidence ? actionableAt : null,
           },
@@ -314,21 +275,6 @@ class AnalysisContext {
             permissions: viaBots,
           },
           "low",
-        ),
-      );
-    }
-
-    const inactive = settled.filter((member) => !active.includes(member));
-    if (settled.length > 0 && inactive.length * 2 > settled.length) {
-      findings.push(
-        rate(
-          {
-            type: "inactive_holders",
-            roleId: role.id,
-            holderCount: humans.length,
-            inactiveIds: inactive.map((member) => member.id),
-          },
-          "medium",
         ),
       );
     }
@@ -376,7 +322,7 @@ class AnalysisContext {
         role.botUserId ||
         !hasPermission(role.permissions, "ManageRoles") ||
         hasPermission(role.permissions, "Administrator") ||
-        this.humans(role.holderIds).length === 0
+        role.holderCount === 0
       ) {
         continue;
       }
@@ -487,7 +433,7 @@ class AnalysisContext {
         (role) =>
           role.id !== this.guild.everyoneRoleId &&
           !role.botUserId &&
-          this.humans(role.holderIds).length > 0 &&
+          role.holderCount > 0 &&
           permissionsIn(role.permissions, MFA_GATED_PERMISSIONS).length > 0,
       )
       .map((role) => role.id);
@@ -497,80 +443,8 @@ class AnalysisContext {
       : [];
   }
 
-  memberInsights(): MemberInsight[] {
-    const insights: MemberInsight[] = [];
-
-    for (const member of this.guild.members.values()) {
-      if (member.isBot || member.id === this.guild.ownerId) {
-        continue;
-      }
-
-      const roles = this.memberRoles(member);
-      const isAdmin = roles.some((role) =>
-        hasPermission(role.permissions, "Administrator"),
-      );
-      const permissions = isAdmin
-        ? [...DANGEROUS_PERMISSIONS]
-        : DANGEROUS_PERMISSIONS.filter((permission) =>
-            roles.some((role) => hasPermission(role.permissions, permission)),
-          );
-
-      if (permissions.length === 0) {
-        continue;
-      }
-
-      insights.push({
-        memberId: member.id,
-        username: member.username,
-        permissions: permissions.map((permission) => {
-          const lastUsedAt =
-            this.usage.lastUsed.get(member.id)?.get(permission) ?? null;
-          return {
-            permission,
-            lastUsedAt,
-            mayBeUsedThroughBots:
-              lastUsedAt == null && this.botExecuted.has(permission),
-          };
-        }),
-        viaRoleIds: roles
-          .filter(
-            (role) =>
-              role.id !== this.guild.everyoneRoleId &&
-              permissionsIn(role.permissions, DANGEROUS_PERMISSIONS).length > 0,
-          )
-          .map((role) => role.id),
-      });
-    }
-
-    const neverUsed = (insight: MemberInsight) =>
-      insight.permissions.filter((p) => p.lastUsedAt == null).length;
-    return insights.sort((a, b) => neverUsed(b) - neverUsed(a));
-  }
-
-  holderCounts(): Partial<Record<PermissionName, number>> {
-    const counts: Partial<Record<PermissionName, number>> = {};
-
-    for (const permission of CONCENTRATION_PERMISSIONS) {
-      counts[permission] = [...this.guild.members.values()].filter((member) => {
-        if (member.isBot) {
-          return false;
-        }
-        const roles = this.memberRoles(member);
-        return roles.some(
-          (role) =>
-            hasPermission(role.permissions, permission) ||
-            hasPermission(role.permissions, "Administrator"),
-        );
-      }).length;
-    }
-
-    return counts;
-  }
-
-  private memberRoles(member: MemberSnapshot): RoleSnapshot[] {
-    return [this.guild.everyoneRoleId, ...member.roleIds]
-      .map((roleId) => this.rolesById.get(roleId))
-      .filter((role) => role !== undefined);
+  heldByBot(role: RoleSnapshot): boolean {
+    return role.holderIds.some((id) => this.guild.members.get(id)?.isBot);
   }
 
   private humans(userIds: readonly string[]): MemberSnapshot[] {

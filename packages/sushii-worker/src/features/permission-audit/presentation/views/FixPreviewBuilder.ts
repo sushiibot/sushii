@@ -20,7 +20,6 @@ import { PERMISSION_AUDIT_CUSTOM_IDS } from "../customIds";
 import { formatPermissions } from "./formatFinding";
 
 const MAX_LISTED_CHANNELS = 5;
-const MAX_LISTED_ASSIGNEES = 10;
 
 export interface FixPreviewOptions {
   change: PlannedChange;
@@ -62,7 +61,7 @@ export function createFixPreview(options: FixPreviewOptions) {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(PERMISSION_AUDIT_CUSTOM_IDS.confirm)
-        .setLabel(change.kind === "create_role" ? "Create role" : "Confirm")
+        .setLabel("Confirm")
         .setStyle(ButtonStyle.Success)
         .setDisabled(refusal !== null),
       new ButtonBuilder()
@@ -142,8 +141,6 @@ function previewTitle(change: PlannedChange, snapshot: GuildSnapshot): string {
       return `Edit the override in <#${change.channelId}>`;
     case "delete_overwrite":
       return `Delete the override in <#${change.channelId}>`;
-    case "create_role":
-      return `Split ${roleRef(change.sourceRoleId, snapshot)}`;
   }
 }
 
@@ -194,16 +191,6 @@ function previewBody(change: PlannedChange, snapshot: GuildSnapshot): string[] {
       return [
         `The override for ${roleRef(change.targetId, snapshot)} has no effect: the role has Administrator.`,
       ];
-
-    case "create_role":
-      return [
-        diffBlock([
-          `+ @${change.name} (${formatPermissions(
-            permissionDiff(0n, change.permissions).added,
-          )}), placed below the original`,
-        ]),
-        "-# sushii only creates the role. You assign it and update the original role.",
-      ];
   }
 }
 
@@ -246,8 +233,6 @@ function doneTitle(change: PlannedChange, snapshot: GuildSnapshot): string {
       return `Updated the override in <#${change.channelId}>`;
     case "delete_overwrite":
       return `Deleted the override in <#${change.channelId}>`;
-    case "create_role":
-      return `Created @${change.name}`;
   }
 }
 
@@ -270,22 +255,6 @@ function nextSteps(change: PlannedChange, snapshot: GuildSnapshot): string[] {
       return [
         "-# It had no effect, so nothing about who can do what has changed.",
       ];
-    case "create_role": {
-      const assignees = change.assignToIds
-        .slice(0, MAX_LISTED_ASSIGNEES)
-        .map((id) => `<@${id}>`);
-      const rest = change.assignToIds.length - assignees.length;
-      const source = roleRef(change.sourceRoleId, snapshot);
-      const permission = formatPermissions(
-        permissionDiff(0n, change.permissions).added,
-      );
-      return [
-        "**Next, in Server Settings → Roles:**",
-        `1. Give the new role to ${assignees.join(", ")}${rest > 0 ? ` +${rest} more` : ""}`,
-        `2. Remove ${permission} from ${source}`,
-        "-# To undo: delete the new role.",
-      ];
-    }
   }
 }
 

@@ -8,7 +8,6 @@ export const PERMISSION_AUDIT_CUSTOM_IDS = {
   tabRoles: "permaudit_tab_roles",
   tabUnused: "permaudit_tab_unused",
   tabChannels: "permaudit_tab_channels",
-  tabMembers: "permaudit_tab_members",
   /** Prefix only: the live ID appends the finding's index. */
   fixPrefix: "permaudit_fix:",
   confirm: "permaudit_confirm",

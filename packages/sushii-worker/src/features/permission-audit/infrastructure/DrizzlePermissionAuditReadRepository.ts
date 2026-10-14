@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type * as schema from "@/infrastructure/database/schema";
@@ -7,7 +7,6 @@ import {
   permissionUsageInAppPublic,
   roleMenuRolesInAppPublic,
   roleMenusInAppPublic,
-  userLevelsInAppPublic,
 } from "@/infrastructure/database/schema";
 
 import type { SelfAssignableRole } from "../domain/GuildSnapshot";
@@ -19,9 +18,6 @@ import type {
   PermissionName,
   PermissionUsageSource,
 } from "../domain/PermissionUsage";
-
-/** Keeps each IN list well under Postgres' bind parameter limit. */
-const USER_ID_CHUNK_SIZE = 5000;
 
 export class DrizzlePermissionAuditReadRepository
   implements PermissionAuditReadRepository
@@ -46,30 +42,6 @@ export class DrizzlePermissionAuditReadRepository
       source: row.source as PermissionUsageSource,
       lastUsedAt: row.lastUsedAt,
     }));
-  }
-
-  async lastActiveAt(
-    guildId: string,
-    userIds: readonly string[],
-  ): Promise<Map<string, Date>> {
-    const table = userLevelsInAppPublic;
-    const result = new Map<string, Date>();
-
-    for (let i = 0; i < userIds.length; i += USER_ID_CHUNK_SIZE) {
-      const chunk = userIds.slice(i, i + USER_ID_CHUNK_SIZE).map(BigInt);
-      const rows = await this.db
-        .select({ userId: table.userId, lastMsg: table.lastMsg })
-        .from(table)
-        .where(
-          and(eq(table.guildId, BigInt(guildId)), inArray(table.userId, chunk)),
-        );
-
-      for (const row of rows) {
-        result.set(row.userId.toString(), row.lastMsg);
-      }
-    }
-
-    return result;
   }
 
   async listSelfAssignableRoles(

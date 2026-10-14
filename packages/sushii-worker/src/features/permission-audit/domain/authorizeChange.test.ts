@@ -33,14 +33,6 @@ const OVERRIDE: PlannedChange = {
   afterAllow: 0n,
 };
 
-const SPLIT: PlannedChange = {
-  kind: "create_role",
-  sourceRoleId: "50",
-  name: "Mod · Ban Members",
-  permissions: P.BanMembers,
-  assignToIds: ["1"],
-};
-
 const TARGET = { rolePosition: 5, roleName: "@Mod" };
 
 function actor(overrides: Partial<ChangeActor> = {}): ChangeActor {
@@ -128,8 +120,8 @@ describe("authorizeChange", () => {
 
   test("sushii must hold granted permissions too", () => {
     const result = check(
-      SPLIT,
-      actor({ permissions: P.ManageRoles | P.BanMembers }),
+      GRANT,
+      actor({ permissions: P.ManageRoles | P.KickMembers | P.ViewChannel }),
       { ...SUSHII, permissions: P.ManageRoles },
     );
 

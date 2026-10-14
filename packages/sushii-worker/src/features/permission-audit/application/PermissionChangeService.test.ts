@@ -36,9 +36,6 @@ describe("PermissionChangeService", () => {
     edit: ReturnType<typeof mock>;
     delete: ReturnType<typeof mock>;
   };
-  let rolesCreate: ReturnType<typeof mock>;
-  let setPositions: ReturnType<typeof mock>;
-  let roleCount: number;
   let guild: Guild;
   let runner: GuildMember;
   const service = new PermissionChangeService(pino({ level: "silent" }));
@@ -57,9 +54,6 @@ describe("PermissionChangeService", () => {
       edit: mock(() => Promise.resolve()),
       delete: mock(() => Promise.resolve()),
     };
-    rolesCreate = mock(() => Promise.resolve({ id: "99" }));
-    setPositions = mock(() => Promise.resolve());
-    roleCount = 10;
     const all = P.ManageRoles | P.BanMembers | P.ManageWebhooks;
     runner = member("runner", all, 10);
 
@@ -71,12 +65,7 @@ describe("PermissionChangeService", () => {
       roles: {
         cache: {
           get: (id: string) => roles.get(id),
-          get size() {
-            return roleCount;
-          },
         },
-        create: rolesCreate,
-        setPositions,
       },
       channels: {
         cache: new Collection([
@@ -169,47 +158,6 @@ describe("PermissionChangeService", () => {
     const applied = await service.apply(guild, runner, change);
     expect(applied.ok).toBe(true);
     expect(overwrite.delete).toHaveBeenCalledWith("Permission audit by drk");
-  });
-
-  const split: PlannedChange = {
-    kind: "create_role",
-    sourceRoleId: "50",
-    name: "Mod · Ban Members",
-    permissions: P.BanMembers,
-    assignToIds: ["1"],
-  };
-
-  test("split creates the role, then moves only it below the source", async () => {
-    const result = await service.apply(guild, runner, split);
-
-    expect(result.ok && result.val).toEqual({});
-    expect(rolesCreate).toHaveBeenCalledWith({
-      name: "Mod · Ban Members",
-      permissions: P.BanMembers,
-      reason: "Permission audit by drk",
-    });
-    expect(setPositions).toHaveBeenCalledWith([{ role: "99", position: 5 }]);
-  });
-
-  test("a failed move still reports the created role with a warning", async () => {
-    setPositions.mockImplementation(() =>
-      Promise.reject(new Error("Missing Permissions")),
-    );
-
-    const result = await service.apply(guild, runner, split);
-
-    expect(result.ok && result.val.warning).toContain(
-      "bottom of the role list",
-    );
-  });
-
-  test("split refuses at the role limit", async () => {
-    roleCount = 250;
-
-    const result = await service.apply(guild, runner, split);
-
-    expect(result.err && result.val).toContain("250 roles");
-    expect(rolesCreate).not.toHaveBeenCalled();
   });
 
   test("Discord errors are thrown to the caller", async () => {

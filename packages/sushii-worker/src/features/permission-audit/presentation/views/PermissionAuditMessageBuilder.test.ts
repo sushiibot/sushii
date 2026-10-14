@@ -19,7 +19,7 @@ import {
   createAuditMessage,
   tabPages,
 } from "./PermissionAuditMessageBuilder";
-import { formatFinding } from "./formatFinding";
+import { formatFinding, formatFindingGroup } from "./formatFinding";
 
 const EVERYONE = "1000";
 
@@ -28,8 +28,6 @@ const CONTEXT: AuditContext = {
   canViewAuditLog: true,
   historyStart: new Date("2026-08-29T00:00:00Z"),
   backfillPending: false,
-  cachedMembers: 100,
-  totalMembers: 100,
 };
 
 const ALL_FINDINGS: Finding[] = [
@@ -78,20 +76,6 @@ const ALL_FINDINGS: Finding[] = [
     permissions: ["BanMembers"],
   },
   {
-    type: "partially_used_role",
-    roleId: "6",
-    permission: "BanMembers",
-    holderCount: 12,
-    activeCount: 9,
-    usedByIds: ["11", "12"],
-  },
-  {
-    type: "inactive_holders",
-    roleId: "7",
-    holderCount: 12,
-    inactiveIds: ["21", "22", "23", "24", "25", "26", "27"],
-  },
-  {
     type: "self_assignable_role",
     roleId: "8",
     permissions: ["ManageMessages"],
@@ -124,8 +108,6 @@ const ALL_FINDINGS: Finding[] = [
 const TAB_BY_TYPE: Record<Finding["type"], RatedFinding["tab"]> = {
   everyone_dangerous: "roles",
   administrator_grant: "roles",
-  partially_used_role: "roles",
-  inactive_holders: "roles",
   self_assignable_role: "roles",
   escalation: "roles",
   mfa_disabled: "roles",
@@ -150,30 +132,7 @@ function report(overrides: Partial<AuditReport> = {}): AuditReport {
         addedRecently: true,
       },
     ],
-    members: Array.from({ length: 9 }, (_, i) => ({
-      memberId: String(100 + i),
-      username: `member${i}`,
-      viaRoleIds: ["1"],
-      permissions: [
-        {
-          permission: "BanMembers" as const,
-          lastUsedAt: null,
-          mayBeUsedThroughBots: false,
-        },
-        {
-          permission: "KickMembers" as const,
-          lastUsedAt: new Date(),
-          mayBeUsedThroughBots: false,
-        },
-        {
-          permission: "ManageMessages" as const,
-          lastUsedAt: null,
-          mayBeUsedThroughBots: true,
-        },
-      ],
-    })),
     notTracked: [{ roleId: "3", permissions: ["ViewAuditLog"] }],
-    holderCounts: { Administrator: 4, ManageRoles: 6, BanMembers: 34 },
     ...overrides,
   };
 }
@@ -186,6 +145,7 @@ function snapshotRole(id: string): RoleSnapshot {
     permissions: 0n,
     botUserId: null,
     createdAt: new Date(0),
+    holderCount: 0,
     holderIds: [],
   };
 }
@@ -216,8 +176,8 @@ const SNAPSHOT: GuildSnapshot = {
       deny: 0n,
     },
   ],
+  memberCount: 100,
   members: new Map(),
-  memberCacheComplete: true,
   selfAssignable: [],
   now: new Date(),
 };
@@ -304,7 +264,21 @@ describe("formatFinding", () => {
         EVERYONE,
       );
 
-      expect(text).toStartWith("🟠 High · ");
+      expect(text).toStartWith("🟠 ");
+      expect(text).toContain("\n-# ");
+      expect(text).not.toMatch(/undefined|null|NaN|\[object/);
+    },
+  );
+
+  test.each(ALL_FINDINGS.map((f) => [f.type, f] as const))(
+    "%s group renders without placeholders",
+    (_, finding) => {
+      const text = formatFindingGroup(
+        [{ finding, severity: "high", tab: TAB_BY_TYPE[finding.type] }],
+        EVERYONE,
+      );
+
+      expect(text).toStartWith("🟠 **");
       expect(text).toContain("\n-# ");
       expect(text).not.toMatch(/undefined|null|NaN|\[object/);
     },
@@ -322,18 +296,15 @@ describe("formatFinding", () => {
 });
 
 describe("createAuditMessage", () => {
-  test.each<AuditViewTab>([
-    "overview",
-    "roles",
-    "unused",
-    "channels",
-    "members",
-  ])("%s stays inside Discord's limits", (tab) => {
-    const container = render(tab);
+  test.each<AuditViewTab>(["overview", "roles", "unused", "channels"])(
+    "%s stays inside Discord's limits",
+    (tab) => {
+      const container = render(tab);
 
-    expect(countComponents(container.toJSON())).toBeLessThanOrEqual(40);
-    expect(textLength(container.toJSON())).toBeLessThanOrEqual(4000);
-  });
+      expect(countComponents(container.toJSON())).toBeLessThanOrEqual(40);
+      expect(textLength(container.toJSON())).toBeLessThanOrEqual(4000);
+    },
+  );
 
   test("header shows the server and history start above the tabs", () => {
     const json = render("overview").toJSON() as {
@@ -342,22 +313,18 @@ describe("createAuditMessage", () => {
 
     expect(json.components[0]?.content).toContain("## Permission audit");
     expect(json.components[0]?.content).toContain("Lisa Fan Server");
-    expect(json.components[0]?.content).toContain("usage observed since <t:");
+    expect(json.components[0]?.content).toContain("tracking since <t:");
     expect(json.components[1]?.type).toBe(1);
   });
 
-  test("header notes pending import and partial member cache", () => {
+  test("header notes a pending import on its own line", () => {
     const json = render(
       "overview",
-      result(
-        {},
-        { backfillPending: true, cachedMembers: 4812, totalMembers: 52300 },
-      ),
+      result({}, { backfillPending: true }),
     ).toJSON() as { components: { content?: string }[] };
 
-    expect(json.components[0]?.content).toContain("importing older history");
     expect(json.components[0]?.content).toContain(
-      "based on 4,812 of 52,300 members",
+      "\n-# Importing older history",
     );
   });
 
@@ -393,9 +360,6 @@ describe("createAuditMessage", () => {
     expect(
       tabButton(container, PERMISSION_AUDIT_CUSTOM_IDS.tabUnused)?.disabled,
     ).toBe(true);
-    expect(
-      tabButton(container, PERMISSION_AUDIT_CUSTOM_IDS.tabMembers)?.disabled,
-    ).toBe(true);
     expect(textOf(container)).toContain("sushii needs View Audit Log");
   });
 
@@ -423,6 +387,31 @@ describe("createAuditMessage", () => {
     expect(
       tabButton(container, PERMISSION_AUDIT_CUSTOM_IDS.tabRoles)?.disabled,
     ).toBe(true);
+  });
+});
+
+describe("overview groups", () => {
+  test("findings of one type share a line", () => {
+    const admin = (roleId: string): RatedFinding => ({
+      finding: {
+        type: "administrator_grant",
+        roleId,
+        holderCount: 1,
+        usedPermissions: [],
+        isBotRole: false,
+        lowConfidence: false,
+        actionableAt: null,
+      },
+      severity: "critical",
+      tab: "roles",
+    });
+    const text = textOf(
+      render("overview", result({ findings: [admin("51"), admin("52")] })),
+    );
+
+    expect(text.match(/Administrator/g)).toHaveLength(1);
+    expect(text).toContain("2 roles have Administrator");
+    expect(text).toContain("<@&51>, <@&52>");
   });
 });
 
@@ -459,11 +448,7 @@ describe("fix buttons", () => {
       .filter((b) => b.fixIndex !== null)
       .map((b) => res.report.findings[b.fixIndex as number]?.finding.type);
 
-    expect(types.sort()).toEqual([
-      "administrator_grant",
-      "everyone_dangerous",
-      "partially_used_role",
-    ]);
+    expect(types.sort()).toEqual(["administrator_grant", "everyone_dangerous"]);
   });
 
   test("low confidence unused permissions have no button", () => {
@@ -475,75 +460,47 @@ describe("fix buttons", () => {
     expect(learning?.fixIndex).toBeNull();
   });
 
-  test("split uses its own label", () => {
-    const blocks = tabPages(result(), "roles", EVERYONE).flat();
-
-    expect(blocks.some((b) => b.fixLabel === "Review split…")).toBe(true);
-  });
-
   test("buttons render as section accessories with the finding index", () => {
     expect(fixButtonIds(render("channels"))).toEqual([
-      "permaudit_fix:11",
-      "permaudit_fix:12",
+      "permaudit_fix:9",
+      "permaudit_fix:10",
     ]);
   });
 });
 
 describe("worst-case pages", () => {
-  const longName = "x".repeat(32);
   const roleIds = [
     "111111111111111111",
     "222222222222222222",
     "333333333333333333",
   ];
 
-  test("members with Administrator and long names fit in 4000 characters", () => {
-    const res = result({
-      members: Array.from({ length: 12 }, (_, i) => ({
-        memberId: String(100000000000000000n + BigInt(i)),
-        username: longName,
-        viaRoleIds: roleIds,
-        permissions: [
-          "Administrator",
-          "ManageGuild",
-          "ManageRoles",
-          "ManageWebhooks",
-          "BanMembers",
-          "KickMembers",
-          "ManageChannels",
-          "ModerateMembers",
-          "MentionEveryone",
-          "ManageMessages",
-          "ManageThreads",
-          "ManageGuildExpressions",
-          "ManageEvents",
-          "ManageNicknames",
-          "MoveMembers",
-          "MuteMembers",
-          "DeafenMembers",
-        ].map((permission) => ({
-          permission: permission as never,
-          lastUsedAt: null,
-          mayBeUsedThroughBots: false,
-        })),
-      })),
-    });
-
-    expect(textLength(render("members", res).toJSON())).toBeLessThanOrEqual(
-      4000,
-    );
-  });
-
   test("the longest role findings fit in 4000 characters", () => {
     const longest: Finding = {
-      type: "partially_used_role",
+      type: "administrator_grant",
       roleId: roleIds[0] as string,
-      permission: "MentionEveryone",
-      holderCount: 1200,
-      activeCount: 900,
-      usedByIds: Array.from({ length: 50 }, (_, i) =>
-        String(100000000000000000n + BigInt(i)),
-      ),
+      holderCount: 120000,
+      usedPermissions: [
+        "ManageGuild",
+        "ManageRoles",
+        "ManageWebhooks",
+        "BanMembers",
+        "KickMembers",
+        "ManageChannels",
+        "ModerateMembers",
+        "MentionEveryone",
+        "ManageMessages",
+        "ManageThreads",
+        "ManageGuildExpressions",
+        "ManageEvents",
+        "ManageNicknames",
+        "MoveMembers",
+        "MuteMembers",
+        "DeafenMembers",
+      ],
+      isBotRole: false,
+      lowConfidence: false,
+      actionableAt: null,
     };
     const res = result({
       findings: Array.from({ length: 5 }, () => ({
@@ -611,11 +568,5 @@ describe("tabPages", () => {
     const pages = tabPages(result(), "roles", EVERYONE);
 
     expect(pages[0]).toHaveLength(5);
-  });
-
-  test("members are paged by six", () => {
-    const pages = tabPages(result(), "members", EVERYONE);
-
-    expect(pages.map((p) => p.length)).toEqual([6, 3]);
   });
 });

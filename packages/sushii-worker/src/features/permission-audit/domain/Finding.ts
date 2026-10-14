@@ -35,20 +35,6 @@ export type Finding =
       permissions: PermissionName[];
     }
   | {
-      type: "partially_used_role";
-      roleId: string;
-      permission: PermissionName;
-      holderCount: number;
-      activeCount: number;
-      usedByIds: string[];
-    }
-  | {
-      type: "inactive_holders";
-      roleId: string;
-      holderCount: number;
-      inactiveIds: string[];
-    }
-  | {
       type: "self_assignable_role";
       roleId: string;
       permissions: PermissionName[];
@@ -93,22 +79,8 @@ export interface BotRoleSummary {
   addedRecently: boolean;
 }
 
-export interface MemberInsight {
-  memberId: string;
-  username: string;
-  permissions: {
-    permission: PermissionName;
-    lastUsedAt: Date | null;
-    mayBeUsedThroughBots: boolean;
-  }[];
-  viaRoleIds: string[];
-}
-
 export interface AuditReport {
   findings: RatedFinding[];
   bots: BotRoleSummary[];
-  members: MemberInsight[];
   notTracked: { roleId: string; permissions: PermissionName[] }[];
-  /** Members holding each permission, for the overview's concentration line. */
-  holderCounts: Partial<Record<PermissionName, number>>;
 }

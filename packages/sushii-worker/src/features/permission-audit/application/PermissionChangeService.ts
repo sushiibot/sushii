@@ -15,7 +15,6 @@ import {
 import { type PlannedChange, permissionDiff } from "../domain/planChange";
 
 /** Discord's per-guild role limit. */
-const MAX_ROLES = 250;
 
 export interface ApplyOutcome {
   /** The change went through, but not entirely as previewed. */
@@ -105,49 +104,12 @@ export class PermissionChangeService {
         await overwrite.delete(reason);
         return Ok({});
       }
-
-      case "create_role": {
-        const source = guild.roles.cache.get(change.sourceRoleId);
-        if (!source) {
-          return Err(CHANGED_SINCE_REPORT);
-        }
-        if (guild.roles.cache.size >= MAX_ROLES) {
-          return Err(
-            `This server already has ${MAX_ROLES} roles, Discord's limit. Delete one first.`,
-          );
-        }
-        const created = await guild.roles.create({
-          name: change.name,
-          permissions: change.permissions,
-          reason,
-        });
-        // A separate request: `create({ position })` would rewrite every
-        // role's position, including roles above sushii.
-        try {
-          await guild.roles.setPositions([
-            { role: created.id, position: source.position },
-          ]);
-        } catch (err) {
-          this.logger.warn(
-            { err, guildId: guild.id, roleId: created.id },
-            "Created split role but could not move it",
-          );
-          return Ok({
-            warning: `The role was created at the bottom of the role list. Drag it below @${source.name} in Server Settings → Roles.`,
-          });
-        }
-        return Ok({});
-      }
     }
   }
 
   private target(guild: Guild, change: PlannedChange): ChangeTarget {
     const roleId =
-      change.kind === "set_role_permissions"
-        ? change.roleId
-        : change.kind === "create_role"
-          ? change.sourceRoleId
-          : null;
+      change.kind === "set_role_permissions" ? change.roleId : null;
     const role = roleId ? guild.roles.cache.get(roleId) : undefined;
 
     return {

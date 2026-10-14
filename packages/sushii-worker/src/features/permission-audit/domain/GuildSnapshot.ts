@@ -8,6 +8,9 @@ export interface RoleSnapshot {
   /** Set for a bot's managed integration role. */
   botUserId: string | null;
   createdAt: Date;
+  /** Exact, from Discord's role member counts. Includes bots. */
+  holderCount: number;
+  /** Only holders among the resolved members, never the full list. */
   holderIds: readonly string[];
 }
 
@@ -26,7 +29,6 @@ export interface MemberSnapshot {
   isBot: boolean;
   roleIds: readonly string[];
   joinedAt: Date | null;
-  lastActiveAt: Date | null;
 }
 
 export interface SelfAssignableRole {
@@ -44,8 +46,9 @@ export interface GuildSnapshot {
   mfaRequired: boolean;
   roles: readonly RoleSnapshot[];
   overwrites: readonly OverwriteSnapshot[];
+  memberCount: number;
+  /** Members who used a dangerous permission, plus bots with their own role. */
   members: ReadonlyMap<string, MemberSnapshot>;
-  memberCacheComplete: boolean;
   selfAssignable: readonly SelfAssignableRole[];
   now: Date;
 }
@@ -57,5 +60,7 @@ export interface UsageSnapshot {
   auditLogLastUsed: ReadonlyMap<string, ReadonlyMap<PermissionName, Date>>;
   /** Start of reliable history per tracked permission. Untracked permissions are absent. */
   observedSince: ReadonlyMap<PermissionName, Date>;
+  /** Used by someone who couldn't be resolved, so treated as used by every role. */
+  unresolved: ReadonlySet<PermissionName>;
   backfillPending: boolean;
 }

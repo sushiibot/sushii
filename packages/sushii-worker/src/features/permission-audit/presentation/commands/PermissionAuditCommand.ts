@@ -50,6 +50,7 @@ export class PermissionAuditCommand extends SlashCommandHandler {
       return;
     }
 
+    await interaction.deferReply();
     const result = await this.auditService.generate(interaction.guild);
 
     this.logger.info(

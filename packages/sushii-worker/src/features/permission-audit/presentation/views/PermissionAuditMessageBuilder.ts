@@ -18,7 +18,6 @@ import type {
   AuditResult,
 } from "../../application/PermissionAuditService";
 import type { AuditTab, RatedFinding } from "../../domain/Finding";
-import type { PermissionName } from "../../domain/PermissionUsage";
 import {
   SEVERITY_ORDER,
   permissionLabel,
@@ -29,16 +28,15 @@ import {
   discordDate,
   formatBot,
   formatFinding,
-  formatMember,
-  severityLabel,
+  formatFindingGroup,
+  severityEmoji,
 } from "./formatFinding";
 
 export const PERMISSION_AUDIT_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
-export type AuditViewTab = "overview" | AuditTab | "members";
+export type AuditViewTab = "overview" | AuditTab;
 
 const FINDINGS_PER_PAGE = 5;
-const MEMBERS_PER_PAGE = 6;
 const TOP_FINDINGS = 3;
 const LEARNING_ROLES_PER_BLOCK = 8;
 
@@ -64,11 +62,6 @@ const TABS: readonly { tab: AuditViewTab; label: string; customId: string }[] =
       label: "Channels",
       customId: PERMISSION_AUDIT_CUSTOM_IDS.tabChannels,
     },
-    {
-      tab: "members",
-      label: "Members",
-      customId: PERMISSION_AUDIT_CUSTOM_IDS.tabMembers,
-    },
   ];
 
 export const TAB_BY_CUSTOM_ID: ReadonlyMap<string, AuditViewTab> = new Map(
@@ -79,7 +72,6 @@ const TAB_TITLES: Record<Exclude<AuditViewTab, "overview">, string> = {
   roles: "Roles",
   unused: "Unused permissions",
   channels: "Channel permission overrides",
-  members: "Members with dangerous permissions",
 };
 
 export type PagedTab = Exclude<AuditViewTab, "overview">;
@@ -88,7 +80,6 @@ export interface PageBlock {
   text: string;
   /** Index into `report.findings` when the finding has an automatic fix. */
   fixIndex: number | null;
-  fixLabel?: string;
 }
 
 export type AuditPages = Record<PagedTab, PageBlock[][]>;
@@ -102,7 +93,6 @@ export function buildAuditPages(
     roles: tabPages(result, "roles", everyoneRoleId),
     unused: tabPages(result, "unused", everyoneRoleId),
     channels: tabPages(result, "channels", everyoneRoleId),
-    members: tabPages(result, "members", everyoneRoleId),
   };
 }
 
@@ -126,13 +116,6 @@ export function tabPages(
   const { report } = result;
   const text = (value: string): PageBlock => ({ text: value, fixIndex: null });
 
-  if (tab === "members") {
-    return chunk(
-      report.members.map((m) => text(formatMember(m))),
-      MEMBERS_PER_PAGE,
-    );
-  }
-
   const blocks: PageBlock[] = [];
   report.findings.forEach((rated, index) => {
     if (rated.tab !== tab || learningUntil(rated)) {
@@ -142,10 +125,6 @@ export function tabPages(
     blocks.push({
       text: formatFinding(rated, everyoneRoleId),
       fixIndex: fixable ? index : null,
-      fixLabel:
-        rated.finding.type === "partially_used_role"
-          ? "Review split…"
-          : "Review fix…",
     });
   });
   const pages = chunk(blocks, FINDINGS_PER_PAGE);
@@ -195,7 +174,7 @@ export function createAuditMessage(options: AuditMessageOptions): {
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## Permission audit\n-# ${headerLine(result.context)}`,
+      `## Permission audit\n${headerLines(result.context)}`,
     ),
   );
 
@@ -244,26 +223,20 @@ export function createAuditMessage(options: AuditMessageOptions): {
   return wrap(container);
 }
 
-function headerLine(context: AuditContext): string {
-  const parts = [context.guildName];
-
-  if (!context.canViewAuditLog) {
-    parts.push("usage history unavailable: sushii needs View Audit Log");
-  } else if (context.historyStart) {
-    parts.push(`usage observed since ${discordDate(context.historyStart)}`);
-  }
+function headerLines(context: AuditContext): string {
+  const lines = [
+    context.canViewAuditLog
+      ? context.historyStart
+        ? `${context.guildName} · tracking since ${discordDate(context.historyStart)}`
+        : context.guildName
+      : `${context.guildName} · usage unavailable: sushii needs View Audit Log`,
+  ];
 
   if (context.backfillPending) {
-    parts.push("importing older history, run again in a few minutes");
+    lines.push("Importing older history, run again in a few minutes");
   }
 
-  if (context.cachedMembers < context.totalMembers) {
-    parts.push(
-      `based on ${context.cachedMembers.toLocaleString()} of ${context.totalMembers.toLocaleString()} members`,
-    );
-  }
-
-  return parts.join(" · ");
+  return lines.map((line) => `-# ${line}`).join("\n");
 }
 
 function tabRow(
@@ -276,8 +249,7 @@ function tabRow(
     const hasContent =
       def.tab === "overview" || options.pages[def.tab].length > 0;
     const needsAuditLog =
-      (def.tab === "unused" || def.tab === "members") &&
-      !options.result.context.canViewAuditLog;
+      def.tab === "unused" && !options.result.context.canViewAuditLog;
 
     row.addComponents(
       new ButtonBuilder()
@@ -302,7 +274,6 @@ function addOverview(
   result: AuditResult,
   everyoneRoleId: string,
 ): void {
-  const { holderCounts } = result.report;
   const findings = result.report.findings.filter((f) => !learningUntil(f));
   const learning = result.report.findings
     .map(learningUntil)
@@ -313,8 +284,11 @@ function addOverview(
     count: findings.filter((f) => f.severity === severity).length,
   }))
     .filter(({ count }) => count > 0)
-    .map(({ severity, count }) => `${severityLabel(severity)} **${count}**`)
-    .join(" · ");
+    .map(
+      ({ severity, count }) =>
+        `${severityEmoji(severity)} ${count} ${severity}`,
+    )
+    .join("  ·  ");
 
   if (counts) {
     container.addTextDisplayComponents(
@@ -322,37 +296,27 @@ function addOverview(
     );
   }
 
-  const top = findings.slice(0, TOP_FINDINGS);
-  if (top.length > 0) {
+  const groups = groupByType(findings).slice(0, TOP_FINDINGS);
+  if (groups.length > 0) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        [
-          "### Top findings",
-          ...top.map((f) => formatFinding(f, everyoneRoleId)),
-        ].join("\n"),
-      ),
+      new TextDisplayBuilder().setContent("### Needs attention"),
     );
+    for (const group of groups) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          formatFindingGroup(group, everyoneRoleId),
+        ),
+      );
+    }
   }
 
   if (learning.length > 0) {
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `-# ${learning.length === 1 ? "1 role has" : `${learning.length} roles have`} permissions not used yet, but there isn't enough history to be sure until ${discordDate(latest(learning))}. See Unused.`,
+        `-# ${learning.length === 1 ? "1 role has" : `${learning.length} roles have`} permissions not used yet. Check again after ${discordDate(latest(learning))}.`,
       ),
     );
   }
-
-  const concentration = Object.entries(holderCounts)
-    .map(
-      ([permission, count]) =>
-        `${permissionLabel(permission as PermissionName)} **${count}**`,
-    )
-    .join(" · ");
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `### Members who can use\n${concentration}`,
-    ),
-  );
 }
 
 function addBlock(
@@ -373,7 +337,7 @@ function addBlock(
       .setButtonAccessory(
         new ButtonBuilder()
           .setCustomId(fixCustomId(block.fixIndex))
-          .setLabel(block.fixLabel ?? "Review fix…")
+          .setLabel("Review fix…")
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(disabled),
       ),
@@ -386,6 +350,20 @@ function learningUntil(rated: RatedFinding): Date | null {
   return f.type === "unused_role_permission" && f.lowConfidence
     ? f.actionableAt
     : null;
+}
+
+/** Findings are sorted by severity, so each group's first entry is its worst. */
+function groupByType(findings: readonly RatedFinding[]): RatedFinding[][] {
+  const groups = new Map<string, RatedFinding[]>();
+  for (const rated of findings) {
+    const group = groups.get(rated.finding.type);
+    if (group) {
+      group.push(rated);
+    } else {
+      groups.set(rated.finding.type, [rated]);
+    }
+  }
+  return [...groups.values()];
 }
 
 function latest(dates: readonly Date[]): Date {

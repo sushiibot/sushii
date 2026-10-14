@@ -1,4 +1,4 @@
-import type { Guild } from "discord.js";
+import type { Guild, GuildMember } from "discord.js";
 import { GuildMFALevel, OverwriteType } from "discord.js";
 
 import type {
@@ -9,38 +9,21 @@ import type {
   SelfAssignableRole,
 } from "../domain/GuildSnapshot";
 
-/**
- * One pass over the member cache. `role.members` filters the whole cache per
- * call, which is too slow per role on large guilds.
- */
-export function holdersByRole(guild: Guild): Map<string, string[]> {
-  const holders = new Map<string, string[]>();
-
-  for (const member of guild.members.cache.values()) {
-    for (const roleId of member.roles.cache.keys()) {
-      if (roleId === guild.id) {
-        continue;
-      }
-      const list = holders.get(roleId);
-      if (list) {
-        list.push(member.id);
-      } else {
-        holders.set(roleId, [member.id]);
-      }
-    }
-  }
-
-  return holders;
-}
-
-/** Cache only: the audit never waits on Discord. */
+/** Roles and channels come from the gateway; members only from what was fetched. */
 export function buildGuildSnapshot(
   guild: Guild,
-  holders: ReadonlyMap<string, readonly string[]>,
-  lastActiveAt: ReadonlyMap<string, Date>,
+  fetched: ReadonlyMap<string, GuildMember>,
+  holderCounts: ReadonlyMap<string, number>,
   selfAssignable: readonly SelfAssignableRole[],
   now: Date,
 ): GuildSnapshot {
+  const holders = new Map<string, string[]>();
+  for (const member of fetched.values()) {
+    for (const roleId of member.roles.cache.keys()) {
+      holders.set(roleId, [...(holders.get(roleId) ?? []), member.id]);
+    }
+  }
+
   const roles: RoleSnapshot[] = guild.roles.cache.map((role) => ({
     id: role.id,
     name: role.name,
@@ -48,6 +31,11 @@ export function buildGuildSnapshot(
     permissions: role.permissions.bitfield,
     botUserId: role.tags?.botId ?? null,
     createdAt: role.createdAt,
+    // The counts endpoint leaves out @everyone.
+    holderCount:
+      role.id === guild.id
+        ? guild.memberCount
+        : (holderCounts.get(role.id) ?? 0),
     holderIds: holders.get(role.id) ?? [],
   }));
 
@@ -74,7 +62,7 @@ export function buildGuildSnapshot(
   }
 
   const members = new Map<string, MemberSnapshot>(
-    guild.members.cache.map((member) => [
+    [...fetched.values()].map((member) => [
       member.id,
       {
         id: member.id,
@@ -84,7 +72,6 @@ export function buildGuildSnapshot(
           .filter((role) => role.id !== guild.id)
           .map((role) => role.id),
         joinedAt: member.joinedAt,
-        lastActiveAt: lastActiveAt.get(member.id) ?? null,
       },
     ]),
   );
@@ -96,8 +83,8 @@ export function buildGuildSnapshot(
     mfaRequired: guild.mfaLevel === GuildMFALevel.Elevated,
     roles,
     overwrites,
+    memberCount: guild.memberCount,
     members,
-    memberCacheComplete: guild.members.cache.size >= guild.memberCount,
     selfAssignable,
     now,
   };

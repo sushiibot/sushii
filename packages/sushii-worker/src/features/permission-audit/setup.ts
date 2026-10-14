@@ -12,6 +12,7 @@ import { PermissionUsageRecorder } from "./application/PermissionUsageRecorder";
 import { AuditLogUsageDetector } from "./domain/detectors/AuditLogUsageDetector";
 import { MessageUsageDetector } from "./domain/detectors/MessageUsageDetector";
 import { AuditLogBackfillService } from "./infrastructure/AuditLogBackfillService";
+import { DiscordAuditMemberSource } from "./infrastructure/DiscordAuditMemberSource";
 import { DrizzlePermissionAuditReadRepository } from "./infrastructure/DrizzlePermissionAuditReadRepository";
 import { DrizzlePermissionUsageCoverageRepository } from "./infrastructure/DrizzlePermissionUsageCoverageRepository";
 import { DrizzlePermissionUsageRepository } from "./infrastructure/DrizzlePermissionUsageRepository";
@@ -59,6 +60,7 @@ export function setupPermissionAuditFeature({
       permissionUsageRecorder,
       logger,
     ),
+    new DiscordAuditMemberSource(logger),
     new Set(auditLogDetector.observes),
     new Set(messageDetector.observes),
   );

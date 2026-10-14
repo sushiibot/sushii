@@ -1,4 +1,4 @@
-import type { Guild } from "discord.js";
+import type { Guild, GuildMember } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
 import type { AuditReport } from "../domain/Finding";
@@ -10,16 +10,10 @@ import type {
 import type { PermissionName } from "../domain/PermissionUsage";
 import type { PermissionUsageCoverageRepository } from "../domain/PermissionUsageCoverageRepository";
 import { analyzePermissions } from "../domain/analyzePermissions";
+import { AUDIT_WINDOW_DAYS } from "../domain/analyzePermissions";
 import { observedSince } from "../domain/observedSince";
-import {
-  DANGEROUS_PERMISSIONS,
-  permissionsIn,
-} from "../domain/permissionCatalog";
 import type { AuditLogBackfillService } from "../infrastructure/AuditLogBackfillService";
-import {
-  buildGuildSnapshot,
-  holdersByRole,
-} from "../infrastructure/buildGuildSnapshot";
+import { buildGuildSnapshot } from "../infrastructure/buildGuildSnapshot";
 
 export interface AuditContext {
   guildName: string;
@@ -27,8 +21,6 @@ export interface AuditContext {
   /** Oldest point the report has usage history for, or null with no audit log access. */
   historyStart: Date | null;
   backfillPending: boolean;
-  cachedMembers: number;
-  totalMembers: number;
 }
 
 export interface AuditResult {
@@ -37,11 +29,29 @@ export interface AuditResult {
   snapshot: GuildSnapshot;
 }
 
+export interface ResolvedMembers {
+  members: ReadonlyMap<string, GuildMember>;
+  /** Asked for but not fetched; requested members missing from `members` left the guild. */
+  unresolvedIds: ReadonlySet<string>;
+}
+
+/** Never the full member list: exact counts, plus the few members the report needs. */
+export interface AuditMemberSource {
+  roleMemberCounts(guild: Guild): Promise<Map<string, number>>;
+  membersById(
+    guild: Guild,
+    userIds: readonly string[],
+  ): Promise<ResolvedMembers>;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export class PermissionAuditService {
   constructor(
     private readonly readRepository: PermissionAuditReadRepository,
     private readonly coverageRepository: PermissionUsageCoverageRepository,
     private readonly backfillService: AuditLogBackfillService,
+    private readonly memberSource: AuditMemberSource,
     private readonly auditLogPermissions: ReadonlySet<PermissionName>,
     private readonly messagePermissions: ReadonlySet<PermissionName>,
   ) {}
@@ -58,13 +68,31 @@ export class PermissionAuditService {
       this.backfillService.startIfNeeded(guild);
     }
 
-    const holders = holdersByRole(guild);
-    const holderIds = this.dangerousRoleHolderIds(guild, holders);
-    const [usageRows, lastActiveAt, selfAssignable] = await Promise.all([
+    const [usageRows, selfAssignable, holderCounts] = await Promise.all([
       this.readRepository.listUsage(guild.id),
-      this.readRepository.lastActiveAt(guild.id, holderIds),
       this.readRepository.listSelfAssignableRoles(guild.id),
+      this.memberSource.roleMemberCounts(guild),
     ]);
+
+    const windowStart = new Date(now.getTime() - AUDIT_WINDOW_DAYS * DAY_MS);
+    const recentUsers = usersByRecentUse(usageRows, windowStart);
+    const botIds = guild.roles.cache
+      .map((role) => role.tags?.botId)
+      .filter((id): id is string => id != null);
+    // Bots first: they decide which roles get no automatic fix, while an
+    // unfetched user's usage already counts as used.
+    const { members, unresolvedIds } = await this.memberSource.membersById(
+      guild,
+      [...new Set([...botIds, ...recentUsers])],
+    );
+    const unresolved = new Set(
+      usageRows
+        .filter(
+          (row) =>
+            row.lastUsedAt >= windowStart && unresolvedIds.has(row.userId),
+        )
+        .map((row) => row.permission),
+    );
 
     const lastUsed = latestByUser(usageRows);
     const auditLogLastUsed = latestByUser(
@@ -81,12 +109,13 @@ export class PermissionAuditService {
       lastUsed,
       auditLogLastUsed,
       observedSince: since,
+      unresolved,
       backfillPending,
     };
     const snapshot = buildGuildSnapshot(
       guild,
-      holders,
-      lastActiveAt,
+      members,
+      holderCounts,
       selfAssignable,
       now,
     );
@@ -103,33 +132,8 @@ export class PermissionAuditService {
             ? new Date(Math.min(...historyStarts.map((d) => d.getTime())))
             : null,
         backfillPending,
-        cachedMembers: guild.members.cache.size,
-        totalMembers: guild.memberCount,
       },
     };
-  }
-
-  private dangerousRoleHolderIds(
-    guild: Guild,
-    holders: ReadonlyMap<string, readonly string[]>,
-  ): string[] {
-    const ids = new Set<string>();
-
-    for (const role of guild.roles.cache.values()) {
-      if (
-        role.id === guild.id ||
-        permissionsIn(role.permissions.bitfield, DANGEROUS_PERMISSIONS)
-          .length === 0
-      ) {
-        continue;
-      }
-
-      for (const memberId of holders.get(role.id) ?? []) {
-        ids.add(memberId);
-      }
-    }
-
-    return [...ids];
   }
 }
 
@@ -148,4 +152,21 @@ function latestByUser(
   }
 
   return result;
+}
+
+/** Most recent first, so a capped fetch keeps the users whose evidence is freshest. */
+function usersByRecentUse(rows: readonly UsageRow[], since: Date): string[] {
+  const latest = new Map<string, number>();
+  for (const row of rows) {
+    if (row.lastUsedAt < since) {
+      continue;
+    }
+    latest.set(
+      row.userId,
+      Math.max(latest.get(row.userId) ?? 0, row.lastUsedAt.getTime()),
+    );
+  }
+  return [...latest.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([userId]) => userId);
 }

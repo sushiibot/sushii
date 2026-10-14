@@ -27,6 +27,7 @@ function role(id: string, overrides: Partial<RoleSnapshot> = {}): RoleSnapshot {
     botUserId: null,
     createdAt: new Date(0),
     holderIds: ["1", "2"],
+    holderCount: 2,
     ...overrides,
   };
 }
@@ -91,7 +92,6 @@ const GUILD: GuildSnapshot = {
         isBot: false,
         roleIds: [],
         joinedAt: null,
-        lastActiveAt: null,
       },
     ],
     [
@@ -102,7 +102,6 @@ const GUILD: GuildSnapshot = {
         isBot: false,
         roleIds: [],
         joinedAt: null,
-        lastActiveAt: null,
       },
     ],
     [
@@ -113,11 +112,10 @@ const GUILD: GuildSnapshot = {
         isBot: false,
         roleIds: [],
         joinedAt: null,
-        lastActiveAt: null,
       },
     ],
   ]),
-  memberCacheComplete: true,
+  memberCount: 3,
   selfAssignable: [],
   now: new Date(),
 };
@@ -166,20 +164,6 @@ const EVERY_FINDING: Finding[] = [
     type: "possibly_used_through_bots",
     roleId: "50",
     permissions: ["BanMembers"],
-  },
-  {
-    type: "partially_used_role",
-    roleId: "50",
-    permission: "BanMembers",
-    holderCount: 2,
-    activeCount: 2,
-    usedByIds: ["1"],
-  },
-  {
-    type: "inactive_holders",
-    roleId: "50",
-    holderCount: 2,
-    inactiveIds: ["2"],
   },
   {
     type: "self_assignable_role",
@@ -288,7 +272,7 @@ describe("planChange", () => {
   });
 
   test("override fix removes only the dangerous allow", () => {
-    const change = planChange(EVERY_FINDING[11] as Finding, GUILD);
+    const change = planChange(EVERY_FINDING[9] as Finding, GUILD);
 
     expect(change).toEqual({
       kind: "edit_overwrite",
@@ -297,18 +281,6 @@ describe("planChange", () => {
       targetType: "role",
       beforeAllow: bits("ManageWebhooks", "AttachFiles"),
       afterAllow: bits("AttachFiles"),
-    });
-  });
-
-  test("split creates a role with only the used permission", () => {
-    const change = planChange(EVERY_FINDING[6] as Finding, GUILD);
-
-    expect(change).toEqual({
-      kind: "create_role",
-      sourceRoleId: "50",
-      name: "Mod · Ban Members",
-      permissions: bits("BanMembers"),
-      assignToIds: ["1"],
     });
   });
 
@@ -342,7 +314,6 @@ describe("planChange", () => {
     );
 
     expect([...kinds].sort()).toEqual([
-      "create_role",
       "delete_overwrite",
       "edit_overwrite",
       "set_role_permissions",

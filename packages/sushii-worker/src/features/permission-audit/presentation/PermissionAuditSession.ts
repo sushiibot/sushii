@@ -70,15 +70,10 @@ export class PermissionAuditSession {
   }
 
   async start(): Promise<void> {
-    const response = await this.interaction.reply({
+    const msg = await this.interaction.editReply({
       ...this.renderScreen(false),
       flags: MessageFlags.IsComponentsV2,
-      withResponse: true,
     });
-    const msg = response.resource?.message;
-    if (!msg) {
-      throw new Error("Permission audit reply did not return a message");
-    }
 
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,
