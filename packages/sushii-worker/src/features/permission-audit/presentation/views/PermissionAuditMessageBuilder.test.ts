@@ -426,6 +426,22 @@ describe("createAuditMessage", () => {
   });
 });
 
+describe("overview with low-history findings", () => {
+  test("leaves them out of counts and top findings, summarized once", () => {
+    const res = result({
+      findings: [
+        learningFinding("41", "2026-10-27T00:00:00Z"),
+        learningFinding("42", "2026-10-29T00:00:00Z"),
+      ],
+    });
+    const text = textOf(render("overview", res));
+
+    expect(text).not.toContain("Top findings");
+    expect(text).not.toContain("High **");
+    expect(text).toContain("2 roles have permissions not used yet");
+  });
+});
+
 describe("fix buttons", () => {
   function fixButtonIds(container: ContainerBuilder): string[] {
     const json = container.toJSON() as {
@@ -452,11 +468,11 @@ describe("fix buttons", () => {
 
   test("low confidence unused permissions have no button", () => {
     const blocks = tabPages(result(), "unused", EVERYONE).flat();
-    const lowConfidence = blocks.find((b) =>
-      b.text.includes("isn't enough history"),
+    const learning = blocks.find((b) =>
+      b.text.includes("Not enough history yet"),
     );
 
-    expect(lowConfidence?.fixIndex).toBeNull();
+    expect(learning?.fixIndex).toBeNull();
   });
 
   test("split uses its own label", () => {
@@ -541,7 +557,44 @@ describe("worst-case pages", () => {
   });
 });
 
+function learningFinding(roleId: string, until: string): RatedFinding {
+  return {
+    finding: {
+      type: "unused_role_permission",
+      roleId,
+      permissions: ["KickMembers"],
+      holderCount: 2,
+      lowConfidence: true,
+      actionableAt: new Date(until),
+    },
+    severity: "high",
+    tab: "unused",
+  };
+}
+
 describe("tabPages", () => {
+  test("low-history unused findings share one note", () => {
+    const res = result({
+      findings: [
+        learningFinding("41", "2026-10-27T00:00:00Z"),
+        learningFinding("42", "2026-10-29T00:00:00Z"),
+        learningFinding("43", "2026-10-28T00:00:00Z"),
+      ],
+    });
+    const text = tabPages(res, "unused", EVERYONE)
+      .flat()
+      .map((b) => b.text)
+      .join("\n");
+
+    expect(text.match(/Check again after/g)).toHaveLength(1);
+    expect(text).toContain(
+      `<t:${new Date("2026-10-29T00:00:00Z").getTime() / 1000}:D>`,
+    );
+    for (const id of ["41", "42", "43"]) {
+      expect(text).toContain(`<@&${id}> · Kick Members`);
+    }
+  });
+
   test("roles tab ends with the bots group", () => {
     const pages = tabPages(result(), "roles", EVERYONE);
 

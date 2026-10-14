@@ -17,7 +17,7 @@ import type {
   AuditContext,
   AuditResult,
 } from "../../application/PermissionAuditService";
-import type { AuditTab } from "../../domain/Finding";
+import type { AuditTab, RatedFinding } from "../../domain/Finding";
 import type { PermissionName } from "../../domain/PermissionUsage";
 import {
   SEVERITY_ORDER,
@@ -40,6 +40,7 @@ export type AuditViewTab = "overview" | AuditTab | "members";
 const FINDINGS_PER_PAGE = 5;
 const MEMBERS_PER_PAGE = 6;
 const TOP_FINDINGS = 3;
+const LEARNING_ROLES_PER_BLOCK = 8;
 
 const TABS: readonly { tab: AuditViewTab; label: string; customId: string }[] =
   [
@@ -134,7 +135,7 @@ export function tabPages(
 
   const blocks: PageBlock[] = [];
   report.findings.forEach((rated, index) => {
-    if (rated.tab !== tab) {
+    if (rated.tab !== tab || learningUntil(rated)) {
       return;
     }
     const fixable = planChange(rated.finding, result.snapshot) !== null;
@@ -148,6 +149,12 @@ export function tabPages(
     });
   });
   const pages = chunk(blocks, FINDINGS_PER_PAGE);
+
+  if (tab === "unused") {
+    pages.push(
+      ...learningBlocks(report.findings, everyoneRoleId).map((b) => [b]),
+    );
+  }
 
   if (tab === "roles" && report.bots.length > 0) {
     pages.push(
@@ -295,7 +302,11 @@ function addOverview(
   result: AuditResult,
   everyoneRoleId: string,
 ): void {
-  const { findings, holderCounts } = result.report;
+  const { holderCounts } = result.report;
+  const findings = result.report.findings.filter((f) => !learningUntil(f));
+  const learning = result.report.findings
+    .map(learningUntil)
+    .filter((date) => date !== null);
 
   const counts = SEVERITY_ORDER.map((severity) => ({
     severity,
@@ -319,6 +330,14 @@ function addOverview(
           "### Top findings",
           ...top.map((f) => formatFinding(f, everyoneRoleId)),
         ].join("\n"),
+      ),
+    );
+  }
+
+  if (learning.length > 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `-# ${learning.length === 1 ? "1 role has" : `${learning.length} roles have`} permissions not used yet, but there isn't enough history to be sure until ${discordDate(latest(learning))}. See Unused.`,
       ),
     );
   }
@@ -359,6 +378,46 @@ function addBlock(
           .setDisabled(disabled),
       ),
   );
+}
+
+/** When an unused-permission finding becomes actionable, or null if it already is or isn't one. */
+function learningUntil(rated: RatedFinding): Date | null {
+  const f = rated.finding;
+  return f.type === "unused_role_permission" && f.lowConfidence
+    ? f.actionableAt
+    : null;
+}
+
+function latest(dates: readonly Date[]): Date {
+  return new Date(Math.max(...dates.map((date) => date.getTime())));
+}
+
+/** Low-history unused findings share one note instead of each repeating it. */
+function learningBlocks(
+  findings: readonly RatedFinding[],
+  everyoneRoleId: string,
+): PageBlock[] {
+  const learning = findings.flatMap((rated) => {
+    const until = learningUntil(rated);
+    return until && rated.finding.type === "unused_role_permission"
+      ? [{ finding: rated.finding, until }]
+      : [];
+  });
+  if (learning.length === 0) {
+    return [];
+  }
+
+  const lines = learning.map(({ finding }) => {
+    const role =
+      finding.roleId === everyoneRoleId ? "@everyone" : `<@&${finding.roleId}>`;
+    return `${role} · ${finding.permissions.map(permissionLabel).join(", ")}`;
+  });
+  const header = `### Not enough history yet\n-# Not used so far, but sushii hasn't watched long enough to suggest removing them. Check again after ${discordDate(latest(learning.map((l) => l.until)))}.`;
+
+  return chunk(lines, LEARNING_ROLES_PER_BLOCK).map((group, i) => ({
+    text: i === 0 ? `${header}\n${group.join("\n")}` : group.join("\n"),
+    fixIndex: null,
+  }));
 }
 
 function chunk<T>(items: readonly T[], size: number): T[][] {

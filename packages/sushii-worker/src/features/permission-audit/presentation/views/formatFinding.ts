@@ -69,9 +69,7 @@ export function formatFinding(
         : `${head}${role(f.roleId, everyoneRoleId)} has **Administrator** (${plural(f.holderCount, "holder")})\n-# None of its dangerous permissions were used in 45 days. Suggested: replace it with non-dangerous permissions.`;
 
     case "unused_role_permission":
-      return f.lowConfidence && f.actionableAt
-        ? `${head}${role(f.roleId, everyoneRoleId)} · ${formatPermissions(f.permissions)}\n-# Not used yet, but there isn't enough history to be sure. Check again after ${discordDate(f.actionableAt)}.`
-        : `${head}${role(f.roleId, everyoneRoleId)} · ${formatPermissions(f.permissions)}\n-# Not used by any of its ${plural(f.holderCount, "holder")} in 45 days. Suggested: remove from the role.`;
+      return `${head}${role(f.roleId, everyoneRoleId)} · ${formatPermissions(f.permissions)}\n-# Not used by any of its ${plural(f.holderCount, "holder")} in 45 days. Suggested: remove from the role.`;
 
     case "possibly_used_through_bots":
       return `${head}${role(f.roleId, everyoneRoleId)} · ${formatPermissions(f.permissions)}\n-# No holder used these directly, but a bot did. They may be used through that bot, so they aren't suggested for removal.`;
