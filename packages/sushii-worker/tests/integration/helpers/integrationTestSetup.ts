@@ -13,6 +13,7 @@ import { Deployment } from "@/features/deployment/domain/entities/Deployment";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { createLevelingServices } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
+import { setupPermissionAuditFeature } from "@/features/permission-audit";
 import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
@@ -97,6 +98,12 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
   );
   const userNameHistoryFeature = setupUserNameHistoryFeature({ db });
   const altAccountsServices = createAltAccountsServices({ db, logger });
+  const permissionAuditFeature = setupPermissionAuditFeature({
+    db,
+    client: mockDiscord.client as unknown as Client,
+    logger,
+    deploymentService,
+  });
   const moderationFeature = setupModerationFeature({
     db,
     client: mockDiscord.client as unknown as Client,
@@ -109,6 +116,8 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     userLevelRepository: levelingServices.userLevelRepository,
     altAccountRepository: altAccountsServices.altAccountRepository,
     setNicknameService: altAccountsServices.setNicknameService,
+    permissionUsageRecorder:
+      permissionAuditFeature.services.permissionUsageRecorder,
   });
 
   // Create giveaway services with mock client

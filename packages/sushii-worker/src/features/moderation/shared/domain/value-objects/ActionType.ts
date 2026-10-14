@@ -1,4 +1,5 @@
 import type { BotEmojiNameType } from "@/features/bot-emojis";
+import type { PermissionName } from "@/features/permission-audit";
 
 export enum ActionType {
   Ban = "ban",
@@ -40,6 +41,30 @@ export function actionTypeSupportsDM(action: ActionType): boolean {
     ActionType.Lookup,
     ActionType.Note,
   ].includes(action);
+}
+
+/** The Discord permission a moderator exercises by running this action, if any. */
+export function actionTypePermission(
+  action: ActionType,
+): PermissionName | null {
+  switch (action) {
+    case ActionType.Ban:
+    case ActionType.TempBan:
+    case ActionType.BanRemove:
+    case ActionType.Softban:
+      return "BanMembers";
+    case ActionType.Kick:
+      return "KickMembers";
+    case ActionType.Timeout:
+    case ActionType.TimeoutRemove:
+    case ActionType.TimeoutAdjust:
+      return "ModerateMembers";
+    case ActionType.Warn:
+    case ActionType.Note:
+    case ActionType.History:
+    case ActionType.Lookup:
+      return null;
+  }
 }
 
 // Serialization utility for persistence

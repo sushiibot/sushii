@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -22,6 +23,7 @@ import type { TempBanRepository } from "../../shared/domain/repositories/TempBan
 import type { ModLogService } from "../../shared/domain/services/ModLogService";
 import {
   ActionType,
+  actionTypePermission,
   actionTypeRequiresDiscordAction,
 } from "../../shared/domain/value-objects/ActionType";
 import type { DMPolicyService } from "./DMPolicyService";
@@ -67,6 +69,7 @@ export class ModerationExecutionPipeline {
     private readonly client: Client,
     private readonly logger: Logger,
     private readonly softbanSuppressionSet: SoftbanSuppressionSet,
+    private readonly permissionUsageRecorder: PermissionUsageRecorder,
   ) {}
 
   /**
@@ -205,6 +208,16 @@ export class ModerationExecutionPipeline {
         },
         "Moderation action executed successfully",
       );
+
+      const permission = actionTypePermission(finalActionType);
+      if (permission) {
+        await this.permissionUsageRecorder.recordSushiiAction({
+          guildId: action.guildId,
+          userId: action.executor.id,
+          permission,
+          channelId: null,
+        });
+      }
 
       return Ok(currentCase);
     } catch (error) {
@@ -573,7 +586,9 @@ export class ModerationExecutionPipeline {
     switch (action.actionType) {
       case ActionType.TempBan: {
         if (!action.isTempBanAction()) {
-          throw new Error("Invalid action type for temp ban database operation");
+          throw new Error(
+            "Invalid action type for temp ban database operation",
+          );
         }
 
         // Create temp ban record with expiration time
@@ -731,7 +746,10 @@ export class ModerationExecutionPipeline {
             reason,
             deleteMessageSeconds:
               action.deleteMessageSeconds ??
-              ((action.deleteMessageDays ?? DEFAULT_DELETE_MESSAGE_DAYS) * 24 * 60 * 60),
+              (action.deleteMessageDays ?? DEFAULT_DELETE_MESSAGE_DAYS) *
+                24 *
+                60 *
+                60,
           });
 
           break;

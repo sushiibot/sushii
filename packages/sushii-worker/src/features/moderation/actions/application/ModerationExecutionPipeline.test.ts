@@ -11,6 +11,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 import { Err, Ok } from "ts-results";
 
+import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type * as schema from "@/infrastructure/database/schema";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { type GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -159,6 +160,7 @@ describe("ModerationExecutionPipeline", () => {
   let mockDMNotificationService: DMNotificationService;
   let mockGuildConfigRepository: GuildConfigRepository;
   let mockClient: Client;
+  let mockPermissionUsageRecorder: PermissionUsageRecorder;
 
   beforeEach(() => {
     // Create fresh mocks for each test
@@ -255,6 +257,9 @@ describe("ModerationExecutionPipeline", () => {
     } as unknown as GuildConfigRepository;
 
     mockClient = createMockClient();
+    mockPermissionUsageRecorder = {
+      recordSushiiAction: mock(() => Promise.resolve()),
+    } as unknown as PermissionUsageRecorder;
 
     pipeline = new ModerationExecutionPipeline(
       mockDb,
@@ -267,6 +272,7 @@ describe("ModerationExecutionPipeline", () => {
       mockClient,
       testLogger,
       new SoftbanSuppressionSet(),
+      mockPermissionUsageRecorder,
     );
   });
 
@@ -318,6 +324,54 @@ describe("ModerationExecutionPipeline", () => {
         expect(result.val).toBeInstanceOf(ModerationCase);
         expect(result.val.actionType).toBe(ActionType.Ban);
       }
+    });
+
+    test("records Ban Members usage for the moderator", async () => {
+      const executor = createMockUser();
+      const action = new BanAction(
+        mockGuildId,
+        executor,
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+
+      await pipeline.execute(
+        action,
+        ActionType.Ban,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(
+        mockPermissionUsageRecorder.recordSushiiAction,
+      ).toHaveBeenCalledWith({
+        guildId: mockGuildId,
+        userId: executor.id,
+        permission: "BanMembers",
+        channelId: null,
+      });
+    });
+
+    test("records no usage for a warn", async () => {
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+
+      await pipeline.execute(
+        action,
+        ActionType.Warn,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(
+        mockPermissionUsageRecorder.recordSushiiAction,
+      ).not.toHaveBeenCalled();
     });
 
     test("should execute kick action successfully", async () => {
@@ -568,6 +622,7 @@ describe("ModerationExecutionPipeline", () => {
         clientWithGuild,
         testLogger,
         new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
       );
 
       const action = new SoftbanAction(
@@ -629,6 +684,7 @@ describe("ModerationExecutionPipeline", () => {
         mockClientWithError,
         testLogger,
         new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
       );
 
       const action = new BanAction(
@@ -789,6 +845,7 @@ describe("ModerationExecutionPipeline", () => {
         mockClientWithError,
         testLogger,
         new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
       );
 
       const action = new BanAction(
@@ -850,6 +907,7 @@ describe("ModerationExecutionPipeline", () => {
         mockClientWithError,
         testLogger,
         new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
       );
 
       const action = new BanAction(

@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { PruneMessageService } from "../../application/PruneMessageService";
@@ -107,6 +108,7 @@ export class PruneCommand extends SlashCommandHandler {
 
   constructor(
     private readonly pruneMessageService: PruneMessageService,
+    private readonly permissionUsageRecorder: PermissionUsageRecorder,
     private readonly logger: Logger,
   ) {
     super();
@@ -208,6 +210,13 @@ export class PruneCommand extends SlashCommandHandler {
     }
 
     const result = pruneResult.val;
+
+    await this.permissionUsageRecorder.recordSushiiAction({
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      permission: "ManageMessages",
+      channelId: interaction.channelId,
+    });
 
     await interaction.reply({
       embeds: [pruneSuccessView(result)],

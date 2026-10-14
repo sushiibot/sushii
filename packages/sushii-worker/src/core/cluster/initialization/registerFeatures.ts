@@ -26,6 +26,7 @@ import { setupMessageLog } from "@/features/message-log/setup";
 import { setupMessageVerificationFeature } from "@/features/message-verification/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
+import { setupPermissionAuditFeature } from "@/features/permission-audit";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
@@ -291,6 +292,12 @@ export function registerFeatures(
   // view (built inside setupModerationFeature below), which in turn needs
   // altAccountRepository/setNicknameService from here — so the command can't
   // be constructed until after moderation returns its modViewDependencies.
+  const permissionAuditFeature = setupPermissionAuditFeature({
+    db,
+    client,
+    logger: logger.child({ feature: "PermissionAudit" }),
+    deploymentService,
+  });
   const altAccountsServices = createAltAccountsServices({
     db,
     logger: logger.child({ feature: "AltAccounts" }),
@@ -308,6 +315,8 @@ export function registerFeatures(
     userLevelRepository: levelingFeature.services.userLevelRepository,
     altAccountRepository: altAccountsServices.altAccountRepository,
     setNicknameService: altAccountsServices.setNicknameService,
+    permissionUsageRecorder:
+      permissionAuditFeature.services.permissionUsageRecorder,
   });
   const altAccountsFeature = setupAltAccountsFeature({
     logger: logger.child({ feature: "AltAccounts" }),
@@ -469,6 +478,7 @@ export function registerFeatures(
     ...reactionLogFeature.eventHandlers,
     ...scheduleFeature.eventHandlers,
     ...promptsFeature.eventHandlers,
+    ...permissionAuditFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -536,6 +546,7 @@ export function registerFeatures(
     ...levelingFeature.tasks,
     ...automodFeature.tasks,
     ...messageVerificationFeature.tasks,
+    ...permissionAuditFeature.tasks,
   ];
 
   client.once(Events.ClientReady, () => {

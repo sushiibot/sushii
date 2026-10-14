@@ -428,6 +428,13 @@
       "when": 1785534575596,
       "tag": "0060_add_scam_candidate_message_content",
       "breakpoints": false
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791953357233,
+      "tag": "0061_permission-usage",
+      "breakpoints": false
     }
   ]
 }

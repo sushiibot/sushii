@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { SlowmodeService } from "../../application/SlowmodeService";
@@ -55,6 +56,7 @@ export class SlowmodeCommand extends SlashCommandHandler {
 
   constructor(
     private readonly slowmodeService: SlowmodeService,
+    private readonly permissionUsageRecorder: PermissionUsageRecorder,
     private readonly logger: Logger,
   ) {
     super();
@@ -125,6 +127,13 @@ export class SlowmodeCommand extends SlashCommandHandler {
     }
 
     const result = updateResult.val;
+
+    await this.permissionUsageRecorder.recordSushiiAction({
+      guildId: targetChannel.guildId,
+      userId: interaction.user.id,
+      permission: "ManageChannels",
+      channelId: targetChannel.id,
+    });
 
     await interaction.reply({
       embeds: [slowmodeSuccessView(targetChannel.id, result)],

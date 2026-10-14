@@ -1336,3 +1336,53 @@ export const altIdentityMembersInAppPublic = appPublic.table(
     }),
   ],
 );
+
+export const permissionUsageInAppPublic = appPublic.table(
+  "permission_usage",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    permission: text().notNull(),
+    source: text().notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }),
+    firstUsedAt: timestamp("first_used_at", { mode: "date" }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { mode: "date" }).notNull(),
+    useCount: bigint("use_count", { mode: "bigint" }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.userId, table.permission, table.source],
+      name: "permission_usage_pkey",
+    }),
+    index("permission_usage_last_used_at_idx").on(table.lastUsedAt),
+    index("permission_usage_user_id_idx").on(table.userId),
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);
+
+export const permissionUsageCoverageInAppPublic = appPublic.table(
+  "permission_usage_coverage",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    trackingStartedAt: timestamp("tracking_started_at", {
+      mode: "date",
+    }).notNull(),
+    backfillClaimedAt: timestamp("backfill_claimed_at", { mode: "date" }),
+    backfilledAt: timestamp("backfilled_at", { mode: "date" }),
+    backfillCoverage:
+      jsonb("backfill_coverage").$type<Record<string, string>>(),
+  },
+  () => [
+    pgPolicy("admin_access", {
+      as: "permissive",
+      for: "all",
+      to: ["sushii_admin"],
+      using: sql`true`,
+    }),
+  ],
+);

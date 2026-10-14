@@ -9,6 +9,7 @@ import type { SpamAlertUpdateService } from "@/features/automod/application/Spam
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
+import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
@@ -98,6 +99,7 @@ interface ModerationDependencies {
   userLevelRepository: UserLevelRepository;
   altAccountRepository: AltAccountRepository;
   setNicknameService: SetNicknameService;
+  permissionUsageRecorder: PermissionUsageRecorder;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -113,6 +115,7 @@ export function createModerationServices({
   spamAlertUpdateService,
   nameHistoryService,
   altAccountRepository,
+  permissionUsageRecorder,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -156,6 +159,7 @@ export function createModerationServices({
     client,
     logger.child({ module: "moderationExecutionPipeline" }),
     softbanSuppressionSet,
+    permissionUsageRecorder,
   );
 
   const moderationService = new ModerationService(
@@ -277,6 +281,7 @@ export function createModerationServices({
 
     // Additional dependencies
     emojiRepository,
+    permissionUsageRecorder,
   };
 }
 
@@ -296,6 +301,7 @@ export function createModerationCommands(
     caseRangeAutocompleteService,
     guildConfigRepository,
     emojiRepository,
+    permissionUsageRecorder,
   } = services;
 
   // Iterate over all COMMAND_CONFIGS and build commands
@@ -327,10 +333,12 @@ export function createModerationCommands(
     ),
     new SlowmodeCommand(
       slowmodeService,
+      permissionUsageRecorder,
       logger.child({ commandHandler: "slowmode" }),
     ),
     new PruneCommand(
       pruneMessageService,
+      permissionUsageRecorder,
       logger.child({ commandHandler: "prune" }),
     ),
     new UncaseCommand(
@@ -425,6 +433,7 @@ export function setupModerationFeature({
   userLevelRepository,
   altAccountRepository,
   setNicknameService,
+  permissionUsageRecorder,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
@@ -441,6 +450,7 @@ export function setupModerationFeature({
     userLevelRepository,
     altAccountRepository,
     setNicknameService,
+    permissionUsageRecorder,
   });
 
   // Built ahead of both createModerationCommands (History/Names/Lookup
