@@ -14,6 +14,7 @@ import type { AuditReport, Finding, RatedFinding } from "../../domain/Finding";
 import { PERMISSION_AUDIT_CUSTOM_IDS } from "../customIds";
 import {
   type AuditViewTab,
+  buildAuditPages,
   createAuditMessage,
   tabPages,
 } from "./PermissionAuditMessageBuilder";
@@ -223,6 +224,7 @@ function render(tab: AuditViewTab, res = result(), page = 0) {
   );
   return createAuditMessage({
     result: res,
+    pages: buildAuditPages(res, EVERYONE),
     everyoneRoleId: EVERYONE,
     tab,
     pageBlocks,
@@ -358,6 +360,7 @@ describe("createAuditMessage", () => {
   test("expired view says so and disables every tab", () => {
     const container = createAuditMessage({
       result: result(),
+      pages: buildAuditPages(result(), EVERYONE),
       everyoneRoleId: EVERYONE,
       tab: "overview",
       disabled: true,
@@ -370,6 +373,74 @@ describe("createAuditMessage", () => {
     expect(
       tabButton(container, PERMISSION_AUDIT_CUSTOM_IDS.tabRoles)?.disabled,
     ).toBe(true);
+  });
+});
+
+describe("worst-case pages", () => {
+  const longName = "x".repeat(32);
+  const roleIds = [
+    "111111111111111111",
+    "222222222222222222",
+    "333333333333333333",
+  ];
+
+  test("members with Administrator and long names fit in 4000 characters", () => {
+    const res = result({
+      members: Array.from({ length: 12 }, (_, i) => ({
+        memberId: String(100000000000000000n + BigInt(i)),
+        username: longName,
+        viaRoleIds: roleIds,
+        permissions: [
+          "Administrator",
+          "ManageGuild",
+          "ManageRoles",
+          "ManageWebhooks",
+          "BanMembers",
+          "KickMembers",
+          "ManageChannels",
+          "ModerateMembers",
+          "MentionEveryone",
+          "ManageMessages",
+          "ManageThreads",
+          "ManageGuildExpressions",
+          "ManageEvents",
+          "ManageNicknames",
+          "MoveMembers",
+          "MuteMembers",
+          "DeafenMembers",
+        ].map((permission) => ({
+          permission: permission as never,
+          lastUsedAt: null,
+          mayBeUsedThroughBots: false,
+        })),
+      })),
+    });
+
+    expect(textLength(render("members", res).toJSON())).toBeLessThanOrEqual(
+      4000,
+    );
+  });
+
+  test("the longest role findings fit in 4000 characters", () => {
+    const longest: Finding = {
+      type: "partially_used_role",
+      roleId: roleIds[0] as string,
+      permission: "MentionEveryone",
+      holderCount: 1200,
+      activeCount: 900,
+      usedByIds: Array.from({ length: 50 }, (_, i) =>
+        String(100000000000000000n + BigInt(i)),
+      ),
+    };
+    const res = result({
+      findings: Array.from({ length: 5 }, () => ({
+        finding: longest,
+        severity: "high" as const,
+        tab: "roles" as const,
+      })),
+    });
+
+    expect(textLength(render("roles", res).toJSON())).toBeLessThanOrEqual(4000);
   });
 });
 

@@ -14,11 +14,13 @@ import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginat
 
 import type { AuditResult } from "../application/PermissionAuditService";
 import {
+  type AuditPages,
   type AuditViewTab,
   PERMISSION_AUDIT_IDLE_TIMEOUT_MS,
+  type PagedTab,
   TAB_BY_CUSTOM_ID,
+  buildAuditPages,
   createAuditMessage,
-  tabPages,
 } from "./views/PermissionAuditMessageBuilder";
 
 const REJECTION_MESSAGE =
@@ -30,16 +32,26 @@ type AuditMessage = ReturnType<typeof createAuditMessage>;
 export class PermissionAuditSession {
   private activeTab: AuditViewTab = "overview";
   private paginator: ComponentsV2Paginator<string[]> | null = null;
+  private readonly pages: AuditPages;
+  /**
+   * Ephemeral messages can only be edited through an interaction webhook, and
+   * each token lasts 15 minutes. The latest click is never older than the
+   * idle timeout, so expiry edits through it.
+   */
+  private latestInteraction:
+    | ChatInputCommandInteraction<"cached">
+    | ButtonInteraction<"cached">;
 
   constructor(
     private readonly interaction: ChatInputCommandInteraction<"cached">,
     private readonly result: AuditResult,
     private readonly logger: Logger,
-  ) {}
+  ) {
+    this.pages = buildAuditPages(result, interaction.guildId);
+    this.latestInteraction = interaction;
+  }
 
   async start(): Promise<void> {
-    // `withResponse` gives the concrete Message, whose edit() doesn't depend
-    // on the original interaction token that expires after 15 minutes.
     const response = await this.interaction.reply({
       ...this.renderScreen(false),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
@@ -67,6 +79,7 @@ export class PermissionAuditSession {
           return;
         }
 
+        this.latestInteraction = i;
         await this.handleButton(i);
       } catch (err) {
         this.logger.error(
@@ -95,7 +108,7 @@ export class PermissionAuditSession {
 
     collector.on("end", async () => {
       try {
-        await msg.edit(await this.renderExpired());
+        await this.latestInteraction.editReply(await this.renderExpired());
       } catch (err) {
         this.logger.error(
           { err, guildId: this.interaction.guildId },
@@ -131,9 +144,9 @@ export class PermissionAuditSession {
 
   private createPaginator(
     i: ButtonInteraction<"cached">,
-    tab: Exclude<AuditViewTab, "overview">,
+    tab: PagedTab,
   ): ComponentsV2Paginator<string[]> {
-    const pages = tabPages(this.result, tab, this.interaction.guildId);
+    const pages = this.pages[tab];
 
     return new ComponentsV2Paginator<string[]>({
       interaction: i,
@@ -165,6 +178,7 @@ export class PermissionAuditSession {
   ): ContainerBuilder {
     return createAuditMessage({
       result: this.result,
+      pages: this.pages,
       everyoneRoleId: this.interaction.guildId,
       tab: this.activeTab,
       pageBlocks,
@@ -176,6 +190,7 @@ export class PermissionAuditSession {
   private renderScreen(disabled: boolean): AuditMessage {
     return createAuditMessage({
       result: this.result,
+      pages: this.pages,
       everyoneRoleId: this.interaction.guildId,
       tab: this.activeTab,
       disabled,

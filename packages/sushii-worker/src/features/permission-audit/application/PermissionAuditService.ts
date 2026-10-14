@@ -3,7 +3,10 @@ import { PermissionFlagsBits } from "discord.js";
 
 import type { AuditReport } from "../domain/Finding";
 import type { UsageSnapshot } from "../domain/GuildSnapshot";
-import type { PermissionAuditReadRepository } from "../domain/PermissionAuditReadRepository";
+import type {
+  PermissionAuditReadRepository,
+  UsageRow,
+} from "../domain/PermissionAuditReadRepository";
 import type { PermissionName } from "../domain/PermissionUsage";
 import type { PermissionUsageCoverageRepository } from "../domain/PermissionUsageCoverageRepository";
 import { analyzePermissions } from "../domain/analyzePermissions";
@@ -13,7 +16,10 @@ import {
   permissionsIn,
 } from "../domain/permissionCatalog";
 import type { AuditLogBackfillService } from "../infrastructure/AuditLogBackfillService";
-import { buildGuildSnapshot } from "../infrastructure/buildGuildSnapshot";
+import {
+  buildGuildSnapshot,
+  holdersByRole,
+} from "../infrastructure/buildGuildSnapshot";
 
 export interface AuditContext {
   guildName: string;
@@ -51,22 +57,18 @@ export class PermissionAuditService {
       this.backfillService.startIfNeeded(guild);
     }
 
-    const holderIds = this.dangerousRoleHolderIds(guild);
+    const holders = holdersByRole(guild);
+    const holderIds = this.dangerousRoleHolderIds(guild, holders);
     const [usageRows, lastActiveAt, selfAssignable] = await Promise.all([
       this.readRepository.listUsage(guild.id),
       this.readRepository.lastActiveAt(guild.id, holderIds),
       this.readRepository.listSelfAssignableRoles(guild.id),
     ]);
 
-    const lastUsed = new Map<string, Map<PermissionName, Date>>();
-    for (const row of usageRows) {
-      const perUser = lastUsed.get(row.userId) ?? new Map();
-      const existing = perUser.get(row.permission);
-      if (!existing || row.lastUsedAt > existing) {
-        perUser.set(row.permission, row.lastUsedAt);
-      }
-      lastUsed.set(row.userId, perUser);
-    }
+    const lastUsed = latestByUser(usageRows);
+    const auditLogLastUsed = latestByUser(
+      usageRows.filter((row) => row.source === "audit_log"),
+    );
 
     // Without the audit log, only message-based permissions have evidence.
     const observed = canViewAuditLog
@@ -76,11 +78,13 @@ export class PermissionAuditService {
 
     const usage: UsageSnapshot = {
       lastUsed,
+      auditLogLastUsed,
       observedSince: since,
       backfillPending,
     };
     const snapshot = buildGuildSnapshot(
       guild,
+      holders,
       lastActiveAt,
       selfAssignable,
       now,
@@ -103,7 +107,10 @@ export class PermissionAuditService {
     };
   }
 
-  private dangerousRoleHolderIds(guild: Guild): string[] {
+  private dangerousRoleHolderIds(
+    guild: Guild,
+    holders: ReadonlyMap<string, readonly string[]>,
+  ): string[] {
     const ids = new Set<string>();
 
     for (const role of guild.roles.cache.values()) {
@@ -115,11 +122,28 @@ export class PermissionAuditService {
         continue;
       }
 
-      for (const memberId of role.members.keys()) {
+      for (const memberId of holders.get(role.id) ?? []) {
         ids.add(memberId);
       }
     }
 
     return [...ids];
   }
+}
+
+function latestByUser(
+  rows: readonly UsageRow[],
+): Map<string, Map<PermissionName, Date>> {
+  const result = new Map<string, Map<PermissionName, Date>>();
+
+  for (const row of rows) {
+    const perUser = result.get(row.userId) ?? new Map<PermissionName, Date>();
+    const existing = perUser.get(row.permission);
+    if (!existing || row.lastUsedAt > existing) {
+      perUser.set(row.permission, row.lastUsedAt);
+    }
+    result.set(row.userId, perUser);
+  }
+
+  return result;
 }

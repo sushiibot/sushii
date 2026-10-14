@@ -79,8 +79,25 @@ const TAB_TITLES: Record<Exclude<AuditViewTab, "overview">, string> = {
   members: "Members with dangerous permissions",
 };
 
+export type PagedTab = Exclude<AuditViewTab, "overview">;
+export type AuditPages = Record<PagedTab, string[][]>;
+
+/** Formatting every finding is the expensive part, so a session does it once. */
+export function buildAuditPages(
+  result: AuditResult,
+  everyoneRoleId: string,
+): AuditPages {
+  return {
+    roles: tabPages(result, "roles", everyoneRoleId),
+    unused: tabPages(result, "unused", everyoneRoleId),
+    channels: tabPages(result, "channels", everyoneRoleId),
+    members: tabPages(result, "members", everyoneRoleId),
+  };
+}
+
 export interface AuditMessageOptions {
   result: AuditResult;
+  pages: AuditPages;
   everyoneRoleId: string;
   tab: AuditViewTab;
   /** Blocks for the current page of a paginated tab. */
@@ -92,7 +109,7 @@ export interface AuditMessageOptions {
 /** Each page is a list of markdown blocks; overview is never paginated. */
 export function tabPages(
   result: AuditResult,
-  tab: Exclude<AuditViewTab, "overview">,
+  tab: PagedTab,
   everyoneRoleId: string,
 ): string[][] {
   const { report } = result;
@@ -223,8 +240,7 @@ function tabRow(
   for (const def of TABS) {
     const isActive = def.tab === options.tab;
     const hasContent =
-      def.tab === "overview" ||
-      tabPages(options.result, def.tab, options.everyoneRoleId).length > 0;
+      def.tab === "overview" || options.pages[def.tab].length > 0;
     const needsAuditLog =
       (def.tab === "unused" || def.tab === "members") &&
       !options.result.context.canViewAuditLog;

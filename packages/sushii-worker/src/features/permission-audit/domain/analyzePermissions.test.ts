@@ -53,6 +53,8 @@ interface Setup {
   members?: MemberSnapshot[];
   guild?: Partial<GuildSnapshot>;
   lastUsed?: Record<string, Partial<Record<PermissionName, Date>>>;
+  /** Defaults to `lastUsed`: most fixtures model audit log evidence. */
+  auditLogLastUsed?: Record<string, Partial<Record<PermissionName, Date>>>;
   observed?: PermissionName[];
   observedSince?: Date;
 }
@@ -81,13 +83,18 @@ function analyze(setup: Setup) {
     "ManageWebhooks",
     "ManageChannels",
   ];
-  const usage: UsageSnapshot = {
-    lastUsed: new Map(
-      Object.entries(setup.lastUsed ?? {}).map(([userId, perms]) => [
+  const toMap = (
+    entries: Record<string, Partial<Record<PermissionName, Date>>>,
+  ) =>
+    new Map(
+      Object.entries(entries).map(([userId, perms]) => [
         userId,
         new Map(Object.entries(perms) as [PermissionName, Date][]),
       ]),
-    ),
+    );
+  const usage: UsageSnapshot = {
+    lastUsed: toMap(setup.lastUsed ?? {}),
+    auditLogLastUsed: toMap(setup.auditLogLastUsed ?? setup.lastUsed ?? {}),
     observedSince: new Map(
       observed.map((p) => [p, setup.observedSince ?? daysAgo(45)]),
     ),
@@ -216,6 +223,24 @@ describe("analyzePermissions", () => {
       expect(findingsOf(report, "unused_role_permission")).toEqual([]);
       expect(
         findingsOf(report, "possibly_used_through_bots")[0]?.permissions,
+      ).toEqual(["BanMembers"]);
+    });
+
+    test("a bot's message usage isn't evidence of acting for humans", () => {
+      const bot = member({ id: "77", isBot: true });
+      const report = analyze({
+        roles: [modRole],
+        members: [...mods, bot],
+        lastUsed: {
+          "1": { ManageWebhooks: daysAgo(1) },
+          "77": { BanMembers: daysAgo(2) },
+        },
+        auditLogLastUsed: { "1": { ManageWebhooks: daysAgo(1) } },
+      });
+
+      expect(findingsOf(report, "possibly_used_through_bots")).toEqual([]);
+      expect(
+        findingsOf(report, "unused_role_permission")[0]?.permissions,
       ).toEqual(["BanMembers"]);
     });
 

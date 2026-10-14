@@ -50,8 +50,10 @@ export interface GuildSnapshot {
 }
 
 export interface UsageSnapshot {
-  /** userId → permission → last used. */
+  /** userId → permission → last used, from any source. */
   lastUsed: ReadonlyMap<string, ReadonlyMap<PermissionName, Date>>;
+  /** Audit log usage only: the evidence that a bot performed an action. */
+  auditLogLastUsed: ReadonlyMap<string, ReadonlyMap<PermissionName, Date>>;
   /** Start of reliable history per tracked permission. Untracked permissions are absent. */
   observedSince: ReadonlyMap<PermissionName, Date>;
   backfillPending: boolean;

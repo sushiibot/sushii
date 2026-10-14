@@ -153,7 +153,7 @@ class AnalysisContext {
     );
     this.rolesById = new Map(guild.roles.map((role) => [role.id, role]));
     this.botExecuted = new Set(
-      [...usage.lastUsed.entries()]
+      [...usage.auditLogLastUsed.entries()]
         .filter(([userId]) => guild.members.get(userId)?.isBot)
         .flatMap(([, permissions]) =>
           [...permissions.entries()]

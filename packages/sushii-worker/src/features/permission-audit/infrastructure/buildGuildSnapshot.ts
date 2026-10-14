@@ -9,9 +9,34 @@ import type {
   SelfAssignableRole,
 } from "../domain/GuildSnapshot";
 
+/**
+ * One pass over the member cache. `role.members` filters the whole cache per
+ * call, which is too slow per role on large guilds.
+ */
+export function holdersByRole(guild: Guild): Map<string, string[]> {
+  const holders = new Map<string, string[]>();
+
+  for (const member of guild.members.cache.values()) {
+    for (const roleId of member.roles.cache.keys()) {
+      if (roleId === guild.id) {
+        continue;
+      }
+      const list = holders.get(roleId);
+      if (list) {
+        list.push(member.id);
+      } else {
+        holders.set(roleId, [member.id]);
+      }
+    }
+  }
+
+  return holders;
+}
+
 /** Cache only: the audit never waits on Discord. */
 export function buildGuildSnapshot(
   guild: Guild,
+  holders: ReadonlyMap<string, readonly string[]>,
   lastActiveAt: ReadonlyMap<string, Date>,
   selfAssignable: readonly SelfAssignableRole[],
   now: Date,
@@ -23,8 +48,7 @@ export function buildGuildSnapshot(
     permissions: role.permissions.bitfield,
     botUserId: role.tags?.botId ?? null,
     createdAt: role.createdAt,
-    // Every cached member holds @everyone; listing them all is wasted work.
-    holderIds: role.id === guild.id ? [] : [...role.members.keys()],
+    holderIds: holders.get(role.id) ?? [],
   }));
 
   const overwrites: OverwriteSnapshot[] = [];

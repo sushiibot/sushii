@@ -15,7 +15,10 @@ import type {
   PermissionAuditReadRepository,
   UsageRow,
 } from "../domain/PermissionAuditReadRepository";
-import type { PermissionName } from "../domain/PermissionUsage";
+import type {
+  PermissionName,
+  PermissionUsageSource,
+} from "../domain/PermissionUsage";
 
 /** Keeps each IN list well under Postgres' bind parameter limit. */
 const USER_ID_CHUNK_SIZE = 5000;
@@ -31,6 +34,7 @@ export class DrizzlePermissionAuditReadRepository
       .select({
         userId: table.userId,
         permission: table.permission,
+        source: table.source,
         lastUsedAt: table.lastUsedAt,
       })
       .from(table)
@@ -39,6 +43,7 @@ export class DrizzlePermissionAuditReadRepository
     return rows.map((row) => ({
       userId: row.userId.toString(),
       permission: row.permission as PermissionName,
+      source: row.source as PermissionUsageSource,
       lastUsedAt: row.lastUsedAt,
     }));
   }
