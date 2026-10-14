@@ -98,6 +98,23 @@ export const TRACKED_AUDIT_LOG_ACTIONS: readonly AuditLogEvent[] = [
   ...THREAD_ACTIONS,
 ];
 
+/** Audit log action types that can show a permission being used. */
+export function actionTypesFor(permission: PermissionName): AuditLogEvent[] {
+  const fromTable = (table: Partial<Record<AuditLogEvent, PermissionName>>) =>
+    Object.entries(table)
+      .filter(([, mapped]) => mapped === permission)
+      .map(([action]) => Number(action) as AuditLogEvent);
+
+  return [
+    ...fromTable(ACTION_PERMISSIONS),
+    ...fromTable(ACTIONS_ON_OTHERS_ONLY),
+    ...(Object.values(MEMBER_UPDATE_KEY_PERMISSIONS).includes(permission)
+      ? [AuditLogEvent.MemberUpdate]
+      : []),
+    ...(permission === "ManageThreads" ? [...THREAD_ACTIONS] : []),
+  ];
+}
+
 export class AuditLogUsageDetector
   implements PermissionUsageDetector<AuditLogEntryInput>
 {

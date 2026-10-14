@@ -401,6 +401,7 @@ export function registerFeatures(
     ...automodFeature.commands,
     ...messageVerificationFeature.commands,
     ...altAccountsFeature.commands,
+    ...permissionAuditFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,

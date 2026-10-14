@@ -6,11 +6,16 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
+import { PermissionAuditService } from "./application/PermissionAuditService";
 import { PermissionUsageRecorder } from "./application/PermissionUsageRecorder";
 import { AuditLogUsageDetector } from "./domain/detectors/AuditLogUsageDetector";
 import { MessageUsageDetector } from "./domain/detectors/MessageUsageDetector";
+import { AuditLogBackfillService } from "./infrastructure/AuditLogBackfillService";
+import { DrizzlePermissionAuditReadRepository } from "./infrastructure/DrizzlePermissionAuditReadRepository";
+import { DrizzlePermissionUsageCoverageRepository } from "./infrastructure/DrizzlePermissionUsageCoverageRepository";
 import { DrizzlePermissionUsageRepository } from "./infrastructure/DrizzlePermissionUsageRepository";
 import { PermissionUsagePruneTask } from "./infrastructure/tasks/PermissionUsagePruneTask";
+import { PermissionAuditCommand } from "./presentation/commands/PermissionAuditCommand";
 import { AuditLogUsageHandler } from "./presentation/events/AuditLogUsageHandler";
 import { GuildDeleteUsageHandler } from "./presentation/events/GuildDeleteUsageHandler";
 import { MessageUsageHandler } from "./presentation/events/MessageUsageHandler";
@@ -34,16 +39,32 @@ export function setupPermissionAuditFeature({
 }: PermissionAuditFeatureDependencies): FullFeatureSetupReturn<PermissionAuditServices> {
   const repository = new DrizzlePermissionUsageRepository(db);
 
+  const auditLogDetector = new AuditLogUsageDetector(() => client.user?.id);
+  const messageDetector = new MessageUsageDetector();
+
   const permissionUsageRecorder = new PermissionUsageRecorder(
     repository,
-    new AuditLogUsageDetector(() => client.user?.id),
-    new MessageUsageDetector(),
+    auditLogDetector,
+    messageDetector,
     logger,
+  );
+
+  const coverageRepository = new DrizzlePermissionUsageCoverageRepository(db);
+  const auditService = new PermissionAuditService(
+    new DrizzlePermissionAuditReadRepository(db),
+    coverageRepository,
+    new AuditLogBackfillService(
+      coverageRepository,
+      permissionUsageRecorder,
+      logger,
+    ),
+    new Set(auditLogDetector.observes),
+    new Set(messageDetector.observes),
   );
 
   return {
     services: { permissionUsageRecorder },
-    commands: [],
+    commands: [new PermissionAuditCommand(auditService, logger)],
     autocompletes: [],
     contextMenuHandlers: [],
     buttonHandlers: [],
