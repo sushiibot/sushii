@@ -1,22 +1,26 @@
 import type { Guild, GuildAuditLogsEntry } from "discord.js";
-import { PermissionFlagsBits, SnowflakeUtil } from "discord.js";
+import {
+  type AuditLogEvent,
+  PermissionFlagsBits,
+  SnowflakeUtil,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import dayjs from "@/shared/domain/dayjs";
 
 import type { PermissionUsageRecorder } from "../application/PermissionUsageRecorder";
 import type { PermissionUsageCoverageRepository } from "../domain/PermissionUsageCoverageRepository";
-import {
-  type AuditLogEntryInput,
-  TRACKED_AUDIT_LOG_ACTIONS,
-} from "../domain/detectors/AuditLogUsageDetector";
+import { TRACKED_AUDIT_LOG_ACTIONS } from "../domain/detectors/AuditLogUsageDetector";
 import { toAuditLogEntryInput } from "./toAuditLogEntryInput";
 
 /** Discord keeps audit log entries for 45 days. */
 const AUDIT_LOG_RETENTION_DAYS = 45;
 const PAGE_SIZE = 100;
-const MAX_PAGES_PER_ACTION = 5;
+const MAX_PAGES = 10;
 const STALE_CLAIM_MINUTES = 10;
+const TRACKED_ACTION_SET: ReadonlySet<AuditLogEvent> = new Set(
+  TRACKED_AUDIT_LOG_ACTIONS,
+);
 
 export class AuditLogBackfillService {
   constructor(
@@ -51,77 +55,105 @@ export class AuditLogBackfillService {
       return;
     }
 
-    try {
-      const windowStart = dayjs()
-        .subtract(AUDIT_LOG_RETENTION_DAYS, "day")
-        .toDate();
-      const entries: AuditLogEntryInput[] = [];
-      const coverage: Record<string, Date> = {};
-
-      for (const action of TRACKED_AUDIT_LOG_ACTIONS) {
-        const result = await this.fetchAction(
-          guild,
-          action,
+    const windowStart = dayjs()
+      .subtract(AUDIT_LOG_RETENTION_DAYS, "day")
+      .toDate();
+    const progress: BackfillProgress = {
+      coverage: Object.fromEntries(
+        TRACKED_AUDIT_LOG_ACTIONS.map((action) => [
+          String(action),
           trackingStartedAt,
-          windowStart,
-        );
-        entries.push(...result.entries);
-        coverage[String(action)] = result.coverageStart;
+        ]),
+      ),
+      pagesWritten: 0,
+      entryCount: 0,
+    };
+
+    try {
+      await this.backfill(guild, trackingStartedAt, windowStart, progress);
+    } catch (err) {
+      // Written pages can't be rewritten on retry since use_count is
+      // additive, so keep what was saved as partial coverage instead.
+      if (progress.pagesWritten === 0) {
+        await this.coverageRepository.releaseBackfillClaim(guild.id);
+        throw err;
       }
 
-      await this.recorder.recordBackfill(entries);
-      await this.coverageRepository.completeBackfill(guild.id, coverage);
-
-      this.logger.info(
-        { guildId: guild.id, entryCount: entries.length },
-        "Permission usage backfill complete",
+      this.logger.warn(
+        { err, guildId: guild.id, entryCount: progress.entryCount },
+        "Permission usage backfill stopped early, keeping partial coverage",
       );
-    } catch (err) {
-      await this.coverageRepository.releaseBackfillClaim(guild.id);
-      throw err;
     }
+
+    await this.coverageRepository.completeBackfill(guild.id, progress.coverage);
+    this.logger.info(
+      {
+        guildId: guild.id,
+        entryCount: progress.entryCount,
+        pagesWritten: progress.pagesWritten,
+      },
+      "Permission usage backfill complete",
+    );
   }
 
   /**
-   * Only entries before tracking started: anything newer was already
-   * recorded live and would be counted twice.
+   * Unfiltered, since the endpoint takes only one action type per request.
+   * Busy servers that hit the page cap get partial coverage instead.
    */
-  private async fetchAction(
+  private async backfill(
     guild: Guild,
-    action: (typeof TRACKED_AUDIT_LOG_ACTIONS)[number],
     trackingStartedAt: Date,
     windowStart: Date,
-  ): Promise<{ entries: AuditLogEntryInput[]; coverageStart: Date }> {
-    const entries: AuditLogEntryInput[] = [];
-    let before = SnowflakeUtil.generate({
+    progress: BackfillProgress,
+  ): Promise<void> {
+    // Anything at or after tracking start was already recorded live.
+    let cursor = SnowflakeUtil.generate({
       timestamp: trackingStartedAt.getTime(),
     }).toString();
 
-    for (let page = 0; page < MAX_PAGES_PER_ACTION; page++) {
+    for (let page = 0; page < MAX_PAGES; page++) {
       const logs = await guild.fetchAuditLogs({
-        type: action,
         limit: PAGE_SIZE,
-        before,
+        before: cursor,
       });
       const pageEntries: GuildAuditLogsEntry[] = [...logs.entries.values()];
       const inWindow = pageEntries.filter(
         (entry) => entry.createdAt >= windowStart,
       );
-      entries.push(
-        ...inWindow.map((entry) => toAuditLogEntryInput(entry, guild.id)),
-      );
+      const tracked = inWindow
+        .filter((entry) => TRACKED_ACTION_SET.has(entry.action))
+        .map((entry) => toAuditLogEntryInput(entry, guild.id));
 
-      const reachedEnd =
-        pageEntries.length < PAGE_SIZE || inWindow.length < pageEntries.length;
-      const oldest = pageEntries.at(-1);
-      if (reachedEnd || !oldest) {
-        return { entries, coverageStart: windowStart };
+      if (tracked.length > 0) {
+        await this.recorder.recordBackfill(tracked);
+        progress.pagesWritten++;
+        progress.entryCount += tracked.length;
       }
 
-      before = oldest.id;
-    }
+      const oldest = pageEntries.at(-1);
+      if (
+        !oldest ||
+        pageEntries.length < PAGE_SIZE ||
+        inWindow.length < pageEntries.length
+      ) {
+        setCoverage(progress, windowStart);
+        return;
+      }
 
-    const oldestFetched = entries.at(-1)?.occurredAt ?? trackingStartedAt;
-    return { entries, coverageStart: oldestFetched };
+      setCoverage(progress, oldest.createdAt);
+      cursor = oldest.id;
+    }
   }
+}
+
+function setCoverage(progress: BackfillProgress, coveredFrom: Date): void {
+  for (const action of TRACKED_AUDIT_LOG_ACTIONS) {
+    progress.coverage[String(action)] = coveredFrom;
+  }
+}
+
+interface BackfillProgress {
+  coverage: Record<string, Date>;
+  pagesWritten: number;
+  entryCount: number;
 }

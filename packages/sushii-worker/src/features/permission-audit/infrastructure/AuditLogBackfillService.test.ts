@@ -10,17 +10,19 @@ import pino from "pino";
 
 import type { PermissionUsageRecorder } from "../application/PermissionUsageRecorder";
 import type { PermissionUsageCoverageRepository } from "../domain/PermissionUsageCoverageRepository";
-import { TRACKED_AUDIT_LOG_ACTIONS } from "../domain/detectors/AuditLogUsageDetector";
 import { AuditLogBackfillService } from "./AuditLogBackfillService";
 
 const GUILD_ID = "200000000000000002";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function entry(daysAgo: number): GuildAuditLogsEntry {
+function entry(
+  daysAgo: number,
+  action: AuditLogEvent = AuditLogEvent.MemberBanAdd,
+): GuildAuditLogsEntry {
   const createdAt = new Date(Date.now() - daysAgo * DAY_MS);
   return {
     id: SnowflakeUtil.generate({ timestamp: createdAt.getTime() }).toString(),
-    action: AuditLogEvent.MemberBanAdd,
+    action,
     executorId: "300000000000000003",
     targetId: "400000000000000004",
     target: null,
@@ -89,27 +91,45 @@ describe("AuditLogBackfillService", () => {
     expect(fetchAuditLogs).not.toHaveBeenCalled();
   });
 
-  test("fetches every tracked action before tracking started", async () => {
+  function fullPage(
+    action: AuditLogEvent,
+    startDaysAgo: number,
+  ): ReturnType<typeof page> {
+    return page(
+      Array.from({ length: 100 }, (_, i) =>
+        entry(startDaysAgo + i / 1000, action),
+      ),
+    );
+  }
+
+  function coverageFor(action: AuditLogEvent): Date | undefined {
+    const [, coverageByAction] = coverage.completeBackfill.mock.calls[0] as [
+      string,
+      Record<string, Date>,
+    ];
+    return coverageByAction[String(action)];
+  }
+
+  test("a quiet server needs one unfiltered fetch", async () => {
     await service.run(guild());
 
-    expect(fetchAuditLogs).toHaveBeenCalledTimes(
-      TRACKED_AUDIT_LOG_ACTIONS.length,
+    expect(fetchAuditLogs).toHaveBeenCalledTimes(1);
+    const [options] = fetchAuditLogs.mock.calls[0] as [
+      { type?: AuditLogEvent; before: string },
+    ];
+    expect(options.type).toBeUndefined();
+    expect(SnowflakeUtil.timestampFrom(options.before)).toBe(
+      trackingStartedAt.getTime(),
     );
-    for (const [options] of fetchAuditLogs.mock.calls as [
-      { before: string },
-    ][]) {
-      expect(SnowflakeUtil.timestampFrom(options.before)).toBe(
-        trackingStartedAt.getTime(),
-      );
-    }
+    expect(
+      Date.now() - (coverageFor(AuditLogEvent.MemberBanAdd)?.getTime() ?? 0),
+    ).toBeGreaterThan(44 * DAY_MS);
   });
 
-  test("keeps only entries inside the 45-day window", async () => {
-    fetchAuditLogs.mockImplementation((options: { type: AuditLogEvent }) =>
+  test("keeps only tracked entries inside the 45-day window", async () => {
+    fetchAuditLogs.mockImplementation(() =>
       Promise.resolve(
-        options.type === AuditLogEvent.MemberBanAdd
-          ? page([entry(1), entry(50)])
-          : page([]),
+        page([entry(1), entry(2, AuditLogEvent.InviteCreate), entry(50)]),
       ),
     );
 
@@ -119,44 +139,40 @@ describe("AuditLogBackfillService", () => {
     expect(entries).toHaveLength(1);
   });
 
-  test("full coverage when a type runs out of entries", async () => {
-    await service.run(guild());
-
-    const [, coverageByAction] = coverage.completeBackfill.mock.calls[0] as [
-      string,
-      Record<string, Date>,
-    ];
-    const banCoverage = coverageByAction[String(AuditLogEvent.MemberBanAdd)];
-    expect(Date.now() - (banCoverage?.getTime() ?? 0)).toBeGreaterThan(
-      44 * DAY_MS,
-    );
-  });
-
-  test("partial coverage when the page cap is hit", async () => {
+  test("writes each page as it arrives", async () => {
     let call = 0;
-    fetchAuditLogs.mockImplementation((options: { type: AuditLogEvent }) => {
-      if (options.type !== AuditLogEvent.MemberBanAdd) {
-        return Promise.resolve(page([]));
-      }
+    fetchAuditLogs.mockImplementation(() => {
       call++;
-      const full = Array.from({ length: 100 }, (_, i) =>
-        entry(call + i / 1000),
+      return Promise.resolve(
+        call === 1 ? fullPage(AuditLogEvent.MemberBanAdd, 1) : page([entry(3)]),
       );
-      return Promise.resolve(page(full));
     });
 
     await service.run(guild());
 
-    const [, coverageByAction] = coverage.completeBackfill.mock.calls[0] as [
-      string,
-      Record<string, Date>,
-    ];
-    const banCoverage = coverageByAction[String(AuditLogEvent.MemberBanAdd)];
-    const daysCovered = (Date.now() - (banCoverage?.getTime() ?? 0)) / DAY_MS;
-    expect(daysCovered).toBeLessThan(10);
+    expect(recordBackfill).toHaveBeenCalledTimes(2);
+    expect(fetchAuditLogs).toHaveBeenCalledTimes(2);
   });
 
-  test("releases the claim when fetching fails", async () => {
+  test("partial coverage when the page cap is hit", async () => {
+    let call = 0;
+    fetchAuditLogs.mockImplementation(() => {
+      call++;
+      return Promise.resolve(fullPage(AuditLogEvent.InviteCreate, call));
+    });
+
+    await service.run(guild());
+
+    expect(fetchAuditLogs).toHaveBeenCalledTimes(10);
+
+    const daysCovered =
+      (Date.now() - (coverageFor(AuditLogEvent.MemberBanAdd)?.getTime() ?? 0)) /
+      DAY_MS;
+    expect(daysCovered).toBeGreaterThan(10);
+    expect(daysCovered).toBeLessThan(11);
+  });
+
+  test("releases the claim when nothing was written", async () => {
     fetchAuditLogs.mockImplementation(() =>
       Promise.reject(new Error("Missing Access")),
     );
@@ -165,6 +181,25 @@ describe("AuditLogBackfillService", () => {
 
     expect(coverage.releaseBackfillClaim).toHaveBeenCalledWith(GUILD_ID);
     expect(coverage.completeBackfill).not.toHaveBeenCalled();
+  });
+
+  test("keeps partial coverage when a later page fails", async () => {
+    let call = 0;
+    fetchAuditLogs.mockImplementation(() => {
+      call++;
+      return call === 1
+        ? Promise.resolve(fullPage(AuditLogEvent.MemberBanAdd, 1))
+        : Promise.reject(new Error("Missing Access"));
+    });
+
+    await service.run(guild());
+
+    expect(coverage.releaseBackfillClaim).not.toHaveBeenCalled();
+    const daysCovered =
+      (Date.now() - (coverageFor(AuditLogEvent.MemberBanAdd)?.getTime() ?? 0)) /
+      DAY_MS;
+    expect(daysCovered).toBeGreaterThan(1);
+    expect(daysCovered).toBeLessThan(2);
   });
 
   test("startIfNeeded swallows failures", async () => {
