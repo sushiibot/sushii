@@ -53,13 +53,18 @@ jobs:
 
   deploy:
     needs: docker-build
-    uses: sushiibot/sushii-workflows/.github/workflows/deploy.yml@main # zizmor: ignore[unpinned-uses] first-party, tracked at @main by design
+    # sushii-bot deploys mcp on its own (sushii-ansible roles/pull_deploy): this bumps the tag and waits for
+    # its status, which is mirrored onto this commit with a Grafana log link.
+    permissions:
+      statuses: write
+    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@9c7c7076f75ec0356eee1ce8cd62b1496b161e7e # pull-deploy
     with:
       service: sushii-bot/sushii-mcp
       image_version: ${{ needs.docker-build.outputs.sha_short }}
       host: sushii-bot
       environment: sushii-mcp
-    secrets: inherit
+    secrets:
+      SUSHII_CI_PRIVATE_KEY: ${{ secrets.SUSHII_CI_PRIVATE_KEY }}
 
   docker-cleanup:
     needs: docker-build
