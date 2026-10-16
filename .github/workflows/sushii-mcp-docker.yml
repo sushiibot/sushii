@@ -57,7 +57,7 @@ jobs:
     # its status, which is mirrored onto this commit with a Grafana log link.
     permissions:
       statuses: write
-    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@9c7c7076f75ec0356eee1ce8cd62b1496b161e7e # pull-deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
     with:
       service: sushii-bot/sushii-mcp
       image_version: ${{ needs.docker-build.outputs.sha_short }}

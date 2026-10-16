@@ -129,7 +129,7 @@ jobs:
     # its status, which is mirrored onto this commit with a Grafana log link.
     permissions:
       statuses: write
-    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@9c7c7076f75ec0356eee1ce8cd62b1496b161e7e # pull-deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
     with:
       service: sushii-bot/sushii-bot-staging
       image_version: ${{ needs.docker-build.outputs.sha_short }}
@@ -141,17 +141,21 @@ jobs:
   deploy-production:
     needs: [docker-build, deploy-staging]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # Never cancel — a new commit landing mid-deploy must queue behind the
-    # in-progress blue-green cutover, not cancel it.
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-    uses: sushiibot/sushii-workflows/.github/workflows/deploy-blue-green.yml@main # zizmor: ignore[unpinned-uses] first-party, tracked at @main by design
+    # sushii-bot releases production on its own (sushii-ansible roles/pull_deploy, blue/green) once this
+    # approved job bumps the tag; it checks the production approval and runs one release at a time, so any
+    # approved run can deploy without waiting for older ones. Approving an older run is a no-op.
+    permissions:
+      statuses: write
+    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
     with:
+      service: sushii-bot/sushii-bot-production
       image_version: ${{ needs.docker-build.outputs.sha_short }}
+      host: sushii-bot
       environment: production
-      dry_run: false
-    secrets: inherit
+      timeout_minutes: 40
+      job_timeout_minutes: 50
+    secrets:
+      SUSHII_CI_PRIVATE_KEY: ${{ secrets.SUSHII_CI_PRIVATE_KEY }}
 
   docker-cleanup:
     needs: [docker-build, deploy-staging]
