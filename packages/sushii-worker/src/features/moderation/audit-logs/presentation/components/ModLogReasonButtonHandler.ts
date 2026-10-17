@@ -11,6 +11,10 @@ import {
 import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
+import {
+  ANY_MOD_PERMISSION,
+  requireMemberPermission,
+} from "@/shared/presentation/requireMemberPermission";
 
 /**
  * Button handler for setting reasons on moderation cases.
@@ -37,6 +41,16 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     }
 
     const { caseId } = customIDMatch.params;
+
+    if (
+      !(await requireMemberPermission(
+        interaction,
+        ANY_MOD_PERMISSION.flags,
+        ANY_MOD_PERMISSION.name,
+      ))
+    ) {
+      return;
+    }
 
     // Create and show the modal
     const textInput = new TextInputBuilder()

@@ -13,6 +13,10 @@ import type { ModLogRepository } from "@/features/moderation/shared/domain/repos
 import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
+import {
+  ANY_MOD_PERMISSION,
+  requireMemberPermission,
+} from "@/shared/presentation/requireMemberPermission";
 import Color from "@/utils/colors";
 
 /**
@@ -44,6 +48,16 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     }
 
     const { caseId, channelId, messageId } = customIDMatch.params;
+
+    if (
+      !(await requireMemberPermission(
+        interaction,
+        ANY_MOD_PERMISSION.flags,
+        ANY_MOD_PERMISSION.name,
+      ))
+    ) {
+      return;
+    }
 
     // Show confirmation dialog
     const confirmationEmbed = new EmbedBuilder()

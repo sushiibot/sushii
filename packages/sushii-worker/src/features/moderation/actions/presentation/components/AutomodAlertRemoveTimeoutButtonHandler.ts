@@ -1,5 +1,10 @@
 import { ComponentType } from "discord-api-types/v10";
-import { ButtonStyle, MessageFlags, type ButtonInteraction } from "discord.js";
+import {
+  type ButtonInteraction,
+  ButtonStyle,
+  MessageFlags,
+  PermissionFlagsBits,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import { parseRemoveTimeoutId } from "@/features/automod/presentation/handlers/automodAlertExtraCustomIds";
@@ -8,6 +13,7 @@ import type { ModerationService } from "@/features/moderation/actions/applicatio
 import { UnTimeoutAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import { ButtonHandler } from "@/shared/presentation/handlers";
+import { requireMemberPermission } from "@/shared/presentation/requireMemberPermission";
 
 export class AutomodAlertRemoveTimeoutButtonHandler extends ButtonHandler {
   customIDMatch = (customId: string) =>
@@ -30,6 +36,16 @@ export class AutomodAlertRemoveTimeoutButtonHandler extends ButtonHandler {
     const userId = parseRemoveTimeoutId(interaction.customId);
     if (!userId) {
       throw new Error("No remove timeout match");
+    }
+
+    if (
+      !(await requireMemberPermission(
+        interaction,
+        PermissionFlagsBits.ModerateMembers,
+        "Timeout Members",
+      ))
+    ) {
+      return;
     }
 
     // Ack immediately — the untimeout below is a Discord REST call plus a DB

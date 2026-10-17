@@ -8,6 +8,7 @@ import {
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  PermissionFlagsBits,
   StringSelectMenuBuilder,
   TextDisplayBuilder,
   TextInputBuilder,
@@ -33,6 +34,7 @@ import {
 } from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
+import { requireMemberPermission } from "@/shared/presentation/requireMemberPermission";
 
 const DELETE_SECONDS_CUSTOM_ID = "delete_seconds";
 const REASON_CUSTOM_ID = "reason";
@@ -43,6 +45,15 @@ const MODAL_TITLES = {
   ban: "Ban User",
   softban: "Softban User",
   unban: "Unban User",
+} as const;
+
+// Mirrors the default permissions of the equivalent slash commands.
+const REQUIRED_PERMISSIONS = {
+  warn: { flag: PermissionFlagsBits.BanMembers, name: "Ban Members" },
+  kick: { flag: PermissionFlagsBits.KickMembers, name: "Kick Members" },
+  ban: { flag: PermissionFlagsBits.BanMembers, name: "Ban Members" },
+  softban: { flag: PermissionFlagsBits.BanMembers, name: "Ban Members" },
+  unban: { flag: PermissionFlagsBits.BanMembers, name: "Ban Members" },
 } as const;
 
 const ACTION_VERBS = {
@@ -193,6 +204,13 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     }
 
     const { actionType, userId } = params;
+
+    const required = REQUIRED_PERMISSIONS[actionType];
+    if (
+      !(await requireMemberPermission(interaction, required.flag, required.name))
+    ) {
+      return;
+    }
 
     await interaction.showModal(buildModal(actionType, interaction.customId));
 
