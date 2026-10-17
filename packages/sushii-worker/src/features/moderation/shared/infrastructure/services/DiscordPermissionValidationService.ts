@@ -20,9 +20,14 @@ export class DiscordPermissionValidationService
     targetMember: GuildMember | null,
     actionType: ActionType,
   ): Promise<Result<void, string>> {
-    // If target is not in guild, allow action (for Note actions on non-members)
-    if (!targetMember || !executorMember) {
+    if (!executorMember) {
       return Ok.EMPTY;
+    }
+
+    // Non-members have no role hierarchy to compare, but banning or unbanning
+    // them still needs the executor's Discord permission.
+    if (!targetMember) {
+      return this.hasRequiredPermissions(executorMember, actionType);
     }
 
     // Cannot target self
