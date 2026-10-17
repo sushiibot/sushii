@@ -335,3 +335,49 @@ describe("POST /deployment/switch", () => {
     expect(((await after.json()) as Record<string, unknown>).is_active).toBe(true);
   });
 });
+
+describe("internal API auth", () => {
+  async function makeApp(token?: string) {
+    const manager = makeManager([{ id: 0, ready: true, shardList: [0] }]);
+    const { service } = await makeService("blue", "blue");
+    await service.start();
+    return createMonitoringApp(manager, [], service, makeHealthCheckService(), token);
+  }
+
+  test("is open when no token is configured", async () => {
+    const app = await makeApp();
+    const res = await app.request("/deployment/status");
+
+    expect(res.status).toBe(200);
+  });
+
+  test("rejects requests without a token", async () => {
+    const app = await makeApp("secret-token");
+    const res = await app.request("/deployment/status");
+
+    expect(res.status).toBe(401);
+  });
+
+  test("rejects a wrong token on switch", async () => {
+    const app = await makeApp("secret-token");
+    const res = await app.request("/deployment/switch", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer wrong-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ target: "green" }),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  test("accepts the configured token", async () => {
+    const app = await makeApp("secret-token");
+    const res = await app.request("/deployment/status", {
+      headers: { Authorization: "Bearer secret-token" },
+    });
+
+    expect(res.status).toBe(200);
+  });
+});

@@ -41,6 +41,7 @@ export class MetricsConfig {
     readonly port: number,
     readonly healthPort: number,
     readonly publicApiPort: number,
+    readonly internalApiToken?: string,
   ) {}
 }
 
@@ -156,6 +157,7 @@ export class Config {
       parseInt(env.METRICS_PORT),
       parseInt(env.HEALTH_PORT),
       parseInt(env.PUBLIC_API_PORT),
+      env.INTERNAL_API_TOKEN,
     );
     this.tracing = new TracingConfig(
       env.TRACING_EXPORTER_URL,

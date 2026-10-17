@@ -56,6 +56,9 @@ Commands:
 Options:
   --endpoint <url>    API endpoint (default: ${DEFAULT_ENDPOINT})
 
+Environment:
+  INTERNAL_API_TOKEN  Bearer token sent to the API, if set
+
 Examples:
   deploy-ctl status
   deploy-ctl status --endpoint http://host:9090
@@ -143,8 +146,18 @@ async function fetchJson<T>(
   }
 }
 
-async function cmdStatus(endpoint: string, fetchFn: typeof fetch): Promise<void> {
-  const body = await fetchJson<StatusResponse>(`${endpoint}/deployment/status`, endpoint, fetchFn);
+function authHeaders(token: string | undefined): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function cmdStatus(
+  endpoint: string,
+  fetchFn: typeof fetch,
+  token: string | undefined,
+): Promise<void> {
+  const body = await fetchJson<StatusResponse>(`${endpoint}/deployment/status`, endpoint, fetchFn, {
+    headers: authHeaders(token),
+  });
 
   console.log(`Active deployment : ${body.active_deployment}`);
   console.log(`This instance     : ${body.this_deployment}`);
@@ -196,6 +209,7 @@ async function cmdSwitch(
   target: string,
   endpoint: string,
   fetchFn: typeof fetch,
+  token: string | undefined,
 ): Promise<void> {
   if (target !== "blue" && target !== "green") {
     printUsage();
@@ -204,7 +218,7 @@ async function cmdSwitch(
 
   const body = await fetchJson<SwitchResponse>(`${endpoint}/deployment/switch`, endpoint, fetchFn, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ target }),
   });
 
@@ -218,6 +232,7 @@ async function cmdSwitch(
 export async function main(
   args: string[],
   fetchFn: typeof fetch = fetch,
+  token: string | undefined = process.env.INTERNAL_API_TOKEN,
 ): Promise<void> {
   const { command, commandArg, endpoint } = parseArgs(args);
 
@@ -228,14 +243,14 @@ export async function main(
 
   switch (command) {
     case "status":
-      await cmdStatus(endpoint, fetchFn);
+      await cmdStatus(endpoint, fetchFn, token);
       break;
     case "switch":
       if (!commandArg) {
         printUsage();
         fail("Error: 'switch' requires a color argument (blue or green).");
       }
-      await cmdSwitch(commandArg, endpoint, fetchFn);
+      await cmdSwitch(commandArg, endpoint, fetchFn, token);
       break;
     default:
       printUsage();

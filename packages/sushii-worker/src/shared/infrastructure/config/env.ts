@@ -35,6 +35,8 @@ const envSchema = z.object({
   METRICS_PORT: z.string().optional().default("9090"),
   HEALTH_PORT: z.string().optional().default("8080"),
   PUBLIC_API_PORT: z.string().optional().default("8082"),
+  // Bearer token for the internal API on METRICS_PORT; unset leaves it open
+  INTERNAL_API_TOKEN: z.string().min(1).optional(),
 
   // Example: 'https://discord.com/api'
   DISCORD_API_PROXY_URL: z.string().optional(),

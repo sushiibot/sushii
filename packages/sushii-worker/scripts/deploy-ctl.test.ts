@@ -30,6 +30,7 @@ function makeTextResponse(status: number, body: string, contentType = "text/plai
 async function runCli(
   args: string[],
   fetchImpl: FetchImpl,
+  token?: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -47,7 +48,7 @@ async function runCli(
   }) as typeof process.exit;
 
   try {
-    await main(args, fetchImpl as typeof fetch);
+    await main(args, fetchImpl as typeof fetch, token);
   } catch (err) {
     if (err instanceof ExitCalled) {
       exitCode = err.code;
@@ -253,5 +254,34 @@ describe("deploy-ctl switch", () => {
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain("Invalid color");
+  });
+});
+
+describe("deploy-ctl auth", () => {
+  function captureHeaders(seen: Headers[]): FetchImpl {
+    return async (_url, init) => {
+      seen.push(new Headers(init?.headers));
+      return makeResponse(200, { no_op: true, health: "healthy" });
+    };
+  }
+
+  test("sends the bearer token on status and switch", async () => {
+    const seen: Headers[] = [];
+
+    await runCli(["status"], captureHeaders(seen), "secret-token");
+    await runCli(["switch", "blue"], captureHeaders(seen), "secret-token");
+
+    expect(seen.map((h) => h.get("Authorization"))).toEqual([
+      "Bearer secret-token",
+      "Bearer secret-token",
+    ]);
+  });
+
+  test("omits the Authorization header without a token", async () => {
+    const seen: Headers[] = [];
+
+    await runCli(["status"], captureHeaders(seen), undefined);
+
+    expect(seen[0]?.has("Authorization")).toBe(false);
   });
 });

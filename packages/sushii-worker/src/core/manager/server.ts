@@ -5,6 +5,7 @@ import { count, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { routePath } from "hono/route";
 
@@ -154,10 +155,15 @@ export function createMonitoringApp(
   commands: RESTPostAPIApplicationCommandsJSONBody[],
   deploymentService: DeploymentService,
   healthCheckService: HealthCheckService,
+  internalApiToken?: string,
 ): Hono {
   const app = new Hono();
 
   app.use("*", pinoLoggerMiddleware);
+
+  if (internalApiToken) {
+    app.use("*", bearerAuth({ token: internalApiToken }));
+  }
 
   app.get("/commands", (c) => c.json(commands));
 
@@ -281,7 +287,13 @@ function createMonitoringServer(
   deploymentService: DeploymentService,
   healthCheckService: HealthCheckService,
 ): Server<unknown> {
-  const app = createMonitoringApp(manager, commands, deploymentService, healthCheckService);
+  const app = createMonitoringApp(
+    manager,
+    commands,
+    deploymentService,
+    healthCheckService,
+    config.metrics.internalApiToken,
+  );
 
   return Bun.serve({
     port: config.metrics.port,
@@ -387,6 +399,9 @@ export default function server(
   logger.info(
     `deployment endpoints listening on http://localhost:${config.metrics.port}/deployment/*`,
   );
+  if (!config.metrics.internalApiToken) {
+    logger.warn("INTERNAL_API_TOKEN not set, internal API is unauthenticated");
+  }
   logger.info(
     `public API listening on http://localhost:${config.metrics.publicApiPort}/v1/stats`,
   );
