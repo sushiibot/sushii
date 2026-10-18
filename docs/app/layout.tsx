@@ -15,7 +15,8 @@ export const metadata: Metadata = {
     default: "sushii",
     template: "%s | sushii",
   },
-  description: "Complete Discord community management bot.",
+  description: "Moderation, logging, XP, and community tools for Discord.",
+  icons: { icon: "/favicon.svg" },
   openGraph: {
     siteName: "sushii",
     type: "website",

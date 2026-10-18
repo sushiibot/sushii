@@ -3,10 +3,10 @@ import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "sushii",
-  description: "Complete Discord community management bot.",
+  description: "Moderation, logging, XP, and community tools for Discord.",
   openGraph: {
     title: "sushii",
-    description: "Complete Discord community management bot.",
+    description: "Moderation, logging, XP, and community tools for Discord.",
     url: "https://sushii.bot",
     images: [{ url: "/sushii.png", width: 512, height: 512, alt: "sushii" }],
   },
@@ -20,7 +20,7 @@ import { Footer } from "./_components/Footer";
 import { StatsSection } from "./_components/StatsSection";
 
 const OUTLINE = "var(--sushi-outline)";
-const ON_ACCENT = "#1c1b2e";
+const ON_ACCENT = "var(--sushi-on-accent)";
 
 function hardShadow(x = 5, y = 5) {
   return `${x}px ${y}px 0 ${OUTLINE}`;
@@ -33,21 +33,21 @@ const FEATURES = [
     title: "Case Management",
     tag: "moderation",
     emoji: "🛡️",
-    body: "Every mod action is tracked — even native Discord bans, kicks, and timeouts. No sushii commands required. Reasons are optional and can be set or updated any time after.",
+    body: "Every ban, kick, timeout, and warn becomes a numbered case you can pull up later — including the ones done with Discord's own tools.",
     cmd: "/history @wawa",
   },
   {
     title: "Message & Reaction Logs",
     tag: "logging",
     emoji: "📋",
-    body: "Track who started a reaction, not just who piled on. Plus the usual — edits, deletes, and member changes, all posted automatically to your log channels.",
+    body: "Track who started a reaction, not just who piled on. Plus edits, deletes, joins, and leaves, posted to your log channels.",
     cmd: "/settings",
   },
   {
     title: "XP & Levels",
     tag: "engagement",
     emoji: "⭐",
-    body: "Activity-based progression with automatic role rewards. Leaderboards, per-channel XP controls, cooldowns.",
+    body: "Members earn XP for chatting and get roles at the levels you pick. Block XP in bot channels or for specific roles.",
     cmd: "/rank",
   },
   {
@@ -55,21 +55,21 @@ const FEATURES = [
     tag: "automation",
     isNew: true,
     emoji: "📅",
-    body: "Sync your Google Calendar to a dedicated channel — new and updated events post automatically. Your community always knows what's next.",
+    body: "Sync a Google Calendar to a channel. New and changed events show up on their own, so nobody has to announce them by hand.",
     cmd: "/schedule-config",
   },
   {
     title: "Emoji & Sticker Stats",
     tag: "insights",
     emoji: "📊",
-    body: "See which emoji and stickers are loved, which are forgotten. Track usage across your server — including emoji hosted in a separate emoji server.",
-    cmd: "/emoji-stats",
+    body: "See which emoji and stickers get used and which sit idle — including emoji hosted in a separate emoji server.",
+    cmd: "/emojistats",
   },
   {
     title: "Custom Commands",
     tag: "tags",
     emoji: "📌",
-    body: "Tags for FAQs, rules, reminders. Text responses with optional attachments. Your community wiki as Discord commands.",
+    body: "Save answers to FAQs and rules as tags, with optional attachments. Members look them up instead of asking again.",
     cmd: "/t rules",
   },
   {
@@ -83,7 +83,7 @@ const FEATURES = [
     title: "Giveaways",
     tag: "events",
     emoji: "🎁",
-    body: "Gate entries by role, level, or booster status. Set a start and end time — winners are selected automatically.",
+    body: "Limit entries by role, level, or booster status. Set a duration and the number of winners — sushii picks them when the giveaway ends.",
     cmd: "/giveaway create",
   },
 ];
@@ -152,17 +152,6 @@ export default function HomePage() {
               }}
             />
             Moderating since 2017
-            <span
-              style={{
-                fontFamily: "'Zen Maru Gothic', sans-serif",
-                fontWeight: 700,
-                color: "var(--sushi-ink2)",
-                fontSize: 12,
-                letterSpacing: "0.04em",
-              }}
-            >
-              ・モデレーター
-            </span>
           </div>
 
           {/* H1 */}
@@ -180,7 +169,7 @@ export default function HomePage() {
             <br />
             {"that's actually"}
             <br />
-            <span style={{ position: "relative", display: "inline-block", color: ON_ACCENT }}>
+            <span style={{ position: "relative", display: "inline-block", marginTop: 8, color: ON_ACCENT }}>
               <span
                 style={{
                   position: "absolute",
@@ -205,7 +194,8 @@ export default function HomePage() {
               margin: "0 0 36px",
             }}
           >
-            Everything your server needs. Without the usual jank.
+            Keep running your server the way you already do. sushii keeps
+            track in the background.
           </p>
 
           {/* CTAs */}
@@ -299,7 +289,7 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-            Trusted by thousands of servers
+            Used in thousands of servers
           </div>
         </div>
 
@@ -341,7 +331,7 @@ export default function HomePage() {
                 zIndex: 3,
               }}
             >
-              /ban @wawa 7d
+              /tempban @wawa 7d
             </div>
             <div
               style={{
@@ -387,7 +377,7 @@ export default function HomePage() {
               alt="sushii mascot"
               width={360}
               height={360}
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "contain", width: "auto", height: "auto", maxWidth: "86%" }}
               priority
             />
             {/* Tape strip */}
@@ -404,21 +394,6 @@ export default function HomePage() {
                 borderRadius: 4,
               }}
             />
-            <span
-              style={{
-                position: "absolute",
-                bottom: 18,
-                right: 24,
-                fontFamily: "'Zen Maru Gothic', sans-serif",
-                fontWeight: 700,
-                color: ON_ACCENT,
-                fontSize: 16,
-                opacity: 0.85,
-                letterSpacing: "0.04em",
-              }}
-            >
-              すし・bot
-            </span>
           </div>
         </div>
       </section>
@@ -448,18 +423,6 @@ export default function HomePage() {
         }}
       >
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: "var(--sushi-ink2)",
-              marginBottom: 8,
-            }}
-          >
-            フィーチャー · FEATURES
-          </div>
           <h2
             style={{
               fontFamily: "var(--font-display)",
@@ -468,7 +431,7 @@ export default function HomePage() {
               color: "var(--sushi-ink)",
             }}
           >
-            Everything your mods wish they had
+            What's in the box
           </h2>
         </div>
 
@@ -592,18 +555,6 @@ export default function HomePage() {
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12">
           {/* Left */}
           <div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 12,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                color: "var(--sushi-ink2)",
-                marginBottom: 8,
-              }}
-            >
-              コマンド
-            </div>
             <h2
               style={{
                 fontFamily: "var(--font-display)",
@@ -623,26 +574,30 @@ export default function HomePage() {
                 marginBottom: 24,
               }}
             >
-              sushii watches the audit log — so even native Discord bans,
-              kicks, and timeouts are automatically tracked as cases. No sushii
-              commands required. Reasons are optional: set them in the original
-              action or fill them in later.
+              Ban someone from Discord's own menu and sushii still opens a
+              case from the audit log. Skipped the reason? Add it later with{" "}
+              <code style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}>
+                /reason
+              </code>{" "}
+              or the button on the log entry.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(
                 [
-                  ["Discord ban (native)", "Tracked automatically from audit log"],
-                  ["/reason 482 second offense", "Set or update a reason any time"],
-                  ["/history @wawa", "Full mod history in one view"],
-                  ["/warn @wawa spam", "Or use sushii commands — your choice"],
+                  ["Discord ban (native)", "Opens case #482"],
+                  ["/reason 482 second offense", "Fills in the reason"],
+                  ["/history @wawa", "Every case for a member"],
+                  ["/warn @wawa spam", "Or use sushii's own commands"],
                 ] as [string, string][]
               ).map(([cmd, desc]) => (
                 <div
                   key={cmd}
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 14,
+                    flexWrap: "wrap",
+                    alignItems: "baseline",
+                    columnGap: 14,
+                    rowGap: 2,
                     padding: "10px 14px",
                     borderRadius: 12,
                     background: "var(--sushi-card)",
@@ -854,7 +809,7 @@ export default function HomePage() {
 
               {/* Action button */}
               <div style={{ marginLeft: 44, paddingBottom: 14 }}>
-                <button
+                <span
                   style={{
                     background: "var(--sushi-card2)",
                     border: `2px solid ${OUTLINE}`,
@@ -864,14 +819,13 @@ export default function HomePage() {
                     fontWeight: 600,
                     color: "var(--sushi-ink)",
                     fontFamily: "var(--font-body)",
-                    cursor: "pointer",
-                    display: "flex",
+                    display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
                   }}
                 >
                   <span>📝</span> Set reason
-                </button>
+                </span>
               </div>
             </div>
           </div>
@@ -902,19 +856,6 @@ export default function HomePage() {
           }}
         >
           <div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 12,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                color: ON_ACCENT,
-                opacity: 0.7,
-                marginBottom: 8,
-              }}
-            >
-              セットアップ · SETUP
-            </div>
             <h2
               style={{
                 fontFamily: "var(--font-display)",
@@ -924,7 +865,7 @@ export default function HomePage() {
                 lineHeight: 1.05,
               }}
             >
-              Add it. Configure it. Done.
+              Add it. Turn on what you need.
             </h2>
             <p
               style={{
@@ -932,7 +873,7 @@ export default function HomePage() {
                 color: ON_ACCENT,
                 opacity: 0.75,
                 marginBottom: 24,
-                maxWidth: 460,
+                maxWidth: 520,
               }}
             >
               Add the bot, run{" "}
@@ -945,8 +886,8 @@ export default function HomePage() {
               >
                 /settings
               </code>
-              , pick your channels. Native bans and kicks log themselves — no
-              extra commands needed.
+              , and pick a mod log channel. XP, tags, and reminders work right
+              away; logging and automod stay off until you switch them on.
             </p>
             <a
               href={DISCORD_INVITE_URL}
@@ -973,7 +914,7 @@ export default function HomePage() {
               alt=""
               width={180}
               height={180}
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "contain", width: "auto", height: "auto" }}
             />
           </div>
         </div>

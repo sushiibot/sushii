@@ -1,10 +1,11 @@
 import Image from "next/image";
+import { SUPPORT_SERVER_URL } from "@/lib/config";
 
 const OUTLINE = "var(--sushi-outline)";
 
 const LINKS: [string, string][] = [
   ["Docs", "/docs"],
-  ["Discord", "#"],
+  ["Discord", SUPPORT_SERVER_URL],
   ["Privacy", "/privacy"],
   ["Terms", "/tos"],
 ];

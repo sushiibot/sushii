@@ -40,6 +40,21 @@
     background-color: var(--sushi-bg);
   }
 
+  ::selection {
+    background: var(--sushi-pink);
+    color: var(--sushi-on-accent);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--sushi-outline);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  .dark :focus-visible {
+    outline-color: var(--sushi-pink);
+  }
+
   /* ── Fumadocs variable overrides (light) ─────────────────────────── */
   :root {
     --fd-background: 245 35% 95%;      /* blue-lavender tint */

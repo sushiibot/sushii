@@ -10,12 +10,12 @@ interface SushiiStats {
 }
 
 const OUTLINE = "var(--sushi-outline)";
-const ON_ACCENT = "#1c1b2e";
+const ON_ACCENT = "var(--sushi-on-accent)";
 
 const STAT_CONFIG = [
   {
     key: "guild_count" as const,
-    label: "Servers Protected",
+    label: "Servers",
     accent: "var(--sushi-pink)",
     rotate: -1.5,
   },
