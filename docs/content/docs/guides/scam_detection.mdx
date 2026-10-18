@@ -13,6 +13,8 @@ check only images for this feature.
 
 ## What it does
 
+{/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SPAM_TIMEOUT_MS @911e08e8, packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SpamActionService.executeScamImageAction @405a2445, packages/sushii-worker/src/features/automod/application/SpamActionService.ts#"Softban" @29d1f915, packages/sushii-worker/src/features/automod/application/SpamActionService.ts#"attachment://" @99e47455, packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SpamActionService.applySpamTimeout @98069199 */}
+
 When a member posts a message with one or multiple known scam images, sushii:
 
 1. Times the member out for 10 minutes.
@@ -27,6 +29,8 @@ been confirmed as scams. A brand new scam image won't get caught the first time
 it appears anywhere.
 </Callout>
 
+{/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#"Report Incorrect Detection" @1dcca92a */}
+
 <Callout type="info" title="False positives can happen">
 It's rare, but a normal image could occasionally look close enough to a known
 scam to get flagged by mistake. If that happens, please click the button in the
@@ -37,11 +41,15 @@ alert message to report it as a false positive.
 
 Enable it from **`/settings` → Automod**:
 
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Times out users who post known scam images." @aff719b8, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Select alerts channel..." @07d53bdc, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"### Exempt Roles" @7509c79f, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54 */}
+
 - **Known Scam Images** turns detection on. Off by default.
 - **Alerts Channel** is where alerts and the moderation buttons show up.
   Optional, but recommended.
 - **Exempt Roles** are roles this feature never touches (bots, trusted
   partners, etc).
+
+{/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SpamActionService.applySpamTimeout @98069199 */}
 
 sushii needs the **Timeout Members** and **Manage Messages** permissions to
 take action. If it can't time someone out, for example if their role
@@ -49,18 +57,25 @@ outranks sushii's, it'll still delete the message and send the alert.
 
 ## Where the scam images come from
 
+{/* source: packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54, packages/sushii-worker/src/features/automod/application/ScamCandidateService.ts#ScamCandidateService.track @6def0b1d */}
+
 sushii keeps a shared list of known scam images built from what's been seen
-across all public servers it's in. This runs in the background all the time,
+across the publicly listed (Discoverable) servers it's in. This runs in the background all the time,
 whether or not you've turned the setting above on. This is what keeps the list
 useful for every server running sushii, including yours.
 
-sushii does not scan every image it sees. It first looks for behavioral
-signals, such as the same images spreading rapidly across servers, and only
-analyzes image content once that behavior crosses a high-confidence
-threshold.
+{/* source: packages/sushii-worker/src/features/automod/application/ScamCandidateService.ts#WINDOW_MS @1f389efa, packages/sushii-worker/src/features/automod/application/ScamCandidateService.ts#CHANNEL_THRESHOLD @1708016c */}
 
-sushii does not keep a copy of your server's images for this. What it stores
-is a short fingerprint of each image, just enough to tell if two images
-match. You can't recreate or view the original image from that fingerprint.
+sushii does not scan every image it sees. It first looks for behavioral
+signals, such as the same images posted in several public channels within a
+couple of minutes, and only analyzes image content once that behavior crosses
+a high-confidence threshold.
+
+{/* source: packages/sushii-worker/src/features/automod/application/ScamImageHashService.ts#ScamImageHashService.computePhash @1f93e367, packages/sushii-worker/src/features/automod/application/ScamImageClassifier.ts#ScamImageClassifier.classify @1f3630f7 */}
+
+sushii doesn't keep copies of your server's images. It stores a short
+fingerprint of each image, just enough to tell if two images match. You can't
+recreate or view the original image from that fingerprint. Images flagged as
+possible scams may be sent to an AI service to check whether they're scams.
 
 See the [Privacy Policy](/privacy) for the full details.

@@ -12,15 +12,18 @@ import { Steps, Step } from "fumadocs-ui/components/steps";
 
 ### Invite sushii
 
-[Add sushii to your server](https://discord.com/api/oauth2/authorize?client_id=193163942502072320&permissions=268823622&scope=applications.commands%20bot).
-Make sure to grant all requested permissions — sushii needs them to log
-messages, manage roles, and take moderation actions.
+[Add sushii to your server](https://discord.com/oauth2/authorize?client_id=193163942502072320&permissions=1615243635910&scope=applications.commands+bot)
+and keep every permission it asks for. sushii needs **View Audit Log** to record
+bans, kicks, and timeouts done through Discord, and its role has to sit above
+any role it assigns or acts on.
 
 </Step>
 
 <Step>
 
 ### Open the settings panel
+
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/commands/SettingsCommand.ts#SettingsCommand.command @2efb7eae, packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097 */}
 
 Run `/settings` in any channel. This opens an interactive menu where you can
 enable features and configure channels for logs.
@@ -37,12 +40,16 @@ they do anything.
 If you plan to use sushii for moderation, the most important first step is
 pointing it to a private moderation log channel:
 
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Set mod log channel" @ed520e25 */}
+
 ```
-/settings → Logging → Mod Log Channel
+/settings → Logging → Mod Logs
 ```
 
-Once set, sushii will post every moderation case there — including actions
-taken with Discord's native timeout, kick, and ban, not just sushii commands.
+{/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488 */}
+
+sushii posts every moderation case there, including bans, kicks, and timeouts
+done through Discord itself.
 
 </Step>
 
@@ -52,11 +59,14 @@ taken with Discord's native timeout, kick, and ban, not just sushii commands.
 
 From `/settings` you can also configure:
 
-- **Message logging** — edits, deletes, and who reacted to what
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs message edits and deletions" @44128809, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs member joins and leaves" @8bafbc76, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs reaction removals, including who added" @84bda570, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/MessagesPageBuilder.ts#"Send custom messages when members join or leave" @bcd4e462, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModerationPageBuilder.ts#addModerationContent @368bfa6d, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModDmsPageBuilder.ts#"Extra text shown to members in moderation DMs" @a3e7259c, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Times out users who send the same message" @e46f3b46, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Automod actions are always tracked in" @5be22e3e */}
+
+- **Message logging** — edits and deletes
 - **Member logging** — join and leave activity
 - **Reaction logging** — reaction removals and who added reactions
 - **Welcome messages** — custom join/leave messages sent to a channel
-- **Moderation DMs** — toggle and customize the messages sent to users when they're warned, timed out, kicked, or banned
+- **Moderation** — whether sushii DMs members when they're timed out, kicked, or banned
+- **Moderation DMs** — extra text added to those DMs
 - **Automod** — spam detection and an alerts channel for automod actions
 
 You don't have to set everything up at once. Come back to `/settings` whenever
@@ -68,6 +78,8 @@ you're ready to add more.
 
 ## Setting up XP & Leveling
 
+{/* source: packages/sushii-worker/src/features/leveling/application/UpdateUserXpService.ts#UpdateUserXpService.execute @caf0f3e7, packages/sushii-worker/src/features/leveling/presentation/commands/LevelRoleCommand.ts#LevelRoleOption @1d5f4f60 */}
+
 XP earning is on by default once members start chatting. To reward members for
 reaching certain levels, use `/levelrole`:
 
@@ -77,6 +89,8 @@ reaching certain levels, use `/levelrole`:
 
 Optionally set `remove_level` if you want the role removed when the member
 reaches a higher tier (role progression).
+
+{/* source: packages/sushii-worker/src/features/leveling/presentation/commands/XpCommands.ts#XpGroupName @9b7f8b43, packages/sushii-worker/src/features/leveling/presentation/commands/XpCommands.ts#XpCommandName @03805b75 */}
 
 To stop XP from being earned in specific channels or by specific roles:
 
@@ -93,13 +107,15 @@ See the [XP & Levels guide](/docs/guides/xp-levels) for more detail.
 Role menus let members self-assign roles from an interactive message. They are
 configured with `/rolemenu`, not `/settings`.
 
+{/* source: packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#RoleMenuOption @14bb7fa7 */}
+
 ```
 /rolemenu create menu_name:<name>
 ```
 
 This opens an interactive builder where you can add roles, set descriptions and
 emoji, and cap how many roles a member can pick at once. When you're done, use
-the **Finish** button and then `/rolemenu send` to post it to a channel.
+`/rolemenu send` to post it to a channel.
 
 ## Where to go next
 

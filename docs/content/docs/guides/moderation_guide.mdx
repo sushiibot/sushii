@@ -12,33 +12,42 @@ a member's history.
 
 ## Setup
 
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Set mod log channel" @ed520e25 */}
+
 Before anything else, point sushii at a private moderation log channel via
-**`/settings` → Logging → Mod Log Channel**. Once set, every case will be
+**`/settings` → Logging → Mod Logs**. Once set, every case will be
 posted there automatically.
 
+{/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488, packages/sushii-worker/src/features/moderation/audit-logs/application/AuditLogService.ts#AuditLogService.createNewCase @51b3796a */}
+
 <Callout title="Native Discord actions are also logged">
-If you use Discord's built-in timeout, kick, or ban — and you added a reason
-in the audit log — sushii will pick up that reason automatically and log it as
-a case. Your existing moderation workflow keeps working and still gets tracked.
+Bans, kicks, and timeouts done through Discord's own menus become cases too,
+as long as sushii has the **View Audit Log** permission. If you entered a
+reason, sushii copies it into the case.
 </Callout>
 
 ## How cases work
 
+{/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#"SELECT COALESCE(MAX(case_id), 0) + 1 FROM" @a21d9915 */}
+
 Every action creates a **case** with a sequential number (e.g. "case #42"),
-posted to your mod log channel. Cases give you a permanent, searchable record
-of what happened and why.
+posted to your mod log channel.
+
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @b8ac1fbc, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/domain/services/ModLogComponentBuilder.ts#"Set reason" @5ae171df */}
 
 ```
 /history user:@member
 /reason case:42 reason:Correct reason here
-/note user:@member note:Internal note text
+/note users:@member note:Internal note text
 /uncase case:42
 ```
 
 - `/history` — full moderation history for a member
-- `/reason` — edit a reason after the fact; you can also click **Edit Reason** directly in the mod log entry
+- `/reason` — edit a reason after the fact; if a case has no reason yet, you can also click **Set reason** on its mod log entry
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
+
+{/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#DrizzleModLogRepository.deleteRange @ee961c9d */}
 
 <Callout type="warn" title="Uncase is permanent">
   `/uncase` cannot be undone. Use it only to remove cases that were created in
@@ -49,19 +58,20 @@ of what happened and why.
 
 Both approaches log to the same place. Reach for sushii commands when:
 
+{/* source: packages/sushii-worker/src/features/moderation/actions/application/TargetResolutionService.ts#TargetResolutionService.fetchTargets @4f4a92ce, packages/sushii-worker/src/features/moderation/infrastructure/tasks/TempbanTask.ts#TempbanTask.execute @0991aa5b */}
+
 - You need to act on multiple members at once (up to 25 in a single command)
 - You want to DM the member a reason before kicking or banning them
 - You need a ban that lifts automatically (`/tempban`)
 - You're banning someone who's no longer in the server (`/ban` accepts user IDs)
 
-Otherwise, Discord's built-in tools work fine — sushii will pick up the action
-and log it as a case either way.
+Otherwise, Discord's built-in tools work fine.
 
 ## Taking action
 
-Most commands accept multiple users in the `users` field (up to 25 at once).
-
 ### Warnings and timeouts
+
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.WARN @c00db9ec, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TIMEOUT @88ebe3be, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNTIMEOUT @a9ae46ae */}
 
 ```
 /warn users:@member reason:Spamming in #general
@@ -69,28 +79,33 @@ Most commands accept multiple users in the `users` field (up to 25 at once).
 /untimeout users:@member reason:Resolved
 ```
 
-`/warn` DMs the member by default — if the DM fails because they have DMs
-closed, it's noted in the mod log. For single-user timeouts, Discord's native
-tool works just as well since sushii logs it either way; use `/timeout` when
-you need to act on multiple members at once.
+{/* source: packages/sushii-worker/src/features/moderation/actions/application/DMPolicyService.ts#DMPolicyService.shouldSendDM @5b16f90a, packages/sushii-worker/src/features/moderation/shared/domain/services/ModLogComponentBuilder.ts#"Reason DM failed" @b9262561 */}
+
+`/warn` always DMs the member — if the DM fails because they have DMs
+closed, it's noted in the mod log.
 
 ### Kicks and bans
 
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.KICK @5ed8e8de, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.BAN @8739ce97, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNBAN @54808107, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TEMPBAN @4109a0f0, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addDmReasonOption @e5b7f27e, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc */}
+
 ```
 /kick users:@member reason:Trolling
-/ban users:@member reason:Harassment dm_reason:true
+/ban users:@member reason:Harassment dm_reason:Yes
 /unban users:@member reason:Appeal accepted
 /tempban users:@member duration:7d reason:Evading previous ban
 /tempban-list
 ```
 
-sushii doesn't DM members for kicks or bans by default — add `dm_reason:true`
-to notify the member with the reason before the action is taken. `/ban` accepts
-user IDs for members who are no longer in the server. Use `/tempban` when you
-want the ban to lift automatically; check active temporary bans with
-`/tempban-list`.
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModerationPageBuilder.ts#addModerationContent @368bfa6d */}
+
+By default, sushii DMs the reason for bans but not for kicks. Change the
+defaults in **`/settings` → Moderation**, or set `dm_reason` to override
+them for a single action. `/tempban-list`
+shows active temporary bans.
 
 ### Cross-server ban lookup
+
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/LookupCommand.ts#LookupCommand @be1ce142 */}
 
 ```
 /lookup user:123456789
@@ -100,8 +115,12 @@ Checks whether a user ID appears in ban lists shared by other servers using
 sushii. Useful when vetting new members or checking if someone has been
 actioned elsewhere.
 
+{/* source: packages/sushii-worker/src/features/moderation/shared/domain/services/PublicServerValidationService.ts#isPublicServer @aa3f320c, packages/sushii-worker/src/features/moderation/shared/domain/services/PublicServerValidationService.ts#MINIMUM_MEMBER_COUNT @d1eba736 */}
+
 The command is available to servers that are Discord-discoverable with 1,000+
 members, or that are Discord-partnered or verified.
+
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LookupPageBuilder.ts#addLookupContent @1c4b63ba, packages/sushii-worker/src/features/moderation/cases/presentation/views/LookupBanEntryFormatter.ts#formatBanEntry @d711770e */}
 
 <Callout type="info" title="Sharing is opt-in">
   By default, your server's name and ban reasons are hidden when other servers
@@ -112,8 +131,10 @@ members, or that are Discord-partnered or verified.
 
 ### Cleanup
 
+{/* source: packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#PruneOption @62159a07, packages/sushii-worker/src/features/moderation/management/presentation/commands/SlowmodeCommand.ts#SlowmodeCommand.command @23f6308e */}
+
 ```
-/prune count:100 user:@member
+/prune max_delete_count:100 user:@member
 /slowmode duration:30s
 /slowmode duration:0
 ```

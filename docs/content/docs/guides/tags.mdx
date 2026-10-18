@@ -16,6 +16,8 @@ you.
 /tag-add name:rules content:Please read #rules before chatting!
 ```
 
+{/* source: packages/sushii-worker/src/features/tags/domain/value-objects/TagName.ts#tagNameSchema @2333885b, packages/sushii-worker/src/features/tags/domain/value-objects/TagName.ts#TagName.create @c9221a82, packages/sushii-worker/src/features/tags/application/TagService.ts#TagService.validateNewTag @b81f01ab, packages/sushii-worker/src/features/tags/application/TagService.ts#TagService.createTag @43e3e30c, packages/sushii-worker/src/features/tags/presentation/commands/TagGetCommand.ts#TagGetCommand.handler @db1bc7e6, packages/sushii-worker/src/features/tags/presentation/commands/TagAddCommand.ts#TagAddCommand.command @db3fa78d */}
+
 Tag names are 1–32 characters, case-insensitive, and must be unique in your
 server. You can attach an image instead of (or alongside) text content. Mentions
 (`@everyone`, role mentions, etc.) are automatically disabled in tag responses.
@@ -26,6 +28,8 @@ server. You can attach an image instead of (or alongside) text content. Mentions
 /t name:rules
 ```
 
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagGetCommand.ts#TagGetCommand.command @cf207383 */}
+
 `/t` is the short command members use to pull up a tag. It supports
 autocomplete, so members don't need to remember the exact name.
 
@@ -34,6 +38,8 @@ autocomplete, so members don't need to remember the exact name.
 ```
 /tag-edit name:rules
 ```
+
+{/* source: packages/sushii-worker/src/features/tags/presentation/views/TagMessageBuilder.ts#"Edit Content" @5bf4e4aa, packages/sushii-worker/src/features/tags/domain/entities/Tag.ts#Tag.canBeModifiedBy @c77a92fa */}
 
 This opens an interactive panel with buttons to edit the content, rename the
 tag, or delete it. You can only edit tags you own — unless you have the Manage
@@ -51,12 +57,16 @@ one:
 /tag list
 ```
 
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Search for tags." @58033cea, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"tag.search.error.starts_with_contains_xor" @e2ac5ea1, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#TagInfoCommand.listHandler @6a743831 */}
+
 You can filter by name or by who created it, but not by both name filters at
 once (`name_starts_with` and `name_contains` can't be combined). `/tag list`
 shows everything with pagination.
 
 To see stats on a specific tag — when it was created, who owns it, how many
 times it's been used:
+
+{/* source: packages/sushii-worker/src/features/tags/presentation/views/TagMessageBuilder.ts#createTagInfoMessage @75c571c3 */}
 
 ```
 /tag info name:rules
@@ -66,10 +76,14 @@ times it's been used:
 /tag random
 ```
 
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Get a random tag." @c3f980e6 */}
+
 `/tag random` picks a random tag from your server, optionally filtered by name
 or owner. Useful for discovering tags you've forgotten about.
 
 ## Permissions
+
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagAdminCommand.ts#TagAdminCommand.command @85e220ee, packages/sushii-worker/src/features/tags/presentation/commands/TagAddCommand.ts#TagAddCommand.command @db3fa78d */}
 
 <Callout title="Permissions are configurable per command">
 By default, anyone can use `/t` and browse tags, anyone can create tags with
@@ -90,6 +104,8 @@ Team" role) while keeping `/t` open to everyone.
 
 Members with Manage Guild (or a role you've configured) can use `/tag-admin`
 to manage tags across the server:
+
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagAdminCommand.ts#TagAdminSubcommand @3f8ae7aa */}
 
 ```
 /tag-admin delete name:outdated-tag

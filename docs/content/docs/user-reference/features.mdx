@@ -5,22 +5,23 @@ description: Everything sushii can do, organized by feature
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-A quick reference for everything sushii offers. Each section covers what the
-feature does and the commands to use it. For detailed setup walkthroughs, check
-the linked guides.
+A quick reference for everything sushii offers.
 
 ## Moderation
 
-Track every action taken against members — whether you use sushii's commands or
-Discord's built-in moderation tools. Every ban, kick, and timeout gets logged
-with a case number you can reference later.
+{/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488 */}
+
+sushii gives every ban, kick, timeout, and warn a case number, whether it came
+from sushii's commands or Discord's own tools.
 
 See the [Moderation Guide](/docs/guides/moderation_guide) for the full
 workflow.
 
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_METADATA @15fd6b20, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#"Max messages to delete. (2-100)" @303fa4df, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#PruneOption @62159a07, packages/sushii-worker/src/features/moderation/management/presentation/commands/SlowmodeCommand.ts#SlowmodeCommand.command @23f6308e, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @b8ac1fbc, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/LookupCommand.ts#LookupCommand @be1ce142 */}
+
 | Command | What it does |
 |---|---|
-| `/warn` | Warn a user (sends a DM by default) |
+| `/warn` | Warn a user (always sends a DM) |
 | `/timeout` | Time out a user |
 | `/untimeout` | Remove a timeout |
 | `/kick` | Kick a user |
@@ -28,6 +29,7 @@ workflow.
 | `/unban` | Unban a user |
 | `/tempban` | Ban a user for a set duration |
 | `/tempban-list` | List all active temporary bans |
+| `/softban` | Remove a member and delete their recent messages without a permanent ban |
 | `/prune` | Bulk delete messages, with optional filters |
 | `/slowmode` | Set slowmode on a channel |
 | `/reason` | Edit the reason on an existing case |
@@ -36,8 +38,11 @@ workflow.
 | `/history` | View a user's full moderation history |
 | `/lookup` | Search cross-server bans for a user |
 
-Automatically time out, delete, and alert on members posting known scam
-images. No command, it's all configured via `/settings` → Automod. See the
+{/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SPAM_TIMEOUT_MS @911e08e8, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Times out users who post known scam images." @aff719b8 */}
+
+Scam detection times out members who post known scam images, deletes the
+image, and alerts your mods. It's off by default; turn it on in `/settings` →
+Automod. See the
 [Scam Detection Guide](/docs/guides/scam_detection) for setup and how the
 shared image database works.
 
@@ -49,6 +54,8 @@ Members earn XP by chatting, with automatic role rewards at configurable level
 milestones. See who's most active with the leaderboard.
 
 See the [XP & Levels Guide](/docs/guides/xp-levels) for setup.
+
+{/* source: packages/sushii-worker/src/features/leveling/presentation/commands/RankCommand.ts#RankCommand @ffa4ebdc, packages/sushii-worker/src/features/leveling/presentation/commands/LeaderboardCommand.ts#LeaderboardCommand.command @2a28a932, packages/sushii-worker/src/features/leveling/presentation/commands/LevelRoleCommand.ts#CommandName @8f68a1cc, packages/sushii-worker/src/features/leveling/presentation/commands/XpCommands.ts#XpGroupName @9b7f8b43 */}
 
 | Command | What it does |
 |---|---|
@@ -70,6 +77,8 @@ both.
 
 See the [Tags Guide](/docs/guides/tags) for full usage.
 
+{/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagGetCommand.ts#TagGetCommand @afc00f38, packages/sushii-worker/src/features/tags/presentation/commands/TagAddCommand.ts#TagAddCommand.command @db3fa78d, packages/sushii-worker/src/features/tags/presentation/commands/TagEditCommand.ts#TagEditCommand.command @f5b18f58, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Get information about a tag." @db94d79f, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Search for tags." @58033cea, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Get all server tags." @21572c27, packages/sushii-worker/src/features/tags/presentation/commands/TagAdminCommand.ts#TagAdminSubcommand @3f8ae7aa */}
+
 | Command | What it does |
 |---|---|
 | `/t` | Use a tag |
@@ -86,9 +95,12 @@ Let members self-assign roles using buttons or dropdowns — for colors,
 pronouns, notification opt-ins, or anything else. Role menus live in a channel
 and update without recreating them.
 
+{/* source: packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Create a role menu with an interactive builder." @b41615f1, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Send a role menu to a channel." @a7453832, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Edit a role menu with an interactive builder." @20722a1e, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Delete a role menu." @28872c49, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"List all your role menus." @37f04a2f, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#RoleMenuType @35007796 */}
+
 | Command | What it does |
 |---|---|
-| `/rolemenu create` | Create a new role menu in a channel |
+| `/rolemenu create` | Build a new role menu |
+| `/rolemenu send` | Post a role menu to a channel |
 | `/rolemenu edit` | Edit an existing role menu |
 | `/rolemenu delete` | Remove a role menu |
 | `/rolemenu list` | List all role menus in the server |
@@ -97,10 +109,10 @@ and update without recreating them.
 
 ## Schedules with Google Calendar sync
 
-Display upcoming Discord scheduled events in a dedicated channel, kept
-automatically up to date. Great for communities that run regular streams,
-game nights, or events — members always know what's coming without anyone
-having to post announcements manually.
+Post upcoming events from a Google Calendar to a dedicated channel and keep
+them updated as the calendar changes.
+
+{/* source: packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleCommand.ts#ScheduleCommand.command @2a23bf39, packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleConfigCommand.ts#"Configure a schedule channel to sync a Google Calendar." @b1ae9583, packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleConfigCommand.ts#"Edit the name or channels of an existing schedule." @8cfff077 */}
 
 | Command | What it does |
 |---|---|
@@ -110,6 +122,8 @@ having to post announcements manually.
 ---
 
 ## Giveaways
+
+{/* source: packages/sushii-worker/src/features/giveaways/presentation/commands/GiveawayCommand.ts#GiveawayOption @78dc3ef2, packages/sushii-worker/src/features/giveaways/presentation/commands/GiveawayCommand.ts#GiveawaySubcommand @03499b9e, packages/sushii-worker/src/features/giveaways/infrastructure/tasks/GiveawayTask.ts#GiveawayTask.execute @c241f287 */}
 
 Run giveaways with optional entry requirements like roles, minimum level, or
 booster status. Winners are picked automatically when the giveaway ends.
@@ -129,49 +143,56 @@ booster status. Winners are picked automatically when the giveaway ends.
 Get a ping whenever a keyword you care about is mentioned in the server —
 useful for keeping up with topics without watching every channel.
 
+{/* source: packages/sushii-worker/src/features/notifications/presentation/commands/NotificationCommand.ts#NotificationCommandName @3d7d31b4 */}
+
 | Command | What it does |
 |---|---|
 | `/notification add` | Add a keyword to watch for |
 | `/notification list` | View your active notifications |
 | `/notification delete` | Remove a keyword notification |
-| `/notification block` | Stop notifications from a specific channel |
-| `/notification unblock` | Re-enable notifications from a channel |
+| `/notification block` | Stop notifications from a channel or user |
+| `/notification unblock` | Remove a block |
 
 ---
 
 ## Reminders
+
+{/* source: packages/sushii-worker/src/features/reminders/presentation/ReminderCommand.ts#ReminderCommand.command @69fd980e, packages/sushii-worker/src/features/reminders/application/ReminderService.ts#ReminderService.processExpiredReminders @3e38f2f1 */}
 
 Set a reminder for yourself — sushii will DM you when it's time.
 
 | Command | What it does |
 |---|---|
 | `/reminder add` | Create a reminder |
-| `/reminder list` | View your upcoming reminders |
-| `/reminder delete` | Cancel a reminder |
+| `/reminder list` | View and delete your upcoming reminders |
 
 ---
 
 ## Emoji Statistics
 
 See which emojis and stickers your server actually uses, with breakdowns by
-time period, channel, or user.
+emoji or sticker, static or animated, and this server or others.
+
+{/* source: packages/sushii-worker/src/features/emoji-stats/presentation/commands/EmojiStatsCommand.ts#"Emojis or Stickers? (default: Emojis Only)" @17a82a8e */}
 
 | Command | What it does |
 |---|---|
-| `/emoji-stats` | View emoji and sticker usage stats |
+| `/emojistats` | View emoji and sticker usage stats |
 
 ---
 
 ## Social
 
-Reputation lets members vouch for each other. Fishies is a fun daily minigame.
+{/* source: packages/sushii-worker/src/features/social/domain/constants/SocialConstants.ts#SOCIAL_COOLDOWN_HOURS @90a38ea2, packages/sushii-worker/src/features/social/presentation/commands/RepCommand.ts#RepCommand @eafcc8fe, packages/sushii-worker/src/features/social/presentation/commands/FishyCommand.ts#FishyCommand @5b4b85ff, packages/sushii-worker/src/features/social/presentation/commands/RepLeaderboardCommand.ts#RepLeaderboardCommand @1e5b9c2a, packages/sushii-worker/src/features/social/presentation/commands/FishyLeaderboardCommand.ts#FishyLeaderboardCommand.command @2172dcc3 */}
+
+Reputation lets members vouch for each other. Fishies is a fishing minigame you can play every 12 hours.
 Both have server leaderboards.
 
 | Command | What it does |
 |---|---|
 | `/rep` | Give reputation to another member |
 | `/rep-leaderboard` | Server reputation leaderboard |
-| `/fishy` | Catch fish (once per day) |
+| `/fishy` | Catch fish (every 12 hours) |
 | `/fishy-leaderboard` | Server fishy leaderboard |
 
 ---
@@ -179,6 +200,8 @@ Both have server leaderboards.
 ## User Info
 
 Quick lookups for any member's profile info.
+
+{/* source: packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoCommand.ts#UserInfoCommand.command @77aaadfe, packages/sushii-worker/src/features/user-profile/presentation/commands/AvatarCommand.ts#AvatarCommand @c0478422, packages/sushii-worker/src/features/user-profile/presentation/commands/BannerCommand.ts#BannerCommand @2d1cb57f */}
 
 | Command | What it does |
 |---|---|
