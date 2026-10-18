@@ -20,6 +20,11 @@ pre-commit:
         if git diff --cached --name-only | grep -qE "^packages/sushii-worker/(scripts/asset-mapping\.ts|assets/)"; then
           cd packages/sushii-worker && bun run assets:verify
         fi
+    check-doc-sources:
+      run: |
+        if git diff --cached --name-only | grep -qE "^(packages/sushii-worker/src/|docs/content/docs/|docs/scripts/check-sources\.ts)"; then
+          cd docs && bun run check:sources
+        fi
     check-emoji-types:
       run: |
         if git diff --cached --name-only | grep -qE "^packages/sushii-worker/(scripts/asset-mapping\.ts|src/features/bot-emojis/domain/BotEmojiName\.ts)"; then

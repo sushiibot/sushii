@@ -48,6 +48,12 @@ jobs:
       - name: Typecheck sushii-worker
         run: cd packages/sushii-worker && bun run typecheck
 
+      - name: Check docs source citations
+        working-directory: ./docs
+        run: |
+          bun install --frozen-lockfile
+          bun run check:sources
+
       - name: Initialize database roles
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f packages/sushii-worker/drizzle/init.sql

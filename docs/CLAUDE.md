@@ -24,6 +24,10 @@ Output is a fully static site (`output: "export"` in `next.config.ts`).
 - **`source.config.ts`** — Fumadocs MDX config (`defineDocs` pointing at `content/docs/`)
 - **`lib/source.ts`** — Fumadocs `loader()` that turns the MDX source into a typed API used by page routes
 
+### Accuracy
+
+Docs describe behavior defined in `packages/sushii-worker`. Verify commands, options, and defaults against the code before writing them, and cite the backing code in `source:` comments — see `../.claude/rules/docs-sync.md`.
+
 ### App routes
 
 - **`app/page.tsx`** — marketing landing page (no Fumadocs, fully custom inline styles)
