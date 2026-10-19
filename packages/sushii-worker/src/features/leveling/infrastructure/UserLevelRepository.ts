@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, sum, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, sum } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import {
@@ -19,6 +19,7 @@ import { UserRank } from "../domain/entities/UserRank";
 import type { UserLevelRepository as IUserLevelRepository } from "../domain/repositories/UserLevelRepository";
 import { RankPosition } from "../domain/value-objects/RankPosition";
 import { TimeFrame } from "../domain/value-objects/TimeFrame";
+import { getTimeframeConditions } from "./timeframeConditions";
 
 export type DrizzleDB = NodePgDatabase<typeof schema>;
 
@@ -144,28 +145,6 @@ export class UserLevelRepository implements IUserLevelRepository {
     }
   }
 
-  private getTimeframeConditions(timeframe: TimeFrame): SQL[] {
-    switch (timeframe) {
-      case TimeFrame.DAY:
-        return [
-          sql`extract(doy from ${userLevelsInAppPublic.lastMsg}) = extract(doy from now())`,
-          sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        ];
-      case TimeFrame.WEEK:
-        return [
-          sql`extract(week from ${userLevelsInAppPublic.lastMsg}) = extract(week from now())`,
-          sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        ];
-      case TimeFrame.MONTH:
-        return [
-          sql`extract(month from ${userLevelsInAppPublic.lastMsg}) = extract(month from now())`,
-          sql`extract(year from ${userLevelsInAppPublic.lastMsg}) = extract(year from now())`,
-        ];
-      case TimeFrame.ALL_TIME:
-        return [];
-    }
-  }
-
   private async getUserGuildTimeframeRank(
     guildId: string,
     userId: string,
@@ -201,7 +180,7 @@ export class UserLevelRepository implements IUserLevelRepository {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
       const orderColumn = this.getOrderByColumn(timeframe);
 
-      conditions.push(...this.getTimeframeConditions(timeframe));
+      conditions.push(...getTimeframeConditions(timeframe));
 
       // Get the user's XP for this timeframe
       const userXpResult = await this.db
@@ -315,7 +294,7 @@ export class UserLevelRepository implements IUserLevelRepository {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
       const orderColumn = this.getOrderByColumn(timeframe);
 
-      conditions.push(...this.getTimeframeConditions(timeframe));
+      conditions.push(...getTimeframeConditions(timeframe));
 
       const result = await this.db
         .select({
@@ -356,7 +335,7 @@ export class UserLevelRepository implements IUserLevelRepository {
     try {
       const conditions = [eq(userLevelsInAppPublic.guildId, BigInt(guildId))];
 
-      conditions.push(...this.getTimeframeConditions(timeframe));
+      conditions.push(...getTimeframeConditions(timeframe));
 
       const result = await this.db
         .select({ count: count() })
