@@ -127,16 +127,6 @@ export const cachedGuildsInAppPublic = appPublic.table("cached_guilds", {
 	pgPolicy("select_all", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
-export const legacyCommandNotificationsInAppPublic = appPublic.table("legacy_command_notifications", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	userId: bigint("user_id", { mode: "number" }).primaryKey().notNull(),
-	lastDmSent: timestamp("last_dm_sent", { mode: 'string' }).notNull(),
-	dmCount: integer("dm_count").default(0).notNull(),
-}, (table) => [
-	index("legacy_command_notifications_last_dm_idx").using("btree", table.lastDmSent.asc().nullsLast().op("timestamp_ops")),
-	pgPolicy("admin_access", { as: "permissive", for: "all", to: ["sushii_admin"], using: sql`true` }),
-]);
-
 export const guildConfigsInAppPublic = appPublic.table("guild_configs", {
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().notNull(),

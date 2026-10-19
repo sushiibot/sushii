@@ -442,6 +442,13 @@
       "when": 1792382398451,
       "tag": "0062_social-streaks",
       "breakpoints": false
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1792384876285,
+      "tag": "0063_drop-legacy-command-notifications",
+      "breakpoints": false
     }
   ]
 }
