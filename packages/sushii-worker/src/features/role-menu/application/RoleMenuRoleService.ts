@@ -35,15 +35,8 @@ export class RoleMenuRoleService {
       };
     }
 
-    // Check if bot has administrator permission (can manage all roles)
-    if (botMember.permissions.has(PermissionFlagsBits.Administrator)) {
-      return {
-        canManageRoles: true,
-        roleIdsHigherThanBot: [],
-      };
-    }
-
-    // Check if bot has manage roles permission
+    // Check if bot has manage roles permission (implied by Administrator).
+    // Administrator does NOT bypass role hierarchy, so always check positions.
     const canManageRoles = botMember.permissions.has(
       PermissionFlagsBits.ManageRoles,
     );
@@ -96,7 +89,8 @@ export class RoleMenuRoleService {
       for (const roleId of roleIds) {
         const role = guild.roles.cache.get(roleId);
 
-        if (role && role.position > userHighestRolePosition) {
+        // Users can't manage roles at or above their highest role
+        if (role && role.position >= userHighestRolePosition) {
           return Err(
             `Cannot add role <@&${roleId}> - it's higher than your highest role. Ask someone with a higher role to add it, or lower the role's position in Server Settings.`,
           );

@@ -142,13 +142,19 @@ export function createRoleMenuMessage(
       selectOptions.push(option);
     }
 
+    // Discord rejects max_values greater than the number of options
+    const maxValues = Math.max(
+      1,
+      Math.min(menu.maxCount || roles.length, roles.length),
+    );
+
     const selectMenu = new StringSelectMenuBuilder()
       .setPlaceholder("Select your roles!")
       .setCustomId(
         roleMenuCustomIds.shortSelect.compile({ id: menu.id.toString() }),
       )
       .addOptions(selectOptions)
-      .setMaxValues(menu.maxCount || roles.length)
+      .setMaxValues(maxValues)
       .setMinValues(0);
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents([

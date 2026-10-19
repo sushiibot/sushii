@@ -10,6 +10,7 @@ import type { RoleMenuManagementService } from "../../application/RoleMenuManage
 import type { RoleMenuRoleService } from "../../application/RoleMenuRoleService";
 import { parseRoleMenuSelectCustomId } from "../constants/roleMenuCustomIds";
 import {
+  getRoleMenuMaxRoles,
   getRoleMenuMessageSelectRoles,
   getRoleMenuRequiredRole,
 } from "../utils/roleMenuMessageParser";
@@ -43,6 +44,7 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
     }
 
     let requiredRole: string | undefined;
+    let maxRoles: number | undefined;
     let menuRoles: { roleId: string; label: string }[];
 
     // Try database-first approach for ID or name format
@@ -58,7 +60,8 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
         menuResult = await this.roleMenuManagementService.getMenuById(
           parsedCustomId.id,
         );
-        if (menuResult.ok) {
+        // Only accept menus belonging to this guild
+        if (menuResult.ok && menuResult.val.guildId === interaction.guildId) {
           menuName = menuResult.val.menuName;
         }
       } else if (parsedCustomId.menuName) {
@@ -73,6 +76,7 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
       if (menuResult?.ok && menuName) {
         const menu = menuResult.val;
         requiredRole = menu.requiredRole;
+        maxRoles = menu.maxCount;
 
         // Get roles from database
         const rolesResult = await this.roleMenuRoleService.getRoles(
@@ -112,7 +116,10 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
       }
     } else {
       // Legacy format or fallback - parse from embed
+      // Legacy menus have no DB link, so the message's own options are the
+      // source of truth for which roles are allowed
       requiredRole = getRoleMenuRequiredRole(interaction.message) || undefined;
+      maxRoles = getRoleMenuMaxRoles(interaction.message) || undefined;
       menuRoles = getRoleMenuMessageSelectRoles(interaction.message);
     }
 
@@ -122,6 +129,7 @@ export class RoleMenuSelectMenuHandler extends SelectMenuHandler {
         interaction.values,
         menuRoles,
         requiredRole,
+        maxRoles,
       );
 
     if (result.err) {

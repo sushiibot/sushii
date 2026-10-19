@@ -3,6 +3,11 @@ import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 import { Err, Ok, type Result } from "ts-results";
 
+import {
+  computeRoleMenuSelectionChanges,
+  findRolesNotInMenu,
+} from "../domain/services/roleMenuSelection";
+
 interface MenuRoleData {
   roleId: string;
   label: string;
@@ -32,6 +37,13 @@ export class RoleMenuInteractionService {
       },
       "Handling button interaction",
     );
+
+    // Role must still be part of the menu (old messages may have stale buttons)
+    if (!menuRoles.some((r) => r.roleId === roleId)) {
+      return Err(
+        `<@&${roleId}> is no longer part of this role menu. Ask a server moderator to update the menu message.`,
+      );
+    }
 
     try {
       // Check if removing or adding role
@@ -112,6 +124,7 @@ export class RoleMenuInteractionService {
     selectedRoleIds: string[],
     menuRoles: MenuRoleData[],
     requiredRole?: string,
+    maxRoles?: number,
   ): Promise<
     Result<
       { addedRoles: string[]; removedRoles: string[]; description: string },
@@ -127,44 +140,48 @@ export class RoleMenuInteractionService {
       "Handling select menu interaction",
     );
 
+    const menuRoleIds = menuRoles.map((r) => r.roleId);
+
+    // Selected roles must still be part of the menu (old messages may be stale)
+    const rolesNotInMenu = findRolesNotInMenu(selectedRoleIds, menuRoleIds);
+    if (rolesNotInMenu.length > 0) {
+      const mentions = rolesNotInMenu.map((r) => `<@&${r}>`).join(", ");
+      return Err(
+        `${mentions} ${rolesNotInMenu.length === 1 ? "is" : "are"} no longer part of this role menu. Deselect ${rolesNotInMenu.length === 1 ? "it" : "them"} and try again, or ask a server moderator to update the menu message.`,
+      );
+    }
+
+    // Check required role
+    if (requiredRole && !member.roles.cache.has(requiredRole)) {
+      return Err(
+        `You need to have the <@&${requiredRole}> role to use this menu.`,
+      );
+    }
+
+    // Check max roles (message max_values may be stale if the menu changed)
+    const selectedCount = new Set(selectedRoleIds).size;
+    if (maxRoles && selectedCount > maxRoles) {
+      return Err(
+        `You can only have a max of ${maxRoles} roles from this menu. Select fewer roles and try again.`,
+      );
+    }
+
+    // Single-role add/remove avoids overwriting roles via a stale member cache
+    const { toAdd: addedRoles, toRemove: removedRoles } =
+      computeRoleMenuSelectionChanges({
+        currentRoleIds: member.roles.cache.keys(),
+        selectedRoleIds,
+        menuRoleIds,
+      });
+
     try {
-      // Check required role
-      if (requiredRole && !member.roles.cache.has(requiredRole)) {
-        return Err(
-          `You need to have the <@&${requiredRole}> role to use this menu.`,
-        );
+      for (const roleId of addedRoles) {
+        await member.roles.add(roleId);
       }
 
-      const selectedRolesSet = new Set(selectedRoleIds);
-      const memberCurrentRoles = new Set(member.roles.cache.keys());
-
-      const addedRoles: string[] = [];
-      const removedRoles: string[] = [];
-
-      // Calculate new role set
-      const memberNewRoles = new Set(memberCurrentRoles);
-
-      // Add selected roles
-      for (const roleId of selectedRoleIds) {
-        if (!memberCurrentRoles.has(roleId)) {
-          addedRoles.push(roleId);
-        }
-        memberNewRoles.add(roleId);
+      for (const roleId of removedRoles) {
+        await member.roles.remove(roleId);
       }
-
-      // Remove unselected menu roles
-      for (const menuRole of menuRoles) {
-        if (
-          !selectedRolesSet.has(menuRole.roleId) &&
-          memberCurrentRoles.has(menuRole.roleId)
-        ) {
-          memberNewRoles.delete(menuRole.roleId);
-          removedRoles.push(menuRole.roleId);
-        }
-      }
-
-      // Apply role changes
-      await member.roles.set(Array.from(memberNewRoles));
 
       // Generate description
       let description = "";

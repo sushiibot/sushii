@@ -2,6 +2,7 @@ import { sleep } from "bun";
 import type { ButtonInteraction, InteractionResponse } from "discord.js";
 import { EmbedBuilder, MessageFlags } from "discord.js";
 import type { Logger } from "pino";
+import { Err } from "ts-results";
 
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
@@ -65,6 +66,11 @@ export class RoleMenuButtonHandler extends ButtonHandler {
           menuResult = await this.roleMenuManagementService.getMenuById(
             parsedCustomId.id,
           );
+          // Only accept menus belonging to this guild
+          if (menuResult.ok && menuResult.val.guildId !== interaction.guildId) {
+            menuResult = Err("Menu not found");
+          }
+
           if (menuResult.ok) {
             menuName = menuResult.val.menuName;
           }
@@ -146,7 +152,9 @@ export class RoleMenuButtonHandler extends ButtonHandler {
           }
         }
       } else {
-        // Legacy format or fallback - parse from embed
+        // Legacy format or fallback - parse from embed. Legacy menus have no
+        // DB link, so the message's own buttons are the source of truth for
+        // which roles are allowed.
         requiredRole =
           getRoleMenuRequiredRole(interaction.message) || undefined;
         maxRoles = getRoleMenuMaxRoles(interaction.message) || undefined;
