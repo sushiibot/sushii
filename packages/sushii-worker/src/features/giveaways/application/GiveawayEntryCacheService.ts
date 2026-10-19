@@ -84,6 +84,16 @@ export class GiveawayEntryCacheService {
   }
 
   /**
+   * Whether the giveaway has entries that aren't in the database yet.
+   */
+  hasUnflushedEntries(giveawayId: string): boolean {
+    return (
+      (this.pendingEntries.get(giveawayId)?.users.size ?? 0) > 0 ||
+      (this.inFlightEntries.get(giveawayId)?.users.size ?? 0) > 0
+    );
+  }
+
+  /**
    * Flush pending entries now. If a flush is already running, waits for it and
    * then flushes anything that arrived in the meantime.
    */

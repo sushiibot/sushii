@@ -49,11 +49,29 @@ export interface GiveawayRepository {
   ): Promise<Result<number, string>>;
 
   /**
-   * Find all expired giveaways and mark them as ended
+   * Find all expired giveaways that have not been ended yet
    */
-  findAndMarkExpiredAsEnded(
+  findExpired(
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<Giveaway[], string>>;
+
+  /**
+   * Atomically mark a giveaway as ended if it isn't already. Returns the
+   * claimed giveaway, or null if it was already ended (or deleted), so only
+   * one caller can end a giveaway.
+   */
+  claimForEnding(
+    giveawayId: string,
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<Giveaway | null, string>>;
+
+  /**
+   * Undo claimForEnding so the giveaway is retried
+   */
+  releaseEndingClaim(
+    giveawayId: string,
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<void, string>>;
 
   /**
    * Update a giveaway

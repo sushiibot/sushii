@@ -3,6 +3,7 @@ import { EmbedBuilder, MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
 import customIds from "@/interactions/customIds";
+import { getErrorMessage } from "@/interactions/responses/error";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
 
@@ -118,6 +119,18 @@ export class GiveawayButtonHandler extends ButtonHandler {
     }
 
     const giveaway = giveawayResult.val;
+
+    // Winners may already be drawn, so a new entry could never win
+    if (giveaway.isEnded || giveaway.isExpired()) {
+      await interaction.reply(
+        getErrorMessage(
+          "Giveaway ended",
+          "This giveaway has already ended.",
+          true,
+        ),
+      );
+      return;
+    }
 
     // Check eligibility
     const eligibilityResult =

@@ -163,7 +163,7 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
     }
   }
 
-  async findAndMarkExpiredAsEnded(
+  async findExpired(
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<Result<Giveaway[], string>> {
     try {
@@ -171,19 +171,70 @@ export class DrizzleGiveawayRepository implements GiveawayRepository {
       const now = dayjs.utc().toDate();
 
       const result = await database
-        .update(schema.giveawaysInAppPublic)
-        .set({ isEnded: true })
+        .select()
+        .from(schema.giveawaysInAppPublic)
         .where(
           and(
             lte(schema.giveawaysInAppPublic.endAt, now.toISOString()),
             eq(schema.giveawaysInAppPublic.isEnded, false),
           ),
         )
-        .returning();
+        .orderBy(schema.giveawaysInAppPublic.endAt);
 
       return Ok(result.map((row) => this.mapToEntity(row)));
     } catch (err) {
-      this.logger.error({ err }, "Failed to find and mark expired giveaways");
+      this.logger.error({ err }, "Failed to find expired giveaways");
+      return Err("Database error");
+    }
+  }
+
+  async claimForEnding(
+    giveawayId: string,
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<Giveaway | null, string>> {
+    try {
+      const database = tx ?? this.db;
+
+      const result = await database
+        .update(schema.giveawaysInAppPublic)
+        .set({ isEnded: true })
+        .where(
+          and(
+            eq(schema.giveawaysInAppPublic.id, BigInt(giveawayId)),
+            eq(schema.giveawaysInAppPublic.isEnded, false),
+          ),
+        )
+        .returning();
+
+      if (result.length === 0) {
+        return Ok(null);
+      }
+
+      return Ok(this.mapToEntity(result[0]));
+    } catch (err) {
+      this.logger.error({ err, giveawayId }, "Failed to claim giveaway");
+      return Err("Database error");
+    }
+  }
+
+  async releaseEndingClaim(
+    giveawayId: string,
+    tx?: NodePgDatabase<typeof schema>,
+  ): Promise<Result<void, string>> {
+    try {
+      const database = tx ?? this.db;
+
+      await database
+        .update(schema.giveawaysInAppPublic)
+        .set({ isEnded: false })
+        .where(eq(schema.giveawaysInAppPublic.id, BigInt(giveawayId)));
+
+      return Ok(undefined);
+    } catch (err) {
+      this.logger.error(
+        { err, giveawayId },
+        "Failed to release giveaway claim",
+      );
       return Err("Database error");
     }
   }

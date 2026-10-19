@@ -104,7 +104,7 @@ export class GiveawayDrawService {
           this.logger.warn(
             {
               giveawayId: giveaway.id,
-              error: markEndedResult.val,
+              err: markEndedResult.val,
             },
             "Failed to mark giveaway as ended after drawing winners",
           );

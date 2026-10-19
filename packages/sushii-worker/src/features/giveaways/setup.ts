@@ -159,8 +159,12 @@ export function createGiveawayTasks(
   deploymentService: DeploymentService,
   giveawayMetrics: GiveawayMetrics,
 ) {
-  const { giveawayService, giveawayDrawService, giveawayEntryService } =
-    services;
+  const {
+    giveawayService,
+    giveawayDrawService,
+    giveawayEntryService,
+    giveawayEntryCacheService,
+  } = services;
 
   const tasks = [
     new GiveawayTask(
@@ -169,6 +173,7 @@ export function createGiveawayTasks(
       giveawayService,
       giveawayDrawService,
       giveawayEntryService,
+      giveawayEntryCacheService,
       giveawayMetrics,
     ),
   ];

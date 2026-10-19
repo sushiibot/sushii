@@ -122,13 +122,31 @@ export class GiveawayService {
     }
   }
 
+  /**
+   * Expired giveaways that still need to be ended. They are not claimed, use
+   * claimGiveawayForEnding before drawing winners.
+   */
   async getExpiredGiveaways(): Promise<Result<Giveaway[], string>> {
-    try {
-      return await this.giveawayRepository.findAndMarkExpiredAsEnded();
-    } catch (err) {
-      this.logger.error({ err }, "Failed to get expired giveaways");
-      throw new Error("Failed to get expired giveaways", { cause: err });
-    }
+    return this.giveawayRepository.findExpired();
+  }
+
+  /**
+   * Mark a giveaway as ended if no one else has. Returns null if it was
+   * already ended, so winners are only drawn once.
+   */
+  async claimGiveawayForEnding(
+    giveawayId: string,
+  ): Promise<Result<Giveaway | null, string>> {
+    return this.giveawayRepository.claimForEnding(giveawayId);
+  }
+
+  /**
+   * Release a claim after ending failed, so the giveaway is retried.
+   */
+  async releaseGiveawayEndingClaim(
+    giveawayId: string,
+  ): Promise<Result<void, string>> {
+    return this.giveawayRepository.releaseEndingClaim(giveawayId);
   }
 
   async countActiveGiveaways(): Promise<Result<number, string>> {
