@@ -101,12 +101,17 @@ export class ReactionBatchProcessor {
    */
   private async processGuildBatch(guildId: string): Promise<void> {
     const guildBatch = this.guildBatches.get(guildId);
+
+    // Detach the batch before any await so removals arriving while this batch
+    // is being sent start a new batch instead of being appended to this one
+    // and dropped.
+    this.cleanupGuild(guildId);
+
     if (!guildBatch || guildBatch.removals.size === 0) {
       this.logger.trace(
         { guildId },
         "No guild batch to process or empty batch",
       );
-      this.cleanupGuild(guildId);
       return;
     }
 
@@ -144,9 +149,6 @@ export class ReactionBatchProcessor {
         { err, guildId },
         "Failed to process guild reaction batch",
       );
-    } finally {
-      // Always cleanup resources even if processing fails
-      this.cleanupGuild(guildId);
     }
   }
 
