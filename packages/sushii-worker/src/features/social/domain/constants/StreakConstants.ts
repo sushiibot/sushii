@@ -1,9 +1,14 @@
-// Streak length that earns the first bonus
-export const STREAK_BONUS_START_DAYS = 7;
+export interface StreakMilestone {
+  days: number;
+  multiplier: number;
+  label: string;
+}
 
-// Multiplier at STREAK_BONUS_START_DAYS, and gained each time the streak
-// doubles after that
-export const STREAK_MULTIPLIER_STEP = 0.1;
-
-// Maximum streak multiplier, reached at a 112 day streak
-export const STREAK_MULTIPLIER_CAP = 1.5;
+// Streak multipliers, in ascending order of days. The last is the cap.
+export const STREAK_MILESTONES: readonly StreakMilestone[] = [
+  { days: 7, multiplier: 1.1, label: "1 week" },
+  { days: 30, multiplier: 1.25, label: "1 month" },
+  { days: 90, multiplier: 1.5, label: "3 months" },
+  { days: 180, multiplier: 1.75, label: "6 months" },
+  { days: 365, multiplier: 2, label: "1 year" },
+];

@@ -5,7 +5,6 @@ import type dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
 import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
-import { STREAK_BONUS_START_DAYS } from "../../domain";
 
 function formatStreak(
   streak: StreakUpdate,
@@ -19,12 +18,14 @@ function formatStreak(
     content += `💔 You missed a day, so your **${streak.brokenStreak} day ${name} streak** ended. Starting over at day 1.\n`;
   }
 
-  content += `-# 🔥 ${streak.streak} day ${name} streak · `;
+  content += `-# 🔥 ${streak.streak} day ${name} streak`;
 
   if (streak.multiplier > 1) {
-    content += `${multiplier}x${bonus}`;
-  } else {
-    content += `bonus starts at day ${STREAK_BONUS_START_DAYS}`;
+    content += ` · ${multiplier}x${bonus}`;
+  }
+
+  if (streak.nextMilestone) {
+    content += ` · next: ${streak.nextMilestone.multiplier}x at ${streak.nextMilestone.label}`;
   }
 
   return content;

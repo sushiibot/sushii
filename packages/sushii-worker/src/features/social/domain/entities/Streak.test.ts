@@ -1,7 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
-import { REP_INCREMENT, STREAK_MULTIPLIER_CAP } from "../constants";
-import { calculateStreak, getStreakMultiplier, rollRepAmount } from "./Streak";
+import { REP_INCREMENT } from "../constants";
+import {
+  calculateStreak,
+  getNextStreakMilestone,
+  getStreakMultiplier,
+  rollRepAmount,
+} from "./Streak";
 
 const now = new Date("2026-10-18T05:00:00Z");
 
@@ -64,16 +69,29 @@ describe("getStreakMultiplier", () => {
     expect(getStreakMultiplier(6)).toBe(1);
   });
 
-  it("starts at 1.1x and adds 0.1 each time the streak doubles", () => {
-    expect(getStreakMultiplier(7)).toBeCloseTo(1.1);
-    expect(getStreakMultiplier(14)).toBeCloseTo(1.2);
-    expect(getStreakMultiplier(28)).toBeCloseTo(1.3);
-    expect(getStreakMultiplier(56)).toBeCloseTo(1.4);
+  it("steps up at each milestone and holds between them", () => {
+    expect(getStreakMultiplier(7)).toBe(1.1);
+    expect(getStreakMultiplier(29)).toBe(1.1);
+    expect(getStreakMultiplier(30)).toBe(1.25);
+    expect(getStreakMultiplier(90)).toBe(1.5);
+    expect(getStreakMultiplier(180)).toBe(1.75);
   });
 
-  it("caps at the max multiplier", () => {
-    expect(getStreakMultiplier(112)).toBe(STREAK_MULTIPLIER_CAP);
-    expect(getStreakMultiplier(1000)).toBe(STREAK_MULTIPLIER_CAP);
+  it("caps at 2x from a year", () => {
+    expect(getStreakMultiplier(365)).toBe(2);
+    expect(getStreakMultiplier(1000)).toBe(2);
+  });
+});
+
+describe("getNextStreakMilestone", () => {
+  it("returns the next milestone above the streak", () => {
+    expect(getNextStreakMilestone(1)?.days).toBe(7);
+    expect(getNextStreakMilestone(7)?.days).toBe(30);
+    expect(getNextStreakMilestone(364)?.days).toBe(365);
+  });
+
+  it("returns null at the cap", () => {
+    expect(getNextStreakMilestone(365)).toBeNull();
   });
 });
 
@@ -81,6 +99,10 @@ describe("rollRepAmount", () => {
   it("gives a bonus rep when the roll is under the multiplier's fraction", () => {
     expect(rollRepAmount(1.3, 0.29)).toBe(REP_INCREMENT * 2);
     expect(rollRepAmount(1.3, 0.31)).toBe(REP_INCREMENT);
+  });
+
+  it("always gives a bonus at 2x", () => {
+    expect(rollRepAmount(2, 0.999)).toBe(REP_INCREMENT * 2);
   });
 
   it("never gives a bonus without a multiplier", () => {

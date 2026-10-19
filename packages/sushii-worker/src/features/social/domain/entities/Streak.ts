@@ -1,15 +1,13 @@
 import dayjs from "@/shared/domain/dayjs";
 
-import {
-  REP_INCREMENT,
-  STREAK_BONUS_START_DAYS,
-  STREAK_MULTIPLIER_CAP,
-  STREAK_MULTIPLIER_STEP,
-} from "../constants";
+import type { StreakMilestone } from "../constants";
+import { REP_INCREMENT, STREAK_MILESTONES } from "../constants";
 
 export interface StreakUpdate {
   streak: number;
   multiplier: number;
+  // Next milestone to reach, null once at the cap
+  nextMilestone: StreakMilestone | null;
   // Length of the streak that was lost, if a missed day reset it
   brokenStreak: number | null;
 }
@@ -46,23 +44,25 @@ export function calculateStreak(
   return {
     streak,
     multiplier: getStreakMultiplier(streak),
+    nextMilestone: getNextStreakMilestone(streak),
     brokenStreak,
   };
 }
 
-/**
- * No bonus before STREAK_BONUS_START_DAYS, then +STEP each time the streak
- * doubles: 7d 1.1x, 14d 1.2x, 28d 1.3x, 56d 1.4x, 112d+ 1.5x.
- */
 export function getStreakMultiplier(streak: number): number {
-  if (streak < STREAK_BONUS_START_DAYS) {
-    return 1;
+  let multiplier = 1;
+
+  for (const milestone of STREAK_MILESTONES) {
+    if (streak >= milestone.days) {
+      multiplier = milestone.multiplier;
+    }
   }
 
-  const doublings = Math.log2(streak / STREAK_BONUS_START_DAYS);
-  const multiplier = 1 + STREAK_MULTIPLIER_STEP * (1 + doublings);
+  return multiplier;
+}
 
-  return Math.min(multiplier, STREAK_MULTIPLIER_CAP);
+export function getNextStreakMilestone(streak: number): StreakMilestone | null {
+  return STREAK_MILESTONES.find((m) => m.days > streak) ?? null;
 }
 
 /**

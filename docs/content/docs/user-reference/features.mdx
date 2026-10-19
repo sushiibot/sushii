@@ -195,13 +195,19 @@ Both have server leaderboards.
 | `/fishy` | Catch fish (every 12 hours) |
 | `/fishy-leaderboard` | Server fishy leaderboard |
 
-{/* source: packages/sushii-worker/src/features/social/domain/entities/Streak.ts#calculateStreak @c7a1c763, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#getStreakMultiplier @1836d66b, packages/sushii-worker/src/features/social/domain/constants/StreakConstants.ts#STREAK_MULTIPLIER_CAP @eabc0a19, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#rollRepAmount @09b9e933 */}
+{/* source: packages/sushii-worker/src/features/social/domain/entities/Streak.ts#calculateStreak @97845c79, packages/sushii-worker/src/features/social/domain/constants/StreakConstants.ts#STREAK_MILESTONES @1adc5355, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#getStreakMultiplier @7b240ac0, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#rollRepAmount @09b9e933 */}
 
 Using `/fishy` or `/rep` at least once each UTC day builds a separate daily streak for each.
-Skipping a full UTC day resets that streak. From a 7 day streak, the fishies you catch are
-multiplied by 1.1x, gaining another +10% each time the streak doubles (14 days 1.2x, 28 days 1.3x),
-up to 1.5x from 112 days. For rep, the bonus is a chance to give 2 rep instead of 1 (10% at a 1.1x
-streak).
+Skipping a full UTC day resets that streak. Longer streaks multiply the fishies you catch. For rep,
+the bonus is a chance to give 2 rep instead of 1.
+
+| Streak | Fishy multiplier | Chance of 2 rep |
+|---|---|---|
+| 1 week | 1.1x | 10% |
+| 1 month (30 days) | 1.25x | 25% |
+| 3 months (90 days) | 1.5x | 50% |
+| 6 months (180 days) | 1.75x | 75% |
+| 1 year (365 days) | 2x | 100% |
 
 ---
 
