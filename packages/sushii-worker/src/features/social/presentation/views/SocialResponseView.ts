@@ -6,12 +6,21 @@ import Color from "@/utils/colors";
 
 import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
 
+// Fishy multiplies the catch, rep only gets a chance at bonus rep
+function formatFishyReward(multiplier: number): string {
+  return `${Number(multiplier.toFixed(2))}x`;
+}
+
+function formatRepReward(multiplier: number): string {
+  return `${Math.round((multiplier - 1) * 100)}% bonus rep chance`;
+}
+
 function formatStreak(
   streak: StreakUpdate,
   name: string,
+  formatReward: (multiplier: number) => string,
   bonus: string,
 ): string {
-  const multiplier = Number(streak.multiplier.toFixed(2));
   let content = "";
 
   if (streak.brokenStreak) {
@@ -21,11 +30,11 @@ function formatStreak(
   content += `-# 🔥 ${streak.streak} day ${name} streak`;
 
   if (streak.multiplier > 1) {
-    content += ` · ${multiplier}x${bonus}`;
+    content += ` · ${formatReward(streak.multiplier)}${bonus}`;
   }
 
   if (streak.nextMilestone) {
-    content += ` · next: ${streak.nextMilestone.multiplier}x at ${streak.nextMilestone.label}`;
+    content += ` · next: ${formatReward(streak.nextMilestone.multiplier)} at ${streak.nextMilestone.label}`;
   }
 
   return content;
@@ -46,6 +55,7 @@ export function createFishySuccessMessage(
           formatStreak(
             result.streak,
             "fishy",
+            formatFishyReward,
             ` (${result.baseAmount} → ${count})`,
           ),
       ),
@@ -86,7 +96,7 @@ export function createRepSuccessMessage(
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         `You gave <@${targetUserId}> ${given}! (${result.oldAmount} → ${result.newAmount} total)\n` +
-          formatStreak(result.streak, "rep", bonus),
+          formatStreak(result.streak, "rep", formatRepReward, bonus),
       ),
     );
 
