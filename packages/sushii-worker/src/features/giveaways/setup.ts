@@ -45,15 +45,9 @@ export function createGiveawayServices({
   logger,
 }: GiveawayDependencies) {
   // Repositories
-  const giveawayRepository = new DrizzleGiveawayRepository(
-    db,
-    logger.child({ module: "giveawayRepository" }),
-  );
+  const giveawayRepository = new DrizzleGiveawayRepository(db);
 
-  const giveawayEntryRepository = new DrizzleGiveawayEntryRepository(
-    db,
-    logger.child({ module: "giveawayEntryRepository" }),
-  );
+  const giveawayEntryRepository = new DrizzleGiveawayEntryRepository(db);
 
   // Application services
   const giveawayService = new GiveawayService(
@@ -140,12 +134,7 @@ export function createGiveawayCommands(
     ),
   ];
 
-  const autocompletes = [
-    new GiveawayAutocomplete(
-      giveawayService,
-      logger.child({ module: "giveawayAutocomplete" }),
-    ),
-  ];
+  const autocompletes = [new GiveawayAutocomplete(giveawayService)];
 
   const buttonHandlers = [
     new GiveawayButtonHandler(

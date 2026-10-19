@@ -1,7 +1,5 @@
 import type { GuildMember } from "discord.js";
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
 
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 
@@ -19,42 +17,34 @@ export class GiveawayEligibilityService {
   async checkEligibility(
     giveaway: Giveaway,
     member: GuildMember,
-  ): Promise<Result<GiveawayEligibility, string>> {
-    try {
-      this.logger.debug(
-        { giveawayId: giveaway.id, userId: member.id },
-        "Checking giveaway eligibility",
+  ): Promise<GiveawayEligibility> {
+    this.logger.debug(
+      { giveawayId: giveaway.id, userId: member.id },
+      "Checking giveaway eligibility",
+    );
+
+    // Get user level if level requirements exist
+    let userLevel = 0;
+    if (giveaway.requiredMinLevel || giveaway.requiredMaxLevel) {
+      const guildLevel = await this.userLevelRepository.getUserGuildLevel(
+        giveaway.guildId,
+        member.id,
       );
-
-      // Get user level if level requirements exist
-      let userLevel = 0;
-      if (giveaway.requiredMinLevel || giveaway.requiredMaxLevel) {
-        const guildLevel = await this.userLevelRepository.getUserGuildLevel(
-          giveaway.guildId,
-          member.id,
-        );
-        userLevel = guildLevel.getCurrentLevel();
-      }
-
-      const eligibility = giveaway.checkEligibility(member, userLevel);
-
-      this.logger.debug(
-        {
-          giveawayId: giveaway.id,
-          userId: member.id,
-          eligible: eligibility.eligible,
-          userLevel,
-        },
-        "Eligibility check completed",
-      );
-
-      return Ok(eligibility);
-    } catch (err) {
-      this.logger.error(
-        { err, giveawayId: giveaway.id, userId: member.id },
-        "Failed to check giveaway eligibility",
-      );
-      return Err("Failed to check eligibility");
+      userLevel = guildLevel.getCurrentLevel();
     }
+
+    const eligibility = giveaway.checkEligibility(member, userLevel);
+
+    this.logger.debug(
+      {
+        giveawayId: giveaway.id,
+        userId: member.id,
+        eligible: eligibility.eligible,
+        userLevel,
+      },
+      "Eligibility check completed",
+    );
+
+    return eligibility;
   }
 }

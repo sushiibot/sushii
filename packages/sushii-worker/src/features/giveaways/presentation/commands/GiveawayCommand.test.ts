@@ -2,7 +2,6 @@ import { describe, expect, mock, test } from "bun:test";
 import type { ChatInputCommandInteraction } from "discord.js";
 import { MessageFlags } from "discord.js";
 import pino from "pino";
-import { Ok } from "ts-results";
 
 import type { GiveawayDrawService } from "../../application/GiveawayDrawService";
 import type {
@@ -50,15 +49,16 @@ function setup(
   giveaway: Giveaway = makeGiveaway(),
 ) {
   const giveawayService = {
-    getGiveaway: mock(async () => Ok(giveaway)),
+    getGiveaway: mock(async () => giveaway),
   } as unknown as GiveawayService;
 
-  const drawWinners = mock(async () =>
-    Ok({ winnerIds: ["u1"], hasInsufficientWinners: false }),
-  );
+  const drawWinners = mock(async () => ({
+    winnerIds: ["u1"],
+    hasInsufficientWinners: false,
+  }));
   const drawService = {
     drawWinners,
-    sendWinnersMessage: mock(async () => Ok(undefined)),
+    sendWinnersMessage: mock(async () => undefined),
   } as unknown as GiveawayDrawService;
 
   const endGiveaway = mock(async (g: Giveaway, _options: unknown) =>
@@ -162,7 +162,6 @@ describe("GiveawayCommand /giveaway end", () => {
       "Channel not found",
     ],
     [{ status: "retry", reason: "guild unavailable" }, "Please try again"],
-    [{ status: "drawFailed", error: "Database error" }, "Database error"],
   ] as [EndGiveawayResult, string][])(
     "reports a failure to end (%p)",
     async (result, expected) => {
@@ -175,4 +174,98 @@ describe("GiveawayCommand /giveaway end", () => {
       );
     },
   );
+
+  test("lets unexpected errors propagate to the interaction router", async () => {
+    const { command, interaction, endGiveaway } = setup({
+      status: "alreadyEnded",
+    });
+    endGiveaway.mockImplementation(async () => {
+      throw new Error("connection lost");
+    });
+
+    await expect(
+      command.handler(interaction as unknown as ChatInputCommandInteraction),
+    ).rejects.toThrow("connection lost");
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+});
+
+describe("GiveawayCommand /giveaway create", () => {
+  function setupCreate(createGiveaway: () => Promise<Giveaway>) {
+    const giveawayService = {
+      createGiveaway: mock(createGiveaway),
+    } as unknown as GiveawayService;
+
+    const command = new GiveawayCommand(
+      giveawayService,
+      {} as GiveawayDrawService,
+      {} as GiveawayEndService,
+      pino({ level: "silent" }),
+    );
+
+    const giveawayMessage = {
+      id: GIVEAWAY_ID,
+      url: "https://discord.com/channels/100/500/1",
+      delete: mock(async () => undefined),
+    };
+
+    const strings: Record<string, string> = { duration: "1d", prize: "Prize" };
+    const interaction = {
+      reply: mock(async (_options: unknown) => undefined),
+      inCachedGuild: () => true,
+      guildId: GUILD_ID,
+      channelId: "500",
+      user: { id: "400" },
+      channel: { send: mock(async () => giveawayMessage) },
+      options: {
+        getSubcommand: () => "create",
+        getString: (name: string) => strings[name] ?? null,
+        getNumber: (name: string) => (name === "winners" ? 1 : null),
+        getRole: () => null,
+        getBoolean: () => null,
+      },
+    };
+
+    return {
+      interaction,
+      giveawayMessage,
+      run: () =>
+        command.handler(interaction as unknown as ChatInputCommandInteraction),
+    };
+  }
+
+  test("replies with the giveaway link", async () => {
+    const { run, interaction, giveawayMessage } = setupCreate(async () =>
+      makeGiveaway(),
+    );
+
+    await run();
+
+    expect(giveawayMessage.delete).not.toHaveBeenCalled();
+    expect(replyText(interaction.reply.mock.calls[0]?.[0])).toContain(
+      "Giveaway created!",
+    );
+  });
+
+  test("deletes the giveaway message and rethrows when saving fails", async () => {
+    const { run, interaction, giveawayMessage } = setupCreate(async () => {
+      throw new Error("connection lost");
+    });
+
+    await expect(run()).rejects.toThrow("connection lost");
+
+    expect(giveawayMessage.delete).toHaveBeenCalledTimes(1);
+    expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  test("rethrows the save error when deleting the message also fails", async () => {
+    const { run, giveawayMessage } = setupCreate(async () => {
+      throw new Error("connection lost");
+    });
+    giveawayMessage.delete.mockImplementation(async () => {
+      throw new Error("Unknown Message");
+    });
+
+    await expect(run()).rejects.toThrow("connection lost");
+  });
 });

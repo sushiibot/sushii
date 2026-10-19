@@ -1,7 +1,5 @@
 import type { GuildTextBasedChannel } from "discord.js";
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
 
 import type { Giveaway } from "../domain/entities/Giveaway";
 import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
@@ -24,157 +22,107 @@ export class GiveawayDrawService {
     giveaway: Giveaway,
     allowRepeatWinners: boolean,
     winnerCount?: number,
-  ): Promise<Result<DrawResult, string>> {
-    try {
-      const wantWinnerCount = winnerCount ?? giveaway.numWinners;
+  ): Promise<DrawResult> {
+    const wantWinnerCount = winnerCount ?? giveaway.numWinners;
 
-      this.logger.debug(
-        {
-          giveawayId: giveaway.id,
-          wantWinnerCount,
-          allowRepeatWinners,
-        },
-        "Drawing giveaway winners",
+    this.logger.debug(
+      {
+        giveawayId: giveaway.id,
+        wantWinnerCount,
+        allowRepeatWinners,
+      },
+      "Drawing giveaway winners",
+    );
+
+    const entries = await this.giveawayEntryRepository.findRandomEntries(
+      giveaway.id,
+      wantWinnerCount,
+      allowRepeatWinners,
+    );
+    const winnerIds = entries.map((entry) => entry.userId);
+
+    // No entries at all
+    if (winnerIds.length === 0) {
+      this.logger.info(
+        { giveawayId: giveaway.id },
+        "No winners found - no eligible entries",
       );
 
-      // Get random entries
-      const entriesResult =
-        await this.giveawayEntryRepository.findRandomEntries(
-          giveaway.id,
-          wantWinnerCount,
-          allowRepeatWinners,
-        );
+      return {
+        winnerIds: [],
+        hasInsufficientWinners: true,
+        reason: "No eligible entries found",
+      };
+    }
 
-      if (!entriesResult.ok) {
-        return Err(entriesResult.val);
-      }
+    await this.giveawayEntryRepository.markAsPicked(giveaway.id, winnerIds);
 
-      const entries = entriesResult.val;
-      const winnerIds = entries.map((entry) => entry.userId);
+    // Check if we got fewer winners than requested
+    const hasInsufficientWinners = winnerIds.length < wantWinnerCount;
+    let reason: string | undefined;
 
-      // No entries at all
-      if (winnerIds.length === 0) {
-        this.logger.info(
-          { giveawayId: giveaway.id },
-          "No winners found - no eligible entries",
-        );
-
-        return Ok({
-          winnerIds: [],
-          hasInsufficientWinners: true,
-          reason: "No eligible entries found",
-        });
-      }
-
-      // Mark winners as picked
-      const markResult = await this.giveawayEntryRepository.markAsPicked(
+    if (hasInsufficientWinners) {
+      const totalEntries = await this.giveawayEntryRepository.countByGiveaway(
         giveaway.id,
-        winnerIds,
       );
 
-      if (!markResult.ok) {
-        return Err(markResult.val);
+      if (totalEntries < wantWinnerCount) {
+        reason = `Only ${totalEntries} entries available, but ${wantWinnerCount} winners requested`;
+      } else {
+        reason = `Some users were excluded (previously picked). Enable repeat winners to include them.`;
       }
+    }
 
-      // Check if we got fewer winners than requested
-      const hasInsufficientWinners = winnerIds.length < wantWinnerCount;
-      let reason: string | undefined;
-
-      if (hasInsufficientWinners) {
-        const totalCountResult =
-          await this.giveawayEntryRepository.countByGiveaway(giveaway.id);
-
-        if (totalCountResult.ok) {
-          const totalEntries = totalCountResult.val;
-
-          if (totalEntries < wantWinnerCount) {
-            reason = `Only ${totalEntries} entries available, but ${wantWinnerCount} winners requested`;
-          } else {
-            reason = `Some users were excluded (previously picked). Enable repeat winners to include them.`;
-          }
-        }
-      }
-
-      // Mark giveaway as ended if it's not already ended
-      if (!giveaway.isEnded) {
-        const markEndedResult = await this.giveawayRepository.markAsEnded(
-          giveaway.id,
-        );
-        if (!markEndedResult.ok) {
-          this.logger.warn(
-            {
-              giveawayId: giveaway.id,
-              err: markEndedResult.val,
-            },
-            "Failed to mark giveaway as ended after drawing winners",
-          );
-        } else {
-          this.logger.info(
-            {
-              giveawayId: giveaway.id,
-            },
-            "Giveaway marked as ended after drawing winners",
-          );
-        }
-      }
+    // Mark giveaway as ended if it's not already ended
+    if (!giveaway.isEnded) {
+      await this.giveawayRepository.markAsEnded(giveaway.id);
 
       this.logger.info(
-        {
-          giveawayId: giveaway.id,
-          winnerCount: winnerIds.length,
-          requestedCount: wantWinnerCount,
-          hasInsufficientWinners,
-        },
-        "Giveaway winners drawn",
+        { giveawayId: giveaway.id },
+        "Giveaway marked as ended after drawing winners",
       );
-
-      return Ok({
-        winnerIds,
-        hasInsufficientWinners,
-        reason,
-      });
-    } catch (err) {
-      this.logger.error(
-        { err, giveawayId: giveaway.id },
-        "Failed to draw giveaway winners",
-      );
-      return Err("Failed to draw winners");
     }
+
+    this.logger.info(
+      {
+        giveawayId: giveaway.id,
+        winnerCount: winnerIds.length,
+        requestedCount: wantWinnerCount,
+        hasInsufficientWinners,
+      },
+      "Giveaway winners drawn",
+    );
+
+    return {
+      winnerIds,
+      hasInsufficientWinners,
+      reason,
+    };
   }
 
   async sendWinnersMessage(
     channel: GuildTextBasedChannel,
     giveaway: Giveaway,
     winnerIds: string[],
-  ): Promise<Result<void, string>> {
-    try {
-      if (winnerIds.length === 0) {
-        return Ok(undefined);
-      }
-
-      const winnersStr = winnerIds.map((id) => `<@${id}>`).join(", ");
-      await channel.send({
-        content: `Congratulations to ${winnersStr}! You won: **${giveaway.prize}**`,
-        reply: {
-          messageReference: giveaway.id,
-        },
-      });
-
-      this.logger.info(
-        {
-          giveawayId: giveaway.id,
-          winnerCount: winnerIds.length,
-        },
-        "Sent winners announcement message",
-      );
-
-      return Ok(undefined);
-    } catch (err) {
-      this.logger.error(
-        { err, giveawayId: giveaway.id },
-        "Failed to send winners message",
-      );
-      return Err("Failed to send winners message");
+  ): Promise<void> {
+    if (winnerIds.length === 0) {
+      return;
     }
+
+    const winnersStr = winnerIds.map((id) => `<@${id}>`).join(", ");
+    await channel.send({
+      content: `Congratulations to ${winnersStr}! You won: **${giveaway.prize}**`,
+      reply: {
+        messageReference: giveaway.id,
+      },
+    });
+
+    this.logger.info(
+      {
+        giveawayId: giveaway.id,
+        winnerCount: winnerIds.length,
+      },
+      "Sent winners announcement message",
+    );
   }
 }

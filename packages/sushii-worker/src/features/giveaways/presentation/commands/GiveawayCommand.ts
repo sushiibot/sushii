@@ -45,6 +45,14 @@ enum GiveawayOption {
   AllowRepeatWinners = "allow_repeat_winners",
 }
 
+/**
+ * Channel fetch errors meaning the giveaway channel is gone or hidden from us
+ */
+const MISSING_CHANNEL_ERROR_CODES = new Set<number | string>([
+  RESTJSONErrorCodes.UnknownChannel,
+  RESTJSONErrorCodes.MissingAccess,
+]);
+
 enum GiveawaySubcommand {
   Create = "create",
   List = "list",
@@ -297,15 +305,20 @@ export class GiveawayCommand extends SlashCommandHandler {
     // Update the giveaway data with the actual message ID
     giveawayData.id = giveawayMsg.id;
 
-    const createResult =
+    try {
       await this.giveawayService.createGiveaway(giveawayData);
-    if (!createResult.ok) {
-      // Delete the message if we failed to create the giveaway
-      await giveawayMsg.delete();
-      await interaction.reply(
-        getErrorMessage("Failed to create giveaway", createResult.val),
-      );
-      return;
+    } catch (err) {
+      // Don't leave a giveaway message behind that can't be entered
+      try {
+        await giveawayMsg.delete();
+      } catch (deleteErr) {
+        this.logger.warn(
+          { err: deleteErr, giveawayId: giveawayMsg.id },
+          "Failed to delete giveaway message after create failed",
+        );
+      }
+
+      throw err;
     }
 
     const responseEmbed = new EmbedBuilder()
@@ -322,18 +335,9 @@ export class GiveawayCommand extends SlashCommandHandler {
   private async listGiveaways(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const giveawaysResult = await this.giveawayService.getActiveGiveaways(
+    const giveaways = await this.giveawayService.getActiveGiveaways(
       interaction.guildId,
     );
-
-    if (!giveawaysResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to get giveaways", giveawaysResult.val),
-      );
-      return;
-    }
-
-    const giveaways = giveawaysResult.val;
 
     if (giveaways.length === 0) {
       const embed = new EmbedBuilder()
@@ -385,19 +389,12 @@ export class GiveawayCommand extends SlashCommandHandler {
       throw new Error("No giveaway ID");
     }
 
-    const deleteResult = await this.giveawayService.deleteGiveaway(
+    const deletedGiveaway = await this.giveawayService.deleteGiveaway(
       interaction.guildId,
       giveawayId,
     );
 
-    if (!deleteResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to delete giveaway", deleteResult.val),
-      );
-      return;
-    }
-
-    if (!deleteResult.val) {
+    if (!deletedGiveaway) {
       await interaction.reply(
         getErrorMessage(
           "Giveaway not found",
@@ -407,22 +404,20 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    const deletedGiveaway = deleteResult.val;
-
-    // Delete the giveaway message
-    const channel = await this.getGiveawayChannel(
-      interaction,
-      deletedGiveaway.channelId,
-    );
-    if (channel) {
-      try {
+    // Best effort, the giveaway is already deleted
+    try {
+      const channel = await this.getGiveawayChannel(
+        interaction,
+        deletedGiveaway.channelId,
+      );
+      if (channel) {
         await channel.messages.delete(deletedGiveaway.id);
-      } catch (err) {
-        this.logger.warn(
-          { err, giveawayId: deletedGiveaway.id },
-          "Failed to delete giveaway message",
-        );
       }
+    } catch (err) {
+      this.logger.warn(
+        { err, giveawayId: deletedGiveaway.id },
+        "Failed to delete giveaway message",
+      );
     }
 
     await interaction.reply({
@@ -443,19 +438,12 @@ export class GiveawayCommand extends SlashCommandHandler {
       true,
     );
 
-    const giveawayResult = await this.giveawayService.getGiveaway(
+    const giveaway = await this.giveawayService.getGiveaway(
       interaction.guildId,
       giveawayId,
     );
 
-    if (!giveawayResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to get giveaway", giveawayResult.val),
-      );
-      return;
-    }
-
-    if (!giveawayResult.val) {
+    if (!giveaway) {
       await interaction.reply(
         getErrorMessage(
           "Giveaway not found",
@@ -464,8 +452,6 @@ export class GiveawayCommand extends SlashCommandHandler {
       );
       return;
     }
-
-    const giveaway = giveawayResult.val;
 
     if (giveaway.isEnded) {
       await interaction.reply(
@@ -512,11 +498,6 @@ export class GiveawayCommand extends SlashCommandHandler {
             "Failed to end giveaway",
             "Please try again in a few seconds.",
           ),
-        );
-        return;
-      case "drawFailed":
-        await interaction.editReply(
-          getErrorMessageEdit("Failed to draw winners", endResult.error),
         );
         return;
       case "endedWithoutDraw":
@@ -570,19 +551,12 @@ export class GiveawayCommand extends SlashCommandHandler {
       GiveawayOption.AllowRepeatWinners,
     );
 
-    const giveawayResult = await this.giveawayService.getGiveaway(
+    const giveaway = await this.giveawayService.getGiveaway(
       interaction.guildId,
       giveawayId,
     );
 
-    if (!giveawayResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to get giveaway", giveawayResult.val),
-      );
-      return;
-    }
-
-    if (!giveawayResult.val) {
+    if (!giveaway) {
       await interaction.reply(
         getErrorMessage(
           "Giveaway not found",
@@ -591,8 +565,6 @@ export class GiveawayCommand extends SlashCommandHandler {
       );
       return;
     }
-
-    const giveaway = giveawayResult.val;
 
     if (!giveaway.isEnded) {
       await interaction.reply(
@@ -618,27 +590,28 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    const drawResult = await this.giveawayDrawService.drawWinners(
-      giveaway,
-      allowRepeatWinners || false,
-      winnerCount || 1,
-    );
-
-    if (!drawResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to draw winners", drawResult.val),
-      );
-      return;
-    }
-
-    const { winnerIds, hasInsufficientWinners, reason } = drawResult.val;
-
-    if (winnerIds.length > 0) {
-      await this.giveawayDrawService.sendWinnersMessage(
-        channel,
+    const { winnerIds, hasInsufficientWinners, reason } =
+      await this.giveawayDrawService.drawWinners(
         giveaway,
-        winnerIds,
+        allowRepeatWinners || false,
+        winnerCount || 1,
       );
+
+    // Winners are already saved, so an announcement failure doesn't fail the
+    // reroll
+    if (winnerIds.length > 0) {
+      try {
+        await this.giveawayDrawService.sendWinnersMessage(
+          channel,
+          giveaway,
+          winnerIds,
+        );
+      } catch (err) {
+        this.logger.warn(
+          { err, giveawayId: giveaway.id },
+          "Failed to announce rerolled giveaway winners",
+        );
+      }
     }
 
     if (hasInsufficientWinners && reason) {
@@ -672,14 +645,24 @@ export class GiveawayCommand extends SlashCommandHandler {
       return interaction.channel;
     }
 
+    let channel;
     try {
-      const channel = await interaction.guild.channels.fetch(channelId);
-      if (!channel?.isTextBased()) {
+      channel = await interaction.guild.channels.fetch(channelId);
+    } catch (err) {
+      if (
+        err instanceof DiscordAPIError &&
+        MISSING_CHANNEL_ERROR_CODES.has(err.code)
+      ) {
         return null;
       }
-      return channel;
-    } catch {
+
+      throw err;
+    }
+
+    if (!channel?.isTextBased()) {
       return null;
     }
+
+    return channel;
   }
 }

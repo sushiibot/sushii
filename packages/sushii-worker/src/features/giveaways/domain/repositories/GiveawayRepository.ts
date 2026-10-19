@@ -1,5 +1,4 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Result } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -12,7 +11,7 @@ export interface GiveawayRepository {
   create(
     giveaway: Giveaway,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway, string>>;
+  ): Promise<Giveaway>;
 
   /**
    * Find a giveaway by guild and ID
@@ -21,7 +20,7 @@ export interface GiveawayRepository {
     guildId: string,
     giveawayId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway | null, string>>;
+  ): Promise<Giveaway | null>;
 
   /**
    * Find all active giveaways for a guild
@@ -30,7 +29,7 @@ export interface GiveawayRepository {
     guildId: string,
     limit?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway[], string>>;
+  ): Promise<Giveaway[]>;
 
   /**
    * Find all completed giveaways for a guild
@@ -39,21 +38,17 @@ export interface GiveawayRepository {
     guildId: string,
     limit?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway[], string>>;
+  ): Promise<Giveaway[]>;
 
   /**
    * Count all active giveaways across all guilds
    */
-  countActiveGiveaways(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<number, string>>;
+  countActiveGiveaways(tx?: NodePgDatabase<typeof schema>): Promise<number>;
 
   /**
    * Find all expired giveaways that have not been ended yet
    */
-  findExpired(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway[], string>>;
+  findExpired(tx?: NodePgDatabase<typeof schema>): Promise<Giveaway[]>;
 
   /**
    * Atomically mark a giveaway as ended if it isn't already. Returns the
@@ -63,7 +58,7 @@ export interface GiveawayRepository {
   claimForEnding(
     giveawayId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway | null, string>>;
+  ): Promise<Giveaway | null>;
 
   /**
    * Undo claimForEnding so the giveaway is retried
@@ -71,30 +66,30 @@ export interface GiveawayRepository {
   releaseEndingClaim(
     giveawayId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<void>;
 
   /**
-   * Update a giveaway
+   * Update a giveaway. Returns null if it doesn't exist.
    */
   update(
     giveaway: Giveaway,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway, string>>;
+  ): Promise<Giveaway | null>;
 
   /**
-   * Mark a giveaway as ended
+   * Mark a giveaway as ended. Returns null if it doesn't exist.
    */
   markAsEnded(
     giveawayId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway | null, string>>;
+  ): Promise<Giveaway | null>;
 
   /**
-   * Delete a giveaway
+   * Delete a giveaway. Returns null if it doesn't exist.
    */
   delete(
     guildId: string,
     giveawayId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<Giveaway | null, string>>;
+  ): Promise<Giveaway | null>;
 }

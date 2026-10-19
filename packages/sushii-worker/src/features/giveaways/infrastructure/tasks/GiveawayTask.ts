@@ -38,18 +38,9 @@ export class GiveawayTask extends AbstractBackgroundTask {
   }
 
   protected async execute(): Promise<void> {
-    const expiredGiveawaysResult =
-      await this.giveawayService.getExpiredGiveaways();
+    const expiredGiveaways = await this.giveawayService.getExpiredGiveaways();
 
-    if (!expiredGiveawaysResult.ok) {
-      this.logger.error(
-        { err: expiredGiveawaysResult.val },
-        "Failed to get expired giveaways",
-      );
-      return;
-    }
-
-    const ownedGiveaways = expiredGiveawaysResult.val.filter((giveaway) =>
+    const ownedGiveaways = expiredGiveaways.filter((giveaway) =>
       this.isGuildOnThisCluster(giveaway.guildId),
     );
 
@@ -85,11 +76,8 @@ export class GiveawayTask extends AbstractBackgroundTask {
 
     // Active count is global, record it from one cluster only
     if (this.client.cluster.shardList.includes(0)) {
-      const totalActiveResult =
-        await this.giveawayService.countActiveGiveaways();
-      if (totalActiveResult.ok) {
-        this.giveawayMetrics.activeGiveawaysGauge.record(totalActiveResult.val);
-      }
+      const totalActive = await this.giveawayService.countActiveGiveaways();
+      this.giveawayMetrics.activeGiveawaysGauge.record(totalActive);
     }
   }
 

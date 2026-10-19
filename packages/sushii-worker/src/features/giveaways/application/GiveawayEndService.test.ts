@@ -2,8 +2,6 @@ import { describe, expect, mock, test } from "bun:test";
 import type { Client } from "discord.js";
 import { ChannelType, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import pino from "pino";
-import { Err, Ok } from "ts-results";
-import type { Result } from "ts-results";
 
 import { Giveaway } from "../domain/entities/Giveaway";
 import type { DrawResult, GiveawayDrawService } from "./GiveawayDrawService";
@@ -55,8 +53,9 @@ interface SetupOptions {
   channel?: unknown;
   fetchChannel?: (id: string) => Promise<unknown>;
   guilds?: [string, { available: boolean }][];
-  claim?: (id: string) => Promise<Result<Giveaway | null, string>>;
-  drawWinners?: () => Promise<Result<DrawResult, string>>;
+  claim?: (id: string) => Promise<Giveaway | null>;
+  release?: (id: string) => Promise<void>;
+  drawWinners?: () => Promise<DrawResult>;
   hasUnflushedEntries?: (id: string) => boolean;
 }
 
@@ -83,15 +82,18 @@ function setup(options: SetupOptions = {}) {
     options.claim ??
       (async (id: string) => {
         calls.push(`claim:${id}`);
-        return Ok(
-          Giveaway.fromData({ ...makeGiveaway(id).toData(), isEnded: true }),
-        );
+        return Giveaway.fromData({
+          ...makeGiveaway(id).toData(),
+          isEnded: true,
+        });
       }),
   );
-  const releaseGiveawayEndingClaim = mock(async (id: string) => {
-    calls.push(`release:${id}`);
-    return Ok(undefined);
-  });
+  const releaseGiveawayEndingClaim = mock(
+    options.release ??
+      (async (id: string) => {
+        calls.push(`release:${id}`);
+      }),
+  );
   const giveawayService = {
     claimGiveawayForEnding,
     releaseGiveawayEndingClaim,
@@ -101,12 +103,11 @@ function setup(options: SetupOptions = {}) {
     options.drawWinners ??
       (async () => {
         calls.push("draw");
-        return Ok({ winnerIds: ["u1", "u2"], hasInsufficientWinners: false });
+        return { winnerIds: ["u1", "u2"], hasInsufficientWinners: false };
       }),
   );
   const sendWinnersMessage = mock(async (_channel: unknown) => {
     calls.push("sendWinners");
-    return Ok(undefined);
   });
   const drawService = {
     drawWinners,
@@ -114,7 +115,7 @@ function setup(options: SetupOptions = {}) {
   } as unknown as GiveawayDrawService;
 
   const entryService = {
-    getEntryCount: mock(async () => Ok(5)),
+    getEntryCount: mock(async () => 5),
   } as unknown as GiveawayEntryService;
 
   const flush = mock(async () => {
@@ -232,7 +233,7 @@ describe("GiveawayEndService", () => {
 
   test("does not draw when the giveaway was already ended elsewhere", async () => {
     const { service, drawWinners, updateEndedMessage } = setup({
-      claim: async () => Ok(null),
+      claim: async () => null,
     });
 
     const result = await service.endGiveaway(
@@ -247,12 +248,14 @@ describe("GiveawayEndService", () => {
 
   test("throws when claiming fails", async () => {
     const { service, drawWinners } = setup({
-      claim: async () => Err("Database error"),
+      claim: async () => {
+        throw new Error("connection lost");
+      },
     });
 
     await expect(
       service.endGiveaway(makeGiveaway(), END_IF_UNAVAILABLE),
-    ).rejects.toThrow("Failed to claim giveaway for ending");
+    ).rejects.toThrow("connection lost");
     expect(drawWinners).not.toHaveBeenCalled();
   });
 
@@ -338,9 +341,42 @@ describe("GiveawayEndService", () => {
     expect(claimGiveawayForEnding).not.toHaveBeenCalled();
   });
 
-  test("releases the claim when drawing fails so it can be retried", async () => {
+  test("releases the claim and rethrows when drawing fails so it can be retried", async () => {
     const { service, calls, sendWinnersMessage, updateEndedMessage } = setup({
-      drawWinners: async () => Err("Database error"),
+      drawWinners: async () => {
+        throw new Error("connection lost");
+      },
+    });
+
+    await expect(
+      service.endGiveaway(makeGiveaway(), END_IF_UNAVAILABLE),
+    ).rejects.toThrow("connection lost");
+
+    expect(calls).toContain("release:1");
+    expect(sendWinnersMessage).not.toHaveBeenCalled();
+    expect(updateEndedMessage).not.toHaveBeenCalled();
+  });
+
+  test("rethrows the draw error when releasing the claim also fails", async () => {
+    const { service, releaseGiveawayEndingClaim } = setup({
+      drawWinners: async () => {
+        throw new Error("draw failed");
+      },
+      release: async () => {
+        throw new Error("release failed");
+      },
+    });
+
+    await expect(
+      service.endGiveaway(makeGiveaway(), END_IF_UNAVAILABLE),
+    ).rejects.toThrow("draw failed");
+    expect(releaseGiveawayEndingClaim).toHaveBeenCalledTimes(1);
+  });
+
+  test("still ends and updates the message when announcing winners fails", async () => {
+    const { service, sendWinnersMessage, updateEndedMessage } = setup();
+    sendWinnersMessage.mockImplementation(async () => {
+      throw new Error("Missing Permissions");
     });
 
     const result = await service.endGiveaway(
@@ -348,20 +384,17 @@ describe("GiveawayEndService", () => {
       END_IF_UNAVAILABLE,
     );
 
-    expect(result).toEqual({ status: "drawFailed", error: "Database error" });
-    expect(calls).toContain("release:1");
-    expect(sendWinnersMessage).not.toHaveBeenCalled();
-    expect(updateEndedMessage).not.toHaveBeenCalled();
+    expect(result.status).toBe("ended");
+    expect(updateEndedMessage).toHaveBeenCalledTimes(1);
   });
 
   test("still updates the message when there are no entries", async () => {
     const { service, sendWinnersMessage, updateEndedMessage } = setup({
-      drawWinners: async () =>
-        Ok({
-          winnerIds: [],
-          hasInsufficientWinners: true,
-          reason: "No eligible entries found",
-        }),
+      drawWinners: async () => ({
+        winnerIds: [],
+        hasInsufficientWinners: true,
+        reason: "No eligible entries found",
+      }),
     });
 
     const result = await service.endGiveaway(

@@ -4,7 +4,6 @@ import type {
   AutocompleteInteraction,
 } from "discord.js";
 import { ApplicationCommandOptionType } from "discord.js";
-import type { Logger } from "pino";
 
 import dayjs from "@/shared/domain/dayjs";
 import { AutocompleteHandler } from "@/shared/presentation/handlers";
@@ -25,10 +24,7 @@ export class GiveawayAutocomplete extends AutocompleteHandler {
     `giveaway.${GiveawaySubcommand.Reroll}`,
   ];
 
-  constructor(
-    private readonly giveawayService: GiveawayService,
-    private readonly logger: Logger,
-  ) {
+  constructor(private readonly giveawayService: GiveawayService) {
     super();
   }
 
@@ -46,32 +42,11 @@ export class GiveawayAutocomplete extends AutocompleteHandler {
 
     const subcommand = interaction.options.getSubcommand();
 
-    let giveawaysResult;
-    let isCompleted = false;
-
-    if (subcommand === GiveawaySubcommand.Reroll) {
-      // Only show ENDED giveaways
-      giveawaysResult = await this.giveawayService.getCompletedGiveaways(
-        interaction.guildId,
-      );
-      isCompleted = true;
-    } else {
-      // Only show ACTIVE giveaways
-      giveawaysResult = await this.giveawayService.getActiveGiveaways(
-        interaction.guildId,
-      );
-    }
-
-    if (!giveawaysResult.ok) {
-      this.logger.error(
-        { err: giveawaysResult.val, guildId: interaction.guildId },
-        "Failed to get giveaways for autocomplete",
-      );
-      await interaction.respond([]);
-      return;
-    }
-
-    const giveaways = giveawaysResult.val;
+    // Reroll only shows ended giveaways, the rest only show active ones
+    const isCompleted = subcommand === GiveawaySubcommand.Reroll;
+    const giveaways = isCompleted
+      ? await this.giveawayService.getCompletedGiveaways(interaction.guildId)
+      : await this.giveawayService.getActiveGiveaways(interaction.guildId);
 
     const choices: APIApplicationCommandOptionChoice[] = giveaways
       .slice(0, 25)

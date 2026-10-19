@@ -181,41 +181,28 @@ export class GiveawayEntryCacheService {
         ),
     );
 
-    let inserted = false;
+    // Flushes also run from timers, so a failed insert is logged here and the
+    // entries stay queued for the next flush
     try {
-      const insertResult =
+      const insertedCount =
         await this.giveawayEntryRepository.createBatch(allEntries);
 
-      if (insertResult.ok) {
-        inserted = true;
-        this.logger.debug(
-          {
-            cacheSize: allEntries.length,
-            dbInsertedSize: insertResult.val,
-          },
-          "Flushed cached giveaway entries to database",
-        );
-      } else {
-        this.logger.error(
-          { err: insertResult.val, entryCount: allEntries.length },
-          "Failed to flush giveaway entries to database",
-        );
-      }
+      this.logger.debug(
+        {
+          cacheSize: allEntries.length,
+          dbInsertedSize: insertedCount,
+        },
+        "Flushed cached giveaway entries to database",
+      );
     } catch (err) {
       this.logger.error(
         { err, entryCount: allEntries.length },
         "Failed to flush giveaway entries to database",
       );
-    } finally {
-      if (!inserted) {
-        this.restoreEntries(snapshot);
-      }
-
-      this.inFlightEntries = new Map();
-    }
-
-    if (!inserted) {
+      this.restoreEntries(snapshot);
       return;
+    } finally {
+      this.inFlightEntries = new Map();
     }
 
     // One message edit per giveaway per flush
@@ -241,39 +228,23 @@ export class GiveawayEntryCacheService {
     giveawayId: string,
     giveawayMessage: Message<true>,
   ): Promise<void> {
+    // Best effort, the entries are already saved
     try {
-      const giveawayResult = await this.giveawayRepository.findByGuildAndId(
+      const giveaway = await this.giveawayRepository.findByGuildAndId(
         giveawayMessage.guildId,
         giveawayId,
       );
 
-      if (!giveawayResult.ok) {
-        this.logger.error(
-          { err: giveawayResult.val, giveawayId },
-          "Failed to get giveaway for entry count update",
-        );
-        return;
-      }
-
       // Ended/expired giveaways are updated by GiveawayTask; don't revert them
       // back to the active state
-      const giveaway = giveawayResult.val;
       if (!giveaway || giveaway.isEnded || giveaway.isExpired()) {
         return;
       }
 
-      const countResult =
+      const entryCount =
         await this.giveawayEntryRepository.countByGiveaway(giveawayId);
 
-      if (!countResult.ok) {
-        this.logger.error(
-          { err: countResult.val, giveawayId },
-          "Failed to get entry count for message update",
-        );
-        return;
-      }
-
-      await this.updateEntryCount(giveawayMessage, countResult.val);
+      await this.updateEntryCount(giveawayMessage, entryCount);
     } catch (err) {
       this.logger.error(
         { err, giveawayId },

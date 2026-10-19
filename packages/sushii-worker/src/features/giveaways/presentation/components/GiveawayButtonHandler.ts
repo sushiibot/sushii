@@ -1,5 +1,10 @@
 import type { ButtonInteraction, InteractionResponse } from "discord.js";
-import { EmbedBuilder, MessageFlags } from "discord.js";
+import {
+  DiscordjsError,
+  DiscordjsErrorCodes,
+  EmbedBuilder,
+  MessageFlags,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import customIds from "@/interactions/customIds";
@@ -37,28 +42,12 @@ export class GiveawayButtonHandler extends ButtonHandler {
       interaction.user.id,
     );
 
-    let alreadyEntered = alreadyInCache;
-    if (!alreadyInCache) {
-      const entryResult = await this.giveawayEntryService.hasUserEntered(
+    const alreadyEntered =
+      alreadyInCache ||
+      (await this.giveawayEntryService.hasUserEntered(
         interaction.message.id,
         interaction.user.id,
-      );
-
-      if (!entryResult.ok) {
-        await interaction.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("Error checking entry status")
-              .setDescription("Please try again later.")
-              .setColor(Color.Error),
-          ],
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      alreadyEntered = entryResult.val;
-    }
+      ));
 
     if (alreadyEntered) {
       const embed = new EmbedBuilder()
@@ -84,25 +73,12 @@ export class GiveawayButtonHandler extends ButtonHandler {
     }
 
     // Get giveaway and check eligibility
-    const giveawayResult = await this.giveawayService.getGiveaway(
+    const giveaway = await this.giveawayService.getGiveaway(
       interaction.guildId,
       interaction.message.id,
     );
 
-    if (!giveawayResult.ok) {
-      await interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Error getting giveaway")
-            .setDescription("Please try again later.")
-            .setColor(Color.Error),
-        ],
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    if (!giveawayResult.val) {
+    if (!giveaway) {
       const embed = new EmbedBuilder()
         .setTitle("Giveaway not found")
         .setDescription(
@@ -118,8 +94,6 @@ export class GiveawayButtonHandler extends ButtonHandler {
       return;
     }
 
-    const giveaway = giveawayResult.val;
-
     // Winners may already be drawn, so a new entry could never win
     if (giveaway.isEnded || giveaway.isExpired()) {
       await interaction.reply(
@@ -133,26 +107,10 @@ export class GiveawayButtonHandler extends ButtonHandler {
     }
 
     // Check eligibility
-    const eligibilityResult =
-      await this.giveawayEligibilityService.checkEligibility(
-        giveaway,
-        interaction.member,
-      );
-
-    if (!eligibilityResult.ok) {
-      await interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Error checking eligibility")
-            .setDescription("Please try again later.")
-            .setColor(Color.Error),
-        ],
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const eligibility = eligibilityResult.val;
+    const eligibility = await this.giveawayEligibilityService.checkEligibility(
+      giveaway,
+      interaction.member,
+    );
 
     if (!eligibility.eligible) {
       const embed = new EmbedBuilder()
@@ -198,14 +156,22 @@ export class GiveawayButtonHandler extends ButtonHandler {
       "Awaiting remove entry button",
     );
 
+    // Call awaitMessageComponent on the message instead of interactionResponse
+    const msg = await interactionResp.fetch();
+
     try {
-      // Call awaitMessageComponent on the message instead of interactionResponse
-      const msg = await interactionResp.fetch();
       await msg.awaitMessageComponent({
         // 2 Minutes
         time: 1000 * 60 * 2,
       });
-    } catch (_err) {
+    } catch (err) {
+      const timedOut =
+        err instanceof DiscordjsError &&
+        err.code === DiscordjsErrorCodes.InteractionCollectorError;
+      if (!timedOut) {
+        throw err;
+      }
+
       this.logger.debug(
         {
           giveawayId,
@@ -227,17 +193,14 @@ export class GiveawayButtonHandler extends ButtonHandler {
       "Remove entry button clicked, deleting giveaway entry",
     );
 
-    const removeResult = await this.giveawayEntryService.removeEntry(
-      giveawayId,
-      userId,
-    );
+    await this.giveawayEntryService.removeEntry(giveawayId, userId);
 
     const embed = new EmbedBuilder()
       .setTitle("Entry deleted")
       .setDescription(
         "You've deleted your giveaway entry. You can enter again by clicking the original giveaway button.",
       )
-      .setColor(removeResult.ok ? Color.Success : Color.Error);
+      .setColor(Color.Success);
 
     await interactionResp.edit({
       embeds: [embed],

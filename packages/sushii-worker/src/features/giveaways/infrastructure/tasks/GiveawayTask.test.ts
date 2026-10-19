@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { Client } from "discord.js";
-import { Ok } from "ts-results";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type {
@@ -52,8 +51,8 @@ function setup(
   } as unknown as DeploymentService;
 
   const giveawayService = {
-    getExpiredGiveaways: mock(async () => Ok(giveaways)),
-    countActiveGiveaways: mock(async () => Ok(0)),
+    getExpiredGiveaways: mock(async () => giveaways),
+    countActiveGiveaways: mock(async () => 0),
   } as unknown as GiveawayService;
 
   const endGiveaway = mock(endGiveawayImpl);
@@ -105,15 +104,9 @@ describe("GiveawayTask", () => {
       { status: "alreadyEnded" },
       { status: "endedWithoutDraw", reason: "channel not found" },
       { status: "retry", reason: "guild unavailable" },
-      { status: "drawFailed", error: "Database error" },
     ];
     const { task, endedCounterAdd } = setup(
-      [
-        makeGiveaway("1"),
-        makeGiveaway("2"),
-        makeGiveaway("3"),
-        makeGiveaway("4"),
-      ],
+      [makeGiveaway("1"), makeGiveaway("2"), makeGiveaway("3")],
       async () => results.shift() as EndGiveawayResult,
     );
 

@@ -2,8 +2,6 @@ import { sleep } from "bun";
 import { describe, expect, mock, test } from "bun:test";
 import type { Message } from "discord.js";
 import pino from "pino";
-import { Err, Ok } from "ts-results";
-import type { Result } from "ts-results";
 
 import { Giveaway } from "../domain/entities/Giveaway";
 import type { GiveawayEntry } from "../domain/entities/GiveawayEntry";
@@ -35,7 +33,7 @@ function makeGiveaway(overrides: { isEnded?: boolean; endAt?: Date } = {}) {
 
 function setup(
   options: {
-    createBatch?: (entries: GiveawayEntry[]) => Promise<Result<number, string>>;
+    createBatch?: (entries: GiveawayEntry[]) => Promise<number>;
     giveaway?: Giveaway | null;
     cacheOptions?: Partial<GiveawayEntryCacheOptions>;
   } = {},
@@ -46,11 +44,12 @@ function setup(
     options.createBatch ??
       (async (entries: GiveawayEntry[]) => {
         stored.push(...entries);
-        return Ok(entries.length);
+        return entries.length;
       }),
   );
-  const countByGiveaway = mock(async (giveawayId: string) =>
-    Ok(stored.filter((e) => e.giveawayId === giveawayId).length),
+  const countByGiveaway = mock(
+    async (giveawayId: string) =>
+      stored.filter((e) => e.giveawayId === giveawayId).length,
   );
   const entryRepo = {
     createBatch,
@@ -59,8 +58,9 @@ function setup(
 
   const giveaway =
     options.giveaway === undefined ? makeGiveaway() : options.giveaway;
+  const findByGuildAndId = mock(async () => giveaway);
   const giveawayRepo = {
-    findByGuildAndId: mock(async () => Ok(giveaway)),
+    findByGuildAndId,
   } as unknown as GiveawayRepository;
 
   const updateEntryCount = mock(
@@ -77,7 +77,7 @@ function setup(
     { debounceMs: 30, maxWaitMs: 80, ...options.cacheOptions },
   );
 
-  return { service, stored, createBatch, updateEntryCount };
+  return { service, stored, createBatch, findByGuildAndId, updateEntryCount };
 }
 
 describe("GiveawayEntryCacheService", () => {
@@ -97,9 +97,11 @@ describe("GiveawayEntryCacheService", () => {
     expect(service.isInCache(GIVEAWAY_ID, "u2")).toBe(false);
   });
 
-  test("failed insert (Err) retains entries for retry", async () => {
+  test("failed insert retains entries for retry", async () => {
     const { service, createBatch, updateEntryCount } = setup({
-      createBatch: async () => Err("db down"),
+      createBatch: async () => {
+        throw new Error("connection lost");
+      },
     });
 
     await service.addEntryToCache(GIVEAWAY_ID, "u1", makeMessage());
@@ -115,17 +117,27 @@ describe("GiveawayEntryCacheService", () => {
     expect(createBatch.mock.calls[1][0].map((e) => e.userId)).toEqual(["u1"]);
   });
 
-  test("failed insert (throw) retains entries", async () => {
-    const { service } = setup({
-      createBatch: async () => {
-        throw new Error("connection lost");
+  test("failed insert schedules a retry flush", async () => {
+    let callCount = 0;
+    const { service, createBatch } = setup({
+      createBatch: async (entries) => {
+        callCount += 1;
+        if (callCount === 1) {
+          throw new Error("connection lost");
+        }
+        return entries.length;
       },
+      cacheOptions: { debounceMs: 20, maxWaitMs: 1000 },
     });
 
     await service.addEntryToCache(GIVEAWAY_ID, "u1", makeMessage());
     await service.flush();
+    expect(service.hasUnflushedEntries(GIVEAWAY_ID)).toBe(true);
 
-    expect(service.isInCache(GIVEAWAY_ID, "u1")).toBe(true);
+    await sleep(60);
+
+    expect(createBatch).toHaveBeenCalledTimes(2);
+    expect(service.hasUnflushedEntries(GIVEAWAY_ID)).toBe(false);
   });
 
   test("entries added during an in-progress flush survive", async () => {
@@ -141,7 +153,7 @@ describe("GiveawayEntryCacheService", () => {
           });
         }
         stored.push(...entries);
-        return Ok(entries.length);
+        return entries.length;
       },
     });
     const msg = makeMessage();
@@ -175,9 +187,9 @@ describe("GiveawayEntryCacheService", () => {
           await new Promise<void>((resolve) => {
             rejectInsert = resolve;
           });
-          return Err("db down");
+          throw new Error("connection lost");
         }
-        return Ok(entries.length);
+        return entries.length;
       },
     });
     const msg = makeMessage();
@@ -234,7 +246,7 @@ describe("GiveawayEntryCacheService", () => {
         maxActive = Math.max(maxActive, active);
         await sleep(20);
         active -= 1;
-        return Ok(entries.length);
+        return entries.length;
       },
     });
     const msg = makeMessage();
@@ -284,6 +296,19 @@ describe("GiveawayEntryCacheService", () => {
     await service.flush();
 
     expect(updateEntryCount).not.toHaveBeenCalled();
+  });
+
+  test("giveaway lookup failure for the message update does not throw or requeue entries", async () => {
+    const { service, findByGuildAndId, updateEntryCount } = setup();
+    findByGuildAndId.mockImplementation(async () => {
+      throw new Error("connection lost");
+    });
+
+    await service.addEntryToCache(GIVEAWAY_ID, "u1", makeMessage());
+    await service.flush();
+
+    expect(updateEntryCount).not.toHaveBeenCalled();
+    expect(service.hasUnflushedEntries(GIVEAWAY_ID)).toBe(false);
   });
 
   test("message update failure does not throw", async () => {

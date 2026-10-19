@@ -87,10 +87,7 @@ describe("Giveaway Workflow Integration", () => {
     // ==========================================
 
     // Step 1: Create giveaway via service (simulating successful command)
-    const createResult =
-      await giveawayFeature.services.giveawayService.createGiveaway(
-        giveawayData,
-      );
+    await giveawayFeature.services.giveawayService.createGiveaway(giveawayData);
 
     // Step 2: User enters giveaway
     const guild = mockDiscord.client.guilds.cache.get(guildId);
@@ -99,7 +96,7 @@ describe("Giveaway Workflow Integration", () => {
     }
 
     const member = await guild.members.fetch(participantUser.id);
-    const entryResult =
+    const entered =
       await giveawayFeature.services.giveawayEntryService.addEntry(
         giveawayData.id,
         member.id,
@@ -110,13 +107,13 @@ describe("Giveaway Workflow Integration", () => {
       guildId,
       giveawayData.id,
     );
-    if (!giveaway.ok || !giveaway.val) {
+    if (!giveaway) {
       throw new Error("Failed to get giveaway");
     }
 
     const drawResult =
       await giveawayFeature.services.giveawayDrawService.drawWinners(
-        giveaway.val,
+        giveaway,
         false,
         1,
       );
@@ -126,7 +123,6 @@ describe("Giveaway Workflow Integration", () => {
     // ==========================================
 
     // Verify giveaway creation
-    expect(createResult.ok).toBe(true);
     const giveaways = await db.select().from(giveawaysInAppPublic).execute();
     expect(giveaways).toHaveLength(1);
     expect(giveaways[0].prize).toBe("Test Prize");
@@ -134,7 +130,7 @@ describe("Giveaway Workflow Integration", () => {
     // Verify user entry
     expect(guild).toBeDefined();
     expect(member).toBeDefined();
-    expect(entryResult.ok).toBe(true);
+    expect(entered).toBe(true);
     const entries = await db
       .select()
       .from(giveawayEntriesInAppPublic)
@@ -143,13 +139,8 @@ describe("Giveaway Workflow Integration", () => {
     expect(entries[0].userId).toBe(BigInt(participantUser.id));
 
     // Verify winner drawing
-    expect(giveaway.ok).toBe(true);
-    expect(giveaway.val).toBeDefined();
-    expect(drawResult.ok).toBe(true);
-    if (drawResult.ok) {
-      expect(drawResult.val.winnerIds).toHaveLength(1);
-      expect(drawResult.val.winnerIds[0]).toBe(participantUser.id);
-    }
+    expect(drawResult.winnerIds).toHaveLength(1);
+    expect(drawResult.winnerIds[0]).toBe(participantUser.id);
   });
 
   test("entry validation: level requirement blocks ineligible user", async () => {
@@ -188,10 +179,7 @@ describe("Giveaway Workflow Integration", () => {
     // ==========================================
     // ACT: Create giveaway and check eligibility
     // ==========================================
-    const createResult =
-      await giveawayFeature.services.giveawayService.createGiveaway(
-        giveawayData,
-      );
+    await giveawayFeature.services.giveawayService.createGiveaway(giveawayData);
 
     const guild = mockDiscord.client.guilds.cache.get(guildId);
     if (!guild) {
@@ -204,30 +192,24 @@ describe("Giveaway Workflow Integration", () => {
       giveawayData.id,
     );
 
-    if (!giveaway.ok || !giveaway.val) {
+    if (!giveaway) {
       throw new Error("Failed to get giveaway");
     }
 
-    const eligibilityResult =
+    const eligibility =
       await giveawayFeature.services.giveawayEligibilityService.checkEligibility(
-        giveaway.val,
+        giveaway,
         member,
       );
 
     // ==========================================
     // ASSERT: Verify user is blocked by level requirement
     // ==========================================
-    expect(createResult.ok).toBe(true);
     expect(guild).toBeDefined();
     expect(member).toBeDefined();
-    expect(giveaway.ok).toBe(true);
-    expect(eligibilityResult.ok).toBe(true);
-
-    if (eligibilityResult.ok) {
-      expect(eligibilityResult.val.eligible).toBe(false);
-      if (!eligibilityResult.val.eligible) {
-        expect(eligibilityResult.val.reason).toContain("level");
-      }
+    expect(eligibility.eligible).toBe(false);
+    if (!eligibility.eligible) {
+      expect(eligibility.reason).toContain("level");
     }
   });
 
@@ -301,14 +283,14 @@ describe("Giveaway Workflow Integration", () => {
       guildId,
       giveawayData.id,
     );
-    if (!giveaway.ok || !giveaway.val) {
+    if (!giveaway) {
       throw new Error("Failed to get giveaway");
     }
 
     // Should use giveaway.numWinners automatically (no winner count parameter needed)
     const drawResult =
       await giveawayFeature.services.giveawayDrawService.drawWinners(
-        giveaway.val,
+        giveaway,
         false, // allowRepeatWinners
         // Winner count parameter omitted - should use giveaway.numWinners
       );
@@ -325,25 +307,19 @@ describe("Giveaway Workflow Integration", () => {
       .execute();
     expect(entries).toHaveLength(3);
 
-    // Verify giveaway and drawing process
-    expect(giveaway.ok).toBe(true);
-    expect(drawResult.ok).toBe(true);
+    // Should automatically use giveaway's configured numWinners (2)
+    expect(drawResult.winnerIds).toHaveLength(giveaway.numWinners);
+    expect(drawResult.winnerIds).toHaveLength(2);
 
-    if (drawResult.ok) {
-      // Should automatically use giveaway's configured numWinners (2)
-      expect(drawResult.val.winnerIds).toHaveLength(giveaway.val.numWinners);
-      expect(drawResult.val.winnerIds).toHaveLength(2);
+    // Verify winners are unique (no duplicates)
+    const uniqueWinners = new Set(drawResult.winnerIds);
+    expect(uniqueWinners.size).toBe(2);
 
-      // Verify winners are unique (no duplicates)
-      const uniqueWinners = new Set(drawResult.val.winnerIds);
-      expect(uniqueWinners.size).toBe(2);
-
-      // Verify winners are from participant pool (not random IDs)
-      const participantIds = [user1.id, user2.id, user3.id];
-      drawResult.val.winnerIds.forEach((winnerId: string) => {
-        expect(participantIds).toContain(winnerId);
-      });
-    }
+    // Verify winners are from participant pool (not random IDs)
+    const participantIds = [user1.id, user2.id, user3.id];
+    drawResult.winnerIds.forEach((winnerId: string) => {
+      expect(participantIds).toContain(winnerId);
+    });
   });
 
   test("giveaway end state: should mark giveaway as ended after drawing winners", async () => {
@@ -397,24 +373,24 @@ describe("Giveaway Workflow Integration", () => {
       guildId,
       giveawayData.id,
     );
-    if (!giveaway.ok || !giveaway.val) {
+    if (!giveaway) {
       throw new Error("Failed to get giveaway");
     }
 
     // Verify giveaway is not ended initially
-    expect(giveaway.val.isEnded).toBe(false);
+    expect(giveaway.isEnded).toBe(false);
 
     // Draw winners - this should automatically mark the giveaway as ended
     const drawResult =
       await giveawayFeature.services.giveawayDrawService.drawWinners(
-        giveaway.val,
+        giveaway,
         false,
       );
 
     // ==========================================
     // ASSERT: Verify giveaway is marked as ended
     // ==========================================
-    expect(drawResult.ok).toBe(true);
+    expect(drawResult.winnerIds).toHaveLength(1);
 
     // BUG: Drawing winners should automatically mark giveaway as ended
     // Check the database directly
@@ -431,9 +407,7 @@ describe("Giveaway Workflow Integration", () => {
         guildId,
         giveawayData.id,
       );
-    if (updatedGiveaway.ok && updatedGiveaway.val) {
-      expect(updatedGiveaway.val.isEnded).toBe(true);
-    }
+    expect(updatedGiveaway?.isEnded).toBe(true);
   });
 
   test("cache integration: button handler should sync with database entries", async () => {
@@ -521,7 +495,6 @@ describe("Giveaway Workflow Integration", () => {
         giveawayData.id,
         participantUser.id,
       );
-    expect(hasEntry.ok).toBe(true);
-    expect(hasEntry.val).toBe(true);
+    expect(hasEntry).toBe(true);
   });
 });

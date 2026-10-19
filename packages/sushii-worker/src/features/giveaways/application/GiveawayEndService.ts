@@ -3,7 +3,7 @@ import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import type { Giveaway } from "../domain/entities/Giveaway";
-import type { GiveawayDrawService } from "./GiveawayDrawService";
+import type { DrawResult, GiveawayDrawService } from "./GiveawayDrawService";
 import type { GiveawayEntryCacheService } from "./GiveawayEntryCacheService";
 import type { GiveawayEntryService } from "./GiveawayEntryService";
 import type { GiveawayService } from "./GiveawayService";
@@ -57,9 +57,7 @@ export type EndGiveawayResult =
   /** Someone else already ended it */
   | { status: "alreadyEnded" }
   /** Left active, safe to retry later */
-  | { status: "retry"; reason: string }
-  /** Left active after drawing failed */
-  | { status: "drawFailed"; error: string };
+  | { status: "retry"; reason: string };
 
 /**
  * Ends a giveaway: flushes buffered entries, atomically claims the giveaway,
@@ -67,6 +65,9 @@ export type EndGiveawayResult =
  *
  * Shared by GiveawayTask and `/giveaway end`. Entries are buffered per cluster,
  * so this must run on the cluster that owns the giveaway's guild.
+ *
+ * Unexpected failures (database, Discord API) are thrown. If drawing fails the
+ * claim is released first, so the giveaway stays active and is retried.
  */
 export class GiveawayEndService {
   constructor(
@@ -112,16 +113,9 @@ export class GiveawayEndService {
       return { status: "channelUnavailable", reason: lookup.reason };
     }
 
-    const claimResult = await this.giveawayService.claimGiveawayForEnding(
+    const giveaway = await this.giveawayService.claimGiveawayForEnding(
       activeGiveaway.id,
     );
-    if (!claimResult.ok) {
-      throw new Error("Failed to claim giveaway for ending", {
-        cause: claimResult.val,
-      });
-    }
-
-    const giveaway = claimResult.val;
     if (!giveaway) {
       this.logger.debug(logContext, "Giveaway already ended elsewhere");
       return { status: "alreadyEnded" };
@@ -135,44 +129,33 @@ export class GiveawayEndService {
       return { status: "endedWithoutDraw", reason: lookup.reason };
     }
 
-    const drawResult = await this.giveawayDrawService.drawWinners(
-      giveaway,
-      false, // Ending ignores allow_repeat_winners
-      giveaway.numWinners,
-    );
-
-    if (!drawResult.ok) {
-      this.logger.error(
-        { ...logContext, err: drawResult.val },
-        "Failed to draw giveaway winners, releasing claim",
+    let drawResult: DrawResult;
+    try {
+      drawResult = await this.giveawayDrawService.drawWinners(
+        giveaway,
+        false, // Ending ignores allow_repeat_winners
+        giveaway.numWinners,
       );
-
-      const releaseResult =
-        await this.giveawayService.releaseGiveawayEndingClaim(giveaway.id);
-      if (!releaseResult.ok) {
-        this.logger.error(
-          { ...logContext, err: releaseResult.val },
-          "Failed to release giveaway claim, giveaway ended without winners",
-        );
-      }
-
-      return { status: "drawFailed", error: drawResult.val };
+    } catch (err) {
+      await this.releaseClaim(giveaway, logContext);
+      throw err;
     }
 
-    const { winnerIds, hasInsufficientWinners, reason } = drawResult.val;
+    const { winnerIds, hasInsufficientWinners, reason } = drawResult;
     const channel = lookup.channel;
 
     // Winners are drawn and saved at this point, so announcement failures are
     // logged but don't undo ending the giveaway
     if (winnerIds.length > 0) {
-      const sendResult = await this.giveawayDrawService.sendWinnersMessage(
-        channel,
-        giveaway,
-        winnerIds,
-      );
-      if (!sendResult.ok) {
+      try {
+        await this.giveawayDrawService.sendWinnersMessage(
+          channel,
+          giveaway,
+          winnerIds,
+        );
+      } catch (err) {
         this.logger.warn(
-          { ...logContext, err: sendResult.val },
+          { ...logContext, err },
           "Failed to announce giveaway winners",
         );
       }
@@ -192,6 +175,24 @@ export class GiveawayEndService {
       hasInsufficientWinners,
       reason,
     };
+  }
+
+  /**
+   * Undo the claim after drawing failed so the giveaway is retried. The draw
+   * error is rethrown by the caller, so a release failure is only logged.
+   */
+  private async releaseClaim(
+    giveaway: Giveaway,
+    logContext: Record<string, string>,
+  ): Promise<void> {
+    try {
+      await this.giveawayService.releaseGiveawayEndingClaim(giveaway.id);
+    } catch (err) {
+      this.logger.error(
+        { ...logContext, err },
+        "Failed to release giveaway claim, giveaway ended without winners",
+      );
+    }
   }
 
   private async getGiveawayChannel(giveaway: Giveaway): Promise<ChannelLookup> {
@@ -238,24 +239,11 @@ export class GiveawayEndService {
     winnerIds: string[],
   ): Promise<void> {
     try {
-      const totalEntriesResult = await this.giveawayEntryService.getEntryCount(
+      const entryCount = await this.giveawayEntryService.getEntryCount(
         giveaway.id,
       );
 
-      if (!totalEntriesResult.ok) {
-        this.logger.error(
-          { err: totalEntriesResult.val, giveawayId: giveaway.id },
-          "Failed to get entry count for message update",
-        );
-        return;
-      }
-
-      await this.updateEndedMessage(
-        channel,
-        giveaway,
-        winnerIds,
-        totalEntriesResult.val,
-      );
+      await this.updateEndedMessage(channel, giveaway, winnerIds, entryCount);
     } catch (err) {
       this.logger.warn(
         { err, giveawayId: giveaway.id },
