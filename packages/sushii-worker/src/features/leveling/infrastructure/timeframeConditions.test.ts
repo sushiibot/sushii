@@ -8,12 +8,12 @@ import { getTimeframeConditions } from "./timeframeConditions";
 const dialect = new PgDialect();
 
 function render(timeframe: TimeFrame): string {
-  const conditions = getTimeframeConditions(timeframe);
-  if (conditions.length === 0) {
+  const condition = and(...getTimeframeConditions(timeframe));
+  if (!condition) {
     return "";
   }
 
-  return dialect.sqlToQuery(and(...conditions)!).sql;
+  return dialect.sqlToQuery(condition).sql;
 }
 
 describe("getTimeframeConditions", () => {
@@ -32,9 +32,7 @@ describe("getTimeframeConditions", () => {
     // date_trunc('week') uses ISO weeks (Monday start), matching the app logic
     // and avoiding the extract(week) / extract(year) mismatch at new year.
     const periodStart = `date_trunc('${unit}', (now() at time zone 'UTC'))`;
-    expect(query).toContain(
-      `"user_levels"."last_msg" >= ${periodStart}`,
-    );
+    expect(query).toContain(`"user_levels"."last_msg" >= ${periodStart}`);
     expect(query).toContain(
       `"user_levels"."last_msg" < ${periodStart} + interval '1 ${unit}'`,
     );

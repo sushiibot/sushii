@@ -27,7 +27,7 @@ describe("UpdateUserXpService", () => {
 
   beforeEach(() => {
     findByUserAndGuild = mock(async (): Promise<UserLevel | null> => null);
-    save = mock(async () => {});
+    save = mock(async () => undefined);
     create = mock(async () => true);
 
     const userLevelRepository = {

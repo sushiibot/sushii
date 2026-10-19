@@ -6,6 +6,7 @@ import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 import type { UpdateUserXpService } from "../../application/UpdateUserXpService";
+import { computeLevelRoleDiff } from "./levelRoleDiff";
 
 const tracer = opentelemetry.trace.getTracer("leveling");
 const log = newModuleLogger("messageLevelHandler");
@@ -43,90 +44,60 @@ export class MessageLevelHandler extends EventHandler<Events.MessageCreate> {
     }
 
     const { addRoleIds, removeRoleIds } = result;
+    const member = msg.member;
 
-    if (
-      (!addRoleIds || addRoleIds.length === 0) &&
-      (!removeRoleIds || removeRoleIds.length === 0)
-    ) {
+    // Apply only the diff with single-role add/remove requests. Array forms of
+    // roles.add/remove (and roles.set) send the full role list computed from a
+    // possibly stale cache, which can revert concurrent role changes.
+    const { toAdd, toRemove } = computeLevelRoleDiff(
+      member.roles.cache.keys(),
+      addRoleIds,
+      removeRoleIds,
+    );
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
       return;
     }
 
-    const newRoles = new Set(msg.member.roles.cache.keys() || []);
-
-    if (addRoleIds) {
-      for (const roleId of addRoleIds) {
-        newRoles.add(roleId);
-      }
-    }
-
-    if (removeRoleIds) {
-      for (const roleId of removeRoleIds) {
-        newRoles.delete(roleId);
-      }
-    }
-
-    const noRoleChanges =
-      newRoles.size === msg.member.roles.cache.size &&
-      msg.member.roles.cache.every((r) => newRoles.has(r.id));
-
-    if (noRoleChanges) {
-      return;
-    }
+    const logContext = {
+      guildId: msg.guildId,
+      channelId: msg.channelId,
+      userId: msg.author.id,
+      oldLevel: result.oldLevel,
+      newLevel: result.newLevel,
+      addRoleIds: toAdd,
+      removeRoleIds: toRemove,
+    };
 
     await tracer.startActiveSpan("leveling.roles.update", async (span) => {
       try {
-        if (!msg.member) {
-          throw new Error("Member not found for message");
+        const reason = `Level role ${result.newLevel}`;
+
+        for (const roleId of toAdd) {
+          await member.roles.add(roleId, reason);
         }
 
-        await msg.member.roles.set(
-          [...newRoles],
-          `Level role ${result.newLevel}`,
-        );
+        for (const roleId of toRemove) {
+          await member.roles.remove(roleId, reason);
+        }
+
+        log.debug(logContext, "Level role update");
       } catch (err) {
-        span.recordException(err instanceof Error ? err : new Error(String(err)));
+        span.recordException(
+          err instanceof Error ? err : new Error(String(err)),
+        );
         span.setStatus({ code: SpanStatusCode.ERROR });
 
-        if (err instanceof DiscordAPIError) {
-          if (err.code === RESTJSONErrorCodes.MissingPermissions) {
-            log.warn(
-              {
-                guildId: msg.guildId,
-                channelId: msg.channelId,
-                userId: msg.author.id,
-                err,
-              },
-              "Missing permissions to update member roles",
-            );
-          }
-        }
+        const message =
+          err instanceof DiscordAPIError &&
+          err.code === RESTJSONErrorCodes.MissingPermissions
+            ? "Missing permissions to update member roles"
+            : "Failed to update member roles";
 
-        log.warn(
-          {
-            guildId: msg.guildId,
-            channelId: msg.channelId,
-            userId: msg.author.id,
-            err,
-          },
-          "Failed to update member roles",
-        );
+        log.warn({ ...logContext, err }, message);
       } finally {
         span.end();
       }
     });
-
-    log.debug(
-      {
-        guildId: msg.guildId,
-        channelId: msg.channelId,
-        userId: msg.author.id,
-        oldLevel: result.oldLevel,
-        newLevel: result.newLevel,
-        addRoleIds,
-        removeRoleIds,
-        newMemberRoles: [...newRoles],
-      },
-      "Level role update",
-    );
   }
 }

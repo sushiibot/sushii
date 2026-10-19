@@ -126,10 +126,9 @@ export class UserLevelRepository implements IUserLevelRepository {
 
       return BigInt(result[0]?.totalXp ?? 0);
     } catch (error) {
-      throw new Error(
-        `Failed to get global messages for userId ${userId}`,
-        { cause: error },
-      );
+      throw new Error(`Failed to get global messages for userId ${userId}`, {
+        cause: error,
+      });
     }
   }
 
@@ -160,10 +159,7 @@ export class UserLevelRepository implements IUserLevelRepository {
   ): Promise<UserRankData> {
     try {
       // First get total count as it's always returned
-      const totalCount = await this.getUserCountInTimeframe(
-        guildId,
-        timeframe,
-      );
+      const totalCount = await this.getUserCountInTimeframe(guildId, timeframe);
 
       // Basic check if user has any activity at all
       const user = await this.db
