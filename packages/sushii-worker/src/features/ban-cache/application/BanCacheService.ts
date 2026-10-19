@@ -1,8 +1,6 @@
 import { sleep } from "bun";
 import type { Guild } from "discord.js";
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
 
 import { GuildBan } from "../domain/entities/GuildBan";
 import type { BanRepository } from "../domain/repositories/BanRepository";
@@ -20,88 +18,48 @@ export class BanCacheService {
   /**
    * Handles when a user is banned from a guild.
    */
-  async handleBanAdd(
-    guildId: string,
-    userId: string,
-  ): Promise<Result<void, string>> {
+  async handleBanAdd(guildId: string, userId: string): Promise<void> {
     this.logger.debug({ guildId, userId }, "Adding ban to cache");
 
     const ban = GuildBan.fromData(guildId, userId);
-    const result = await this.banRepository.addBan(ban);
-
-    if (result.err) {
-      this.logger.error(
-        { err: result.val, guildId, userId },
-        "Failed to add ban to cache",
-      );
-      return result;
-    }
+    await this.banRepository.addBan(ban);
 
     this.logger.debug({ guildId, userId }, "Successfully added ban to cache");
-
-    return Ok.EMPTY;
   }
 
   /**
    * Handles when a user is unbanned from a guild.
    */
-  async handleBanRemove(
-    guildId: string,
-    userId: string,
-  ): Promise<Result<void, string>> {
+  async handleBanRemove(guildId: string, userId: string): Promise<void> {
     this.logger.debug({ guildId, userId }, "Removing ban from cache");
 
-    const result = await this.banRepository.removeBan(guildId, userId);
-
-    if (result.err) {
-      this.logger.error(
-        { err: result.val, guildId, userId },
-        "Failed to remove ban from cache",
-      );
-      return result;
-    }
+    await this.banRepository.removeBan(guildId, userId);
 
     this.logger.debug(
       { guildId, userId },
       "Successfully removed ban from cache",
     );
-
-    return Ok.EMPTY;
   }
 
   /**
    * Handles when bot joins a guild - syncs all bans.
    */
-  async handleGuildJoin(guild: Guild): Promise<Result<void, string>> {
+  async handleGuildJoin(guild: Guild): Promise<void> {
     this.logger.info(
       { guildId: guild.id, guildName: guild.name },
       "Syncing bans for newly joined guild",
     );
 
-    try {
-      // Clear existing bans first (in case of rejoin)
-      const clearResult = await this.banRepository.clearGuildBans(guild.id);
-      if (clearResult.err) {
-        return clearResult;
-      }
+    // Clear existing bans first (in case of rejoin)
+    await this.banRepository.clearGuildBans(guild.id);
 
-      // Fetch and sync bans page by page for memory efficiency
-      const totalBans = await this.syncGuildBans(guild);
+    // Fetch and sync bans page by page for memory efficiency
+    const totalBans = await this.syncGuildBans(guild);
 
-      this.logger.info(
-        { guildId: guild.id, guildName: guild.name, banCount: totalBans },
-        "Successfully synced all bans for guild",
-      );
-
-      return Ok.EMPTY;
-    } catch (error) {
-      const errorMessage = `Failed to sync bans for guild ${guild.id}: ${error}`;
-      this.logger.error(
-        { err: error, guildId: guild.id, guildName: guild.name },
-        "Failed to sync bans for guild",
-      );
-      return Err(errorMessage);
-    }
+    this.logger.info(
+      { guildId: guild.id, guildName: guild.name, banCount: totalBans },
+      "Successfully synced all bans for guild",
+    );
   }
 
   /**
@@ -137,22 +95,25 @@ export class BanCacheService {
       if (page.size > 0) {
         // Convert page to user IDs and add to database
         const userIds = Array.from(page.keys());
-        const addResult = await this.banRepository.addGuildBans(
-          guild.id,
-          userIds,
-        );
 
-        if (addResult.err) {
+        // Isolate per-page failures: continue with the next page instead of
+        // failing the whole sync
+        let added = false;
+        try {
+          await this.banRepository.addGuildBans(guild.id, userIds);
+          added = true;
+        } catch (err) {
           this.logger.warn(
             {
-              err: addResult.val,
+              err,
               guildId: guild.id,
               pageSize: userIds.length,
             },
             "Failed to add ban page to database, continuing with next page",
           );
-          // Continue with next page instead of failing entirely
-        } else {
+        }
+
+        if (added) {
           totalBans += userIds.length;
           this.logger.debug(
             {

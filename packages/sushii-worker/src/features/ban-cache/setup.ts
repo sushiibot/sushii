@@ -52,18 +52,9 @@ export function setupBanCacheFeature({
 
   // Presentation layer
   const eventHandlers = [
-    new BanAddEventHandler(
-      services.banCacheService,
-      logger.child({ module: "banAddHandler" }),
-    ),
-    new BanRemoveEventHandler(
-      services.banCacheService,
-      logger.child({ module: "banRemoveHandler" }),
-    ),
-    new GuildJoinBanSyncHandler(
-      services.banCacheService,
-      logger.child({ module: "guildJoinHandler" }),
-    ),
+    new BanAddEventHandler(services.banCacheService),
+    new BanRemoveEventHandler(services.banCacheService),
+    new GuildJoinBanSyncHandler(services.banCacheService),
   ];
 
   return {
