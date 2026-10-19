@@ -1,6 +1,7 @@
-import { DatabaseError } from "pg";
 import { eq, lt, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { randomInt } from "node:crypto";
+import { DatabaseError } from "pg";
 
 import * as schema from "@/infrastructure/database/schema";
 
@@ -21,10 +22,10 @@ const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const CODE_LENGTH = 8;
 const MAX_RETRIES = 5;
 
-function generateCode(): string {
+export function generateCode(): string {
   let code = "";
   for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    code += CODE_CHARS[randomInt(CODE_CHARS.length)];
   }
   return code;
 }
@@ -99,7 +100,9 @@ export class DrizzleMessageVerificationRepository {
       }
     }
 
-    throw new Error("Failed to generate unique verification code after max retries");
+    throw new Error(
+      "Failed to generate unique verification code after max retries",
+    );
   }
 
   async findByCode(code: string): Promise<MessageVerificationRecord | null> {
