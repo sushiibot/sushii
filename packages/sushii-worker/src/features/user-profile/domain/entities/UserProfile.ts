@@ -5,6 +5,8 @@ export interface UserProfileData {
   isPatron: boolean;
   lastFishies: Date | null;
   lastRep: Date | null;
+  fishyStreak: number;
+  repStreak: number;
   lastfmUsername: string | null;
   patronEmoji: string | null;
   profileData: Record<string, unknown>;
@@ -25,6 +27,8 @@ export class UserProfile {
       isPatron: false,
       lastFishies: null,
       lastRep: null,
+      fishyStreak: 0,
+      repStreak: 0,
       lastfmUsername: null,
       patronEmoji: null,
       profileData: {},
@@ -55,6 +59,14 @@ export class UserProfile {
     return this.data.lastRep;
   }
 
+  getFishyStreak(): number {
+    return this.data.fishyStreak;
+  }
+
+  getRepStreak(): number {
+    return this.data.repStreak;
+  }
+
   getLastfmUsername(): string | null {
     return this.data.lastfmUsername;
   }
@@ -81,17 +93,19 @@ export class UserProfile {
     });
   }
 
-  updateLastFishiesTimestamp(): UserProfile {
+  recordFishy(usedAt: Date, streak: number): UserProfile {
     return new UserProfile({
       ...this.data,
-      lastFishies: new Date(),
+      lastFishies: usedAt,
+      fishyStreak: streak,
     });
   }
 
-  updateLastRepTimestamp(): UserProfile {
+  recordRep(usedAt: Date, streak: number): UserProfile {
     return new UserProfile({
       ...this.data,
-      lastRep: new Date(),
+      lastRep: usedAt,
+      repStreak: streak,
     });
   }
 

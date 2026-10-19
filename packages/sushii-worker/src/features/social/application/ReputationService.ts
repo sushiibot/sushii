@@ -5,7 +5,7 @@ import type dayjs from "@/shared/domain/dayjs";
 import logger from "@/shared/infrastructure/logger";
 
 import type { RepResult } from "../domain";
-import { REP_INCREMENT } from "../domain";
+import { REP_INCREMENT, calculateStreak, rollRepAmount } from "../domain";
 import type { CooldownService } from "./CooldownService";
 
 export class ReputationService {
@@ -35,14 +35,25 @@ export class ReputationService {
       return cooldownTime;
     }
 
+    // Streak belongs to the invoker
+    const now = new Date();
+    const streak = calculateStreak(
+      invokerProfile.getLastRep(),
+      invokerProfile.getRepStreak(),
+      now,
+    );
+
+    const amount = rollRepAmount(streak.multiplier);
+    const isStreakBonus = amount > REP_INCREMENT;
+
     const oldAmount = targetProfile.getRep().toString();
-    const newRep = targetProfile.getRep() + BigInt(REP_INCREMENT);
+    const newRep = targetProfile.getRep() + BigInt(amount);
 
     // Update target's rep (gets the reputation point)
     const updatedTarget = targetProfile.updateRep(newRep);
 
     // Update invoker's last rep timestamp only
-    const updatedInvoker = invokerProfile.updateLastRepTimestamp();
+    const updatedInvoker = invokerProfile.recordRep(now, streak.streak);
 
     // Save both profiles
     await Promise.all([
@@ -54,6 +65,9 @@ export class ReputationService {
       {
         invokerId: invoker.id,
         targetId: target.id,
+        amount,
+        streak: streak.streak,
+        multiplier: streak.multiplier,
         oldAmount,
         newAmount: newRep.toString(),
       },
@@ -61,8 +75,11 @@ export class ReputationService {
     );
 
     return {
+      amount,
+      isStreakBonus,
       oldAmount,
       newAmount: newRep.toString(),
+      streak,
     };
   }
 }

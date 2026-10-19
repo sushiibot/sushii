@@ -4,7 +4,31 @@ import type { InteractionReplyOptions } from "discord.js";
 import type dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
-import type { FishyResult, RepResult } from "../../domain";
+import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
+import { STREAK_BONUS_START_DAYS } from "../../domain";
+
+function formatStreak(
+  streak: StreakUpdate,
+  name: string,
+  bonus: string,
+): string {
+  const multiplier = Number(streak.multiplier.toFixed(2));
+  let content = "";
+
+  if (streak.brokenStreak) {
+    content += `💔 You missed a day, so your **${streak.brokenStreak} day ${name} streak** ended. Starting over at day 1.\n`;
+  }
+
+  content += `-# 🔥 ${streak.streak} day ${name} streak · `;
+
+  if (streak.multiplier > 1) {
+    content += `${multiplier}x${bonus}`;
+  } else {
+    content += `bonus starts at day ${STREAK_BONUS_START_DAYS}`;
+  }
+
+  return content;
+}
 
 export function createFishySuccessMessage(
   result: FishyResult,
@@ -17,7 +41,12 @@ export function createFishySuccessMessage(
     .setAccentColor(Color.Success)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `You caught a ${result.caughtType} for <@${targetUserId}> worth ${count} ${fishyWord}! (${result.oldAmount} → ${result.newAmount} total fishies)`,
+        `You caught a ${result.caughtType} for <@${targetUserId}> worth ${count} ${fishyWord}! (${result.oldAmount} → ${result.newAmount} total fishies)\n` +
+          formatStreak(
+            result.streak,
+            "fishy",
+            ` (${result.baseAmount} → ${count})`,
+          ),
       ),
     );
 
@@ -48,11 +77,15 @@ export function createRepSuccessMessage(
   result: RepResult,
   targetUserId: string,
 ): InteractionReplyOptions {
+  const given = result.isStreakBonus ? `${result.amount} rep` : "a rep";
+  const bonus = result.isStreakBonus ? " · bonus rep!" : "";
+
   const container = new ContainerBuilder()
     .setAccentColor(Color.Success)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `You gave <@${targetUserId}> a rep! (${result.oldAmount} → ${result.newAmount} total)`,
+        `You gave <@${targetUserId}> ${given}! (${result.oldAmount} → ${result.newAmount} total)\n` +
+          formatStreak(result.streak, "rep", bonus),
       ),
     );
 

@@ -435,6 +435,13 @@
       "when": 1791953357233,
       "tag": "0061_permission-usage",
       "breakpoints": false
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1792382398451,
+      "tag": "0062_social-streaks",
+      "breakpoints": false
     }
   ]
 }

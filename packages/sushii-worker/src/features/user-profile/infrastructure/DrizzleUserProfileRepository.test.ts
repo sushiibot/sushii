@@ -59,6 +59,8 @@ describe("UserProfile entity", () => {
       isPatron: true,
       lastFishies: new Date("2023-01-01"),
       lastRep: new Date("2023-01-02"),
+      fishyStreak: 0,
+      repStreak: 0,
       lastfmUsername: "testuser",
       patronEmoji: "🔥",
       profileData: { patron_cents: 100 },

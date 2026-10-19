@@ -12,6 +12,7 @@ import {
   NORMAL_FISH_TYPES,
   SCALED_FISH_TYPES,
   SCALED_FISH_WEIGHTS,
+  calculateStreak,
 } from "../domain";
 import type { CooldownService } from "./CooldownService";
 
@@ -44,12 +45,21 @@ export class FishyService {
       return cooldownTime;
     }
 
+    // Streak belongs to the invoker
+    const now = new Date();
+    const streak = calculateStreak(
+      invokerProfile.getLastFishies(),
+      invokerProfile.getFishyStreak(),
+      now,
+    );
+
     // Get random catch
     const caughtType = this.getRandomCatchable();
     const valueRange = FISHY_VALUE_RANGES[caughtType];
-    const caughtAmount = Math.floor(
+    const baseAmount = Math.floor(
       this.randDistNumber(valueRange.min, valueRange.max, valueRange.skew),
     );
+    const caughtAmount = Math.round(baseAmount * streak.multiplier);
 
     const oldAmount = targetProfile.getFishies().toString();
     const newFishies = targetProfile.getFishies() + BigInt(caughtAmount);
@@ -60,14 +70,14 @@ export class FishyService {
     // Handle timestamp updates based on whether invoker is same as target
     if (invoker.id !== target.id) {
       // Different users: update only invoker's timestamp
-      const updatedInvoker = invokerProfile.updateLastFishiesTimestamp();
+      const updatedInvoker = invokerProfile.recordFishy(now, streak.streak);
       await Promise.all([
         this.userProfileRepository.save(updatedTarget),
         this.userProfileRepository.save(updatedInvoker),
       ]);
     } else {
       // Same user: update invoker/target's timestamp
-      updatedTarget = updatedTarget.updateLastFishiesTimestamp();
+      updatedTarget = updatedTarget.recordFishy(now, streak.streak);
       await this.userProfileRepository.save(updatedTarget);
     }
 
@@ -76,7 +86,10 @@ export class FishyService {
         invokerId: invoker.id,
         targetId: target.id,
         caughtType,
+        baseAmount,
         caughtAmount,
+        streak: streak.streak,
+        multiplier: streak.multiplier,
         oldAmount,
         newAmount: newFishies.toString(),
       },
@@ -84,10 +97,12 @@ export class FishyService {
     );
 
     return {
+      baseAmount,
       caughtAmount,
       caughtType,
       oldAmount,
       newAmount: newFishies.toString(),
+      streak,
     };
   }
 

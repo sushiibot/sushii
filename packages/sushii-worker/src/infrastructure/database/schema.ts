@@ -103,6 +103,8 @@ export const usersInAppPublic = appPublic.table("users", {
   isPatron: boolean("is_patron").default(false).notNull(),
   lastFishies: timestamp("last_fishies", { mode: "date" }),
   lastRep: timestamp("last_rep", { mode: "date" }),
+  fishyStreak: integer("fishy_streak").default(0).notNull(),
+  repStreak: integer("rep_streak").default(0).notNull(),
   lastfmUsername: text("lastfm_username"),
   patronEmoji: text("patron_emoji"),
   profileData: jsonb("profile_data"),
