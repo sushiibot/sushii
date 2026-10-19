@@ -21,6 +21,25 @@ export type GiveawayEligibility =
   | { eligible: true }
   | { eligible: false; reason: string };
 
+/**
+ * Discord doesn't expose a user's Nitro subscription to bots, so Nitro is
+ * inferred from perks only Nitro users can have: an animated avatar, a
+ * server-specific avatar or banner, or a profile banner. Users with Nitro who
+ * use none of these perks can't be detected. Server boosting is not Nitro, as
+ * boosts can be bought without a subscription.
+ *
+ * The profile banner is only known when the user was fetched, so it's an
+ * extra signal rather than a requirement.
+ */
+export function hasVisibleNitroPerks(member: GuildMember): boolean {
+  return !!(
+    member.user.avatar?.startsWith("a_") ||
+    member.avatar ||
+    member.banner ||
+    member.user.banner
+  );
+}
+
 export class Giveaway {
   constructor(private readonly data: GiveawayData) {}
 
@@ -137,6 +156,25 @@ export class Giveaway {
         return {
           eligible: false,
           reason: "You need to __not__ be a server booster",
+        };
+      }
+    }
+
+    if (this.data.requiredNitroState !== undefined) {
+      const hasNitro = hasVisibleNitroPerks(member);
+
+      if (this.data.requiredNitroState === "nitro" && !hasNitro) {
+        return {
+          eligible: false,
+          reason:
+            "You need Discord Nitro. Nitro is detected from Nitro-only profile perks: an animated avatar, a server avatar, or a profile banner",
+        };
+      }
+
+      if (this.data.requiredNitroState === "none" && hasNitro) {
+        return {
+          eligible: false,
+          reason: "You need to __not__ have Discord Nitro",
         };
       }
     }
