@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType } from "discord.js";
+import { ApplicationCommandOptionType, PermissionFlagsBits } from "discord.js";
 import type {
   AutocompleteFocusedOption,
   AutocompleteInteraction,
@@ -8,6 +8,25 @@ import type { Logger } from "pino";
 import { AutocompleteHandler } from "@/shared/presentation/handlers";
 
 import type { TagSearchService } from "../../application/TagSearchService";
+
+/**
+ * tag-edit only allows editing tags the user owns, unless they have Manage
+ * Guild (mirrors TagEditCommand and Tag.canBeModifiedBy). Returns the owner ID
+ * to filter by, or undefined to show all tags.
+ */
+export function getAutocompleteOwnerFilter(
+  interaction: AutocompleteInteraction<"cached">,
+): string | undefined {
+  if (interaction.commandName !== "tag-edit") {
+    return undefined;
+  }
+
+  if (interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return undefined;
+  }
+
+  return interaction.user.id;
+}
 
 export class TagAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = ["tag.info", "tag-edit", "tag-admin.delete"];
@@ -32,19 +51,18 @@ export class TagAutocomplete extends AutocompleteHandler {
     }
 
     try {
-      // TODO: For tag-edit, it should only show tags owned by the user or all
-      // only if they have the "Manage Guild" permission.
       const tags = await this.tagSearchService.getTagsForAutocomplete(
         interaction.guildId,
         option.value,
+        getAutocompleteOwnerFilter(interaction),
       );
 
       const choices = tags
-        .slice(0, 25)
         .filter((t) => {
           const name = t.getName().getValue().trim();
           return name.length >= 1 && name.length <= 100;
         })
+        .slice(0, 25)
         .map((tag) => {
           const name = tag.getName().getValue().trim();
           return { name, value: name };

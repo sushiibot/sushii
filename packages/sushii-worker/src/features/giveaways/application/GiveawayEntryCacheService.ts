@@ -3,116 +3,270 @@ import type { Logger } from "pino";
 
 import { GiveawayEntry } from "../domain/entities/GiveawayEntry";
 import type { GiveawayEntryRepository } from "../domain/repositories/GiveawayEntryRepository";
+import type { GiveawayRepository } from "../domain/repositories/GiveawayRepository";
 
 interface GiveawayCacheEntry {
-  users: string[];
+  users: Set<string>;
   message: Message<true>;
 }
 
+/**
+ * Updates the giveaway message to display the given entry count. Provided by
+ * the composition root so the application layer doesn't depend on
+ * presentation-layer component builders.
+ */
+export type GiveawayEntryCountUpdater = (
+  giveawayMessage: Message<true>,
+  entryCount: number,
+) => Promise<void>;
+
+export interface GiveawayEntryCacheOptions {
+  /** Flush after this long without new entries. */
+  debounceMs: number;
+  /** Flush at most this long after the first unflushed entry. */
+  maxWaitMs: number;
+}
+
+const DEFAULT_OPTIONS: GiveawayEntryCacheOptions = {
+  debounceMs: 5000,
+  maxWaitMs: 10000,
+};
+
 export class GiveawayEntryCacheService {
-  private readonly entryCache = new Map<string, GiveawayCacheEntry>();
-  private insertTimer?: NodeJS.Timeout;
+  /** Entries waiting to be flushed. */
+  private pendingEntries = new Map<string, GiveawayCacheEntry>();
+  /** Entries currently being inserted by an in-progress flush. */
+  private inFlightEntries = new Map<string, GiveawayCacheEntry>();
+
+  private debounceTimer?: NodeJS.Timeout;
+  private maxWaitTimer?: NodeJS.Timeout;
+  private activeFlush?: Promise<void>;
+  private flushRequestedDuringFlush = false;
+
+  private readonly options: GiveawayEntryCacheOptions;
 
   constructor(
     private readonly giveawayEntryRepository: GiveawayEntryRepository,
+    private readonly giveawayRepository: GiveawayRepository,
+    private readonly updateEntryCount: GiveawayEntryCountUpdater,
     private readonly logger: Logger,
-  ) {}
+    options: Partial<GiveawayEntryCacheOptions> = {},
+  ) {
+    this.options = { ...DEFAULT_OPTIONS, ...options };
+  }
 
   async addEntryToCache(
     giveawayId: string,
     userId: string,
     giveawayMessage: Message<true>,
   ): Promise<void> {
-    let entries = this.entryCache.get(giveawayId);
+    let entries = this.pendingEntries.get(giveawayId);
     if (!entries) {
       entries = {
-        users: [],
+        users: new Set(),
         message: giveawayMessage,
       };
+      this.pendingEntries.set(giveawayId, entries);
     }
 
-    // Add user to cache
-    entries.users.push(userId);
-    this.entryCache.set(giveawayId, entries);
+    entries.users.add(userId);
 
-    this.logger.debug(
-      { giveawayId, userId },
-      "Added entry to cache & clearing timeout",
-    );
+    this.logger.debug({ giveawayId, userId }, "Added entry to cache");
 
-    // Clear and restart the timer
-    if (this.insertTimer) {
-      clearTimeout(this.insertTimer);
-    }
-
-    // Bulk insert after 5 seconds of inactivity
-    this.insertTimer = setTimeout(async () => {
-      await this.flushCacheToDatabase();
-    }, 5000);
+    this.scheduleFlush();
   }
 
   isInCache(giveawayId: string, userId: string): boolean {
-    const entries = this.entryCache.get(giveawayId);
-    return entries?.users.includes(userId) ?? false;
+    return (
+      (this.pendingEntries.get(giveawayId)?.users.has(userId) ?? false) ||
+      (this.inFlightEntries.get(giveawayId)?.users.has(userId) ?? false)
+    );
+  }
+
+  /**
+   * Flush pending entries now. If a flush is already running, waits for it and
+   * then flushes anything that arrived in the meantime.
+   */
+  async flush(): Promise<void> {
+    this.clearTimers();
+
+    if (this.activeFlush) {
+      this.flushRequestedDuringFlush = true;
+      await this.activeFlush;
+      // The queued flush (if still needed) was started when the previous one
+      // completed.
+      if (this.activeFlush) {
+        await this.activeFlush;
+      }
+      return;
+    }
+
+    this.activeFlush = this.flushCacheToDatabase().finally(() => {
+      this.activeFlush = undefined;
+      this.onFlushComplete();
+    });
+
+    await this.activeFlush;
+  }
+
+  private scheduleFlush(): void {
+    // Debounce: restart on every entry
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+
+    this.debounceTimer = setTimeout(() => {
+      void this.flush();
+    }, this.options.debounceMs);
+
+    // Max wait: started by the first unflushed entry, never restarted, so a
+    // steady stream of entries can't postpone the flush indefinitely.
+    if (!this.maxWaitTimer) {
+      this.maxWaitTimer = setTimeout(() => {
+        void this.flush();
+      }, this.options.maxWaitMs);
+    }
+  }
+
+  private clearTimers(): void {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = undefined;
+    }
+
+    if (this.maxWaitTimer) {
+      clearTimeout(this.maxWaitTimer);
+      this.maxWaitTimer = undefined;
+    }
+  }
+
+  private onFlushComplete(): void {
+    if (this.flushRequestedDuringFlush) {
+      this.flushRequestedDuringFlush = false;
+      void this.flush();
+      return;
+    }
+
+    // Entries that arrived during the flush already scheduled timers. Entries
+    // restored after a failed insert need a retry scheduled.
+    if (this.pendingEntries.size > 0 && !this.debounceTimer) {
+      this.scheduleFlush();
+    }
   }
 
   private async flushCacheToDatabase(): Promise<void> {
-    const uniqueGiveaways = Array.from(this.entryCache.values()).map(
-      (entry) => entry.message,
-    );
+    if (this.pendingEntries.size === 0) {
+      return;
+    }
 
-    const allEntries = Array.from(this.entryCache.entries()).flatMap(
+    // Snapshot and swap so entries added during the insert go to a fresh map
+    const snapshot = this.pendingEntries;
+    this.pendingEntries = new Map();
+    this.inFlightEntries = snapshot;
+
+    const allEntries = Array.from(snapshot.entries()).flatMap(
       ([giveawayId, entry]) =>
-        entry.users.map((userId) => GiveawayEntry.create(giveawayId, userId)),
+        Array.from(entry.users).map((userId) =>
+          GiveawayEntry.create(giveawayId, userId),
+        ),
     );
 
-    this.entryCache.clear();
-
+    let inserted = false;
     try {
       const insertResult =
         await this.giveawayEntryRepository.createBatch(allEntries);
 
-      this.logger.debug(
-        {
-          cacheSize: allEntries.length,
-          dbInsertedSize: insertResult.ok ? insertResult.val : 0,
-          cacheAfterSize: this.entryCache.size,
-        },
-        "Flushing cached entries to database and updating messages",
-      );
-
-      // Update all giveaway messages with new entry counts
-      for (const giveaway of uniqueGiveaways) {
-        await this.updateGiveawayMessageEntryCount(giveaway);
+      if (insertResult.ok) {
+        inserted = true;
+        this.logger.debug(
+          {
+            cacheSize: allEntries.length,
+            dbInsertedSize: insertResult.val,
+          },
+          "Flushed cached giveaway entries to database",
+        );
+      } else {
+        this.logger.error(
+          { err: insertResult.val, entryCount: allEntries.length },
+          "Failed to flush giveaway entries to database",
+        );
       }
     } catch (err) {
-      this.logger.error({ err }, "Failed to flush cache to database");
+      this.logger.error(
+        { err, entryCount: allEntries.length },
+        "Failed to flush giveaway entries to database",
+      );
+    } finally {
+      if (!inserted) {
+        this.restoreEntries(snapshot);
+      }
+
+      this.inFlightEntries = new Map();
+    }
+
+    if (!inserted) {
+      return;
+    }
+
+    // One message edit per giveaway per flush
+    for (const [giveawayId, entry] of snapshot) {
+      await this.updateGiveawayMessageEntryCount(giveawayId, entry.message);
+    }
+  }
+
+  private restoreEntries(snapshot: Map<string, GiveawayCacheEntry>): void {
+    for (const [giveawayId, entry] of snapshot) {
+      const pending = this.pendingEntries.get(giveawayId);
+      if (pending) {
+        for (const userId of entry.users) {
+          pending.users.add(userId);
+        }
+      } else {
+        this.pendingEntries.set(giveawayId, entry);
+      }
     }
   }
 
   private async updateGiveawayMessageEntryCount(
+    giveawayId: string,
     giveawayMessage: Message<true>,
   ): Promise<void> {
     try {
-      // TODO: This should call a service to update the message components
-      // For now, we'll keep the existing logic structure
-      const countResult = await this.giveawayEntryRepository.countByGiveaway(
-        giveawayMessage.id,
+      const giveawayResult = await this.giveawayRepository.findByGuildAndId(
+        giveawayMessage.guildId,
+        giveawayId,
       );
+
+      if (!giveawayResult.ok) {
+        this.logger.error(
+          { err: giveawayResult.val, giveawayId },
+          "Failed to get giveaway for entry count update",
+        );
+        return;
+      }
+
+      // Ended/expired giveaways are updated by GiveawayTask; don't revert them
+      // back to the active state
+      const giveaway = giveawayResult.val;
+      if (!giveaway || giveaway.isEnded || giveaway.isExpired()) {
+        return;
+      }
+
+      const countResult =
+        await this.giveawayEntryRepository.countByGiveaway(giveawayId);
 
       if (!countResult.ok) {
         this.logger.error(
-          { giveawayId: giveawayMessage.id },
+          { err: countResult.val, giveawayId },
           "Failed to get entry count for message update",
         );
         return;
       }
 
-      // TODO: Update components with new count
-      // This will be handled by the presentation layer in the final implementation
+      await this.updateEntryCount(giveawayMessage, countResult.val);
     } catch (err) {
       this.logger.error(
-        { err, giveawayId: giveawayMessage.id },
+        { err, giveawayId },
         "Failed to update giveaway message entry count",
       );
     }

@@ -78,8 +78,18 @@ export class TagSearchService {
     return this.tagRepository.findRandomByFilters(filters);
   }
 
-  async getTagsForAutocomplete(guildId: string, query: string): Promise<Tag[]> {
-    this.logger.debug({ guildId, query }, "Getting tags for autocomplete");
-    return this.tagRepository.findByAutocomplete(guildId, query);
+  /**
+   * @param ownerId If provided, only tags owned by this user are returned.
+   */
+  async getTagsForAutocomplete(
+    guildId: string,
+    query: string,
+    ownerId?: string,
+  ): Promise<Tag[]> {
+    this.logger.debug(
+      { guildId, query, ownerId },
+      "Getting tags for autocomplete",
+    );
+    return this.tagRepository.findByAutocomplete(guildId, query, ownerId);
   }
 }

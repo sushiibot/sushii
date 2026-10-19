@@ -55,11 +55,16 @@ class MockTagRepository implements TagRepository {
     );
   }
 
-  async findByAutocomplete(guildId: string, query: string): Promise<Tag[]> {
+  async findByAutocomplete(
+    guildId: string,
+    query: string,
+    ownerId?: string,
+  ): Promise<Tag[]> {
     return Array.from(this.tags.values()).filter(
       (tag) =>
         tag.getGuildId() === guildId &&
-        tag.getName().getValue().includes(query),
+        tag.getName().getValue().includes(query) &&
+        (ownerId === undefined || tag.getOwnerId() === ownerId),
     );
   }
 

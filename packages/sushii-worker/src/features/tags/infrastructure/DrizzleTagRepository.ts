@@ -227,7 +227,11 @@ export class DrizzleTagRepository implements TagRepository {
     return result[0]?.count ?? 0;
   }
 
-  async findByAutocomplete(guildId: string, query: string): Promise<Tag[]> {
+  async findByAutocomplete(
+    guildId: string,
+    query: string,
+    ownerId?: string,
+  ): Promise<Tag[]> {
     const results = await this.db
       .select()
       .from(schema.tagsInAppPublic)
@@ -235,6 +239,9 @@ export class DrizzleTagRepository implements TagRepository {
         and(
           eq(schema.tagsInAppPublic.guildId, BigInt(guildId)),
           ilike(schema.tagsInAppPublic.tagName, `%${this.escapeLikePattern(query)}%`),
+          ownerId !== undefined
+            ? eq(schema.tagsInAppPublic.ownerId, BigInt(ownerId))
+            : undefined,
         ),
       )
       .orderBy(schema.tagsInAppPublic.tagName)

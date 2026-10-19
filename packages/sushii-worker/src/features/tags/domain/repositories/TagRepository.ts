@@ -15,7 +15,15 @@ export interface TagRepository {
     limit: number,
   ): Promise<string[]>;
   countByGuild(guildId: string): Promise<number>;
-  findByAutocomplete(guildId: string, query: string): Promise<Tag[]>;
+  /**
+   * Finds up to 25 tags whose name contains the query. When ownerId is
+   * provided, only tags owned by that user are returned.
+   */
+  findByAutocomplete(
+    guildId: string,
+    query: string,
+    ownerId?: string,
+  ): Promise<Tag[]>;
   incrementUseCount(name: TagName, guildId: string): Promise<Tag | null>;
   rename(currentName: TagName, newName: TagName, guildId: string): Promise<Tag | null>;
   delete(name: TagName, guildId: string): Promise<Tag | null>;

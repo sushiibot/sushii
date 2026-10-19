@@ -23,6 +23,7 @@ import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutoc
 // Presentation
 import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
 import { GiveawayButtonHandler } from "./presentation/components/GiveawayButtonHandler";
+import { buildGiveawayComponents } from "./presentation/views/GiveawayComponentBuilder";
 
 interface GiveawayDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -64,6 +65,12 @@ export function createGiveawayServices({
 
   const giveawayEntryCacheService = new GiveawayEntryCacheService(
     giveawayEntryRepository,
+    giveawayRepository,
+    async (giveawayMessage, entryCount) => {
+      await giveawayMessage.edit({
+        components: buildGiveawayComponents(entryCount, false),
+      });
+    },
     logger.child({ module: "giveawayEntryCacheService" }),
   );
 
