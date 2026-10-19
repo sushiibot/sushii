@@ -55,8 +55,9 @@ export class RateLimitService {
       activeRateLimits.map((rl) => rl.assetId),
     );
 
-    // Filter out rate limited attempts
-    const eligibleAttempts = attempts.filter(
+    // Filter out rate limited attempts. Use the de-duplicated list so an asset
+    // repeated in one message/reaction batch is only counted once per user.
+    const eligibleAttempts = uniqueAttempts.filter(
       (attempt) => !rateLimitedAssetIds.has(attempt.assetId),
     );
 
