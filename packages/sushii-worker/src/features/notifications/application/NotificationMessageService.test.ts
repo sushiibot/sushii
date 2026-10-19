@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Message } from "discord.js";
 import { ChannelType, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
@@ -34,6 +34,22 @@ describe("NotificationMessageService", () => {
     mockLogger as unknown as Logger,
     mockMetrics,
   );
+
+  // Mocks are shared across tests, so reset call history and per-test
+  // implementations to keep tests independent of execution order.
+  beforeEach(() => {
+    mockNotificationService.findMatchingNotifications.mockReset();
+    mockNotificationService.findMatchingNotifications.mockImplementation(() =>
+      Promise.resolve([]),
+    );
+    mockNotificationService.cleanupMemberLeft.mockClear();
+    mockNotificationService.getUserSettingsMap.mockReset();
+    mockNotificationService.getUserSettingsMap.mockImplementation(() =>
+      Promise.resolve(new Map()),
+    );
+    mockLogger.debug.mockClear();
+    mockLogger.error.mockClear();
+  });
 
   test("ignores bot messages", async () => {
     const mockMessage = {
