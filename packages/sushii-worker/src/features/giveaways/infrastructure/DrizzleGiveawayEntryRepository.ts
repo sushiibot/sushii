@@ -79,7 +79,8 @@ export class DrizzleGiveawayEntryRepository implements GiveawayEntryRepository {
         eq(schema.giveawayEntriesInAppPublic.giveawayId, BigInt(giveawayId)),
       );
 
-    return result[0]?.count ?? 0;
+    // node-postgres returns bigint count(*) as a string
+    return Number(result[0]?.count ?? 0);
   }
 
   async findRandomEntries(
