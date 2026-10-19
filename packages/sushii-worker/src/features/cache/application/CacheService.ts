@@ -1,6 +1,3 @@
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
-
 import logger from "@/shared/infrastructure/logger";
 
 import type {
@@ -27,17 +24,8 @@ export class CacheService {
     this.startFlushTimer();
   }
 
-  async cacheGuild(guildData: NewCachedGuild): Promise<Result<void, string>> {
-    const result = await this.guildRepository.upsert(guildData);
-    if (result.err) {
-      logger.error(
-        { err: result.val, guildId: guildData.id },
-        "Failed to cache guild",
-      );
-      return Err(result.val);
-    }
-
-    return Ok(void 0);
+  async cacheGuild(guildData: NewCachedGuild): Promise<void> {
+    await this.guildRepository.upsert(guildData);
   }
 
   async cacheUser(userData: NewCachedUser): Promise<void> {
@@ -68,7 +56,9 @@ export class CacheService {
   }
 
   private async flushUserQueue(): Promise<void> {
-    if (this.userQueue.length === 0) return;
+    if (this.userQueue.length === 0) {
+      return;
+    }
 
     const batch = this.userQueue.splice(0);
 
@@ -87,13 +77,15 @@ export class CacheService {
       "Flushing user cache batch",
     );
 
-    const result = await this.userRepository.batchUpsert(deduplicatedBatch);
-    if (result.err) {
+    // Best-effort: also runs from a timer with no caller to propagate to, so
+    // log and re-queue the batch for the next flush instead of throwing.
+    try {
+      await this.userRepository.batchUpsert(deduplicatedBatch);
+    } catch (err) {
       logger.error(
-        { err: result.val, count: deduplicatedBatch.length },
+        { err, count: deduplicatedBatch.length },
         "Failed to flush user cache batch",
       );
-      // Re-queue failed items for retry
       this.userQueue.unshift(...deduplicatedBatch);
     }
   }

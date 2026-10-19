@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { Ok } from "ts-results";
 
 import type {
   CachedGuildEntity,
@@ -11,15 +10,15 @@ import { CacheService } from "./CacheService";
 
 // Mock repositories
 const mockGuildRepository: CachedGuildRepository = {
-  upsert: mock(() => Promise.resolve(Ok({} as CachedGuildEntity))),
+  upsert: mock(() => Promise.resolve({} as CachedGuildEntity)),
   // These methods are not used by CacheService - called directly by event handlers
-  incrementMemberCount: () => Promise.resolve(Ok(void 0)),
-  decrementMemberCount: () => Promise.resolve(Ok(void 0)),
+  incrementMemberCount: () => Promise.resolve(true),
+  decrementMemberCount: () => Promise.resolve(true),
 };
 
 const mockUserRepository: CachedUserRepository = {
-  upsert: mock(() => Promise.resolve(Ok({} as CachedUserEntity))),
-  batchUpsert: mock(() => Promise.resolve(Ok([{} as CachedUserEntity]))),
+  upsert: mock(() => Promise.resolve({} as CachedUserEntity)),
+  batchUpsert: mock(() => Promise.resolve([{} as CachedUserEntity])),
 };
 
 const testConfig = {
@@ -34,13 +33,13 @@ describe("CacheService", () => {
     // Reset mocks
     mock.restore();
     mockGuildRepository.upsert = mock(() =>
-      Promise.resolve(Ok({} as CachedGuildEntity)),
+      Promise.resolve({} as CachedGuildEntity),
     );
     mockUserRepository.upsert = mock(() =>
-      Promise.resolve(Ok({} as CachedUserEntity)),
+      Promise.resolve({} as CachedUserEntity),
     );
     mockUserRepository.batchUpsert = mock(() =>
-      Promise.resolve(Ok([{} as CachedUserEntity])),
+      Promise.resolve([{} as CachedUserEntity]),
     );
 
     cacheService = new CacheService(
@@ -64,9 +63,8 @@ describe("CacheService", () => {
       features: ["COMMUNITY"],
     };
 
-    const result = await cacheService.cacheGuild(guildData);
+    await cacheService.cacheGuild(guildData);
 
-    expect(result.ok).toBe(true);
     expect(mockGuildRepository.upsert).toHaveBeenCalledWith(guildData);
     expect(mockGuildRepository.upsert).toHaveBeenCalledTimes(1);
   });
@@ -111,6 +109,50 @@ describe("CacheService", () => {
     // Should have triggered batch flush
     expect(mockUserRepository.batchUpsert).toHaveBeenCalledWith(users);
     expect(mockUserRepository.batchUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  test("cacheGuild propagates repository errors", async () => {
+    const dbError = new Error("connection lost");
+    mockGuildRepository.upsert = mock(() => Promise.reject(dbError));
+
+    await expect(
+      cacheService.cacheGuild({
+        id: BigInt(123),
+        name: "Test Guild",
+        icon: null,
+        banner: null,
+        splash: null,
+        features: [],
+      }),
+    ).rejects.toThrow("connection lost");
+  });
+
+  test("failed user flush re-queues the batch for retry", async () => {
+    const users = Array.from({ length: 3 }, (_, i) => ({
+      id: BigInt(i + 1),
+      name: `User${i + 1}`,
+      discriminator: 1000 + i,
+      avatarUrl: `https://example.com/${i + 1}.png`,
+      lastChecked: new Date(),
+    }));
+
+    mockUserRepository.batchUpsert = mock(() =>
+      Promise.reject(new Error("connection lost")),
+    );
+
+    // Reaching batch size triggers a flush that fails but must not throw
+    for (const user of users) {
+      await cacheService.cacheUser(user);
+    }
+
+    expect(mockUserRepository.batchUpsert).toHaveBeenCalledTimes(1);
+
+    mockUserRepository.batchUpsert = mock(() =>
+      Promise.resolve([{} as CachedUserEntity]),
+    );
+    await cacheService.shutdown();
+
+    expect(mockUserRepository.batchUpsert).toHaveBeenCalledWith(users);
   });
 
   test("shutdown flushes remaining users in queue", async () => {

@@ -14,14 +14,14 @@ export class CacheMemberAddHandler extends EventHandler<Events.GuildMemberAdd> {
   readonly eventType = Events.GuildMemberAdd;
 
   async handle(member: GuildMember): Promise<void> {
-    const result = await this.guildRepository.incrementMemberCount(
+    const updated = await this.guildRepository.incrementMemberCount(
       BigInt(member.guild.id),
     );
 
-    if (result.err) {
-      logger.error(
-        { err: result.val, guildId: member.guild.id, userId: member.user.id },
-        "Failed to increment member count",
+    if (!updated) {
+      logger.warn(
+        { guildId: member.guild.id, userId: member.user.id },
+        "Guild not in cache, skipped member count increment",
       );
     }
   }
@@ -35,14 +35,14 @@ export class CacheMemberRemoveHandler extends EventHandler<Events.GuildMemberRem
   readonly eventType = Events.GuildMemberRemove;
 
   async handle(member: GuildMember): Promise<void> {
-    const result = await this.guildRepository.decrementMemberCount(
+    const updated = await this.guildRepository.decrementMemberCount(
       BigInt(member.guild.id),
     );
 
-    if (result.err) {
-      logger.error(
-        { err: result.val, guildId: member.guild.id, userId: member.user.id },
-        "Failed to decrement member count",
+    if (!updated) {
+      logger.warn(
+        { guildId: member.guild.id, userId: member.user.id },
+        "Guild not in cache, skipped member count decrement",
       );
     }
   }
