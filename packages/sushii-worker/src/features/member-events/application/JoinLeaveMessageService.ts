@@ -35,13 +35,13 @@ export class JoinLeaveMessageService {
       return;
     }
 
-    const message = this.templateService.replaceTemplate(
+    const { content, allowedMentions } = this.templateService.buildMessage(
       config.messageSettings.joinMessage,
       member,
     );
 
     try {
-      await channel.send(message);
+      await channel.send({ content, allowedMentions });
     } catch (err) {
       this.logger.warn(
         {
@@ -79,13 +79,13 @@ export class JoinLeaveMessageService {
       return;
     }
 
-    const message = this.templateService.replaceTemplate(
+    const { content, allowedMentions } = this.templateService.buildMessage(
       config.messageSettings.leaveMessage,
       member,
     );
 
     try {
-      await channel.send(message);
+      await channel.send({ content, allowedMentions });
     } catch (err) {
       this.logger.warn(
         {
