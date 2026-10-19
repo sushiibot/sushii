@@ -1,6 +1,12 @@
 import * as Sentry from "@sentry/bun";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
-import { Client, Events, GatewayIntentBits, Options, Partials } from "discord.js";
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  Options,
+  Partials,
+} from "discord.js";
 
 import { config } from "@/shared/infrastructure/config";
 import { makeTracedDiscordRequest } from "@/shared/infrastructure/opentelemetry/discordRestTracing";
@@ -76,8 +82,16 @@ async function initializeShardCluster(): Promise<void> {
   // Register shard metrics now that client is logged in
   coreMetrics.registerShardCallbacks(client);
 
+  // Registered before login so READY / GUILD_CREATE dispatches are counted too
+  coreMetrics.registerGatewayEventListener(client);
+
   // Register features -- adds commands to the router and starts tasks
-  const features = registerFeatures(db, client, deploymentService, interactionRouter);
+  const features = registerFeatures(
+    db,
+    client,
+    deploymentService,
+    interactionRouter,
+  );
 
   // AFTER features are registered (includes registering commands)
 

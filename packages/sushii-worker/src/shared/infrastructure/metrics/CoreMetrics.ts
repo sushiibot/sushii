@@ -1,10 +1,20 @@
 import { ValueType, metrics } from "@opentelemetry/api";
-import type { Counter, ObservableGauge } from "@opentelemetry/api";
-import type { Client } from "discord.js";
+import type { Attributes, Counter, ObservableGauge } from "@opentelemetry/api";
+import type { Client, GatewayDispatchPayload } from "discord.js";
+import { Events, GatewayDispatchEvents } from "discord.js";
 
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
 const logger = newModuleLogger("CoreMetrics");
+
+const UNKNOWN_EVENT_ATTRIBUTES: Attributes = { event_type: "UNKNOWN" };
+
+// Pre-built attribute objects keyed by dispatch event name. Restricting to the
+// known GatewayDispatchEvents keeps the metric's cardinality bounded and avoids
+// allocating a new attributes object on every gateway event (hot path).
+const GATEWAY_EVENT_ATTRIBUTES: ReadonlyMap<string, Attributes> = new Map(
+  Object.values(GatewayDispatchEvents).map((t) => [t, { event_type: t }]),
+);
 
 export class CoreMetrics {
   // Gateway metrics
@@ -16,7 +26,6 @@ export class CoreMetrics {
     try {
       const gatewayMeter = metrics.getMeter("gateway", "1.0");
 
-      // TODO: Hook up gateway event counter to raw Discord event listener
       this.gatewayEventCounter = gatewayMeter.createCounter(
         "gateway_event_count",
         {
@@ -50,6 +59,18 @@ export class CoreMetrics {
       );
       throw error;
     }
+  }
+
+  registerGatewayEventListener(client: Client): void {
+    // Events.Raw is only emitted for gateway dispatch (op 0) packets.
+    client.on(Events.Raw, (packet: GatewayDispatchPayload) => {
+      this.gatewayEventCounter.add(
+        1,
+        GATEWAY_EVENT_ATTRIBUTES.get(packet.t) ?? UNKNOWN_EVENT_ATTRIBUTES,
+      );
+    });
+
+    logger.info("Gateway event listener registered");
   }
 
   registerShardCallbacks(client: Client): void {
