@@ -46,7 +46,7 @@ Each feature under `src/features/{feature}/` follows:
 ```
 automod           ban-cache         bot-emojis        cache
 deployment        emoji-stats       giveaways         guild-settings
-interaction-handler  legacy-audit-logs  legacy-commands  leveling
+interaction-handler  legacy-audit-logs  leveling
 member-events     message-log       moderation        notifications
 reaction-log      reminders         role-menu         social
 stats             status            tags              user-profile
