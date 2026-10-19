@@ -25,8 +25,8 @@ export class RepLeaderboardService {
           pageSize,
         ),
         this.socialLeaderboardRepository.getRepLeaderboardCount(guildId),
-        this.getUserRankSafely(guildId, userId),
-        this.getUserAmountSafely(guildId, userId),
+        this.getUserRank(guildId, userId),
+        this.getUserAmount(userId),
       ]);
 
       return {
@@ -43,33 +43,22 @@ export class RepLeaderboardService {
     }
   }
 
-  private async getUserRankSafely(
+  private async getUserRank(
     guildId: string,
     userId: string,
   ): Promise<number | undefined> {
-    try {
-      return (
-        (await this.socialLeaderboardRepository.getUserRepRank(
-          guildId,
-          userId,
-        )) ?? undefined
-      );
-    } catch {
-      return undefined;
-    }
+    return (
+      (await this.socialLeaderboardRepository.getUserRepRank(
+        guildId,
+        userId,
+      )) ?? undefined
+    );
   }
 
-  private async getUserAmountSafely(
-    guildId: string,
-    userId: string,
-  ): Promise<bigint | undefined> {
-    try {
-      const userProfile =
-        await this.userProfileRepository.getByIdOrDefault(userId);
-      const amount = userProfile.getRep();
-      return amount > 0 ? amount : undefined;
-    } catch {
-      return undefined;
-    }
+  private async getUserAmount(userId: string): Promise<bigint | undefined> {
+    const userProfile =
+      await this.userProfileRepository.getByIdOrDefault(userId);
+    const amount = userProfile.getRep();
+    return amount > 0 ? amount : undefined;
   }
 }

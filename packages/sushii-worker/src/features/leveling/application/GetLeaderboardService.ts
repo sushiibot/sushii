@@ -30,8 +30,8 @@ export class GetLeaderboardService {
           pageSize,
         ),
         this.userLevelRepository.getUserCountInTimeframe(guildId, timeframe),
-        this.getUserRankSafely(guildId, userId),
-        this.getUserLevelSafely(guildId, userId),
+        this.userLevelRepository.getUserGuildRankings(guildId, userId),
+        this.getUserLevelIfAny(guildId, userId),
       ]);
 
       return {
@@ -48,32 +48,14 @@ export class GetLeaderboardService {
     }
   }
 
-  private async getUserRankSafely(
-    guildId: string,
-    userId: string,
-  ): Promise<UserRank | undefined> {
-    try {
-      return await this.userLevelRepository.getUserGuildRankings(
-        guildId,
-        userId,
-      );
-    } catch {
-      return undefined;
-    }
-  }
-
-  private async getUserLevelSafely(
+  private async getUserLevelIfAny(
     guildId: string,
     userId: string,
   ): Promise<UserLevel | undefined> {
-    try {
-      const level = await this.userLevelRepository.getUserGuildLevel(
-        guildId,
-        userId,
-      );
-      return level.getAllTimeXp() > 0 ? level : undefined;
-    } catch {
-      return undefined;
-    }
+    const level = await this.userLevelRepository.getUserGuildLevel(
+      guildId,
+      userId,
+    );
+    return level.getAllTimeXp() > 0 ? level : undefined;
   }
 }
