@@ -19,19 +19,25 @@ Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, Post
 
 ## Error Handling
 
+**Unexpected failures** (DB errors, Discord API down, bugs): throw. Never convert them to `Err`/strings. Top-level handlers (`InteractionRouter`, task runner, event dispatcher) log them.
+**Expected outcomes** (validation, not found, permission, not configured, unique conflict, already ended): return `Result`, `null`, or a boolean. Infrastructure may return these only for real expected outcomes, not wrapped exceptions. Prefer typed errors (`Result<T, "not_found" | "no_permission">`) over free strings in new code.
 **Messages**: Keep concise and searchable. Use `cause` for details: `throw new Error("Operation failed", { cause: originalError })`
-**Business errors**: `Result<T, string>` for expected failures (validation, not found, permissions).
-**System errors**: `throw new Error()` for unexpected failures (API down, DB connection lost).
 **Logging**: Always `{ err: error, ...context }` with pino. Put debugging info in logger context, not the error message.
 
-**By layer**:
-- **Application**: NO try-catch. Let infrastructure errors throw. `Result<T, string>` for business validations only.
-- **Infrastructure**: Let DB/API errors throw naturally. No Result types.
-- **Presentation**: Handle Result types (business) AND catch thrown errors (infrastructure).
+**Catch only to**:
+1. Handle a specific error (check the code/type, rethrow the rest)
+2. Best-effort side effects (DMs, log channel posts, message edits) — log with `{ err }` and continue
+3. Isolate per-item failures in loops and background jobs
+4. Clean up / compensate, then rethrow
+5. End a tracing span
+
+**Never**: catch-log-rethrow (double logging), bare `catch {}` without a comment, `Err(\`...${err}\`)`, or showing raw exception text to users.
 
 ## Best Practices
 
-- Always use **components v2** (not embeds) for new Discord messages and interaction responses.
+- Use **components v2** for new interactive or rich surfaces: dashboards, multi-step flows, paginated lists, anything needing buttons/selects beside content, thumbnails, galleries, or in-place updates.
+- **Embeds are fine** for high-volume log channels (mod/message/member logs), DMs whose notification preview matters, and small one-shot confirmations. Don't convert existing embed surfaces opportunistically.
+- When converting a surface whose messages are later edited in place (role menus, giveaways, mod logs), handle existing legacy embed messages explicitly.
 
 ## Documentation
 
