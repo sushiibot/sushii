@@ -23,81 +23,49 @@ export class CaseRangeAutocompleteService {
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
     const { guildId, query } = options;
 
-    try {
-      if (!query) {
-        // No value provided, list most recent cases
-        const recentCasesResult = await this.modLogRepository.findRecent(
-          guildId,
-          25,
-        );
+    if (!query) {
+      // No value provided, list most recent cases
+      const recentCases = await this.modLogRepository.findRecent(guildId, 25);
 
-        if (recentCasesResult.err) {
-          this.logger.warn(
-            { error: recentCasesResult.val, guildId },
-            "Failed to get recent cases for autocomplete",
-          );
-          return [];
-        }
+      return this.formatCases(recentCases);
+    }
 
-        return this.formatCases(recentCasesResult.val);
-      }
+    // Parse the case specification with ignoreRangeOrder=true since user might still be typing
+    const caseRangeResult = CaseRange.fromString(query, true);
+    if (caseRangeResult.err) {
+      // Invalid case, return error message
+      return [
+        {
+          name: "Invalid case range, examples: 123 or 123-150 or latest or latest~3",
+          value: "invalid",
+        },
+      ];
+    }
 
-      // Parse the case specification with ignoreRangeOrder=true since user might still be typing
-      const caseRangeResult = CaseRange.fromString(query, true);
-      if (caseRangeResult.err) {
-        // Invalid case, return error message
-        return [
-          {
-            name: "Invalid case range, examples: 123 or 123-150 or latest or latest~3",
-            value: "invalid",
-          },
-        ];
-      }
+    const caseRange = caseRangeResult.val;
 
-      const caseRange = caseRangeResult.val;
+    switch (caseRange.data.type) {
+      case "latest":
+        return this.getLatestCaseSuggestions(guildId);
 
-      switch (caseRange.data.type) {
-        case "latest":
-          return this.getLatestCaseSuggestions(guildId);
+      case "range":
+        return this.getRangeCaseSuggestions(guildId, caseRange);
 
-        case "range":
-          return this.getRangeCaseSuggestions(guildId, caseRange);
+      case "single":
+        return this.getSingleCaseSuggestions(guildId, caseRange.data.id);
 
-        case "single":
-          return this.getSingleCaseSuggestions(guildId, caseRange.data.id);
-
-        default:
-          return [];
-      }
-    } catch (error) {
-      this.logger.error(
-        { error, guildId, query },
-        "Failed to generate autocomplete suggestions",
-      );
-      return [];
+      default:
+        return [];
     }
   }
 
   private async getLatestCaseSuggestions(
     guildId: string,
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
-    const recentCasesResult = await this.modLogRepository.findRecent(
-      guildId,
-      25,
-    );
-
-    if (recentCasesResult.err) {
-      return [];
-    }
-
-    const recentCases = recentCasesResult.val;
+    const recentCases = await this.modLogRepository.findRecent(guildId, 25);
 
     // Get the latest case to calculate latest indices
-    const latestCaseResult = await this.modLogRepository.findRecent(guildId, 1);
-    if (latestCaseResult.err) {
-      return [];
-    }
-    const latestCase = latestCaseResult.val[0];
+    const [latestCase] = await this.modLogRepository.findRecent(guildId, 1);
     const latestCaseId = latestCase ? Number(latestCase.caseId) : 0;
 
     return recentCases
@@ -131,31 +99,20 @@ export class CaseRangeAutocompleteService {
 
     if (!rangeData.endId) {
       // Searching for end ID - should only include cases that are > startId
-      const recentCasesResult = await this.modLogRepository.findRecent(
-        guildId,
-        25,
-      );
+      const recentCases = await this.modLogRepository.findRecent(guildId, 25);
 
-      if (recentCasesResult.err) {
-        return [];
-      }
-
-      endCases = recentCasesResult.val.filter(
+      endCases = recentCases.filter(
         (c) => parseInt(c.caseId, 10) > rangeData.startId,
       );
     } else {
       // Both start and end ID provided, we are just adding to the last digit
-      const prefixSearchResult = await this.modLogRepository.searchByIdPrefix(
+      const prefixMatches = await this.modLogRepository.searchByIdPrefix(
         guildId,
         rangeData.endId.toString(),
         25,
       );
 
-      if (prefixSearchResult.err) {
-        return [];
-      }
-
-      endCases = prefixSearchResult.val.filter(
+      endCases = prefixMatches.filter(
         (c) => parseInt(c.caseId, 10) > rangeData.startId,
       );
     }
@@ -175,17 +132,13 @@ export class CaseRangeAutocompleteService {
     guildId: string,
     caseId: number,
   ): Promise<APIApplicationCommandOptionChoice<string>[]> {
-    const searchResult = await this.modLogRepository.searchByIdPrefix(
+    const matches = await this.modLogRepository.searchByIdPrefix(
       guildId,
       caseId.toString(),
       25,
     );
 
-    if (searchResult.err) {
-      return [];
-    }
-
-    return this.formatCases(searchResult.val);
+    return this.formatCases(matches);
   }
 
   private formatCases(

@@ -67,14 +67,10 @@ export class CaseRange {
         }
         return Ok([this.spec.startId, this.spec.endId]);
       case "latest": {
-        try {
-          const nextCaseId = await getCurrentCaseNumber();
-          const latestCaseId = nextCaseId - 1;
-          const caseStartId = latestCaseId - this.spec.count + 1;
-          return Ok([Math.max(1, caseStartId), latestCaseId]);
-        } catch (error) {
-          return Err(`Failed to resolve latest cases: ${error}`);
-        }
+        const nextCaseId = await getCurrentCaseNumber();
+        const latestCaseId = nextCaseId - 1;
+        const caseStartId = latestCaseId - this.spec.count + 1;
+        return Ok([Math.max(1, caseStartId), latestCaseId]);
       }
     }
   }

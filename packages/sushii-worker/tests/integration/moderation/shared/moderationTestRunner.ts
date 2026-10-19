@@ -217,25 +217,22 @@ export async function runModerationTest(
         testCase.actionType,
       );
 
-    expect(userCasesResult.ok).toBe(true);
-    if (userCasesResult.ok) {
-      const moderationCase = userCasesResult.val;
-      if (!moderationCase) {
-        throw new Error("Expected moderation case to be present");
-      }
+    const moderationCase = userCasesResult;
+    if (!moderationCase) {
+      throw new Error("Expected moderation case to be present");
+    }
 
-      expect(moderationCase.pending).toBe(
-        testCase.expectations.moderationCase.pending,
-      );
-      expect(moderationCase.actionType).toBe(
-        testCase.expectations.moderationCase.actionType,
-      );
+    expect(moderationCase.pending).toBe(
+      testCase.expectations.moderationCase.pending,
+    );
+    expect(moderationCase.actionType).toBe(
+      testCase.expectations.moderationCase.actionType,
+    );
 
-      if (testCase.expectations.moderationCase.reason) {
-        expect(moderationCase.reason?.value).toBe(
-          testCase.expectations.moderationCase.reason,
-        );
-      }
+    if (testCase.expectations.moderationCase.reason) {
+      expect(moderationCase.reason?.value).toBe(
+        testCase.expectations.moderationCase.reason,
+      );
     }
   }
 
@@ -282,11 +279,9 @@ export async function runModerationTest(
           testCase.setup.targetUser.id,
         );
 
-      if (finalCases.ok) {
-        expect(finalCases.val.length).toBeGreaterThan(0);
-        const completedCase = finalCases.val[0];
-        expect(completedCase.pending).toBe(false);
-      }
+      expect(finalCases.length).toBeGreaterThan(0);
+      const completedCase = finalCases[0];
+      expect(completedCase.pending).toBe(false);
     }
   }
 }

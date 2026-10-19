@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "bun:test";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { pino } from "pino";
 import type { Logger } from "pino";
@@ -7,8 +14,8 @@ import { modLogsInAppPublic } from "@/infrastructure/database/schema";
 import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
-import type { ModerationCase } from "../../domain/entities/ModerationCase";
 
+import type { ModerationCase } from "../../domain/entities/ModerationCase";
 import { DrizzleModLogRepository } from "./DrizzleModLogRepository";
 
 function makeCase(guildId: string, userId: string): ModerationCase {
@@ -38,12 +45,11 @@ describe("DrizzleModLogRepository (Integration)", () => {
 
   describe("createCase", () => {
     test("assigns case_id starting at 1 for a new guild", async () => {
-      const result = await repo.createCase(makeCase("111111111111111111", "222222222222222222"));
+      const result = await repo.createCase(
+        makeCase("111111111111111111", "222222222222222222"),
+      );
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.val.caseId).toBe("1");
-      }
+      expect(result.caseId).toBe("1");
     });
 
     test("assigns sequential case_ids for the same guild", async () => {
@@ -54,12 +60,7 @@ describe("DrizzleModLogRepository (Integration)", () => {
       const r2 = await repo.createCase(makeCase(guildId, userId));
       const r3 = await repo.createCase(makeCase(guildId, userId));
 
-      expect(r1.ok).toBe(true);
-      expect(r2.ok).toBe(true);
-      expect(r3.ok).toBe(true);
-      if (r1.ok && r2.ok && r3.ok) {
-        expect([r1.val.caseId, r2.val.caseId, r3.val.caseId]).toEqual(["1", "2", "3"]);
-      }
+      expect([r1.caseId, r2.caseId, r3.caseId]).toEqual(["1", "2", "3"]);
     });
 
     test("case_ids are independent across guilds", async () => {
@@ -71,39 +72,31 @@ describe("DrizzleModLogRepository (Integration)", () => {
       const r2 = await repo.createCase(makeCase(guild2, userId));
       const r3 = await repo.createCase(makeCase(guild1, userId));
 
-      expect(r1.ok).toBe(true);
-      expect(r2.ok).toBe(true);
-      expect(r3.ok).toBe(true);
-      if (r1.ok && r2.ok && r3.ok) {
-        expect(r1.val.caseId).toBe("1");
-        expect(r2.val.caseId).toBe("1");
-        expect(r3.val.caseId).toBe("2");
-      }
+      expect(r1.caseId).toBe("1");
+      expect(r2.caseId).toBe("1");
+      expect(r3.caseId).toBe("2");
     });
 
-    test(
-      // With a single DB connection, this test verifies sequential correctness under async
-      // scheduling concurrency (Promise.all interleaving microtasks), not true multi-connection
-      // contention. The advisory lock in the DB handles that case at the DB level.
-      "Promise.all inserts for the same guild produce distinct sequential case_ids",
-      async () => {
-        const guildId = "111111111111111111";
-        const userId = "222222222222222222";
+    test(// With a single DB connection, this test verifies sequential correctness under async
+    // scheduling concurrency (Promise.all interleaving microtasks), not true multi-connection
+    // contention. The advisory lock in the DB handles that case at the DB level.
+    "Promise.all inserts for the same guild produce distinct sequential case_ids", async () => {
+      const guildId = "111111111111111111";
+      const userId = "222222222222222222";
 
-        const results = await Promise.all(
-          Array.from({ length: 5 }, () => repo.createCase(makeCase(guildId, userId))),
-        );
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          repo.createCase(makeCase(guildId, userId)),
+        ),
+      );
 
-        expect(results.every((r) => r.ok)).toBe(true);
+      const caseIds = results
+        .map((r) => Number(r.caseId))
+        .sort((a, b) => a - b);
 
-        const caseIds = results
-          .map((r) => (r.ok ? Number(r.val.caseId) : -1))
-          .sort((a, b) => a - b);
-
-        expect(new Set(caseIds).size).toBe(caseIds.length);
-        expect(caseIds).toEqual([1, 2, 3, 4, 5]);
-      },
-    );
+      expect(new Set(caseIds).size).toBe(caseIds.length);
+      expect(caseIds).toEqual([1, 2, 3, 4, 5]);
+    });
 
     test("respects external transaction", async () => {
       const guildId = "111111111111111111";
@@ -113,10 +106,7 @@ describe("DrizzleModLogRepository (Integration)", () => {
 
       await db.transaction(async (tx) => {
         const result = await repo.createCase(makeCase(guildId, userId), tx);
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          createdCaseId = result.val.caseId;
-        }
+        createdCaseId = result.caseId;
       });
 
       expect(createdCaseId).toBe("1");

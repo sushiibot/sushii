@@ -85,10 +85,7 @@ describe("ModLog Reason Button Integration", () => {
         await services.moderationFeature.services.modLogRepository.createCase(
           existingCase,
         );
-      if (createResult.err) {
-        throw createResult.val;
-      }
-      const createdCase = createResult.val;
+      const createdCase = createResult;
 
       // Test the button handler logic by directly calling the service methods
       // First verify case exists
@@ -97,12 +94,9 @@ describe("ModLog Reason Button Integration", () => {
           guildId,
           createdCase.caseId,
         );
-      if (caseResult.err) {
-        throw caseResult.val;
-      }
-      expect(caseResult.val).toBeDefined();
+      expect(caseResult).toBeDefined();
 
-      if (!caseResult.val) {
+      if (!caseResult) {
         throw new Error("Case not found");
       }
 
@@ -116,19 +110,15 @@ describe("ModLog Reason Button Integration", () => {
       }
 
       // Update the case with the new reason (simulating what the button handler does)
-      const updatedCase = caseResult.val.withReason(reasonResult.val);
+      const updatedCase = caseResult.withReason(reasonResult.val);
       const updatedCaseWithExecutor = updatedCase.withExecutor(
         MOCK_USERS.MODERATOR_1.id,
       );
 
       // Save the updated case
-      const updateResult =
-        await services.moderationFeature.services.modLogRepository.update(
-          updatedCaseWithExecutor,
-        );
-      if (updateResult.err) {
-        throw updateResult.val;
-      }
+      await services.moderationFeature.services.modLogRepository.update(
+        updatedCaseWithExecutor,
+      );
 
       // Verify the case was updated
       const finalCaseResult =
@@ -136,14 +126,11 @@ describe("ModLog Reason Button Integration", () => {
           guildId,
           createdCase.caseId,
         );
-      if (finalCaseResult.err) {
-        throw finalCaseResult.val;
-      }
-      if (!finalCaseResult.val) {
+      if (!finalCaseResult) {
         throw new Error("Updated case not found");
       }
 
-      const finalCase = finalCaseResult.val;
+      const finalCase = finalCaseResult;
       expect(finalCase.reason?.value).toBe("Button added reason");
       expect(finalCase.executorId).toBe(MOCK_USERS.MODERATOR_1.id);
     });
@@ -180,10 +167,7 @@ describe("ModLog Reason Button Integration", () => {
         await services.moderationFeature.services.modLogRepository.createCase(
           existingCase,
         );
-      if (createResult2.err) {
-        throw createResult2.val;
-      }
-      const createdCase2 = createResult2.val;
+      const createdCase2 = createResult2;
 
       // Get the case
       const caseResult =
@@ -191,10 +175,7 @@ describe("ModLog Reason Button Integration", () => {
           guildId,
           createdCase2.caseId,
         );
-      if (caseResult.err) {
-        throw caseResult.val;
-      }
-      if (!caseResult.val) {
+      if (!caseResult) {
         throw new Error("Case not found");
       }
 
@@ -208,19 +189,15 @@ describe("ModLog Reason Button Integration", () => {
       }
 
       // Update the case with the new reason
-      const updatedCase = caseResult.val.withReason(newReasonResult.val);
+      const updatedCase = caseResult.withReason(newReasonResult.val);
       const updatedCaseWithExecutor = updatedCase.withExecutor(
         MOCK_USERS.MODERATOR_1.id,
       );
 
       // Save the updated case
-      const updateResult =
-        await services.moderationFeature.services.modLogRepository.update(
-          updatedCaseWithExecutor,
-        );
-      if (updateResult.err) {
-        throw updateResult.val;
-      }
+      await services.moderationFeature.services.modLogRepository.update(
+        updatedCaseWithExecutor,
+      );
 
       // Verify the case was updated
       const finalCaseResult =
@@ -228,14 +205,11 @@ describe("ModLog Reason Button Integration", () => {
           guildId,
           createdCase2.caseId,
         );
-      if (finalCaseResult.err) {
-        throw finalCaseResult.val;
-      }
-      if (!finalCaseResult.val) {
+      if (!finalCaseResult) {
         throw new Error("Updated case not found");
       }
 
-      const finalCase = finalCaseResult.val;
+      const finalCase = finalCaseResult;
       expect(finalCase.reason?.value).toBe("Updated via button");
       expect(finalCase.executorId).toBe(MOCK_USERS.MODERATOR_1.id);
     });
@@ -262,9 +236,7 @@ describe("ModLog Reason Button Integration", () => {
       if (longReasonResult.ok) {
         throw new Error("Expected error for long reason");
       }
-      expect(longReasonResult.val).toContain(
-        `${REASON_MAX_LENGTH} characters`,
-      );
+      expect(longReasonResult.val).toContain(`${REASON_MAX_LENGTH} characters`);
     });
 
     test("should handle case not found scenario", async () => {
@@ -276,10 +248,7 @@ describe("ModLog Reason Button Integration", () => {
         );
 
       // This should return successfully but with null value (case not found)
-      if (caseResult.err) {
-        throw caseResult.val;
-      }
-      expect(caseResult.val).toBeNull();
+      expect(caseResult).toBeNull();
     });
   });
 

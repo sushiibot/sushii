@@ -1,6 +1,4 @@
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Ok } from "ts-results";
 
 import type { TempBan } from "../../shared/domain/entities/TempBan";
 import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
@@ -20,22 +18,10 @@ export class TempBanListService {
     private readonly logger: Logger,
   ) {}
 
-  async getActiveTempBans(
-    guildId: string,
-  ): Promise<Result<TempBanListItem[], string>> {
+  async getActiveTempBans(guildId: string): Promise<TempBanListItem[]> {
     this.logger.debug({ guildId }, "Getting active temp bans for guild");
 
-    const tempBansResult = await this.tempBanRepository.findByGuildId(guildId);
-
-    if (tempBansResult.err) {
-      this.logger.error(
-        { error: tempBansResult.val, guildId },
-        "Failed to get temp bans from repository",
-      );
-      return tempBansResult;
-    }
-
-    const tempBans = tempBansResult.val;
+    const tempBans = await this.tempBanRepository.findByGuildId(guildId);
 
     this.logger.debug(
       { guildId, count: tempBans.length },
@@ -47,7 +33,7 @@ export class TempBanListService {
     // Sort by expiration time (earliest first)
     listItems.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
 
-    return Ok(listItems);
+    return listItems;
   }
 
   private formatTempBan(tempBan: TempBan): TempBanListItem {

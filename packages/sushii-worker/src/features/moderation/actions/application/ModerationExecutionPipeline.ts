@@ -54,6 +54,29 @@ export function buildAuditLogReason(
 }
 
 /**
+ * User-facing message for expected Discord API rejections, or null if the
+ * error is unexpected.
+ */
+function discordErrorMessage(error: unknown): string | null {
+  if (!(error instanceof DiscordAPIError)) {
+    return null;
+  }
+
+  switch (error.code) {
+    case RESTJSONErrorCodes.MissingPermissions:
+      return "Bot is missing permissions. Please check the bot's role and permissions.";
+    case RESTJSONErrorCodes.MissingAccess:
+      return "Bot is missing access. Please check the bot's role and permissions.";
+    case RESTJSONErrorCodes.UnknownUser:
+      return "User not found";
+    case RESTJSONErrorCodes.UnknownMember:
+      return "User is not in the server";
+    default:
+      return null;
+  }
+}
+
+/**
  * Handles the execution pipeline for single moderation actions.
  * Extracted from ModerationService to follow Single Responsibility Principle.
  */
@@ -98,141 +121,128 @@ export class ModerationExecutionPipeline {
       "Executing moderation action pipeline",
     );
 
-    try {
-      // For actions that require DM before creation, handle it first
-      let preDMResult: DMResult | null = null;
-      if (action.shouldSendDMBeforeAction()) {
-        const dmPolicy = await this.dmPolicyService.shouldSendDM(
-          "before",
-          action,
-          target,
-          guildConfig,
-        );
+    // For actions that require DM before creation, handle it first
+    let preDMResult: DMResult | null = null;
+    if (action.shouldSendDMBeforeAction()) {
+      const dmPolicy = await this.dmPolicyService.shouldSendDM(
+        "before",
+        action,
+        target,
+        guildConfig,
+      );
 
-        if (dmPolicy.should) {
-          // For warnings, DM must succeed before creating case
-          if (action.isWarnAction()) {
-            preDMResult = await this.sendDM(
-              action.guildId,
-              "pre-case",
-              action,
-              target,
-              guildConfig,
+      if (dmPolicy.should) {
+        // For warnings, DM must succeed before creating case
+        if (action.isWarnAction()) {
+          preDMResult = await this.sendDM(
+            action.guildId,
+            "pre-case",
+            action,
+            target,
+            guildConfig,
+          );
+
+          if (preDMResult !== null && preDMResult.error) {
+            // Only known failure reasons carry a user-facing message; others
+            // may be raw exception text
+            return Err(
+              preDMResult.failureReason &&
+                preDMResult.failureReason !== "unknown"
+                ? `Failed to send warning DM: ${preDMResult.error}`
+                : "Failed to send warning DM",
             );
-
-            if (preDMResult !== null && preDMResult.error) {
-              return Err(`Failed to send warning DM: ${preDMResult.error}`);
-            }
           }
         }
       }
+    }
 
-      // 1. Create database records atomically
-      const createResult = await this.createModerationRecord(
-        action,
-        finalActionType,
-        target,
-        preDMResult,
-        guildConfig,
-      );
-      if (!createResult.ok) {
-        return createResult;
-      }
+    // 1. Create database records atomically
+    const { caseId, moderationCase } = await this.createModerationRecord(
+      action,
+      finalActionType,
+      target,
+      preDMResult,
+      guildConfig,
+    );
 
-      const { caseId, moderationCase } = createResult.val;
+    // 2. Execute external operations (outside transaction)
+    let currentCase = moderationCase;
 
-      // 2. Execute external operations (outside transaction)
-      let currentCase = moderationCase;
-
-      // Send pre-action DM if needed (for ban/kick actions)
-      // Warnings already have their DM result included in the case
-      if (action.shouldSendDMBeforeAction() && !action.isWarnAction()) {
-        currentCase = await this.handlePreActionDM(
-          action,
-          target,
-          caseId,
-          currentCase,
-          guildConfig,
-        );
-      }
-
-      // Execute Discord action
-      const discordActionResult = await this.handleDiscordAction(
+    // Send pre-action DM if needed (for ban/kick actions)
+    // Warnings already have their DM result included in the case
+    if (action.shouldSendDMBeforeAction() && !action.isWarnAction()) {
+      currentCase = await this.handlePreActionDM(
         action,
         target,
-        finalActionType,
-        caseId,
-      );
-      if (!discordActionResult.ok) {
-        // If it failed, we need to delete the DM sent and case if they were created
-
-        // Delete DM if it was sent
-        if (
-          currentCase.dmResult?.channelId &&
-          currentCase.dmResult?.messageId
-        ) {
-          await this.dmNotificationService.deleteModerationDM(
-            this.client,
-            currentCase.dmResult.channelId,
-            currentCase.dmResult.messageId,
-          );
-        }
-
-        // Delete case
-        await this.modLogRepository.delete(
-          currentCase.guildId,
-          currentCase.caseId,
-        );
-
-        return discordActionResult;
-      }
-
-      // Handle post-action tasks
-      currentCase = await this.handleExternalPostActionTasks(
-        action,
-        target,
-        finalActionType,
         caseId,
         currentCase,
         guildConfig,
       );
-
-      this.logger.info(
-        {
-          originalActionType: action.actionType,
-          finalActionType: finalActionType,
-          targetId: target.id,
-          executorId: action.executor.id,
-          guildId: action.guildId,
-          caseId: caseId,
-        },
-        "Moderation action executed successfully",
-      );
-
-      const permission = actionTypePermission(finalActionType);
-      if (permission) {
-        await this.permissionUsageRecorder.recordSushiiAction({
-          guildId: action.guildId,
-          userId: action.executor.id,
-          permission,
-          channelId: null,
-        });
-      }
-
-      return Ok(currentCase);
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          actionType: finalActionType,
-          targetId: target.id,
-          guildId: action.guildId,
-        },
-        "Pipeline execution failed",
-      );
-
-      return Err(error instanceof Error ? error.message : String(error));
     }
+
+    // Execute Discord action
+    // If the Discord action fails, compensate by removing the DM and case
+    let discordActionResult: Result<void, string>;
+    try {
+      discordActionResult = await this.handleDiscordAction(
+        action,
+        target,
+        finalActionType,
+        caseId,
+      );
+    } catch (err) {
+      const caseToRollBack = currentCase;
+      await this.rollbackCase(caseToRollBack).catch((rollbackErr: unknown) => {
+        this.logger.error(
+          {
+            err: rollbackErr,
+            guildId: caseToRollBack.guildId,
+            caseId: caseToRollBack.caseId,
+          },
+          "Failed to roll back case after Discord action error",
+        );
+      });
+      throw err;
+    }
+
+    if (!discordActionResult.ok) {
+      await this.rollbackCase(currentCase);
+      return discordActionResult;
+    }
+
+    // Handle post-action tasks
+    currentCase = await this.handleExternalPostActionTasks(
+      action,
+      target,
+      finalActionType,
+      caseId,
+      currentCase,
+      guildConfig,
+    );
+
+    this.logger.info(
+      {
+        originalActionType: action.actionType,
+        finalActionType: finalActionType,
+        targetId: target.id,
+        executorId: action.executor.id,
+        guildId: action.guildId,
+        caseId: caseId,
+      },
+      "Moderation action executed successfully",
+    );
+
+    const permission = actionTypePermission(finalActionType);
+    if (permission) {
+      await this.permissionUsageRecorder.recordSushiiAction({
+        guildId: action.guildId,
+        userId: action.executor.id,
+        permission,
+        channelId: null,
+      });
+    }
+
+    return Ok(currentCase);
   }
 
   /**
@@ -245,9 +255,7 @@ export class ModerationExecutionPipeline {
     target: ModerationTarget,
     preDMResult: DMResult | null,
     guildConfig: GuildConfig,
-  ): Promise<
-    Result<{ caseId: string; moderationCase: ModerationCase }, string>
-  > {
+  ): Promise<{ caseId: string; moderationCase: ModerationCase }> {
     // Determine DM intent before creating the case
     const dmPolicyDecision = await this.dmPolicyService.shouldSendDM(
       action.shouldSendDMBeforeAction() ? "before" : "after",
@@ -302,47 +310,47 @@ export class ModerationExecutionPipeline {
         }
 
         // Create moderation case with auto-generated case ID
-        const createCaseResult = await this.modLogRepository.createCase(
+        const createdCase = await this.modLogRepository.createCase(
           moderationCase,
           tx,
         );
 
-        if (!createCaseResult.ok) {
-          this.logger.error(
-            {
-              actionType: action.actionType,
-              targetId: target.id,
-              error: createCaseResult.val,
-            },
-            "Failed to create moderation case",
-          );
-          throw new Error(createCaseResult.val);
-        }
-
         // Handle temp ban records atomically
-        const tempBanResult = await this.manageTempBanRecords(
-          action,
-          target,
-          tx,
-        );
+        await this.manageTempBanRecords(action, target, tx);
 
-        if (!tempBanResult.ok) {
-          this.logger.error(
-            {
-              actionType: finalActionType,
-              targetId: target.id,
-              guildId: action.guildId,
-              error: tempBanResult.val,
-            },
-            "Failed to manage temp ban records",
-          );
-          throw new Error(tempBanResult.val);
-        }
-
-        // Use the created case with auto-generated ID
-        const createdCase = createCaseResult.val;
-        return Ok({ caseId: createdCase.caseId, moderationCase: createdCase });
+        return { caseId: createdCase.caseId, moderationCase: createdCase };
       },
+    );
+  }
+
+  /**
+   * Removes the DM (best effort) and case created for an action whose Discord
+   * step failed.
+   */
+  private async rollbackCase(moderationCase: ModerationCase): Promise<void> {
+    const { channelId, messageId } = moderationCase.dmResult ?? {};
+    if (channelId && messageId) {
+      try {
+        await this.dmNotificationService.deleteModerationDM(
+          this.client,
+          channelId,
+          messageId,
+        );
+      } catch (err) {
+        this.logger.warn(
+          {
+            err,
+            guildId: moderationCase.guildId,
+            caseId: moderationCase.caseId,
+          },
+          "Failed to delete moderation DM during rollback",
+        );
+      }
+    }
+
+    await this.modLogRepository.delete(
+      moderationCase.guildId,
+      moderationCase.caseId,
     );
   }
 
@@ -415,15 +423,15 @@ export class ModerationExecutionPipeline {
     );
 
     if (!discordResult.ok) {
-      this.logger.error(
+      this.logger.warn(
         {
           actionType: finalActionType,
           targetId: target.id,
           executorId: action.executor.id,
           guildId: action.guildId,
-          error: discordResult.val,
+          reason: discordResult.val,
         },
-        "Failed to execute Discord action",
+        "Discord action not executed",
       );
 
       return discordResult;
@@ -540,37 +548,40 @@ export class ModerationExecutionPipeline {
         // Don't fail the operation, just log the warning
       } else {
         // Save the message ID to the database
+        // Best effort: the action already happened, so a failure here must
+        // not report the action as failed
         const messageId = modLogResult.val;
-        const updateResult = await this.modLogRepository.updateMessageId(
-          action.guildId,
-          moderationCase.caseId,
-          messageId,
-        );
-
-        if (updateResult.err) {
+        try {
+          await this.modLogRepository.updateMessageId(
+            action.guildId,
+            moderationCase.caseId,
+            messageId,
+          );
+        } catch (err) {
           this.logger.warn(
             {
+              err,
               actionType: finalActionType,
               targetId: target.id,
               guildId: action.guildId,
               caseId: moderationCase.caseId,
               messageId,
-              error: updateResult.val,
             },
             "Failed to save mod log message ID to database",
           );
-        } else {
-          this.logger.debug(
-            {
-              actionType: finalActionType,
-              targetId: target.id,
-              guildId: action.guildId,
-              caseId: moderationCase.caseId,
-              messageId,
-            },
-            "Successfully saved mod log message ID to database",
-          );
+          return;
         }
+
+        this.logger.debug(
+          {
+            actionType: finalActionType,
+            targetId: target.id,
+            guildId: action.guildId,
+            caseId: moderationCase.caseId,
+            messageId,
+          },
+          "Successfully saved mod log message ID to database",
+        );
       }
     }
   }
@@ -582,7 +593,7 @@ export class ModerationExecutionPipeline {
     action: ModerationAction,
     target: ModerationTarget,
     tx: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     switch (action.actionType) {
       case ActionType.TempBan: {
         if (!action.isTempBanAction()) {
@@ -595,10 +606,7 @@ export class ModerationExecutionPipeline {
         const expiresAt = action.duration.endTime();
         const tempBan = TempBan.create(target.id, action.guildId, expiresAt);
 
-        const saveResult = await this.tempBanRepository.save(tempBan, tx);
-        if (!saveResult.ok) {
-          return Err(`Failed to save temp ban: ${saveResult.val}`);
-        }
+        await this.tempBanRepository.save(tempBan, tx);
 
         this.logger.info(
           {
@@ -613,16 +621,13 @@ export class ModerationExecutionPipeline {
 
       case ActionType.BanRemove:
       case ActionType.Softban: {
-        const deleteResult = await this.tempBanRepository.delete(
+        const deletedTempBan = await this.tempBanRepository.delete(
           action.guildId,
           target.id,
           tx,
         );
-        if (!deleteResult.ok) {
-          return Err(`Failed to delete temp ban: ${deleteResult.val}`);
-        }
 
-        if (deleteResult.val) {
+        if (deletedTempBan) {
           this.logger.info(
             {
               userId: target.id,
@@ -647,8 +652,6 @@ export class ModerationExecutionPipeline {
         // No temp ban database operations needed for other action types
         break;
     }
-
-    return Ok.EMPTY;
   }
 
   /**
@@ -899,27 +902,24 @@ export class ModerationExecutionPipeline {
 
       return Ok.EMPTY;
     } catch (error) {
-      this.logger.error(
+      // Map expected Discord rejections to clear user-facing errors; anything
+      // else is unexpected and propagates
+      const userMessage = discordErrorMessage(error);
+      if (!userMessage) {
+        throw error;
+      }
+
+      this.logger.warn(
         {
           actionType: actionType,
           targetId: target.id,
           guildId,
           err: error,
         },
-        "Failed to execute Discord action",
+        "Discord rejected moderation action",
       );
 
-      // Handle common errors cases for clearer user facing errors
-      if (error instanceof DiscordAPIError) {
-        switch (error.code) {
-          case RESTJSONErrorCodes.MissingPermissions:
-            return Err(
-              "Bot is missing permissions. Please check the bot's role and permissions.",
-            );
-        }
-      }
-
-      return Err(error instanceof Error ? error.message : String(error));
+      return Err(userMessage);
     }
   }
 }

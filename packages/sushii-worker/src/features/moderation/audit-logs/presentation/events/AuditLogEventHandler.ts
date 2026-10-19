@@ -24,32 +24,17 @@ export class AuditLogEventHandler extends EventHandler<Events.GuildAuditLogEntry
    * Creates an event handler function for Discord.js event registration.
    */
   async handle(entry: GuildAuditLogsEntry, guild: Guild): Promise<void> {
-    try {
-      const result = await this.auditLogService.handleAuditLogEntry(
-        entry,
-        guild,
-      );
+    const result = await this.auditLogService.handleAuditLogEntry(entry, guild);
 
-      if (result.err) {
-        this.logger.warn(
-          {
-            err: result.val,
-            guildId: guild.id,
-            action: entry.action,
-            targetId: entry.targetId,
-          },
-          "Failed to handle audit log entry",
-        );
-      }
-    } catch (error) {
-      this.logger.error(
+    if (result.err) {
+      this.logger.warn(
         {
-          err: error,
+          err: result.val,
           guildId: guild.id,
           action: entry.action,
           targetId: entry.targetId,
         },
-        "Unexpected error in audit log event handler",
+        "Failed to handle audit log entry",
       );
     }
   }

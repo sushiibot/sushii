@@ -60,8 +60,8 @@ describe("HistoryUserService", () => {
 
   beforeEach(() => {
     modLogRepository = {
-      findByUserIdNotPending: mock(() => Promise.resolve(Ok([]))),
-      findByUserIdsNotPending: mock(() => Promise.resolve(Ok([]))),
+      findByUserIdNotPending: mock(() => Promise.resolve([])),
+      findByUserIdsNotPending: mock(() => Promise.resolve([])),
     } as unknown as ModLogRepository;
 
     altAccountRepository = {
@@ -95,9 +95,7 @@ describe("HistoryUserService", () => {
       Promise.resolve(Ok(identity)),
     );
     modLogRepository.findByUserIdsNotPending = mock(() =>
-      Promise.resolve(
-        Ok([makeCase(USER_A, "1"), makeCase(USER_B, "2")]),
-      ),
+      Promise.resolve([makeCase(USER_A, "1"), makeCase(USER_B, "2")]),
     );
 
     const result = await service.getUserHistory(GUILD_ID, USER_A);

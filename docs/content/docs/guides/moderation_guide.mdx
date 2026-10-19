@@ -18,7 +18,7 @@ Before anything else, point sushii at a private moderation log channel via
 **`/settings` → Logging → Mod Logs**. Once set, every case will be
 posted there automatically.
 
-{/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488, packages/sushii-worker/src/features/moderation/audit-logs/application/AuditLogService.ts#AuditLogService.createNewCase @51b3796a */}
+{/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488, packages/sushii-worker/src/features/moderation/audit-logs/application/AuditLogService.ts#AuditLogService.createNewCase @9296d8fa */}
 
 <Callout title="Native Discord actions are also logged">
 Bans, kicks, and timeouts done through Discord's own menus become cases too,
@@ -47,7 +47,7 @@ posted to your mod log channel.
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
 
-{/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#DrizzleModLogRepository.deleteRange @ee961c9d */}
+{/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#DrizzleModLogRepository.deleteRange @4eb2af4b */}
 
 <Callout type="warn" title="Uncase is permanent">
   `/uncase` cannot be undone. Use it only to remove cases that were created in
@@ -58,7 +58,7 @@ posted to your mod log channel.
 
 Both approaches log to the same place. Reach for sushii commands when:
 
-{/* source: packages/sushii-worker/src/features/moderation/actions/application/TargetResolutionService.ts#TargetResolutionService.fetchTargets @4f4a92ce, packages/sushii-worker/src/features/moderation/infrastructure/tasks/TempbanTask.ts#TempbanTask.execute @0991aa5b */}
+{/* source: packages/sushii-worker/src/features/moderation/actions/application/TargetResolutionService.ts#TargetResolutionService.fetchTargets @4f4a92ce, packages/sushii-worker/src/features/moderation/infrastructure/tasks/TempbanTask.ts#TempbanTask.execute @234a1b59 */}
 
 - You need to act on multiple members at once (up to 25 in a single command)
 - You want to DM the member a reason before kicking or banning them

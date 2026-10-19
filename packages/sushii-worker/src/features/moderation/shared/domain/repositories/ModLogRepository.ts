@@ -1,9 +1,12 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Result } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 
-import type { DMFailureReason, DMResult, ModerationCase } from "../entities/ModerationCase";
+import type {
+  DMFailureReason,
+  DMResult,
+  ModerationCase,
+} from "../entities/ModerationCase";
 import type { ActionType } from "../value-objects/ActionType";
 
 /**
@@ -21,7 +24,7 @@ export interface ModLogCaseOperations {
   createCase(
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase, string>>;
+  ): Promise<ModerationCase>;
 
   /**
    * Updates an existing moderation case.
@@ -29,7 +32,7 @@ export interface ModLogCaseOperations {
   update(
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<void>;
 
   /**
    * Finds a case by guild and case ID.
@@ -38,7 +41,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase | null, string>>;
+  ): Promise<ModerationCase | null>;
 
   /**
    * Finds all cases for a specific user in a guild.
@@ -47,7 +50,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Finds all cases across multiple users in a guild — the merged-history
@@ -58,7 +61,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     userIds: string[],
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Finds cases for a guild with pagination.
@@ -68,7 +71,7 @@ export interface ModLogCaseOperations {
     limit?: number,
     offset?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Finds cases by case ID range.
@@ -78,7 +81,7 @@ export interface ModLogCaseOperations {
     startCaseId: number,
     endCaseId: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Gets recent moderation cases for a guild.
@@ -87,7 +90,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     limit?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Searches for cases by case ID prefix for autocomplete.
@@ -97,7 +100,7 @@ export interface ModLogCaseOperations {
     prefix: string,
     limit?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Checks if a case exists by case ID.
@@ -106,7 +109,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<boolean, string>>;
+  ): Promise<boolean>;
 
   /**
    * Deletes a single case.
@@ -115,7 +118,7 @@ export interface ModLogCaseOperations {
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<void>;
 
   /**
    * Deletes multiple cases by case ID range and returns the deleted cases.
@@ -125,7 +128,7 @@ export interface ModLogCaseOperations {
     startCaseId: number,
     endCaseId: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 
   /**
    * Updates reason for multiple cases in a range.
@@ -138,7 +141,7 @@ export interface ModLogCaseOperations {
     reason: string,
     onlyEmpty: boolean,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>>;
+  ): Promise<ModerationCase[]>;
 }
 
 /**
@@ -155,17 +158,18 @@ export interface ModLogAuditOperations {
     actionType: ActionType,
     maxAgeMinutes?: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase | null, string>>;
+  ): Promise<ModerationCase | null>;
 
   /**
    * Marks a pending case as not pending.
    * Used when an audit log event is matched to a pending case.
+   * Returns null if no case was updated (e.g. it was deleted meanwhile).
    */
   markAsNotPending(
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase, string>>;
+  ): Promise<ModerationCase | null>;
 
   /**
    * Updates a mod log case with the Discord message ID.
@@ -176,7 +180,7 @@ export interface ModLogAuditOperations {
     caseId: string,
     messageId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<void>;
 
   /**
    * Updates a mod log case with DM result information.
@@ -190,7 +194,7 @@ export interface ModLogAuditOperations {
     dmIntended: boolean,
     dmFailureReason: DMFailureReason | null,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  ): Promise<void>;
 }
 
 /**

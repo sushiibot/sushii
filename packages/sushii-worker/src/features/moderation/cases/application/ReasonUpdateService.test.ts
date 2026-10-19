@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Client } from "discord.js";
 import pino from "pino";
-import { Ok } from "ts-results";
 
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -23,26 +22,26 @@ describe("ReasonUpdateService", () => {
 
   beforeEach(() => {
     mockModLogRepository = {
-      createCase: mock(() => Promise.resolve(Ok({} as ModerationCase))),
-      update: mock(() => Promise.resolve(Ok.EMPTY)),
-      delete: mock(() => Promise.resolve(Ok.EMPTY)),
+      createCase: mock(() => Promise.resolve({} as ModerationCase)),
+      update: mock(() => Promise.resolve()),
+      delete: mock(() => Promise.resolve()),
       findRecent: mock(() =>
-        Promise.resolve(Ok([{ caseId: "4" } as ModerationCase])),
+        Promise.resolve([{ caseId: "4" } as ModerationCase]),
       ),
-      findById: mock(() => Promise.resolve(Ok(null))),
-      findByUserIdNotPending: mock(() => Promise.resolve(Ok([]))),
-      findByUserIdsNotPending: mock(() => Promise.resolve(Ok([]))),
-      findByGuildId: mock(() => Promise.resolve(Ok([]))),
-      deleteRange: mock(() => Promise.resolve(Ok([]))),
-      exists: mock(() => Promise.resolve(Ok(true))),
-      findByRange: mock(() => Promise.resolve(Ok([]))),
-      updateReasonBulk: mock(() => Promise.resolve(Ok([]))),
-      searchByIdPrefix: mock(() => Promise.resolve(Ok([]))),
+      findById: mock(() => Promise.resolve(null)),
+      findByUserIdNotPending: mock(() => Promise.resolve([])),
+      findByUserIdsNotPending: mock(() => Promise.resolve([])),
+      findByGuildId: mock(() => Promise.resolve([])),
+      deleteRange: mock(() => Promise.resolve([])),
+      exists: mock(() => Promise.resolve(true)),
+      findByRange: mock(() => Promise.resolve([])),
+      updateReasonBulk: mock(() => Promise.resolve([])),
+      searchByIdPrefix: mock(() => Promise.resolve([])),
       // Audit log methods
-      findPendingCase: mock(() => Promise.resolve(Ok(null))),
-      markAsNotPending: mock(() => Promise.resolve(Ok({} as ModerationCase))),
-      updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
-      updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
+      findPendingCase: mock(() => Promise.resolve(null)),
+      markAsNotPending: mock(() => Promise.resolve({} as ModerationCase)),
+      updateMessageId: mock(() => Promise.resolve()),
+      updateDMInfo: mock(() => Promise.resolve()),
       hasAnyForGuild: mock(() => Promise.resolve(false)),
     };
 
@@ -112,7 +111,7 @@ describe("ReasonUpdateService", () => {
       );
 
       mockModLogRepository.findByRange = mock(() =>
-        Promise.resolve(Ok([mockCase])),
+        Promise.resolve([mockCase]),
       );
 
       const result = await service.checkExistingReasons("guild-123", "1");
@@ -158,7 +157,7 @@ describe("ReasonUpdateService", () => {
       );
 
       mockModLogRepository.updateReasonBulk = mock(() =>
-        Promise.resolve(Ok([mockCase])),
+        Promise.resolve([mockCase]),
       );
 
       const result = await service.updateReasons({
@@ -174,6 +173,32 @@ describe("ReasonUpdateService", () => {
         expect(result.val.updatedCases).toHaveLength(1);
         expect(result.val.errors).toHaveLength(0);
       }
+    });
+
+    test("should propagate database errors instead of returning them", async () => {
+      mockModLogRepository.updateReasonBulk = mock(() =>
+        Promise.reject(new Error("connection lost")),
+      );
+
+      await expect(
+        service.updateReasons({
+          guildId: "guild-123",
+          executorId: "executor-123",
+          caseRangeStr: "1",
+          reason: "New reason",
+          onlyEmpty: false,
+        }),
+      ).rejects.toThrow("connection lost");
+    });
+
+    test("should propagate database errors when resolving latest cases", async () => {
+      mockModLogRepository.findRecent = mock(() =>
+        Promise.reject(new Error("connection lost")),
+      );
+
+      await expect(
+        service.checkExistingReasons("guild-123", "latest"),
+      ).rejects.toThrow("connection lost");
     });
 
     test("should return error when mod log is not configured", async () => {

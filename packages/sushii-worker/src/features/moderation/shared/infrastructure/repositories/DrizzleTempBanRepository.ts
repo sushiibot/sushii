@@ -1,8 +1,6 @@
 import { and, eq, lte } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 import { tempBansInAppPublic } from "@/infrastructure/database/schema";
@@ -20,212 +18,170 @@ export class DrizzleTempBanRepository implements TempBanRepository {
   async save(
     tempBan: TempBan,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const db = tx || this.db;
-    try {
-      await db
-        .insert(tempBansInAppPublic)
-        .values({
-          userId: BigInt(tempBan.userId),
-          guildId: BigInt(tempBan.guildId),
-          expiresAt: tempBan.expiresAt.toISOString(),
-          createdAt: tempBan.createdAt.toISOString(),
-        })
-        .onConflictDoUpdate({
-          target: [tempBansInAppPublic.userId, tempBansInAppPublic.guildId],
-          set: {
-            expiresAt: tempBan.expiresAt.toISOString(),
-          },
-        });
-
-      this.logger.debug(
-        {
-          userId: tempBan.userId,
-          guildId: tempBan.guildId,
+    await db
+      .insert(tempBansInAppPublic)
+      .values({
+        userId: BigInt(tempBan.userId),
+        guildId: BigInt(tempBan.guildId),
+        expiresAt: tempBan.expiresAt.toISOString(),
+        createdAt: tempBan.createdAt.toISOString(),
+      })
+      .onConflictDoUpdate({
+        target: [tempBansInAppPublic.userId, tempBansInAppPublic.guildId],
+        set: {
           expiresAt: tempBan.expiresAt.toISOString(),
         },
-        "Saved temp ban",
-      );
+      });
 
-      return Ok.EMPTY;
-    } catch (err) {
-      this.logger.error({ err }, "Failed to save temp ban");
-      return Err(`Failed to save temp ban: ${err}`);
-    }
+    this.logger.debug(
+      {
+        userId: tempBan.userId,
+        guildId: tempBan.guildId,
+        expiresAt: tempBan.expiresAt.toISOString(),
+      },
+      "Saved temp ban",
+    );
   }
 
   async delete(
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan | null, string>> {
+  ): Promise<TempBan | null> {
     const db = tx || this.db;
-    try {
-      const result = await db
-        .delete(tempBansInAppPublic)
-        .where(
-          and(
-            eq(tempBansInAppPublic.guildId, BigInt(guildId)),
-            eq(tempBansInAppPublic.userId, BigInt(userId)),
-          ),
-        )
-        .returning();
+    const result = await db
+      .delete(tempBansInAppPublic)
+      .where(
+        and(
+          eq(tempBansInAppPublic.guildId, BigInt(guildId)),
+          eq(tempBansInAppPublic.userId, BigInt(userId)),
+        ),
+      )
+      .returning();
 
-      if (result.length === 0) {
-        return Ok(null);
-      }
-
-      const row = result[0];
-      const tempBan = TempBan.fromDatabase(
-        row.userId.toString(),
-        row.guildId.toString(),
-        row.expiresAt,
-        row.createdAt,
-      );
-
-      this.logger.debug(
-        {
-          userId,
-          guildId,
-        },
-        "Deleted temp ban",
-      );
-
-      return Ok(tempBan);
-    } catch (err) {
-      this.logger.error({ err, guildId, userId }, "Failed to delete temp ban");
-      return Err(`Failed to delete temp ban: ${err}`);
+    if (result.length === 0) {
+      return null;
     }
+
+    const row = result[0];
+    const tempBan = TempBan.fromDatabase(
+      row.userId.toString(),
+      row.guildId.toString(),
+      row.expiresAt,
+      row.createdAt,
+    );
+
+    this.logger.debug(
+      {
+        userId,
+        guildId,
+      },
+      "Deleted temp ban",
+    );
+
+    return tempBan;
   }
 
   async findByGuildId(
     guildId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>> {
+  ): Promise<TempBan[]> {
     const db = tx || this.db;
-    try {
-      const results = await db
-        .select()
-        .from(tempBansInAppPublic)
-        .where(eq(tempBansInAppPublic.guildId, BigInt(guildId)));
+    const results = await db
+      .select()
+      .from(tempBansInAppPublic)
+      .where(eq(tempBansInAppPublic.guildId, BigInt(guildId)));
 
-      const tempBans = results.map((row) =>
-        TempBan.fromDatabase(
-          row.userId.toString(),
-          row.guildId.toString(),
-          row.expiresAt,
-          row.createdAt,
-        ),
-      );
+    const tempBans = results.map((row) =>
+      TempBan.fromDatabase(
+        row.userId.toString(),
+        row.guildId.toString(),
+        row.expiresAt,
+        row.createdAt,
+      ),
+    );
 
-      return Ok(tempBans);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId },
-        "Failed to find temp bans by guild ID",
-      );
-      return Err(`Failed to find temp bans: ${err}`);
-    }
+    return tempBans;
   }
 
   async findByGuildAndUserId(
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan | null, string>> {
+  ): Promise<TempBan | null> {
     const db = tx || this.db;
-    try {
-      const result = await db
-        .select()
-        .from(tempBansInAppPublic)
-        .where(
-          and(
-            eq(tempBansInAppPublic.guildId, BigInt(guildId)),
-            eq(tempBansInAppPublic.userId, BigInt(userId)),
-          ),
-        )
-        .limit(1);
+    const result = await db
+      .select()
+      .from(tempBansInAppPublic)
+      .where(
+        and(
+          eq(tempBansInAppPublic.guildId, BigInt(guildId)),
+          eq(tempBansInAppPublic.userId, BigInt(userId)),
+        ),
+      )
+      .limit(1);
 
-      if (result.length === 0) {
-        return Ok(null);
-      }
+    if (result.length === 0) {
+      return null;
+    }
 
-      const row = result[0];
-      const tempBan = TempBan.fromDatabase(
+    const row = result[0];
+    const tempBan = TempBan.fromDatabase(
+      row.userId.toString(),
+      row.guildId.toString(),
+      row.expiresAt,
+      row.createdAt,
+    );
+
+    return tempBan;
+  }
+
+  async findExpired(tx?: NodePgDatabase<typeof schema>): Promise<TempBan[]> {
+    const db = tx || this.db;
+    const now = dayjs.utc().toISOString();
+    const results = await db
+      .select()
+      .from(tempBansInAppPublic)
+      .where(lte(tempBansInAppPublic.expiresAt, now));
+
+    const tempBans = results.map((row) =>
+      TempBan.fromDatabase(
         row.userId.toString(),
         row.guildId.toString(),
         row.expiresAt,
         row.createdAt,
-      );
+      ),
+    );
 
-      return Ok(tempBan);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, userId },
-        "Failed to find temp ban by guild and user ID",
-      );
-      return Err(`Failed to find temp ban: ${err}`);
-    }
+    return tempBans;
   }
 
-  async findExpired(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>> {
+  async deleteExpired(tx?: NodePgDatabase<typeof schema>): Promise<TempBan[]> {
     const db = tx || this.db;
-    try {
-      const now = dayjs.utc().toISOString();
-      const results = await db
-        .select()
-        .from(tempBansInAppPublic)
-        .where(lte(tempBansInAppPublic.expiresAt, now));
+    const now = dayjs.utc().toISOString();
+    const results = await db
+      .delete(tempBansInAppPublic)
+      .where(lte(tempBansInAppPublic.expiresAt, now))
+      .returning();
 
-      const tempBans = results.map((row) =>
-        TempBan.fromDatabase(
-          row.userId.toString(),
-          row.guildId.toString(),
-          row.expiresAt,
-          row.createdAt,
-        ),
-      );
+    const tempBans = results.map((row) =>
+      TempBan.fromDatabase(
+        row.userId.toString(),
+        row.guildId.toString(),
+        row.expiresAt,
+        row.createdAt,
+      ),
+    );
 
-      return Ok(tempBans);
-    } catch (err) {
-      this.logger.error({ err }, "Failed to find expired temp bans");
-      return Err(`Failed to find expired temp bans: ${err}`);
-    }
-  }
+    this.logger.debug(
+      {
+        deletedCount: tempBans.length,
+      },
+      "Deleted expired temp bans",
+    );
 
-  async deleteExpired(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>> {
-    const db = tx || this.db;
-    try {
-      const now = dayjs.utc().toISOString();
-      const results = await db
-        .delete(tempBansInAppPublic)
-        .where(lte(tempBansInAppPublic.expiresAt, now))
-        .returning();
-
-      const tempBans = results.map((row) =>
-        TempBan.fromDatabase(
-          row.userId.toString(),
-          row.guildId.toString(),
-          row.expiresAt,
-          row.createdAt,
-        ),
-      );
-
-      this.logger.debug(
-        {
-          deletedCount: tempBans.length,
-        },
-        "Deleted expired temp bans",
-      );
-
-      return Ok(tempBans);
-    } catch (err) {
-      this.logger.error({ err }, "Failed to delete expired temp bans");
-      return Err(`Failed to delete expired temp bans: ${err}`);
-    }
+    return tempBans;
   }
 }

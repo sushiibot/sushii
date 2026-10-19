@@ -58,30 +58,20 @@ export class CaseDeletionService {
     }
 
     // Get guild config to check mod log settings
-    let modLogChannelId: string;
-    try {
-      const guildConfig =
-        await this.guildConfigRepository.findByGuildId(guildId);
-      if (
-        !guildConfig?.loggingSettings.modLogChannel ||
-        !guildConfig.loggingSettings.modLogEnabled
-      ) {
-        return Err("Mod log is not configured or disabled");
-      }
-
-      modLogChannelId = guildConfig.loggingSettings.modLogChannel;
-    } catch (error) {
-      return Err(`Failed to get guild config: ${error}`);
+    const guildConfig = await this.guildConfigRepository.findByGuildId(guildId);
+    if (
+      !guildConfig?.loggingSettings.modLogChannel ||
+      !guildConfig.loggingSettings.modLogEnabled
+    ) {
+      return Err("Mod log is not configured or disabled");
     }
+
+    const modLogChannelId = guildConfig.loggingSettings.modLogChannel;
 
     // Resolve the case range to actual case IDs
     const getCurrentCaseNumber = async () => {
       // Get the latest case to determine the current max case number
-      const result = await this.modLogRepository.findRecent(guildId, 1);
-      if (result.err) {
-        throw new Error(result.val);
-      }
-      const latestCase = result.val[0];
+      const [latestCase] = await this.modLogRepository.findRecent(guildId, 1);
       return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
@@ -95,14 +85,11 @@ export class CaseDeletionService {
 
     // Validate that cases exist in the range
     if (caseRange.data.type === "single") {
-      const existsResult = await this.modLogRepository.exists(
+      const exists = await this.modLogRepository.exists(
         guildId,
         startCaseId.toString(),
       );
-      if (existsResult.err) {
-        return existsResult;
-      }
-      if (!existsResult.val) {
+      if (!exists) {
         return Err(`Case #${startCaseId} does not exist`);
       }
     }
@@ -110,18 +97,12 @@ export class CaseDeletionService {
     // Perform the deletion in a transaction
     return await this.db.transaction(async (tx) => {
       // Delete the cases
-      const deletionResult = await this.modLogRepository.deleteRange(
+      const deletedCases = await this.modLogRepository.deleteRange(
         guildId,
         startCaseId,
         endCaseId,
         tx,
       );
-
-      if (deletionResult.err) {
-        return deletionResult;
-      }
-
-      const deletedCases = deletionResult.val;
 
       if (deletedCases.length === 0) {
         return Err("No cases were found in the specified range");

@@ -4,11 +4,12 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
-
 import type { AutomodAlertReactionService } from "@/features/automod/application/AutomodAlertReactionService";
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
-import type { DMFailureReason, DMResult } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type {
+  DMFailureReason,
+  DMResult,
+} from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
@@ -16,11 +17,13 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import { ActionType } from "../../shared";
+import type { DMSentResult } from "../../shared/application/DMNotificationService";
 import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import { AuditLogEvent } from "../domain/entities";
 import type { ModLogPostingService } from "./ModLogPostingService";
-import type { DMSentResult } from "../../shared/application/DMNotificationService";
 import type { NativeTimeoutDMService } from "./NativeTimeoutDMService";
+
+const tracer = opentelemetry.trace.getTracer("moderation-audit-log");
 
 /**
  * Application service for handling Discord audit log events end-to-end.
@@ -60,136 +63,128 @@ export class AuditLogService {
     entry: GuildAuditLogsEntry,
     guild: Guild,
   ): Promise<Result<void, string>> {
-    try {
-      // Step 1: Convert audit log entry to moderation case
-      const findResult = await this.findOrCreateModCase(entry, guild);
+    // Step 1: Convert audit log entry to moderation case
+    const findResult = await this.findOrCreateModCase(entry, guild);
 
-      if (findResult.tag === "unrelated") {
-        return Ok.EMPTY;
-      }
+    if (findResult.tag === "unrelated") {
+      return Ok.EMPTY;
+    }
 
-      // Real moderation event — react to any recent native AutoMod alerts for this user
-      this.automodAlertReactionService
-        .reactToRecentAlerts(
-          guild,
-          findResult.targetUserId,
-          findResult.auditLogEvent.actionType,
-        )
-        .catch((err: unknown) => {
-          this.logger.warn({ err }, "Failed to react to automod alerts");
+    // Real moderation event — react to any recent native AutoMod alerts for this user
+    this.automodAlertReactionService
+      .reactToRecentAlerts(
+        guild,
+        findResult.targetUserId,
+        findResult.auditLogEvent.actionType,
+      )
+      .catch((err: unknown) => {
+        this.logger.warn({ err }, "Failed to react to automod alerts");
+      });
+
+    // Update sushii's own spam detection alert for this user if one exists
+    this.spamAlertUpdateService
+      .updateSpamAlert(
+        guild,
+        findResult.targetUserId,
+        findResult.auditLogEvent.actionType,
+        findResult.auditLogEvent.executorId,
+      )
+      .catch((err: unknown) => {
+        this.logger.warn({ err }, "Failed to update spam alert");
+      });
+
+    if (findResult.tag === "skip") {
+      // Mod log posting is disabled, but the case has been processed
+      return Ok.EMPTY;
+    }
+
+    const processedLog = findResult.processedLog;
+
+    // A real moderation case matched — span covers steps 2-4.
+    return tracer.startActiveSpan(
+      "moderation.audit-log.process-case",
+      async (span) => {
+        span.setAttributes({
+          "guild.id": guild.id,
+          "action.type": String(processedLog.auditLogEvent.actionType),
+          "target.id": processedLog.modLogCase.userId,
+          "case.id": processedLog.modLogCase.caseId,
+          was_pending_case: processedLog.wasPendingCase,
         });
 
-      // Update sushii's own spam detection alert for this user if one exists
-      this.spamAlertUpdateService
-        .updateSpamAlert(
-          guild,
-          findResult.targetUserId,
-          findResult.auditLogEvent.actionType,
-          findResult.auditLogEvent.executorId,
-        )
-        .catch((err: unknown) => {
-          this.logger.warn({ err }, "Failed to update spam alert");
-        });
-
-      if (findResult.tag === "skip") {
-        // Mod log posting is disabled, but the case has been processed
-        return Ok.EMPTY;
-      }
-
-      const processedLog = findResult.processedLog;
-
-      // A real moderation case matched — span covers steps 2-4.
-      return tracer.startActiveSpan(
-        "moderation.audit-log.process-case",
-        async (span) => {
-          span.setAttributes({
-            "guild.id": guild.id,
-            "action.type": String(processedLog.auditLogEvent.actionType),
-            "target.id": processedLog.modLogCase.userId,
-            "case.id": processedLog.modLogCase.caseId,
-            "was_pending_case": processedLog.wasPendingCase,
-          });
-
-          try {
-            // Step 2: Handle native timeout DMs if applicable
-            let updatedModLogCase = processedLog.modLogCase;
-            const dmResult = await this.sendTimeoutDMIfNeeded(
-              processedLog.auditLogEvent,
-              processedLog.targetUser,
-              guild,
-              processedLog.modLogCase.caseId,
-              processedLog.wasPendingCase,
+        try {
+          // Step 2: Handle native timeout DMs if applicable
+          let updatedModLogCase = processedLog.modLogCase;
+          const dmResult = await this.sendTimeoutDMIfNeeded(
+            processedLog.auditLogEvent,
+            processedLog.targetUser,
+            guild,
+            processedLog.modLogCase.caseId,
+            processedLog.wasPendingCase,
+          );
+          if (dmResult.err) {
+            this.logger.warn(
+              { err: dmResult.val },
+              "Failed to send native timeout DM, continuing with mod log posting",
             );
-            if (dmResult.err) {
-              this.logger.warn(
-                { err: dmResult.val },
-                "Failed to send native timeout DM, continuing with mod log posting",
-              );
-            } else if (dmResult.ok) {
-              const dmInfo = dmResult.val;
-              if (dmInfo) {
-                const dmResultForCase: DMResult = {};
-                if (dmInfo.channelId) {
-                  dmResultForCase.channelId = dmInfo.channelId;
-                }
-                if (dmInfo.messageId) {
-                  dmResultForCase.messageId = dmInfo.messageId;
-                }
-                if (dmInfo.error) {
-                  dmResultForCase.error = dmInfo.error;
-                }
-                if (dmInfo.failureReason) {
-                  dmResultForCase.failureReason = dmInfo.failureReason;
-                }
-                updatedModLogCase = processedLog.modLogCase.withDMResult(dmResultForCase);
+          } else if (dmResult.ok) {
+            const dmInfo = dmResult.val;
+            if (dmInfo) {
+              const dmResultForCase: DMResult = {};
+              if (dmInfo.channelId) {
+                dmResultForCase.channelId = dmInfo.channelId;
               }
+              if (dmInfo.messageId) {
+                dmResultForCase.messageId = dmInfo.messageId;
+              }
+              if (dmInfo.error) {
+                dmResultForCase.error = dmInfo.error;
+              }
+              if (dmInfo.failureReason) {
+                dmResultForCase.failureReason = dmInfo.failureReason;
+              }
+              updatedModLogCase =
+                processedLog.modLogCase.withDMResult(dmResultForCase);
             }
+          }
 
-            // Step 3: Post mod log message with updated case
-            const postResult = await this.modLogPostingService.postModLogMessage(
-              processedLog.auditLogEvent,
-              updatedModLogCase,
-              processedLog.targetUser,
-              guild,
-              processedLog.guildConfig.modLogChannelId,
-            );
+          // Step 3: Post mod log message with updated case
+          const postResult = await this.modLogPostingService.postModLogMessage(
+            processedLog.auditLogEvent,
+            updatedModLogCase,
+            processedLog.targetUser,
+            guild,
+            processedLog.guildConfig.modLogChannelId,
+          );
 
-            if (postResult.err) {
-              span.setStatus({ code: SpanStatusCode.ERROR, message: postResult.val });
-              return postResult as Err<string>;
-            }
-
-            // Step 4: Update mod log case with message ID
-            const messageId = postResult.val;
-            await this.updateCaseMessageId(
-              processedLog.modLogCase.guildId,
-              processedLog.modLogCase.caseId,
-              messageId,
-            );
-
-            return Ok.EMPTY;
-          } catch (err) {
+          if (postResult.err) {
             span.setStatus({
               code: SpanStatusCode.ERROR,
-              message: err instanceof Error ? err.message : String(err),
+              message: postResult.val,
             });
-            throw err;
-          } finally {
-            span.end();
+            return Err(postResult.val);
           }
-        },
-      );
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          guildId: guild.id,
-          entryAction: entry.action,
-        },
-        "Failed to handle audit log entry",
-      );
-      return Err(`Failed to handle audit log entry: ${error}`);
-    }
+
+          // Step 4: Update mod log case with message ID
+          const messageId = postResult.val;
+          await this.updateCaseMessageId(
+            processedLog.modLogCase.guildId,
+            processedLog.modLogCase.caseId,
+            messageId,
+          );
+
+          return Ok.EMPTY;
+        } catch (err) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err instanceof Error ? err.message : String(err),
+          });
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 
   /**
@@ -211,7 +206,10 @@ export class AuditLogService {
     // Suppress spurious BanRemove cases created by the immediate unban in a softban
     if (
       auditLogEvent.actionType === ActionType.BanRemove &&
-      this.softbanSuppressionSet.isSuppressed(auditLogEvent.guildId, auditLogEvent.targetId)
+      this.softbanSuppressionSet.isSuppressed(
+        auditLogEvent.guildId,
+        auditLogEvent.targetId,
+      )
     ) {
       this.logger.debug(
         {
@@ -248,10 +246,8 @@ export class AuditLogService {
     const targetUser = await guild.client.users.fetch(entry.targetId);
 
     // Find or create mod log case (always do this to mark pending cases as complete)
-    const { modLogCase, wasPendingCase } = await this.resolvePendingOrCreateCase(
-      auditLogEvent,
-      targetUser,
-    );
+    const { modLogCase, wasPendingCase } =
+      await this.resolvePendingOrCreateCase(auditLogEvent, targetUser);
 
     // Check guild configuration for mod log posting
     const guildConfig = await this.guildConfigRepository.findByGuildId(
@@ -307,7 +303,11 @@ export class AuditLogService {
 
     if (auditLogEvent.actionType === ActionType.Ban) {
       // Ban audit log can be triggered by ban, tempban, or softban actions.
-      actionTypesToSearch = [ActionType.Ban, ActionType.TempBan, ActionType.Softban];
+      actionTypesToSearch = [
+        ActionType.Ban,
+        ActionType.TempBan,
+        ActionType.Softban,
+      ];
     } else if (auditLogEvent.actionType === ActionType.Timeout) {
       // Discord always sends Timeout events, but bot may have saved as TimeoutAdjust
       actionTypesToSearch = [ActionType.Timeout, ActionType.TimeoutAdjust];
@@ -325,16 +325,8 @@ export class AuditLogService {
         1, // maxAgeMinutes
       );
 
-      if (pendingCase.err) {
-        // Not if null, only if actual error
-        throw new Error("Error finding pending case", {
-          cause: pendingCase.val,
-        });
-      }
-
-      // Not null, found result
-      if (pendingCase.val) {
-        foundPendingCases.push(pendingCase.val);
+      if (pendingCase) {
+        foundPendingCases.push(pendingCase);
       }
     }
 
@@ -386,36 +378,31 @@ export class AuditLogService {
       );
 
       // Mark the case as not pending
-      const updatedCaseResult = await this.modLogRepository.markAsNotPending(
+      const updatedCase = await this.modLogRepository.markAsNotPending(
         auditLogEvent.guildId,
         foundPendingCase.caseId,
       );
-      if (updatedCaseResult.err) {
-        this.logger.error(
-          {
-            err: updatedCaseResult.val,
+      if (!updatedCase) {
+        // Found moments ago, so the case vanishing in between is unexpected
+        throw new Error("Pending case disappeared before it was marked", {
+          cause: {
             caseId: foundPendingCase.caseId,
             guildId: auditLogEvent.guildId,
           },
-          "Failed to mark case as not pending",
-        );
-
-        throw new Error(
-          `Failed to mark case as not pending: ${updatedCaseResult.val}`,
-        );
+        });
       }
 
       this.logger.debug(
         {
-          caseId: updatedCaseResult.val.caseId,
-          guildId: updatedCaseResult.val.guildId,
-          nowPending: updatedCaseResult.val.pending,
+          caseId: updatedCase.caseId,
+          guildId: updatedCase.guildId,
+          nowPending: updatedCase.pending,
         },
         "Successfully marked case as not pending",
       );
 
       return {
-        modLogCase: updatedCaseResult.val,
+        modLogCase: updatedCase,
         wasPendingCase: true,
       };
     }
@@ -468,14 +455,7 @@ export class AuditLogService {
       timeoutDuration,
     );
 
-    const createResult = await this.modLogRepository.createCase(newCase);
-    if (createResult.err) {
-      throw new Error("Failed to create new mod log case", {
-        cause: createResult.val,
-      });
-    }
-
-    const createdCase = createResult.val;
+    const createdCase = await this.modLogRepository.createCase(newCase);
     this.logger.debug(
       { caseId: createdCase.caseId },
       "Created new mod log case",
@@ -528,12 +508,12 @@ export class AuditLogService {
       await this.updateCaseDMInfo(
         guild.id,
         caseId,
-        null,          // no channel
-        null,          // no message
-        dmResult.val,  // the error message
-        null,          // no failure reason
-        false,         // dmAttempted: false — no Discord API call was made
-        true,          // dmIntended: true — shouldSend was confirmed
+        null, // no channel
+        null, // no message
+        dmResult.val, // the error message
+        null, // no failure reason
+        false, // dmAttempted: false — no Discord API call was made
+        true, // dmIntended: true — shouldSend was confirmed
       );
       return dmResult as Err<string>;
     }
@@ -561,31 +541,18 @@ export class AuditLogService {
     guildId: string,
     caseId: string,
     messageId: string,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     this.logger.debug(
       { guildId, caseId, messageId },
       "Updating mod log case with message ID",
     );
 
-    const result = await this.modLogRepository.updateMessageId(
-      guildId,
-      caseId,
-      messageId,
+    await this.modLogRepository.updateMessageId(guildId, caseId, messageId);
+
+    this.logger.debug(
+      { guildId, caseId, messageId },
+      "Successfully updated mod log case with message ID",
     );
-
-    if (result.ok) {
-      this.logger.debug(
-        { guildId, caseId, messageId },
-        "Successfully updated mod log case with message ID",
-      );
-    } else {
-      this.logger.error(
-        { guildId, caseId, messageId, err: result.val },
-        "Failed to update mod log case with message ID",
-      );
-    }
-
-    return result;
   }
 
   /**
@@ -600,7 +567,7 @@ export class AuditLogService {
     dmFailureReason: DMFailureReason | null,
     dmAttempted: boolean,
     dmIntended: boolean,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const dmResult: DMResult = {
       channelId: dmChannelId || undefined,
       messageId: dmMessageId || undefined,
@@ -608,7 +575,7 @@ export class AuditLogService {
       failureReason: dmFailureReason ?? undefined,
     };
 
-    const result = await this.modLogRepository.updateDMInfo(
+    await this.modLogRepository.updateDMInfo(
       guildId,
       caseId,
       dmResult,
@@ -617,14 +584,18 @@ export class AuditLogService {
       dmFailureReason,
     );
 
-    if (result.ok) {
-      this.logger.debug(
-        { guildId, caseId, dmChannelId, dmMessageId, dmMessageError, dmAttempted, dmIntended },
-        "Updated mod log case with DM information",
-      );
-    }
-
-    return result;
+    this.logger.debug(
+      {
+        guildId,
+        caseId,
+        dmChannelId,
+        dmMessageId,
+        dmMessageError,
+        dmAttempted,
+        dmIntended,
+      },
+      "Updated mod log case with DM information",
+    );
   }
 }
 

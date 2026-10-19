@@ -133,29 +133,10 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     const reason = reasonResult.val;
 
     // Fetch the moderation case
-    const caseResult = await this.modLogRepository.findById(
+    const moderationCase = await this.modLogRepository.findById(
       interaction.guildId,
       caseId,
     );
-
-    if (caseResult.err) {
-      this.logger.error(
-        {
-          err: caseResult.val,
-          caseId,
-          guildId: interaction.guildId,
-        },
-        "Failed to fetch moderation case",
-      );
-
-      await interaction.reply({
-        content: "Failed to fetch the moderation case.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    const moderationCase = caseResult.val;
     if (!moderationCase) {
       await interaction.reply({
         content: `Case #${caseId} was not found, it may have been deleted.`,
@@ -171,26 +152,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     );
 
     // Save the updated case
-    const updateResult = await this.modLogRepository.update(
-      updatedCaseWithExecutor,
-    );
-
-    if (updateResult.err) {
-      this.logger.error(
-        {
-          err: updateResult.val,
-          caseId,
-          guildId: interaction.guildId,
-        },
-        "Failed to update moderation case with reason",
-      );
-
-      await interaction.reply({
-        content: `Failed to update case #${caseId}.`,
-        ephemeral: true,
-      });
-      return;
-    }
+    await this.modLogRepository.update(updatedCaseWithExecutor);
 
     // Fetch the target user for the embed
     let targetUser;

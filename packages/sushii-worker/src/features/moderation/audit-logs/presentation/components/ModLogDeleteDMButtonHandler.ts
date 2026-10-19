@@ -186,19 +186,19 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
     }
 
     // Fetch the moderation case to rebuild components
-    const caseResult = await this.modLogRepository.findById(
+    const moderationCase = await this.modLogRepository.findById(
       confirmationInteraction.guildId,
       caseId,
     );
 
-    if (caseResult.err) {
+    if (!moderationCase) {
+      // Case was deleted meanwhile; the DM is gone so just confirm that
       this.logger.warn(
         {
-          err: caseResult.val,
           caseId,
           interactionId: confirmationInteraction.id,
         },
-        "Failed to find mod case after DM deletion",
+        "Mod case not found after DM deletion",
       );
 
       const embed = new EmbedBuilder()
@@ -211,13 +211,6 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
       });
 
       return;
-    }
-
-    const moderationCase = caseResult.val;
-    if (!moderationCase) {
-      throw new Error(
-        `Case #${caseId} was not found, it may have been deleted.`,
-      );
     }
 
     // Build updated components showing DM as deleted

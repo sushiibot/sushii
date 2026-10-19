@@ -19,17 +19,7 @@ export class TempbanTask extends AbstractBackgroundTask {
   }
 
   protected async execute(): Promise<void> {
-    const tempBansResult = await this.tempBanRepository.deleteExpired();
-
-    if (!tempBansResult.ok) {
-      this.logger.error(
-        { error: tempBansResult.val },
-        "Failed to get and delete expired temp bans",
-      );
-      return;
-    }
-
-    const tempBans = tempBansResult.val;
+    const tempBans = await this.tempBanRepository.deleteExpired();
 
     this.logger.debug(
       {

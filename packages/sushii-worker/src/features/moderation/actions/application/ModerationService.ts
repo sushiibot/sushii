@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
+import { Err } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
@@ -12,6 +13,9 @@ import type { ModerationTarget } from "../../shared/domain/entities/ModerationTa
 import type { PermissionValidationService } from "../../shared/domain/services/PermissionValidationService";
 import type { TimeoutDetectionService } from "../../shared/domain/services/TimeoutDetectionService";
 import type { ModerationExecutionPipeline } from "./ModerationExecutionPipeline";
+
+export const UNEXPECTED_TARGET_ERROR =
+  "Something went wrong, please try again later.";
 
 export class ModerationService {
   constructor(
@@ -50,12 +54,28 @@ export class ModerationService {
 
     // Process each target sequentially to avoid race conditions
     for (const target of targets) {
-      const result = await this.executeActionSingle(
-        action,
-        target,
-        guildConfig,
-      );
-      actionResults.push(result);
+      // Isolate per-target failures so one unexpected error does not abort
+      // the rest of the batch; the moderator sees a generic per-target error
+      try {
+        const result = await this.executeActionSingle(
+          action,
+          target,
+          guildConfig,
+        );
+        actionResults.push(result);
+      } catch (err) {
+        this.logger.error(
+          {
+            err,
+            actionType: action.actionType,
+            targetId: target.id,
+            executorId: action.executor.id,
+            guildId: action.guildId,
+          },
+          "Moderation action failed for target",
+        );
+        actionResults.push(Err(UNEXPECTED_TARGET_ERROR));
+      }
     }
 
     return actionResults;

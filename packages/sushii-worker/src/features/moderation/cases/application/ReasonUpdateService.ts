@@ -64,11 +64,7 @@ export class ReasonUpdateService {
     // Get the next case number to resolve "latest" ranges
     const getCurrentCaseNumber = async () => {
       // Get the latest case to determine the current max case number
-      const result = await this.modLogRepository.findRecent(guildId, 1);
-      if (result.err) {
-        throw new Error(result.val);
-      }
-      const latestCase = result.val[0];
+      const [latestCase] = await this.modLogRepository.findRecent(guildId, 1);
       return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
@@ -82,17 +78,11 @@ export class ReasonUpdateService {
     const [startCaseId, endCaseId] = resolvedRangeResult.val;
 
     // Fetch all cases in the range
-    const casesResult = await this.modLogRepository.findByRange(
+    const cases = await this.modLogRepository.findByRange(
       guildId,
       startCaseId,
       endCaseId,
     );
-
-    if (casesResult.err) {
-      return Err(casesResult.val);
-    }
-
-    const cases = casesResult.val;
     const hasExistingReasons = cases.some((c) => c.reason !== null);
 
     return Ok({ cases, hasExistingReasons });
@@ -130,11 +120,7 @@ export class ReasonUpdateService {
     // Get the next case number to resolve "latest" ranges
     const getCurrentCaseNumber = async () => {
       // Get the latest case to determine the current max case number
-      const result = await this.modLogRepository.findRecent(guildId, 1);
-      if (result.err) {
-        throw new Error(result.val);
-      }
-      const latestCase = result.val[0];
+      const [latestCase] = await this.modLogRepository.findRecent(guildId, 1);
       return latestCase ? Number(latestCase.caseId) + 1 : 1;
     };
 
@@ -147,7 +133,7 @@ export class ReasonUpdateService {
     const [startCaseId, endCaseId] = resolvedRangeResult.val;
 
     // Update cases in database
-    const updateResult = await this.modLogRepository.updateReasonBulk(
+    const updatedCases = await this.modLogRepository.updateReasonBulk(
       guildId,
       executorId,
       startCaseId,
@@ -155,12 +141,6 @@ export class ReasonUpdateService {
       reason,
       onlyEmpty,
     );
-
-    if (updateResult.err) {
-      return updateResult;
-    }
-
-    const updatedCases = updateResult.val;
 
     if (updatedCases.length === 0) {
       return Ok({

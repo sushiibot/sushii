@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DMChannel } from "discord.js";
 import {
   type Client,
+  DiscordAPIError,
   type Guild,
   type GuildMember,
+  RESTJSONErrorCodes,
   type User,
 } from "discord.js";
 import type { Channel } from "discord.js";
@@ -191,35 +193,35 @@ describe("ModerationExecutionPipeline", () => {
           caseData.dmNotAttemptedReason,
           caseData.dmFailureReason,
         );
-        return Promise.resolve(Ok(createdCase));
+        return Promise.resolve(createdCase);
       }),
-      update: mock(() => Promise.resolve(Ok.EMPTY)),
-      delete: mock(() => Promise.resolve(Ok.EMPTY)),
-      findById: mock(() => Promise.resolve(Ok(null))),
-      findByUserIdNotPending: mock(() => Promise.resolve(Ok([]))),
-      findByUserIdsNotPending: mock(() => Promise.resolve(Ok([]))),
-      findByGuildId: mock(() => Promise.resolve(Ok([]))),
-      deleteRange: mock(() => Promise.resolve(Ok([]))),
-      exists: mock(() => Promise.resolve(Ok(true))),
-      findByRange: mock(() => Promise.resolve(Ok([]))),
-      updateReasonBulk: mock(() => Promise.resolve(Ok([]))),
-      searchByIdPrefix: mock(() => Promise.resolve(Ok([]))),
-      findRecent: mock(() => Promise.resolve(Ok([]))),
+      update: mock(() => Promise.resolve()),
+      delete: mock(() => Promise.resolve()),
+      findById: mock(() => Promise.resolve(null)),
+      findByUserIdNotPending: mock(() => Promise.resolve([])),
+      findByUserIdsNotPending: mock(() => Promise.resolve([])),
+      findByGuildId: mock(() => Promise.resolve([])),
+      deleteRange: mock(() => Promise.resolve([])),
+      exists: mock(() => Promise.resolve(true)),
+      findByRange: mock(() => Promise.resolve([])),
+      updateReasonBulk: mock(() => Promise.resolve([])),
+      searchByIdPrefix: mock(() => Promise.resolve([])),
+      findRecent: mock(() => Promise.resolve([])),
       // Audit log methods
-      findPendingCase: mock(() => Promise.resolve(Ok(null))),
-      markAsNotPending: mock(() => Promise.resolve(Ok({} as ModerationCase))),
-      updateMessageId: mock(() => Promise.resolve(Ok.EMPTY)),
-      updateDMInfo: mock(() => Promise.resolve(Ok.EMPTY)),
+      findPendingCase: mock(() => Promise.resolve(null)),
+      markAsNotPending: mock(() => Promise.resolve({} as ModerationCase)),
+      updateMessageId: mock(() => Promise.resolve()),
+      updateDMInfo: mock(() => Promise.resolve()),
       hasAnyForGuild: mock(() => Promise.resolve(false)),
     };
 
     mockTempBanRepository = {
-      save: mock(() => Promise.resolve(Ok.EMPTY)),
-      delete: mock(() => Promise.resolve(Ok(null))),
-      findByGuildId: mock(() => Promise.resolve(Ok([]))),
-      findByGuildAndUserId: mock(() => Promise.resolve(Ok(null))),
-      findExpired: mock(() => Promise.resolve(Ok([]))),
-      deleteExpired: mock(() => Promise.resolve(Ok([]))),
+      save: mock(() => Promise.resolve()),
+      delete: mock(() => Promise.resolve(null)),
+      findByGuildId: mock(() => Promise.resolve([])),
+      findByGuildAndUserId: mock(() => Promise.resolve(null)),
+      findExpired: mock(() => Promise.resolve([])),
+      deleteExpired: mock(() => Promise.resolve([])),
     };
 
     mockModLogService = {
@@ -400,10 +402,10 @@ describe("ModerationExecutionPipeline", () => {
   });
 
   describe("createCase stage", () => {
-    test("should fail when case creation fails", async () => {
+    test("should throw when case creation fails", async () => {
       // Override mock for this test
       mockModLogRepository.createCase = mock(() =>
-        Promise.resolve(Err("Failed to create case")),
+        Promise.reject(new Error("connection lost")),
       );
 
       const action = new WarnAction(
@@ -415,45 +417,57 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        createMockGuildConfig(),
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.val).toContain("Failed to create case");
-      }
+      await expect(
+        pipeline.execute(
+          action,
+          ActionType.Warn,
+          target,
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("connection lost");
     });
 
-    test("should fail when case save fails", async () => {
-      // Override mock for this test
+    test("should not run the Discord action when case creation fails", async () => {
       mockModLogRepository.createCase = mock(() =>
-        Promise.resolve(Err("Failed to save moderation case")),
+        Promise.reject(new Error("connection lost")),
       );
 
-      const action = new WarnAction(
+      const guild = createMockGuild();
+      const client = {
+        guilds: { cache: { get: () => guild } },
+      } as unknown as Client;
+
+      const pipelineWithGuild = new ModerationExecutionPipeline(
+        mockDb,
+        mockModLogRepository,
+        mockTempBanRepository,
+        mockModLogService,
+        mockDMPolicyService,
+        mockDMNotificationService,
+        mockGuildConfigRepository,
+        client,
+        testLogger,
+        new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
+      );
+
+      const action = new BanAction(
         mockGuildId,
         createMockUser(),
         null,
         createMockReason(),
         "unspecified",
       );
-      const target = createMockTarget();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.Warn,
-        target,
-        createMockGuildConfig(),
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.val).toContain("Failed to save moderation case");
-      }
+      await expect(
+        pipelineWithGuild.execute(
+          action,
+          ActionType.Ban,
+          createMockTarget(),
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("connection lost");
+      expect(guild.members.ban).not.toHaveBeenCalled();
     });
   });
 
@@ -559,6 +573,46 @@ describe("ModerationExecutionPipeline", () => {
 
       // Verify no case was created
       expect(mockModLogRepository.createCase).not.toHaveBeenCalled();
+    });
+
+    test("should not leak raw error text when warning DM fails unexpectedly", async () => {
+      mockDMPolicyService.shouldSendDM = mock(() =>
+        Promise.resolve({
+          should: true,
+          source: "warn_always" as DMIntentSource,
+        }),
+      );
+
+      mockDMNotificationService.sendModerationDM = mock(() =>
+        Promise.resolve(
+          Ok({
+            channelId: null,
+            messageId: null,
+            error: "socket hang up",
+            failureReason: null,
+          }),
+        ),
+      );
+
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.val).toBe("Failed to send warning DM");
+      }
     });
   });
 
@@ -696,17 +750,71 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
+      await expect(
+        pipelineWithError.execute(
+          action,
+          ActionType.Ban,
+          target,
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("Discord API error");
+    });
+
+    test("should return a friendly error when Discord rejects with missing permissions", async () => {
+      const permissionError = new DiscordAPIError(
+        {
+          message: "Missing Permissions",
+          code: RESTJSONErrorCodes.MissingPermissions,
+        },
+        RESTJSONErrorCodes.MissingPermissions,
+        403,
+        "PUT",
+        "/guilds/guild-123/bans/user-123",
+        {},
+      );
+
+      const mockGuildWithError = {
+        members: {
+          ban: mock(() => Promise.reject(permissionError)),
+        },
+      } as unknown as Guild;
+
+      const pipelineWithError = new ModerationExecutionPipeline(
+        mockDb,
+        mockModLogRepository,
+        mockTempBanRepository,
+        mockModLogService,
+        mockDMPolicyService,
+        mockDMNotificationService,
+        mockGuildConfigRepository,
+        {
+          guilds: { cache: { get: () => mockGuildWithError } },
+        } as unknown as Client,
+        testLogger,
+        new SoftbanSuppressionSet(),
+        mockPermissionUsageRecorder,
+      );
+
+      const action = new BanAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+
       const result = await pipelineWithError.execute(
         action,
         ActionType.Ban,
-        target,
+        createMockTarget(),
         createMockGuildConfig(),
       );
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.val).toContain("Discord API error");
+        expect(result.val).toContain("Bot is missing permissions");
       }
+      expect(mockModLogRepository.delete).toHaveBeenCalled();
     });
   });
 
@@ -734,10 +842,10 @@ describe("ModerationExecutionPipeline", () => {
       expect(mockTempBanRepository.save).toHaveBeenCalled();
     });
 
-    test("should handle temp ban save failure gracefully", async () => {
+    test("should throw when temp ban save fails", async () => {
       // Override mock for this test
       mockTempBanRepository.save = mock(() =>
-        Promise.resolve(Err("Failed to save temp ban")),
+        Promise.reject(new Error("Failed to save temp ban")),
       );
 
       const action = new TempBanAction(
@@ -751,18 +859,15 @@ describe("ModerationExecutionPipeline", () => {
 
       const target = createMockTarget();
 
-      const result = await pipeline.execute(
-        action,
-        ActionType.TempBan,
-        target,
-        createMockGuildConfig(),
-      );
-
-      // Should fail as temp ban failure now fails the entire transaction for atomicity
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.val).toContain("Failed to save temp ban");
-      }
+      // Temp ban failure fails the entire transaction for atomicity
+      await expect(
+        pipeline.execute(
+          action,
+          ActionType.TempBan,
+          target,
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("Failed to save temp ban");
     });
   });
 
@@ -813,6 +918,30 @@ describe("ModerationExecutionPipeline", () => {
       // Should still succeed as mod log failure doesn't fail the entire operation
       expect(result.ok).toBe(true);
     });
+
+    test("should succeed when saving the mod log message ID fails", async () => {
+      mockModLogRepository.updateMessageId = mock(() =>
+        Promise.reject(new Error("connection lost")),
+      );
+
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+      );
+
+      const result = await pipeline.execute(
+        action,
+        ActionType.Warn,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(mockModLogRepository.updateMessageId).toHaveBeenCalled();
+    });
   });
 
   describe("cleanup on failure", () => {
@@ -857,26 +986,23 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipelineWithError.execute(
-        action,
-        ActionType.Ban,
-        target,
-        createMockGuildConfig(),
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.val).toContain("Discord API error");
-      }
+      await expect(
+        pipelineWithError.execute(
+          action,
+          ActionType.Ban,
+          target,
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("Discord API error");
 
       expect(mockModLogRepository.createCase).toHaveBeenCalled();
       expect(mockModLogRepository.delete).toHaveBeenCalled();
     });
 
-    test("should handle cleanup failure gracefully", async () => {
+    test("should rethrow the original error when cleanup also fails", async () => {
       // Override mock for this test
       mockModLogRepository.delete = mock(() =>
-        Promise.resolve(Err("Failed to delete case")),
+        Promise.reject(new Error("Failed to delete case")),
       );
 
       // Force failure after case creation
@@ -919,15 +1045,15 @@ describe("ModerationExecutionPipeline", () => {
       );
       const target = createMockTarget();
 
-      const result = await pipelineWithError.execute(
-        action,
-        ActionType.Ban,
-        target,
-        createMockGuildConfig(),
-      );
-
-      expect(result.ok).toBe(false);
-      // Should not throw even if cleanup fails - just log the error
+      await expect(
+        pipelineWithError.execute(
+          action,
+          ActionType.Ban,
+          target,
+          createMockGuildConfig(),
+        ),
+      ).rejects.toThrow("Discord API error");
+      expect(mockModLogRepository.delete).toHaveBeenCalled();
     });
   });
 

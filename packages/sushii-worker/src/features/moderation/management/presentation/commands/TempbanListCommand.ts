@@ -14,7 +14,6 @@ import type { TempBanListService } from "../../application/TempBanListService";
 import {
   chunkTempBansByLength,
   tempBanListEmptyView,
-  tempBanListErrorView,
   tempBanListView,
 } from "../views/TempbanListView";
 
@@ -46,25 +45,9 @@ export class TempbanListCommand extends SlashCommandHandler {
       "Getting temporary ban list",
     );
 
-    const tempBansResult = await this.tempBanListService.getActiveTempBans(
+    const tempBans = await this.tempBanListService.getActiveTempBans(
       interaction.guildId,
     );
-
-    if (tempBansResult.err) {
-      this.logger.error(
-        { error: tempBansResult.val, guildId: interaction.guildId },
-        "Failed to get temporary bans",
-      );
-
-      await interaction.reply({
-        embeds: [tempBanListErrorView()],
-        ephemeral: true,
-      });
-
-      return;
-    }
-
-    const tempBans = tempBansResult.val;
 
     if (tempBans.length === 0) {
       await interaction.reply({

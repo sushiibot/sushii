@@ -122,13 +122,10 @@ describe("Reason Command Integration", () => {
           guildId,
           "1",
         );
-      if (updatedCasesResult.err) {
-        throw updatedCasesResult.val;
-      }
-      if (!updatedCasesResult.val) {
+      if (!updatedCasesResult) {
         throw new Error("Updated case not found");
       }
-      const updatedCase = updatedCasesResult.val;
+      const updatedCase = updatedCasesResult;
       expect(updatedCase.reason?.value).toBe("Updated test reason");
     });
 
@@ -246,13 +243,10 @@ describe("Reason Command Integration", () => {
             guildId,
             i.toString(),
           );
-        if (updatedCasesResult.err) {
-          throw updatedCasesResult.val;
-        }
-        if (!updatedCasesResult.val) {
+        if (!updatedCasesResult) {
           throw new Error(`Updated case ${i} not found`);
         }
-        const updatedCase = updatedCasesResult.val;
+        const updatedCase = updatedCasesResult;
         expect(updatedCase.reason?.value).toBe("Bulk update reason");
       }
     });
@@ -296,7 +290,9 @@ describe("Reason Command Integration", () => {
       // Assert error response for too many cases
       expect(spies.reply).toHaveBeenCalledTimes(1);
       const replyCall = spies.reply.mock.calls[0] as unknown as [
-        { components?: { toJSON(): { components?: { content?: string }[] } }[] },
+        {
+          components?: { toJSON(): { components?: { content?: string }[] } }[];
+        },
       ];
       expect(replyCall[0]?.components).toBeDefined();
       const containerJson = replyCall[0]?.components?.[0]?.toJSON();
@@ -359,13 +355,10 @@ describe("Reason Command Integration", () => {
           guildId,
           "1",
         );
-      if (updatedCasesResult.err) {
-        throw updatedCasesResult.val;
-      }
-      if (!updatedCasesResult.val) {
+      if (!updatedCasesResult) {
         throw new Error("Updated case not found");
       }
-      const updatedCase = updatedCasesResult.val;
+      const updatedCase = updatedCasesResult;
       expect(updatedCase.reason?.value).toBe("New reason");
     });
 
@@ -442,15 +435,8 @@ describe("Reason Command Integration", () => {
           "2",
         );
 
-      if (case1Result.err) {
-        throw case1Result.val;
-      }
-      if (case2Result.err) {
-        throw case2Result.val;
-      }
-
-      expect(case1Result.val?.reason?.value).toBe("Original reason");
-      expect(case2Result.val?.reason?.value).toBe("New reason");
+      expect(case1Result?.reason?.value).toBe("Original reason");
+      expect(case2Result?.reason?.value).toBe("New reason");
     });
   });
 

@@ -83,21 +83,16 @@ export class ModViewService {
 
     const lookupEnabled = isPublicServer(guild);
 
-    const [
-      historyResult,
-      lookupResult,
-      namesResult,
-      identityResult,
-      tempBanResult,
-    ] = await Promise.all([
-      this.historyUserService.getUserHistory(guildId, userId),
-      lookupEnabled
-        ? this.lookupUserService.lookupUser(guildId, userId)
-        : Promise.resolve(null),
-      this.namesUserService.getNames(guildId, userId),
-      this.altAccountRepository.findIdentityByUserId(guildId, userId),
-      this.tempBanRepository.findByGuildAndUserId(guildId, userId),
-    ]);
+    const [historyResult, lookupResult, namesResult, identityResult, tempBan] =
+      await Promise.all([
+        this.historyUserService.getUserHistory(guildId, userId),
+        lookupEnabled
+          ? this.lookupUserService.lookupUser(guildId, userId)
+          : Promise.resolve(null),
+        this.namesUserService.getNames(guildId, userId),
+        this.altAccountRepository.findIdentityByUserId(guildId, userId),
+        this.tempBanRepository.findByGuildAndUserId(guildId, userId),
+      ]);
 
     if (!historyResult.ok) {
       log.error(
@@ -131,24 +126,13 @@ export class ModViewService {
       return Err(identityResult.val);
     }
 
-    if (!tempBanResult.ok) {
-      log.error(
-        { error: tempBanResult.val },
-        "Failed to load temp ban for mod view",
-      );
-      return Err(tempBanResult.val);
-    }
-
     const timeoutExpiration = member
       ? this.timeoutDetectionService.getCurrentTimeoutExpiration(
           new ModerationTarget(member.user, member),
         )
       : null;
 
-    const activeTempBan =
-      tempBanResult.val && !tempBanResult.val.isExpired()
-        ? tempBanResult.val
-        : null;
+    const activeTempBan = tempBan && !tempBan.isExpired() ? tempBan : null;
 
     // A temp ban already revokes guild access, so on the rare chance both are
     // active at once it's the more restrictive state and wins for display.

@@ -11,8 +11,6 @@ import {
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
-import type { Result } from "ts-results";
-import { Err, Ok } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 import { modLogsInAppPublic } from "@/infrastructure/database/schema";
@@ -42,133 +40,105 @@ export class DrizzleModLogRepository implements ModLogRepository {
     actionType: ActionType,
     maxAgeMinutes: number = 1,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase | null, string>> {
+  ): Promise<ModerationCase | null> {
     const db = tx || this.db;
-    try {
-      const minimumTime = dayjs
-        .utc()
-        .subtract(maxAgeMinutes, "minute")
-        .toDate();
+    const minimumTime = dayjs.utc().subtract(maxAgeMinutes, "minute").toDate();
 
-      const result = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.userId, BigInt(userId)),
-            eq(modLogsInAppPublic.action, actionType),
-            eq(modLogsInAppPublic.pending, true),
-            gte(modLogsInAppPublic.actionTime, minimumTime),
-          ),
-        )
-        .orderBy(desc(modLogsInAppPublic.actionTime))
-        .limit(1);
+    const result = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.userId, BigInt(userId)),
+          eq(modLogsInAppPublic.action, actionType),
+          eq(modLogsInAppPublic.pending, true),
+          gte(modLogsInAppPublic.actionTime, minimumTime),
+        ),
+      )
+      .orderBy(desc(modLogsInAppPublic.actionTime))
+      .limit(1);
 
-      if (result.length === 0) {
-        return Ok(null);
-      }
-
-      const row = result[0];
-      const moderationCase = this.mapRowToModerationCase(row);
-
-      return Ok(moderationCase);
-    } catch (err) {
-      this.logger.error(
-        {
-          err,
-          guildId,
-          userId,
-          actionType,
-          maxAgeMinutes,
-        },
-        "Failed to find pending case",
-      );
-      return Err(`Failed to find pending case: ${err}`);
+    if (result.length === 0) {
+      return null;
     }
+
+    const row = result[0];
+    const moderationCase = this.mapRowToModerationCase(row);
+
+    return moderationCase;
   }
 
   /** Acquires pg_advisory_xact_lock(guildId); when tx is supplied, the lock is held for the caller's entire transaction. */
   async createCase(
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase, string>> {
-    try {
-      const doInsert = async (
-        activeTx: NodePgDatabase<typeof schema>,
-      ): Promise<ModerationCase> => {
-        const guildIdBigInt = BigInt(moderationCase.guildId);
+  ): Promise<ModerationCase> {
+    const doInsert = async (
+      activeTx: NodePgDatabase<typeof schema>,
+    ): Promise<ModerationCase> => {
+      const guildIdBigInt = BigInt(moderationCase.guildId);
 
-        await activeTx.execute(
-          sql`SELECT pg_advisory_xact_lock(${guildIdBigInt})`,
-        );
+      await activeTx.execute(
+        sql`SELECT pg_advisory_xact_lock(${guildIdBigInt})`,
+      );
 
-        const dmResult = moderationCase.dmResult;
+      const dmResult = moderationCase.dmResult;
 
-        const insertResult = await activeTx
-          .insert(modLogsInAppPublic)
-          .values({
-            guildId: guildIdBigInt,
-            caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${guildIdBigInt})`,
-            action: moderationCase.actionType,
-            actionTime: moderationCase.actionTime,
-            pending: moderationCase.pending,
-            userId: BigInt(moderationCase.userId),
-            userTag: moderationCase.userTag,
-            executorId: moderationCase.executorId
-              ? BigInt(moderationCase.executorId)
-              : null,
-            reason: moderationCase.reason?.value || null,
-            msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
-            attachments: moderationCase.attachments,
-            dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
-            dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
-            dmMessageError: dmResult?.error ?? null,
-            dmIntended: moderationCase.dmIntended,
-            dmIntentSource: moderationCase.dmIntentSource,
-            dmAttempted: moderationCase.dmAttempted,
-            dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
-            dmFailureReason: moderationCase.dmFailureReason,
-            timeoutDuration: moderationCase.timeoutDuration !== null
+      const insertResult = await activeTx
+        .insert(modLogsInAppPublic)
+        .values({
+          guildId: guildIdBigInt,
+          caseId: sql`(SELECT COALESCE(MAX(case_id), 0) + 1 FROM app_public.mod_logs WHERE guild_id = ${guildIdBigInt})`,
+          action: moderationCase.actionType,
+          actionTime: moderationCase.actionTime,
+          pending: moderationCase.pending,
+          userId: BigInt(moderationCase.userId),
+          userTag: moderationCase.userTag,
+          executorId: moderationCase.executorId
+            ? BigInt(moderationCase.executorId)
+            : null,
+          reason: moderationCase.reason?.value || null,
+          msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
+          attachments: moderationCase.attachments,
+          dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
+          dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
+          dmMessageError: dmResult?.error ?? null,
+          dmIntended: moderationCase.dmIntended,
+          dmIntentSource: moderationCase.dmIntentSource,
+          dmAttempted: moderationCase.dmAttempted,
+          dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+          dmFailureReason: moderationCase.dmFailureReason,
+          timeoutDuration:
+            moderationCase.timeoutDuration !== null
               ? BigInt(moderationCase.timeoutDuration)
               : null,
-            deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
+          deleteMessageSeconds:
+            moderationCase.deleteMessageSeconds !== null
               ? BigInt(moderationCase.deleteMessageSeconds)
               : null,
-          })
-          .returning();
+        })
+        .returning();
 
-        if (insertResult.length === 0) {
-          throw new Error("Failed to create case - no rows returned");
-        }
+      if (insertResult.length === 0) {
+        throw new Error("Failed to create case - no rows returned");
+      }
 
-        return this.mapRowToModerationCase(insertResult[0]);
-      };
+      return this.mapRowToModerationCase(insertResult[0]);
+    };
 
-      const createdCase = tx
-        ? await doInsert(tx)
-        : await this.db.transaction((innerTx) => doInsert(innerTx));
+    const createdCase = tx
+      ? await doInsert(tx)
+      : await this.db.transaction((innerTx) => doInsert(innerTx));
 
-      return Ok(createdCase);
-    } catch (err) {
-      this.logger.error(
-        {
-          err,
-          guildId: moderationCase.guildId,
-          caseId: moderationCase.caseId,
-          actionType: moderationCase.actionType,
-        },
-        "Failed to create case",
-      );
-      return Err(`Failed to create case: ${err}`);
-    }
+    return createdCase;
   }
 
   async markAsNotPending(
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase, string>> {
+  ): Promise<ModerationCase | null> {
     const db = tx || this.db;
 
     this.logger.debug(
@@ -200,7 +170,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
         "No rows updated when marking case as not pending",
       );
 
-      return Err("Failed to mark case as not pending - no rows updated");
+      return null;
     }
 
     const mappedCase = this.mapRowToModerationCase(updatedCase[0]);
@@ -215,7 +185,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
       "Successfully marked case as not pending in database",
     );
 
-    return Ok(mappedCase);
+    return mappedCase;
   }
 
   async updateMessageId(
@@ -223,7 +193,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
     caseId: string,
     messageId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const db = tx || this.db;
 
     this.logger.debug(
@@ -255,8 +225,6 @@ export class DrizzleModLogRepository implements ModLogRepository {
       },
       "Successfully updated message ID in database",
     );
-
-    return Ok.EMPTY;
   }
 
   async updateDMInfo(
@@ -267,7 +235,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
     dmIntended: boolean,
     dmFailureReason: DMFailureReason | null,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const db = tx || this.db;
     await db
       .update(modLogsInAppPublic)
@@ -285,93 +253,66 @@ export class DrizzleModLogRepository implements ModLogRepository {
           eq(modLogsInAppPublic.caseId, BigInt(caseId)),
         ),
       );
-
-    return Ok.EMPTY;
   }
 
   async findById(
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase | null, string>> {
+  ): Promise<ModerationCase | null> {
     const db = tx || this.db;
-    try {
-      const result = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        )
-        .limit(1);
+    const result = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
+      )
+      .limit(1);
 
-      if (result.length === 0) {
-        return Ok(null);
-      }
-
-      const row = result[0];
-      const moderationCase = this.mapRowToModerationCase(row);
-      return Ok(moderationCase);
-    } catch (err) {
-      this.logger.error(
-        { err, caseId: caseId.toString() },
-        "Failed to find moderation case by ID",
-      );
-      return Err(`Failed to find moderation case: ${err}`);
+    if (result.length === 0) {
+      return null;
     }
+
+    const row = result[0];
+    const moderationCase = this.mapRowToModerationCase(row);
+    return moderationCase;
   }
 
   async findByUserIdNotPending(
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
-    const result = await this.findByUserIdsNotPending(guildId, [userId], tx);
-
-    if (!result.ok) {
-      this.logger.error(
-        { err: result.val, guildId, userId },
-        "Failed to find moderation cases by user ID",
-      );
-    }
-
-    return result;
+  ): Promise<ModerationCase[]> {
+    return this.findByUserIdsNotPending(guildId, [userId], tx);
   }
 
   async findByUserIdsNotPending(
     guildId: string,
     userIds: string[],
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const results = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            inArray(
-              modLogsInAppPublic.userId,
-              userIds.map((userId) => BigInt(userId)),
-            ),
-            eq(modLogsInAppPublic.pending, false),
+    const results = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          inArray(
+            modLogsInAppPublic.userId,
+            userIds.map((userId) => BigInt(userId)),
           ),
-        )
-        .orderBy(asc(modLogsInAppPublic.caseId))
-        .limit(500);
+          eq(modLogsInAppPublic.pending, false),
+        ),
+      )
+      .orderBy(asc(modLogsInAppPublic.caseId))
+      .limit(500);
 
-      const cases = results.map((row) => this.mapRowToModerationCase(row));
-      return Ok(cases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, userIds },
-        "Failed to find moderation cases by user IDs",
-      );
-      return Err(`Failed to find moderation cases: ${err}`);
-    }
+    const cases = results.map((row) => this.mapRowToModerationCase(row));
+    return cases;
   }
 
   async findByGuildId(
@@ -379,102 +320,79 @@ export class DrizzleModLogRepository implements ModLogRepository {
     limit = 50,
     offset = 0,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const results = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(eq(modLogsInAppPublic.guildId, BigInt(guildId)))
-        .orderBy(desc(modLogsInAppPublic.actionTime))
-        .limit(limit)
-        .offset(offset);
+    const results = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(eq(modLogsInAppPublic.guildId, BigInt(guildId)))
+      .orderBy(desc(modLogsInAppPublic.actionTime))
+      .limit(limit)
+      .offset(offset);
 
-      const cases = results.map((row) => this.mapRowToModerationCase(row));
-      return Ok(cases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, limit, offset },
-        "Failed to find moderation cases by guild ID",
-      );
-      return Err(`Failed to find moderation cases: ${err}`);
-    }
+    const cases = results.map((row) => this.mapRowToModerationCase(row));
+    return cases;
   }
 
   async update(
     moderationCase: ModerationCase,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const db = tx || this.db;
-    try {
-      const dmResult = moderationCase.dmResult;
+    const dmResult = moderationCase.dmResult;
 
-      await db
-        .update(modLogsInAppPublic)
-        .set({
-          action: moderationCase.actionType,
-          actionTime: moderationCase.actionTime,
-          pending: moderationCase.pending,
-          userTag: moderationCase.userTag,
-          executorId: moderationCase.executorId
-            ? BigInt(moderationCase.executorId)
-            : null,
-          reason: moderationCase.reason?.value || null,
-          msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
-          attachments: moderationCase.attachments,
-          dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
-          dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
-          dmMessageError: dmResult?.error ?? null,
-          dmIntended: moderationCase.dmIntended,
-          dmIntentSource: moderationCase.dmIntentSource,
-          dmAttempted: moderationCase.dmAttempted,
-          dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
-          dmFailureReason: moderationCase.dmFailureReason,
-          timeoutDuration: moderationCase.timeoutDuration !== null
+    await db
+      .update(modLogsInAppPublic)
+      .set({
+        action: moderationCase.actionType,
+        actionTime: moderationCase.actionTime,
+        pending: moderationCase.pending,
+        userTag: moderationCase.userTag,
+        executorId: moderationCase.executorId
+          ? BigInt(moderationCase.executorId)
+          : null,
+        reason: moderationCase.reason?.value || null,
+        msgId: moderationCase.msgId ? BigInt(moderationCase.msgId) : null,
+        attachments: moderationCase.attachments,
+        dmChannelId: dmResult?.channelId ? BigInt(dmResult.channelId) : null,
+        dmMessageId: dmResult?.messageId ? BigInt(dmResult.messageId) : null,
+        dmMessageError: dmResult?.error ?? null,
+        dmIntended: moderationCase.dmIntended,
+        dmIntentSource: moderationCase.dmIntentSource,
+        dmAttempted: moderationCase.dmAttempted,
+        dmNotAttemptedReason: moderationCase.dmNotAttemptedReason,
+        dmFailureReason: moderationCase.dmFailureReason,
+        timeoutDuration:
+          moderationCase.timeoutDuration !== null
             ? BigInt(moderationCase.timeoutDuration)
             : null,
-          deleteMessageSeconds: moderationCase.deleteMessageSeconds !== null
+        deleteMessageSeconds:
+          moderationCase.deleteMessageSeconds !== null
             ? BigInt(moderationCase.deleteMessageSeconds)
             : null,
-        })
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(moderationCase.guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(moderationCase.caseId)),
-          ),
-        );
-
-      return Ok.EMPTY;
-    } catch (err) {
-      this.logger.error({ err }, "Failed to update moderation case");
-      return Err(`Failed to update moderation case: ${err}`);
-    }
+      })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(moderationCase.guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(moderationCase.caseId)),
+        ),
+      );
   }
 
   async delete(
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>> {
+  ): Promise<void> {
     const db = tx || this.db;
-    try {
-      await db
-        .delete(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        );
-
-      return Ok.EMPTY;
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, caseId },
-        "Failed to delete moderation case",
+    await db
+      .delete(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
       );
-      return Err(`Failed to delete moderation case: ${err}`);
-    }
   }
 
   async deleteRange(
@@ -482,73 +400,55 @@ export class DrizzleModLogRepository implements ModLogRepository {
     startCaseId: number,
     endCaseId: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const result = await db
-        .delete(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            between(
-              modLogsInAppPublic.caseId,
-              BigInt(startCaseId),
-              BigInt(endCaseId),
-            ),
+    const result = await db
+      .delete(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          between(
+            modLogsInAppPublic.caseId,
+            BigInt(startCaseId),
+            BigInt(endCaseId),
           ),
-        )
-        .returning();
+        ),
+      )
+      .returning();
 
-      const deletedCases = result.map((row) =>
-        this.mapRowToModerationCase(row),
-      );
+    const deletedCases = result.map((row) => this.mapRowToModerationCase(row));
 
-      this.logger.debug(
-        {
-          guildId,
-          startCaseId,
-          endCaseId,
-          deletedCount: deletedCases.length,
-        },
-        "Deleted case range",
-      );
+    this.logger.debug(
+      {
+        guildId,
+        startCaseId,
+        endCaseId,
+        deletedCount: deletedCases.length,
+      },
+      "Deleted case range",
+    );
 
-      return Ok(deletedCases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, startCaseId, endCaseId },
-        "Failed to delete case range",
-      );
-      return Err(`Failed to delete case range: ${err}`);
-    }
+    return deletedCases;
   }
 
   async exists(
     guildId: string,
     caseId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<boolean, string>> {
+  ): Promise<boolean> {
     const db = tx || this.db;
-    try {
-      const result = await db
-        .select({ caseId: modLogsInAppPublic.caseId })
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.caseId, BigInt(caseId)),
-          ),
-        )
-        .limit(1);
+    const result = await db
+      .select({ caseId: modLogsInAppPublic.caseId })
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
+      )
+      .limit(1);
 
-      return Ok(result.length > 0);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, caseId },
-        "Failed to check case existence",
-      );
-      return Err(`Failed to check case existence: ${err}`);
-    }
+    return result.length > 0;
   }
 
   async findByRange(
@@ -556,33 +456,25 @@ export class DrizzleModLogRepository implements ModLogRepository {
     startCaseId: number,
     endCaseId: number,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const results = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            between(
-              modLogsInAppPublic.caseId,
-              BigInt(startCaseId),
-              BigInt(endCaseId),
-            ),
+    const results = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          between(
+            modLogsInAppPublic.caseId,
+            BigInt(startCaseId),
+            BigInt(endCaseId),
           ),
-        )
-        .orderBy(desc(modLogsInAppPublic.caseId));
+        ),
+      )
+      .orderBy(desc(modLogsInAppPublic.caseId));
 
-      const cases = results.map((row) => this.mapRowToModerationCase(row));
-      return Ok(cases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, startCaseId, endCaseId },
-        "Failed to find cases by range",
-      );
-      return Err(`Failed to find cases by range: ${err}`);
-    }
+    const cases = results.map((row) => this.mapRowToModerationCase(row));
+    return cases;
   }
 
   async updateReasonBulk(
@@ -593,54 +485,44 @@ export class DrizzleModLogRepository implements ModLogRepository {
     reason: string,
     onlyEmpty: boolean,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const conditions = [
-        eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-        between(
-          modLogsInAppPublic.caseId,
-          BigInt(startCaseId),
-          BigInt(endCaseId),
-        ),
-      ];
+    const conditions = [
+      eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+      between(
+        modLogsInAppPublic.caseId,
+        BigInt(startCaseId),
+        BigInt(endCaseId),
+      ),
+    ];
 
-      if (onlyEmpty) {
-        conditions.push(isNull(modLogsInAppPublic.reason));
-      }
-
-      const result = await db
-        .update(modLogsInAppPublic)
-        .set({
-          reason,
-          executorId: BigInt(executorId),
-        })
-        .where(and(...conditions))
-        .returning();
-
-      const updatedCases = result.map((row) =>
-        this.mapRowToModerationCase(row),
-      );
-
-      this.logger.debug(
-        {
-          guildId,
-          startCaseId,
-          endCaseId,
-          updatedCount: updatedCases.length,
-          onlyEmpty,
-        },
-        "Bulk updated case reasons",
-      );
-
-      return Ok(updatedCases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, startCaseId, endCaseId },
-        "Failed to bulk update reasons",
-      );
-      return Err(`Failed to bulk update reasons: ${err}`);
+    if (onlyEmpty) {
+      conditions.push(isNull(modLogsInAppPublic.reason));
     }
+
+    const result = await db
+      .update(modLogsInAppPublic)
+      .set({
+        reason,
+        executorId: BigInt(executorId),
+      })
+      .where(and(...conditions))
+      .returning();
+
+    const updatedCases = result.map((row) => this.mapRowToModerationCase(row));
+
+    this.logger.debug(
+      {
+        guildId,
+        startCaseId,
+        endCaseId,
+        updatedCount: updatedCases.length,
+        onlyEmpty,
+      },
+      "Bulk updated case reasons",
+    );
+
+    return updatedCases;
   }
 
   async searchByIdPrefix(
@@ -648,56 +530,43 @@ export class DrizzleModLogRepository implements ModLogRepository {
     prefix: string,
     limit = 25,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      if (!/^\d+$/.test(prefix)) {
-        return Ok([]);
-      }
-
-      const results = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            sql`CAST(${modLogsInAppPublic.caseId} AS TEXT) LIKE ${prefix + "%"}`,
-          ),
-        )
-        .orderBy(desc(modLogsInAppPublic.caseId))
-        .limit(limit);
-
-      const cases = results.map((row) => this.mapRowToModerationCase(row));
-      return Ok(cases);
-    } catch (err) {
-      this.logger.error(
-        { err, guildId, prefix },
-        "Failed to search cases by prefix",
-      );
-      return Err(`Failed to search cases by prefix: ${err}`);
+    if (!/^\d+$/.test(prefix)) {
+      return [];
     }
+
+    const results = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          sql`CAST(${modLogsInAppPublic.caseId} AS TEXT) LIKE ${prefix + "%"}`,
+        ),
+      )
+      .orderBy(desc(modLogsInAppPublic.caseId))
+      .limit(limit);
+
+    const cases = results.map((row) => this.mapRowToModerationCase(row));
+    return cases;
   }
 
   async findRecent(
     guildId: string,
     limit = 25,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<ModerationCase[], string>> {
+  ): Promise<ModerationCase[]> {
     const db = tx || this.db;
-    try {
-      const results = await db
-        .select()
-        .from(modLogsInAppPublic)
-        .where(eq(modLogsInAppPublic.guildId, BigInt(guildId)))
-        .orderBy(desc(modLogsInAppPublic.caseId))
-        .limit(limit);
+    const results = await db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(eq(modLogsInAppPublic.guildId, BigInt(guildId)))
+      .orderBy(desc(modLogsInAppPublic.caseId))
+      .limit(limit);
 
-      const cases = results.map((row) => this.mapRowToModerationCase(row));
-      return Ok(cases);
-    } catch (err) {
-      this.logger.error({ err, guildId, limit }, "Failed to find recent cases");
-      return Err(`Failed to find recent cases: ${err}`);
-    }
+    const cases = results.map((row) => this.mapRowToModerationCase(row));
+    return cases;
   }
 
   private mapRowToModerationCase(
@@ -712,7 +581,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
         channelId: row.dmChannelId?.toString(),
         messageId: row.dmMessageId?.toString(),
         error: row.dmMessageError || undefined,
-        failureReason: (row.dmFailureReason as DMFailureReason | null) ?? undefined,
+        failureReason:
+          (row.dmFailureReason as DMFailureReason | null) ?? undefined,
       };
     }
 
@@ -735,29 +605,23 @@ export class DrizzleModLogRepository implements ModLogRepository {
       row.dmAttempted,
       row.dmNotAttemptedReason as DMNotAttemptedReason | null,
       row.dmFailureReason as DMFailureReason | null,
-      row.deleteMessageSeconds !== null ? Number(row.deleteMessageSeconds) : null,
+      row.deleteMessageSeconds !== null
+        ? Number(row.deleteMessageSeconds)
+        : null,
     );
   }
 
   async hasAnyForGuild(guildId: string, userId: string): Promise<boolean> {
-    try {
-      const result = await this.db
-        .select({ id: modLogsInAppPublic.caseId })
-        .from(modLogsInAppPublic)
-        .where(
-          and(
-            eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-            eq(modLogsInAppPublic.userId, BigInt(userId)),
-          ),
-        )
-        .limit(1);
-      return result.length > 0;
-    } catch (error) {
-      this.logger.error(
-        { err: error, guildId, userId },
-        "Failed to check mod log existence for guild",
-      );
-      throw error;
-    }
+    const result = await this.db
+      .select({ id: modLogsInAppPublic.caseId })
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.userId, BigInt(userId)),
+        ),
+      )
+      .limit(1);
+    return result.length > 0;
   }
 }

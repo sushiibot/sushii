@@ -1,5 +1,4 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Result } from "ts-results";
 
 import type * as schema from "@/infrastructure/database/schema";
 
@@ -9,10 +8,7 @@ export interface TempBanRepository {
   /**
    * Save a temp ban to the database (insert or update)
    */
-  save(
-    tempBan: TempBan,
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<void, string>>;
+  save(tempBan: TempBan, tx?: NodePgDatabase<typeof schema>): Promise<void>;
 
   /**
    * Delete a temp ban by user and guild ID
@@ -22,7 +18,7 @@ export interface TempBanRepository {
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan | null, string>>;
+  ): Promise<TempBan | null>;
 
   /**
    * Find all temp bans for a guild
@@ -30,7 +26,7 @@ export interface TempBanRepository {
   findByGuildId(
     guildId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>>;
+  ): Promise<TempBan[]>;
 
   /**
    * Find a specific temp ban by guild and user ID
@@ -39,20 +35,16 @@ export interface TempBanRepository {
     guildId: string,
     userId: string,
     tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan | null, string>>;
+  ): Promise<TempBan | null>;
 
   /**
    * Find all expired temp bans across all guilds
    */
-  findExpired(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>>;
+  findExpired(tx?: NodePgDatabase<typeof schema>): Promise<TempBan[]>;
 
   /**
    * Delete all expired temp bans and return them
    * Used by the background task to process expiries
    */
-  deleteExpired(
-    tx?: NodePgDatabase<typeof schema>,
-  ): Promise<Result<TempBan[], string>>;
+  deleteExpired(tx?: NodePgDatabase<typeof schema>): Promise<TempBan[]>;
 }

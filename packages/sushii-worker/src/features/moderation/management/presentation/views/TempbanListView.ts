@@ -11,14 +11,6 @@ export function tempBanListEmptyView(): APIEmbed {
   };
 }
 
-export function tempBanListErrorView(): APIEmbed {
-  return {
-    title: "Error",
-    description: "Failed to retrieve temporary ban list.",
-    color: Color.Error,
-  };
-}
-
 export function tempBanListView(
   tempBans: TempBanListItem[],
   pageIndex: number = 0,

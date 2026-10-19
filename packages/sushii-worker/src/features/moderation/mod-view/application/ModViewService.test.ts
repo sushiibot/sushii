@@ -115,7 +115,7 @@ describe("ModViewService", () => {
     } as unknown as AltAccountRepository;
 
     tempBanRepository = {
-      findByGuildAndUserId: mock(() => Promise.resolve(Ok(null))),
+      findByGuildAndUserId: mock(() => Promise.resolve(null)),
     } as unknown as TempBanRepository;
   });
 
@@ -308,7 +308,7 @@ describe("ModViewService", () => {
     tempBanRepository = {
       findByGuildAndUserId: mock(() =>
         Promise.resolve(
-          Ok(TempBan.fromDatabase(USER_ID, GUILD_ID, endsAt, new Date())),
+          TempBan.fromDatabase(USER_ID, GUILD_ID, endsAt, new Date()),
         ),
       ),
     } as unknown as TempBanRepository;
@@ -328,13 +328,11 @@ describe("ModViewService", () => {
     tempBanRepository = {
       findByGuildAndUserId: mock(() =>
         Promise.resolve(
-          Ok(
-            TempBan.fromDatabase(
-              USER_ID,
-              GUILD_ID,
-              new Date(Date.now() - 60_000),
-              new Date(Date.now() - 120_000),
-            ),
+          TempBan.fromDatabase(
+            USER_ID,
+            GUILD_ID,
+            new Date(Date.now() - 60_000),
+            new Date(Date.now() - 120_000),
           ),
         ),
       ),
@@ -367,13 +365,11 @@ describe("ModViewService", () => {
     tempBanRepository = {
       findByGuildAndUserId: mock(() =>
         Promise.resolve(
-          Ok(
-            TempBan.fromDatabase(
-              USER_ID,
-              GUILD_ID,
-              new Date(Date.now() + 60_000),
-              new Date(),
-            ),
+          TempBan.fromDatabase(
+            USER_ID,
+            GUILD_ID,
+            new Date(Date.now() + 60_000),
+            new Date(),
           ),
         ),
       ),

@@ -48,7 +48,7 @@ export class HistoryUserService {
           .then((fetchedUser) => Ok(fetchedUser))
           .catch((error) => {
             log.error({ err: error }, "Failed to fetch user from Discord");
-            return Err(`Failed to fetch user: ${error}`);
+            return Err("Failed to fetch user");
           });
 
     const [userResult, identityResult] = await Promise.all([
@@ -70,7 +70,9 @@ export class HistoryUserService {
     }
 
     const linkedIdentity =
-      identityResult.ok && identityResult.val && identityResult.val.members.length > 1
+      identityResult.ok &&
+      identityResult.val &&
+      identityResult.val.members.length > 1
         ? identityResult.val
         : null;
 
@@ -78,19 +80,11 @@ export class HistoryUserService {
       ? linkedIdentity.members.map((m) => m.userId)
       : [userId];
 
-    const moderationHistoryResult =
+    const moderationHistory =
       await this.modLogRepository.findByUserIdsNotPending(
         guildId,
         historyUserIds,
       );
-
-    if (!moderationHistoryResult.ok) {
-      log.error(
-        { error: moderationHistoryResult.val },
-        "Failed to get moderation history",
-      );
-      return Err(moderationHistoryResult.val);
-    }
 
     const result: UserHistoryResult = {
       userInfo: {
@@ -100,8 +94,8 @@ export class HistoryUserService {
         joinedAt: member ? member.joinedAt : null,
         isBot: user.bot,
       },
-      moderationHistory: moderationHistoryResult.val,
-      totalCases: moderationHistoryResult.val.length,
+      moderationHistory,
+      totalCases: moderationHistory.length,
       linkedIdentity,
     };
 
