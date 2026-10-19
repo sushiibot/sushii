@@ -5,7 +5,7 @@ export class UserLevel extends BaseUserLevel {
   constructor(
     userId: string,
     private readonly guildId: string,
-    private xpAllTime: number,
+    xpAllTime: number,
     private xpMonth: number,
     private xpWeek: number,
     private xpDay: number,
@@ -19,7 +19,7 @@ export class UserLevel extends BaseUserLevel {
   }
 
   getAllTimeXp(): number {
-    return this.xpAllTime;
+    return this.totalXp.getNumericValue();
   }
 
   getMonthXp(): number {
@@ -38,19 +38,23 @@ export class UserLevel extends BaseUserLevel {
     return this.lastMessageTime;
   }
 
-  canGainXp(): boolean {
-    const oneMinuteAgo = new Date(Date.now() - 60000);
+  canGainXp(currentTime: Date = new Date()): boolean {
+    const oneMinuteAgo = new Date(currentTime.getTime() - 60000);
     return this.lastMessageTime < oneMinuteAgo;
   }
 
+  /**
+   * Adds XP if the user is off cooldown. Returns the level *before* adding XP;
+   * getCurrentLevel() reflects the updated XP afterwards.
+   */
   addXp(amount: number, currentTime: Date): number {
-    if (!this.canGainXp()) {
+    if (!this.canGainXp(currentTime)) {
       return this.getCurrentLevel();
     }
 
     const oldLevel = this.getCurrentLevel();
 
-    this.xpAllTime += amount;
+    this.totalXp = this.totalXp.add(XpAmount.from(amount));
     this.resetTimeframeXpIfNeeded(amount, currentTime);
     this.lastMessageTime = currentTime;
 
@@ -77,11 +81,12 @@ export class UserLevel extends BaseUserLevel {
     }
   }
 
+  // All timeframe boundaries are UTC, matching the repository SQL filters.
   private shouldResetDay(currentTime: Date): boolean {
     return (
-      this.lastMessageTime.getDate() !== currentTime.getDate() ||
-      this.lastMessageTime.getMonth() !== currentTime.getMonth() ||
-      this.lastMessageTime.getFullYear() !== currentTime.getFullYear()
+      this.lastMessageTime.getUTCDate() !== currentTime.getUTCDate() ||
+      this.lastMessageTime.getUTCMonth() !== currentTime.getUTCMonth() ||
+      this.lastMessageTime.getUTCFullYear() !== currentTime.getUTCFullYear()
     );
   }
 
@@ -96,11 +101,12 @@ export class UserLevel extends BaseUserLevel {
 
   private shouldResetMonth(currentTime: Date): boolean {
     return (
-      this.lastMessageTime.getMonth() !== currentTime.getMonth() ||
-      this.lastMessageTime.getFullYear() !== currentTime.getFullYear()
+      this.lastMessageTime.getUTCMonth() !== currentTime.getUTCMonth() ||
+      this.lastMessageTime.getUTCFullYear() !== currentTime.getUTCFullYear()
     );
   }
 
+  // ISO 8601 week number and ISO week-numbering year (UTC)
   private getWeek(date: Date): { week: number; year: number } {
     const d = new Date(date);
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));

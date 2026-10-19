@@ -10,7 +10,7 @@ import type { XpAmount } from "../value-objects/XpAmount";
 export abstract class BaseUserLevel {
   constructor(
     protected readonly userId: string,
-    protected readonly totalXp: XpAmount,
+    protected totalXp: XpAmount,
   ) {}
 
   getUserId(): string {

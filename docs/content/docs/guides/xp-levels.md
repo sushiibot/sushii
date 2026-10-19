@@ -3,7 +3,7 @@ title: XP & Levels
 description: How the XP and leveling system works, and how to configure it
 ---
 
-<!-- source: packages/sushii-worker/src/features/leveling/application/UpdateUserXpService.ts#UpdateUserXpService.execute @caf0f3e7, packages/sushii-worker/src/features/leveling/domain/entities/UserLevel.ts#UserLevel.canGainXp @af0c7430 -->
+<!-- source: packages/sushii-worker/src/features/leveling/application/UpdateUserXpService.ts#UpdateUserXpService.execute @caf0f3e7, packages/sushii-worker/src/features/leveling/domain/entities/UserLevel.ts#UserLevel.canGainXp @08632d24 -->
 
 Members earn XP by sending messages — 5 XP per message, with a one-minute
 cooldown. Constantly chatting for 20 minutes earns a maximum of 100 XP.
