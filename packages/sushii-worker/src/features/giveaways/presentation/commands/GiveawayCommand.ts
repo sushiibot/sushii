@@ -15,7 +15,10 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
-import { getErrorMessage } from "@/interactions/responses/error";
+import {
+  getErrorMessage,
+  getErrorMessageEdit,
+} from "@/interactions/responses/error";
 import dayjs from "@/shared/domain/dayjs";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 import Color from "@/utils/colors";
@@ -23,6 +26,7 @@ import parseDuration from "@/utils/parseDuration";
 import toTimestamp from "@/utils/toTimestamp";
 
 import type { GiveawayDrawService } from "../../application/GiveawayDrawService";
+import type { GiveawayEndService } from "../../application/GiveawayEndService";
 import type { GiveawayService } from "../../application/GiveawayService";
 import type { GiveawayData } from "../../domain/entities/Giveaway";
 import { Giveaway } from "../../domain/entities/Giveaway";
@@ -167,6 +171,7 @@ export class GiveawayCommand extends SlashCommandHandler {
   constructor(
     private readonly giveawayService: GiveawayService,
     private readonly giveawayDrawService: GiveawayDrawService,
+    private readonly giveawayEndService: GiveawayEndService,
     private readonly logger: Logger,
   ) {
     super();
@@ -472,43 +477,65 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    const channel = await this.getGiveawayChannel(
-      interaction,
-      giveaway.channelId,
-    );
-    if (!channel) {
-      await interaction.reply(
-        getErrorMessage(
-          "Channel not found",
-          "Could not find the giveaway channel.",
-        ),
-      );
-      return;
+    // Flushing entries, drawing and editing the giveaway message can take a
+    // while
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    // Runs on the cluster owning this guild, so buffered entries are flushed
+    // before drawing. Claims the giveaway atomically so it can't race
+    // GiveawayTask.
+    const endResult = await this.giveawayEndService.endGiveaway(giveaway, {
+      // Let the user fix channel permissions and try again
+      endIfChannelUnavailable: false,
+    });
+
+    switch (endResult.status) {
+      case "alreadyEnded":
+        await interaction.editReply(
+          getErrorMessageEdit(
+            "Giveaway already ended",
+            "This giveaway has already ended. You can reroll it with `/giveaway reroll`.",
+          ),
+        );
+        return;
+      case "channelUnavailable":
+        await interaction.editReply(
+          getErrorMessageEdit(
+            "Channel not found",
+            `Could not access the giveaway channel <#${giveaway.channelId}>. Make sure I can view and send messages there, then try again.`,
+          ),
+        );
+        return;
+      case "retry":
+        await interaction.editReply(
+          getErrorMessageEdit(
+            "Failed to end giveaway",
+            "Please try again in a few seconds.",
+          ),
+        );
+        return;
+      case "drawFailed":
+        await interaction.editReply(
+          getErrorMessageEdit("Failed to draw winners", endResult.error),
+        );
+        return;
+      case "endedWithoutDraw":
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Ended giveaway")
+              .setDescription(
+                "The giveaway channel is unavailable, so no winners were picked.",
+              )
+              .setColor(Color.Warning),
+          ],
+        });
+        return;
+      case "ended":
+        break;
     }
 
-    const drawResult = await this.giveawayDrawService.drawWinners(
-      giveaway,
-      false,
-      1,
-    );
-    if (!drawResult.ok) {
-      await interaction.reply(
-        getErrorMessage("Failed to draw winners", drawResult.val),
-      );
-      return;
-    }
-
-    const { winnerIds, hasInsufficientWinners, reason } = drawResult.val;
-
-    // Note: GiveawayDrawService now automatically marks giveaway as ended
-
-    if (winnerIds.length > 0) {
-      await this.giveawayDrawService.sendWinnersMessage(
-        channel,
-        giveaway,
-        winnerIds,
-      );
-    }
+    const { hasInsufficientWinners, reason } = endResult;
 
     if (hasInsufficientWinners && reason) {
       const embed = new EmbedBuilder()
@@ -516,9 +543,8 @@ export class GiveawayCommand extends SlashCommandHandler {
         .setDescription(reason)
         .setColor(Color.Warning);
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [embed],
-        ephemeral: true,
       });
       return;
     }
@@ -527,9 +553,8 @@ export class GiveawayCommand extends SlashCommandHandler {
       .setTitle("Ended giveaway")
       .setColor(Color.Success);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [responseEmbed],
-      flags: MessageFlags.Ephemeral,
     });
   }
 

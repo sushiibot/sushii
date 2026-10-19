@@ -9,6 +9,7 @@ import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { GiveawayDrawService } from "./application/GiveawayDrawService";
 import { GiveawayEligibilityService } from "./application/GiveawayEligibilityService";
+import { GiveawayEndService } from "./application/GiveawayEndService";
 import { GiveawayEntryCacheService } from "./application/GiveawayEntryCacheService";
 import { GiveawayEntryService } from "./application/GiveawayEntryService";
 // Application services
@@ -24,21 +25,23 @@ import { GiveawayAutocomplete } from "./presentation/autocompletes/GiveawayAutoc
 import { GiveawayCommand } from "./presentation/commands/GiveawayCommand";
 import { GiveawayButtonHandler } from "./presentation/components/GiveawayButtonHandler";
 import { buildGiveawayComponents } from "./presentation/views/GiveawayComponentBuilder";
+import { buildGiveawayEmbed } from "./presentation/views/GiveawayEmbedBuilder";
 
 interface GiveawayDependencies {
   db: NodePgDatabase<typeof schema>;
   userLevelRepository: UserLevelRepository;
+  client: Client;
   logger: Logger;
 }
 
 interface GiveawayTaskDependencies extends GiveawayDependencies {
-  client: Client;
   deploymentService: DeploymentService;
 }
 
 export function createGiveawayServices({
   db,
   userLevelRepository,
+  client,
   logger,
 }: GiveawayDependencies) {
   // Repositories
@@ -85,6 +88,21 @@ export function createGiveawayServices({
     logger.child({ module: "giveawayDrawService" }),
   );
 
+  const giveawayEndService = new GiveawayEndService(
+    client,
+    giveawayService,
+    giveawayDrawService,
+    giveawayEntryService,
+    giveawayEntryCacheService,
+    async (channel, giveaway, winnerIds, entryCount) => {
+      await channel.messages.edit(giveaway.id, {
+        embeds: [buildGiveawayEmbed(giveaway, winnerIds)],
+        components: buildGiveawayComponents(entryCount, giveaway.isEnded),
+      });
+    },
+    logger.child({ module: "giveawayEndService" }),
+  );
+
   return {
     // Repositories
     giveawayRepository,
@@ -96,6 +114,7 @@ export function createGiveawayServices({
     giveawayEntryCacheService,
     giveawayEligibilityService,
     giveawayDrawService,
+    giveawayEndService,
   };
 }
 
@@ -109,12 +128,14 @@ export function createGiveawayCommands(
     giveawayEntryCacheService,
     giveawayEligibilityService,
     giveawayDrawService,
+    giveawayEndService,
   } = services;
 
   const commands = [
     new GiveawayCommand(
       giveawayService,
       giveawayDrawService,
+      giveawayEndService,
       logger.child({ module: "giveawayCommand" }),
     ),
   ];
@@ -159,21 +180,14 @@ export function createGiveawayTasks(
   deploymentService: DeploymentService,
   giveawayMetrics: GiveawayMetrics,
 ) {
-  const {
-    giveawayService,
-    giveawayDrawService,
-    giveawayEntryService,
-    giveawayEntryCacheService,
-  } = services;
+  const { giveawayService, giveawayEndService } = services;
 
   const tasks = [
     new GiveawayTask(
       client,
       deploymentService,
       giveawayService,
-      giveawayDrawService,
-      giveawayEntryService,
-      giveawayEntryCacheService,
+      giveawayEndService,
       giveawayMetrics,
     ),
   ];
@@ -193,7 +207,12 @@ export function setupGiveawayFeature({
   ReturnType<typeof createGiveawayServices>
 > {
   const giveawayMetrics = new GiveawayMetrics();
-  const services = createGiveawayServices({ db, userLevelRepository, logger });
+  const services = createGiveawayServices({
+    db,
+    userLevelRepository,
+    client,
+    logger,
+  });
   const commands = createGiveawayCommands(services, logger);
   const events = createGiveawayEventHandlers(services, logger);
   const tasks = createGiveawayTasks(
