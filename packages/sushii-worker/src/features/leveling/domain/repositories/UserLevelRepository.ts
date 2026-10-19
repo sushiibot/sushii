@@ -15,7 +15,11 @@ export interface UserLevelRepository {
   getUserGlobalLevel(userId: string): Promise<GlobalUserLevel>;
   getUserGuildRankings(guildId: string, userId: string): Promise<UserRank>;
   save(userLevel: UserLevel): Promise<void>;
-  create(userLevel: UserLevel): Promise<void>;
+  /**
+   * Inserts a new user level row. Returns false if the row already exists
+   * (e.g. created concurrently), leaving the existing row unchanged.
+   */
+  create(userLevel: UserLevel): Promise<boolean>;
   getLeaderboardPage(
     guildId: string,
     timeframe: TimeFrame,

@@ -10,6 +10,13 @@ export interface UpdateUserXpResult {
   removeRoleIds: string[] | null;
 }
 
+const NO_CHANGE: UpdateUserXpResult = {
+  oldLevel: null,
+  newLevel: null,
+  addRoleIds: null,
+  removeRoleIds: null,
+};
+
 export class UpdateUserXpService {
   constructor(
     private readonly userLevelRepository: UserLevelRepository,
@@ -30,47 +37,30 @@ export class UpdateUserXpService {
     );
 
     if (xpBlocks.length > 0) {
-      return {
-        oldLevel: null,
-        newLevel: null,
-        addRoleIds: null,
-        removeRoleIds: null,
-      };
+      return NO_CHANGE;
     }
 
-    let userLevel = await this.userLevelRepository.findByUserAndGuild(
+    const currentTime = new Date();
+    const userLevel = await this.userLevelRepository.findByUserAndGuild(
       userId,
       guildId,
     );
 
-    const currentTime = new Date();
-
     if (!userLevel) {
-      userLevel = UserLevel.create(userId, guildId, 5, currentTime);
-      await this.userLevelRepository.create(userLevel);
+      const newUserLevel = UserLevel.create(userId, guildId, 5, currentTime);
+      const created = await this.userLevelRepository.create(newUserLevel);
 
-      const newLevel = userLevel.getCurrentLevel();
-      const { addRoleIds, removeRoleIds } = await this.calculateRoleChanges(
-        guildId,
-        0,
-        newLevel,
-      );
+      // A concurrent message created the row first; this message falls within
+      // that message's cooldown, so it earns nothing.
+      if (!created) {
+        return NO_CHANGE;
+      }
 
-      return {
-        oldLevel: 0,
-        newLevel,
-        addRoleIds,
-        removeRoleIds,
-      };
+      return this.buildResult(guildId, 0, newUserLevel.getCurrentLevel());
     }
 
-    if (!userLevel.canGainXp()) {
-      return {
-        oldLevel: null,
-        newLevel: null,
-        addRoleIds: null,
-        removeRoleIds: null,
-      };
+    if (!userLevel.canGainXp(currentTime)) {
+      return NO_CHANGE;
     }
 
     const oldLevel = userLevel.addXp(5, currentTime);
@@ -78,23 +68,30 @@ export class UpdateUserXpService {
 
     await this.userLevelRepository.save(userLevel);
 
+    return this.buildResult(guildId, oldLevel, newLevel);
+  }
+
+  private async buildResult(
+    guildId: string,
+    oldLevel: number,
+    newLevel: number,
+  ): Promise<UpdateUserXpResult> {
+    // Only sync level roles on a level change, so roles removed manually by
+    // admins are not re-added on every XP gain.
+    if (oldLevel === newLevel) {
+      return { oldLevel, newLevel, addRoleIds: null, removeRoleIds: null };
+    }
+
     const { addRoleIds, removeRoleIds } = await this.calculateRoleChanges(
       guildId,
-      oldLevel,
       newLevel,
     );
 
-    return {
-      oldLevel,
-      newLevel,
-      addRoleIds,
-      removeRoleIds,
-    };
+    return { oldLevel, newLevel, addRoleIds, removeRoleIds };
   }
 
   private async calculateRoleChanges(
     guildId: string,
-    oldLevel: number,
     newLevel: number,
   ): Promise<{ addRoleIds: string[] | null; removeRoleIds: string[] | null }> {
     const levelRoles = await this.levelRoleRepository.findByGuild(guildId);

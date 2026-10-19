@@ -92,16 +92,24 @@ export class UserLevelRepository implements IUserLevelRepository {
       );
   }
 
-  async create(userLevel: UserLevel): Promise<void> {
-    await this.db.insert(userLevelsInAppPublic).values({
-      userId: BigInt(userLevel.getUserId()),
-      guildId: BigInt(userLevel.getGuildId()),
-      msgAllTime: BigInt(userLevel.getAllTimeXp()),
-      msgMonth: BigInt(userLevel.getMonthXp()),
-      msgWeek: BigInt(userLevel.getWeekXp()),
-      msgDay: BigInt(userLevel.getDayXp()),
-      lastMsg: userLevel.getLastMessageTime(),
-    });
+  async create(userLevel: UserLevel): Promise<boolean> {
+    const inserted = await this.db
+      .insert(userLevelsInAppPublic)
+      .values({
+        userId: BigInt(userLevel.getUserId()),
+        guildId: BigInt(userLevel.getGuildId()),
+        msgAllTime: BigInt(userLevel.getAllTimeXp()),
+        msgMonth: BigInt(userLevel.getMonthXp()),
+        msgWeek: BigInt(userLevel.getWeekXp()),
+        msgDay: BigInt(userLevel.getDayXp()),
+        lastMsg: userLevel.getLastMessageTime(),
+      })
+      .onConflictDoNothing({
+        target: [userLevelsInAppPublic.userId, userLevelsInAppPublic.guildId],
+      })
+      .returning({ userId: userLevelsInAppPublic.userId });
+
+    return inserted.length > 0;
   }
 
   // ---------------------------------------------------------------------------
