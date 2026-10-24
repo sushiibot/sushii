@@ -1,6 +1,8 @@
 import opentelemetry, { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { RESTOptions, ResponseLike } from "@discordjs/rest";
 
+import { scrubUrl } from "@/shared/infrastructure/logRedaction";
+
 // Extract init type from @discordjs/rest's own makeRequest signature so we use
 // the correct bundled undici RequestInit without importing undici directly.
 type MakeRequestInit = Parameters<NonNullable<RESTOptions["makeRequest"]>>[1];
@@ -9,8 +11,10 @@ const tracer = opentelemetry.trace.getTracer("discord-rest");
 
 // Snowflake IDs are 17-20 digit integers.
 const SNOWFLAKE_RE = /^\d{17,21}$/;
-// Interaction tokens and similar credentials are long base64url strings.
-const TOKEN_RE = /^[A-Za-z0-9_\-]{80,}$/;
+// Fallback for long base64url credentials outside a known token position.
+const TOKEN_RE = /^[A-Za-z0-9_-]{80,}$/;
+// The segment after /webhooks/{id}/ or /interactions/{id}/ is always a token, whatever its length.
+const TOKEN_PARENTS = new Set(["webhooks", "interactions"]);
 
 /**
  * Replaces high-cardinality path segments with OTel-standard placeholders:
@@ -20,13 +24,19 @@ const TOKEN_RE = /^[A-Za-z0-9_\-]{80,}$/;
  * e.g. /api/v10/interactions/149093.../aW50ZXJhY3.../callback
  *   →  /api/v10/interactions/{id}/{token}/callback
  */
-function normalizeDiscordPath(url: string): string {
-  const { pathname } = new URL(url);
-  return pathname
-    .split("/")
-    .map((segment) => {
-      if (SNOWFLAKE_RE.test(segment)) return "{id}";
-      if (TOKEN_RE.test(segment)) return "{token}";
+export function normalizeDiscordPath(url: string): string {
+  const segments = new URL(url).pathname.split("/");
+  return segments
+    .map((segment, i) => {
+      if (i >= 2 && TOKEN_PARENTS.has(segments[i - 2]) && segment !== "") {
+        return "{token}";
+      }
+      if (SNOWFLAKE_RE.test(segment)) {
+        return "{id}";
+      }
+      if (TOKEN_RE.test(segment)) {
+        return "{token}";
+      }
       return segment;
     })
     .join("/");
@@ -78,7 +88,12 @@ export async function makeTracedDiscordRequest(
 
         return response as unknown as ResponseLike;
       } catch (err) {
-        span.recordException(err as Error);
+        const error = err instanceof Error ? err : new Error(String(err));
+        span.recordException({
+          name: error.name,
+          message: scrubUrl(error.message),
+          stack: error.stack === undefined ? undefined : scrubUrl(error.stack),
+        });
         span.setStatus({ code: SpanStatusCode.ERROR });
         throw err;
       } finally {
