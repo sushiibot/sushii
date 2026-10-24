@@ -4,9 +4,10 @@ import { checkBearerToken } from "./auth.ts";
 import { config } from "./config.ts";
 import { initDatabase } from "./db.ts";
 import { logger } from "./logger.ts";
+import { secrets } from "./secrets.ts";
 import { createMcpServer } from "./server.ts";
 
-const db = initDatabase(config.databaseUrl, config.dbMaxConnections);
+const db = initDatabase(secrets.DATABASE_URL, config.dbMaxConnections);
 
 Bun.serve({
   port: config.port,
@@ -18,7 +19,7 @@ Bun.serve({
     }
 
     if (url.pathname === "/mcp") {
-      if (!checkBearerToken(req, config.mcpAuthToken)) {
+      if (!checkBearerToken(req, secrets.MCP_AUTH_TOKEN)) {
         return new Response("Unauthorized", { status: 401 });
       }
 

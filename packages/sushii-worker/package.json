@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "./index.js",
   "exports": {
-    "./schema": "./src/infrastructure/database/schema.ts"
+    "./schema": "./src/infrastructure/database/schema.ts",
+    "./logRedaction": "./src/shared/infrastructure/logRedaction.ts"
   },
   "license": "AGPL-3.0-or-later",
   "scripts": {

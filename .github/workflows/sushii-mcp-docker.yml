@@ -7,6 +7,8 @@ on:
     paths:
       - "packages/sushii-mcp/**"
       - "packages/sushii-worker/src/infrastructure/database/schema.ts"
+      - "packages/sushii-worker/src/shared/infrastructure/logRedaction.ts"
+      - "packages/sushii-worker/package.json"
       - ".github/workflows/sushii-mcp-docker.yml"
 
 jobs:
