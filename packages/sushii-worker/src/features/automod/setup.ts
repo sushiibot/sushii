@@ -1,5 +1,4 @@
 import type { Client } from "discord.js";
-import { Events } from "discord.js";
 import type { Logger } from "pino";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -31,7 +30,6 @@ import { ScamCandidateReviewPostTask } from "./infrastructure/tasks/ScamCandidat
 import { ScamHashReportPostTask } from "./infrastructure/tasks/ScamHashReportPostTask";
 import { AutomodAlertExecutionHandler } from "./presentation/events/AutomodAlertExecutionHandler";
 import { AutomodMessageHandler } from "./presentation/events/AutomodMessageHandler";
-import { ScamHashDMHandler } from "./presentation/events/ScamHashDMHandler";
 import { ScamHashCommand } from "./presentation/commands/ScamHashCommand";
 import { ScamCandidateButtonHandler } from "./presentation/handlers/ScamCandidateButtonHandler";
 import { ScamCandidateLabelModalHandler } from "./presentation/handlers/ScamCandidateLabelModalHandler";
@@ -39,7 +37,7 @@ import { ScamHashReportButtonHandler } from "./presentation/handlers/ScamHashRep
 import type { ScamImageStore } from "./infrastructure/ScamImageStore";
 
 export interface AutomodFeature {
-  eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler, ScamHashDMHandler];
+  eventHandlers: [AutomodMessageHandler, AutomodAlertExecutionHandler];
   buttonHandlers: [ScamCandidateButtonHandler, ScamHashReportButtonHandler];
   modalHandlers: [ScamCandidateLabelModalHandler];
   services: {
@@ -152,12 +150,6 @@ export function setupAutomodFeature(
     logger.child({ component: "AutomodAlertExecutionHandler" }),
   );
 
-  const scamHashDMHandler = new ScamHashDMHandler(
-    scamImageHashRepository,
-    scamImageHashService,
-    logger.child({ component: "ScamHashDMHandler" }),
-  );
-
   // Commands
   const scamHashCommand = new ScamHashCommand(
     scamImageHashRepository,
@@ -203,12 +195,8 @@ export function setupAutomodFeature(
     scamHashReportService,
   );
 
-  client.once(Events.ClientReady, (readyClient) => {
-    void scamHashDMHandler.primeOwnerDMChannel(readyClient);
-  });
-
   return {
-    eventHandlers: [automodMessageHandler, automodAlertExecutionHandler, scamHashDMHandler],
+    eventHandlers: [automodMessageHandler, automodAlertExecutionHandler],
     buttonHandlers: [scamCandidateButtonHandler, scamHashReportButtonHandler],
     modalHandlers: [scamCandidateLabelModalHandler],
     services: {
