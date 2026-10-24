@@ -1,10 +1,5 @@
-import * as dotenv from "dotenv";
 import pino from "pino";
 import { z } from "zod";
-
-dotenv.config({
-  quiet: true,
-});
 
 const deploymentNameSchema = z.enum(["blue", "green"]);
 
@@ -24,34 +19,22 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().optional().default("info"),
 
   // Core Discord configuration
-  DISCORD_TOKEN: z.string(),
   APPLICATION_ID: z.string(),
   SHARDS_PER_CLUSTER: z.coerce.number().optional(),
-
-  // External services
-  DATABASE_URL: z.string(),
 
   // Metrics and health check configuration
   METRICS_PORT: z.string().optional().default("9090"),
   HEALTH_PORT: z.string().optional().default("8080"),
   PUBLIC_API_PORT: z.string().optional().default("8082"),
-  // Bearer token for the internal API on METRICS_PORT; unset leaves it open
-  INTERNAL_API_TOKEN: z.string().min(1).optional(),
 
   // Example: 'https://discord.com/api'
   DISCORD_API_PROXY_URL: z.string().optional(),
 
   // Alerts
   NOTIFY_WEBHOOK_USERNAME: z.string().optional(),
-  NOTIFY_WEBHOOK_URL: z.string().optional(),
-  NOTIFY_WEBHOOK_ERR_URL: z.string().optional(),
-  ACTIVITY_WEBHOOK_URL: z.string().optional(),
 
   // Sentry
-  SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
-
-  POSTHOG_API_KEY: z.string().optional(),
 
   // Tracing
   TRACING_EXPORTER_URL: z.string().optional(),
@@ -73,21 +56,12 @@ const envSchema = z.object({
   // Development / test options
   MANUAL_SHARD_COUNT: z.coerce.number().optional(),
 
-  // E2E testing webhook URL for deployment commands
-  E2E_WEBHOOK_URL: z.string().optional(),
-
-  // Google Calendar API key for schedule channel feature
-  GOOGLE_CALENDAR_API_KEY: z.string().optional(),
-
-  OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_SCAM_CLASSIFY_MODEL: z.string().optional().default("stepfun/step-3.7-flash"),
 
   // Scam image dataset storage (Backblaze B2 / S3-compatible)
-  // All four must be set to enable image uploads; absent = feature disabled
+  // Uploads also need the SCAM_IMAGE_STORE_* secrets; absent = feature disabled
   SCAM_IMAGE_STORE_ENDPOINT: z.string().optional(),
   SCAM_IMAGE_STORE_BUCKET: z.string().optional(),
-  SCAM_IMAGE_STORE_ACCESS_KEY_ID: z.string().optional(),
-  SCAM_IMAGE_STORE_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

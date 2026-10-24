@@ -17,14 +17,14 @@ import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastruc
 import { initDatabase } from "@/infrastructure/database/db";
 import "@/shared/domain/dayjs";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 
 Error.stackTraceLimit = 50;
 
 async function main(): Promise<void> {
   Sentry.init({
-    dsn: config.sentry.dsn,
+    dsn: secrets.SENTRY_DSN,
     environment: config.sentry.environment,
     release: config.build.gitHash,
     tracesSampleRate: 1.0,
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   log.info("Running migrations");
 
   // 1 connection is enough for migrations and ongoing health probes
-  const db = initDatabase(config.database.url, 1);
+  const db = initDatabase(secrets.DATABASE_URL, 1);
 
   // Initial migration skipped manually for graphile-migrate -> drizzle migration
   // Run database migrations
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   const eventBus = new SimpleEventBus();
 
   const deploymentRepository = new PostgreSQLDeploymentRepository(
-    config.database.url,
+    secrets.DATABASE_URL,
     log,
     eventBus,
     `sushii-deployment-main-${config.deployment.name}`,
@@ -115,7 +115,7 @@ async function main(): Promise<void> {
   // Create ClusterManager
   // 1 process -> 1 cluster -> multiple shards
   const manager = new ClusterManager(shardFile, {
-    token: config.discord.token,
+    token: secrets.DISCORD_TOKEN,
     totalShards: config.manualShardCount || "auto",
     shardsPerClusters: config.shardsPerCluster,
     mode: "process",

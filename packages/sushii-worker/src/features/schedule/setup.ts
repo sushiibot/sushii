@@ -6,7 +6,7 @@ import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithTasks } from "@/shared/types/FeatureSetup";
-import { config } from "@/shared/infrastructure/config/config";
+import { secrets } from "@/shared/infrastructure/config";
 
 import { CalendarSyncService } from "./application/CalendarSyncService";
 import { DiscordSchedulePublisher } from "./application/DiscordSchedulePublisher";
@@ -36,7 +36,7 @@ export function setupScheduleFeature(
 ): FeatureSetupWithTasks {
   const { db, client, deploymentService, logger, emojiRepository } = deps;
 
-  const apiKey = config.googleCalendarApiKey;
+  const apiKey = secrets.GOOGLE_CALENDAR_API_KEY;
   if (!apiKey) {
     deps.logger.warn(
       "GOOGLE_CALENDAR_API_KEY is not set — schedule channel feature will not function. Set the env var and restart.",

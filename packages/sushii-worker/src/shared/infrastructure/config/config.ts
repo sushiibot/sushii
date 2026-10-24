@@ -1,20 +1,8 @@
 import { type Env, env } from "./env";
-
-export class DatabaseConfig {
-  constructor(readonly url: string) {}
-
-  get host() {
-    return new URL(this.url).hostname;
-  }
-
-  get port() {
-    return new URL(this.url).port;
-  }
-}
+import { secrets, webhookIdFromUrl } from "./secrets";
 
 export class DiscordConfig {
   constructor(
-    readonly token: string,
     readonly applicationId: string,
     readonly proxyUrl?: string,
   ) {}
@@ -41,7 +29,6 @@ export class MetricsConfig {
     readonly port: number,
     readonly healthPort: number,
     readonly publicApiPort: number,
-    readonly internalApiToken?: string,
   ) {}
 }
 
@@ -57,24 +44,7 @@ export class TracingConfig {
 }
 
 export class NotificationConfig {
-  constructor(
-    readonly webhookUsername?: string,
-    readonly webhookUrl?: string,
-    readonly errorWebhookUrl?: string,
-    readonly activityWebhookUrl?: string,
-  ) {}
-
-  get hasWebhook() {
-    return this.webhookUrl !== undefined;
-  }
-
-  get hasErrorWebhook() {
-    return this.errorWebhookUrl !== undefined;
-  }
-
-  get hasActivityWebhook() {
-    return this.activityWebhookUrl !== undefined;
-  }
+  constructor(readonly webhookUsername?: string) {}
 }
 
 export class DeploymentConfig {
@@ -83,7 +53,7 @@ export class DeploymentConfig {
     readonly ownerUserId?: string,
     readonly exemptChannelIds: Set<string> = new Set(),
     readonly lookupExemptGuildIds: Set<string> = new Set(),
-    readonly e2eWebhookUrl?: string,
+    readonly e2eWebhookId?: string,
   ) {}
 
   get hasOwner() {
@@ -96,15 +66,6 @@ export class DeploymentConfig {
 
   get hasLookupExemptGuilds() {
     return this.lookupExemptGuildIds.size > 0;
-  }
-
-  get e2eWebhookId(): string | undefined {
-    if (!this.e2eWebhookUrl) {
-      return undefined;
-    }
-
-    const match = this.e2eWebhookUrl.match(/\/webhooks\/(\d+)\//);
-    return match?.[1];
   }
 }
 
@@ -120,7 +81,6 @@ export class BuildConfig {
 }
 
 export class Config {
-  readonly database: DatabaseConfig;
   readonly discord: DiscordConfig;
   readonly logging: LoggingConfig;
   readonly metrics: MetricsConfig;
@@ -130,25 +90,17 @@ export class Config {
   readonly features: FeatureFlags;
   readonly build: BuildConfig;
   readonly sentry: {
-    dsn?: string;
     environment: string;
   };
-  readonly posthogAPIKey?: string;
-  readonly googleCalendarApiKey?: string;
-  readonly openRouterApiKey?: string;
   readonly openRouterScamClassifyModel: string;
   readonly scamImageStoreEndpoint?: string;
   readonly scamImageStoreBucket?: string;
-  readonly scamImageStoreAccessKeyId?: string;
-  readonly scamImageStoreSecretAccessKey?: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
 
-  constructor(env: Env) {
-    this.database = new DatabaseConfig(env.DATABASE_URL);
+  constructor(env: Env, e2eWebhookId?: string) {
     this.discord = new DiscordConfig(
-      env.DISCORD_TOKEN,
       env.APPLICATION_ID,
       env.DISCORD_API_PROXY_URL,
     );
@@ -157,18 +109,12 @@ export class Config {
       parseInt(env.METRICS_PORT),
       parseInt(env.HEALTH_PORT),
       parseInt(env.PUBLIC_API_PORT),
-      env.INTERNAL_API_TOKEN,
     );
     this.tracing = new TracingConfig(
       env.TRACING_EXPORTER_URL,
       env.TRACING_SAMPLE_PERCENTAGE,
     );
-    this.notifications = new NotificationConfig(
-      env.NOTIFY_WEBHOOK_USERNAME,
-      env.NOTIFY_WEBHOOK_URL,
-      env.NOTIFY_WEBHOOK_ERR_URL,
-      env.ACTIVITY_WEBHOOK_URL,
-    );
+    this.notifications = new NotificationConfig(env.NOTIFY_WEBHOOK_USERNAME);
     this.deployment = new DeploymentConfig(
       env.DEPLOYMENT_NAME,
       env.OWNER_USER_ID,
@@ -186,7 +132,7 @@ export class Config {
               .filter((id) => id.length > 0),
           )
         : new Set(),
-      env.E2E_WEBHOOK_URL,
+      e2eWebhookId,
     );
     this.features = new FeatureFlags(env.SKIP_COMMAND_REGISTRATION);
     this.build = new BuildConfig(
@@ -194,25 +140,22 @@ export class Config {
       env.BUILD_DATE ? new Date(env.BUILD_DATE) : undefined,
     );
     this.sentry = {
-      dsn: env.SENTRY_DSN,
       // Prioritize custom environment variable, then fall back to NODE_ENV
       environment:
         env.SENTRY_ENVIRONMENT ??
         (process.env.NODE_ENV === "production" ? "production" : "development"),
     };
 
-    this.posthogAPIKey = env.POSTHOG_API_KEY;
-    this.googleCalendarApiKey = env.GOOGLE_CALENDAR_API_KEY;
-    this.openRouterApiKey = env.OPENROUTER_API_KEY;
     this.openRouterScamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
     this.scamImageStoreEndpoint = env.SCAM_IMAGE_STORE_ENDPOINT;
     this.scamImageStoreBucket = env.SCAM_IMAGE_STORE_BUCKET;
-    this.scamImageStoreAccessKeyId = env.SCAM_IMAGE_STORE_ACCESS_KEY_ID;
-    this.scamImageStoreSecretAccessKey = env.SCAM_IMAGE_STORE_SECRET_ACCESS_KEY;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;
   }
 }
 
-export const config = new Config(env);
+export const config = new Config(
+  env,
+  webhookIdFromUrl(secrets.E2E_WEBHOOK_URL),
+);

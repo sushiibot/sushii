@@ -33,7 +33,7 @@ import {
 } from "@sentry/opentelemetry";
 import type { Logger } from "pino";
 
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 
 // Standard OTel env vars (read via envDetector):
 //   OTEL_EXPORTER_OTLP_ENDPOINT     — HTTP collector (default: http://localhost:4318)
@@ -53,7 +53,7 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   const resolvedSampleRate = Number.isNaN(sentryTracesSampleRate) ? 1.0 : sentryTracesSampleRate;
 
   const sentryClient = Sentry.init({
-    dsn: config.sentry.dsn,
+    dsn: secrets.SENTRY_DSN,
     environment: config.sentry.environment,
     release: config.build.gitHash,
     skipOpenTelemetrySetup: true,

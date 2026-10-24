@@ -39,6 +39,7 @@ export class BotEmojiSyncService {
     private readonly repository: BotEmojiRepository,
     private readonly webhookService: WebhookService,
     private readonly logger: Logger,
+    private readonly assetKey: string | undefined,
   ) {
     this.emojiService = new BotEmojiService(client, logger);
   }
@@ -197,7 +198,7 @@ export class BotEmojiSyncService {
   private async loadAssets(): Promise<
     { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
   > {
-    const assetKey = process.env.ASSET_KEY;
+    const assetKey = this.assetKey;
 
     try {
       const files = await readdir(this.assetsDirectory);

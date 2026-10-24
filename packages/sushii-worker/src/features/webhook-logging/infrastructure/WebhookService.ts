@@ -2,7 +2,7 @@ import { EmbedBuilder, WebhookClient } from "discord.js";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 
 export class WebhookService {
   private readonly webhookClientLog: WebhookClient | null;
@@ -13,16 +13,16 @@ export class WebhookService {
     private readonly logger: Logger,
     private readonly deploymentService: DeploymentService,
   ) {
-    this.webhookClientLog = config.notifications.webhookUrl
-      ? new WebhookClient({ url: config.notifications.webhookUrl })
+    this.webhookClientLog = secrets.NOTIFY_WEBHOOK_URL
+      ? new WebhookClient({ url: secrets.NOTIFY_WEBHOOK_URL })
       : null;
 
-    this.webhookClientActivity = config.notifications.activityWebhookUrl
-      ? new WebhookClient({ url: config.notifications.activityWebhookUrl })
+    this.webhookClientActivity = secrets.ACTIVITY_WEBHOOK_URL
+      ? new WebhookClient({ url: secrets.ACTIVITY_WEBHOOK_URL })
       : null;
 
-    this.webhookClientError = config.notifications.errorWebhookUrl
-      ? new WebhookClient({ url: config.notifications.errorWebhookUrl })
+    this.webhookClientError = secrets.NOTIFY_WEBHOOK_ERR_URL
+      ? new WebhookClient({ url: secrets.NOTIFY_WEBHOOK_ERR_URL })
       : null;
   }
 

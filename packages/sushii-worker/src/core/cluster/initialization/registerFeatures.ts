@@ -39,7 +39,7 @@ import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
 import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import type * as schema from "@/infrastructure/database/schema";
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 
 import type InteractionRouter from "../discord/InteractionRouter";
@@ -201,8 +201,8 @@ export function registerFeatures(
   const scamImageStoreVars = [
     config.scamImageStoreEndpoint,
     config.scamImageStoreBucket,
-    config.scamImageStoreAccessKeyId,
-    config.scamImageStoreSecretAccessKey,
+    secrets.SCAM_IMAGE_STORE_ACCESS_KEY_ID,
+    secrets.SCAM_IMAGE_STORE_SECRET_ACCESS_KEY,
   ];
   const scamImageStoreConfiguredCount =
     scamImageStoreVars.filter(Boolean).length;
@@ -213,8 +213,8 @@ export function registerFeatures(
     scamImageStore = new ScamImageStore(
       config.scamImageStoreEndpoint!,
       config.scamImageStoreBucket!,
-      config.scamImageStoreAccessKeyId!,
-      config.scamImageStoreSecretAccessKey!,
+      secrets.SCAM_IMAGE_STORE_ACCESS_KEY_ID!,
+      secrets.SCAM_IMAGE_STORE_SECRET_ACCESS_KEY!,
       logger.child({ component: "ScamImageStore" }),
       scamImageMetrics,
     );
@@ -233,7 +233,7 @@ export function registerFeatures(
     guildConfigRepository:
       guildSettingsFeature.services.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
-    openRouterApiKey: config.openRouterApiKey,
+    openRouterApiKey: secrets.OPENROUTER_API_KEY,
     openRouterScamClassifyModel: config.openRouterScamClassifyModel,
     scamImageStore,
     scamImageMetrics,

@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
+import { secrets } from "@/shared/infrastructure/config";
 
 import type { WebhookService } from "../webhook-logging/infrastructure/WebhookService";
 import { BotEmojiSyncService } from "./application/BotEmojiSyncService";
@@ -28,6 +29,7 @@ export function createBotEmojiServices({
     botEmojiRepository,
     webhookService,
     logger.child({ module: "BotEmojiSyncService" }),
+    secrets.ASSET_KEY,
   );
 
   return {

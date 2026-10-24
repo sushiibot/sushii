@@ -16,7 +16,7 @@ import {
   modLogsInAppPublic,
 } from "@/infrastructure/database/schema";
 import { StatName } from "@/features/stats/domain/StatName";
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 import log from "@/shared/infrastructure/logger";
 
 import type { HealthCheckService, ShardInfo } from "./HealthCheckService";
@@ -292,7 +292,7 @@ function createMonitoringServer(
     commands,
     deploymentService,
     healthCheckService,
-    config.metrics.internalApiToken,
+    secrets.INTERNAL_API_TOKEN,
   );
 
   return Bun.serve({
@@ -399,7 +399,7 @@ export default function server(
   logger.info(
     `deployment endpoints listening on http://localhost:${config.metrics.port}/deployment/*`,
   );
-  if (!config.metrics.internalApiToken) {
+  if (!secrets.INTERNAL_API_TOKEN) {
     logger.warn("INTERNAL_API_TOKEN not set, internal API is unauthenticated");
   }
   logger.info(

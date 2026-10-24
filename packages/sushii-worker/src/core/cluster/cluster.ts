@@ -8,7 +8,7 @@ import {
   Partials,
 } from "discord.js";
 
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 import { makeTracedDiscordRequest } from "@/shared/infrastructure/opentelemetry/discordRestTracing";
 import { initializeOtel } from "@/shared/infrastructure/opentelemetry/otel";
 
@@ -71,7 +71,7 @@ async function initializeShardCluster(): Promise<void> {
   });
 
   client.cluster = new ClusterClient(client);
-  client.rest.setToken(config.discord.token);
+  client.rest.setToken(secrets.DISCORD_TOKEN);
 
   // Telemetry - will register after client login
 
@@ -143,7 +143,7 @@ async function initializeShardCluster(): Promise<void> {
     },
     "starting Discord client shard cluster",
   );
-  await client.login(config.discord.token);
+  await client.login(secrets.DISCORD_TOKEN);
 
   // Initialize standalone services that don't depend on other features
   await initStandaloneServices(db, client, log, deploymentService);

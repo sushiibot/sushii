@@ -5,7 +5,7 @@ import { DeploymentChanged } from "@/features/deployment/domain/events/Deploymen
 import { PostgreSQLDeploymentRepository } from "@/features/deployment/infrastructure/PostgreSQLDeploymentRepository";
 import { initDatabase } from "@/infrastructure/database/db";
 import { SimpleEventBus } from "@/shared/infrastructure/SimpleEventBus";
-import { config } from "@/shared/infrastructure/config";
+import { config, secrets } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
 import { CoreMetrics } from "@/shared/infrastructure/metrics/CoreMetrics";
 import { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
@@ -15,14 +15,14 @@ import InteractionRouter from "../discord/InteractionRouter";
 export async function initCore(client: Client, clusterId: number) {
   // This just returns the global existing database for now, until we fully
   // integrate the database into the core
-  const db = initDatabase(config.database.url, 3);
+  const db = initDatabase(secrets.DATABASE_URL, 3);
 
   // Create shared infrastructure
   const eventBus = new SimpleEventBus();
 
   // Initialize deployment service with direct database connection
   const deploymentRepository = new PostgreSQLDeploymentRepository(
-    config.database.url,
+    secrets.DATABASE_URL,
     logger,
     eventBus,
     `sushii-deployment-${config.deployment.name}-shard-${process.env.SHARD_ID || "unknown"}`,
