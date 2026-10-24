@@ -3,7 +3,7 @@ title: Privacy Policy
 description: Privacy Policy for sushii bot
 ---
 
-Last updated: October 18, 2026
+Last updated: October 24, 2026
 ## Interpretation and Definitions
 
 ### Interpretation
@@ -143,6 +143,11 @@ in relation to some specific use cases:
   Discord ID, only when needed;
 * **Server Bans:** Your Discord ID may be stored in relation to the ban list of
   servers, only when opted-in.
+* **Permission Usage:** When you use an elevated permission in a server that
+  uses sushii, such as deleting messages, timing out members, editing roles, or
+  mentioning @everyone, we store your Discord ID, the server, the permission,
+  the channel when known, and when and how often it was used. Server
+  administrators use this to review which roles still need their permissions.
 * **Statistics:** When statistics are provided by our Services, we only keep
   aggregated and anonymized data into our database.
 
@@ -196,6 +201,9 @@ before they are removed from our database.
 Perceptual hashes derived from image attachments for scam detection are retained
 indefinitely as part of our trust and safety database. Image attachments
 flagged as scam candidates are not stored.
+
+Permission usage records are deleted 60 days after the permission was last
+used.
 
 When we have no ongoing legitimate business need to process your personal
 information, we will either delete or anonymize it, or, if this is not possible
