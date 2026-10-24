@@ -4,6 +4,7 @@ import type { InteractionReplyOptions } from "discord.js";
 import type dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
+import { STREAK_MILESTONES } from "../../domain";
 import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
 
 // Fishy multiplies the catch, rep only gets a chance at bonus rep
@@ -23,11 +24,12 @@ function formatStreak(
 ): string {
   let content = "";
 
-  if (streak.brokenStreak) {
-    content += `💔 You missed a day, so your **${streak.brokenStreak} day ${name} streak** ended. Starting over at day 1.\n`;
+  // A streak below the first milestone had no bonus, so losing it isn't worth a notice
+  if (streak.brokenStreak && streak.brokenStreak >= STREAK_MILESTONES[0].days) {
+    content += `-# 💔 You missed a day, so your **${streak.brokenStreak} day ${name} streak** ended. Starting over at day 1.\n`;
   }
 
-  content += `-# 🔥 ${streak.streak} day ${name} streak`;
+  content += `-# ${streak.streak} day ${name} streak`;
 
   if (streak.multiplier > 1) {
     content += ` · ${formatReward(streak.multiplier)}${bonus}`;
