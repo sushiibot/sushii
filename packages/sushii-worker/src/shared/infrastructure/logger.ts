@@ -2,8 +2,11 @@ import { trace } from "@opentelemetry/api";
 import pino from "pino";
 
 import { config } from "@/shared/infrastructure/config";
+import { knownSecretValues } from "@/shared/infrastructure/config/secrets";
+import { createRedactionOptions } from "@/shared/infrastructure/logRedaction";
 
 const logger = pino({
+  ...createRedactionOptions(knownSecretValues),
   level: config.logging.level,
   formatters: {
     level(label) {
