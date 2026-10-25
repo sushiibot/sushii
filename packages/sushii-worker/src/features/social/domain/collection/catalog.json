@@ -60,7 +60,7 @@
       "id": "koi",
       "name": "Koi",
       "set": "pond",
-      "rarity": "rare",
+      "rarity": "uncommon",
       "baseWeight": 100,
       "preferredCondition": "still",
       "conditionMultiplier": 1.2,
