@@ -5,7 +5,7 @@ import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import dayjs from "@/shared/domain/dayjs";
 
 import type { FishyService } from "../../application";
-import { CatchableType, calculateStreak } from "../../domain";
+import { calculateStreak } from "../../domain";
 import type { CollectionArtwork } from "../../infrastructure/CollectionArtwork";
 import { FishyCommand } from "./FishyCommand";
 
@@ -35,7 +35,6 @@ for (const cooldown of [false, true]) {
               firstDiscovery: true,
               baseAmount: 10,
               caughtAmount: 10,
-              caughtType: CatchableType.MrsPuff,
               oldAmount: "20",
               newAmount: "30",
               streak: calculateStreak(null, 0, new Date()),

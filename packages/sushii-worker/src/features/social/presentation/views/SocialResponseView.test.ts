@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { CatchableType, calculateStreak } from "../../domain";
+import { calculateStreak } from "../../domain";
 import { createFishySuccessMessage } from "./SocialResponseView";
 
 test("reveal shows the collection discovery and points without legacy catch names", () => {
@@ -12,7 +12,6 @@ test("reveal shows the collection discovery and points without legacy catch name
       firstDiscovery: true,
       baseAmount: 10,
       caughtAmount: 10,
-      caughtType: CatchableType.MrsPuff,
       oldAmount: "20",
       newAmount: "30",
       streak: calculateStreak(null, 0, new Date()),

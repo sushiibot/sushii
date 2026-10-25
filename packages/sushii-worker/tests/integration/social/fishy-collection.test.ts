@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-import { CatchableType } from "@/features/social/domain";
 import { DrizzleFishyCollectionRepository } from "@/features/social/infrastructure/DrizzleFishyCollectionRepository";
 import * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
@@ -13,12 +12,11 @@ let pool: Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let repository: DrizzleFishyCollectionRepository;
 const now = new Date("2026-10-25T12:00:00Z");
-const reward = () => ({ baseAmount: 10, caughtType: CatchableType.Anchovy });
 beforeAll(async () => {
   await fixture.initialize();
   pool = new Pool({ connectionString: fixture.getConnectionString(), max: 10 });
   db = drizzle({ client: pool, schema });
-  repository = new DrizzleFishyCollectionRepository(db);
+  repository = new DrizzleFishyCollectionRepository(db, () => 10);
 }, 60000);
 afterAll(async () => {
   await pool?.end();
@@ -28,19 +26,19 @@ afterAll(async () => {
 test("simultaneous catches award once; interaction replay returns the committed reveal", async () => {
   const responses = await Promise.all(
     Array.from({ length: 8 }, (_, i) =>
-      repository.catchFishy("100", "200", String(1000 + i), reward, now),
+      repository.catchFishy("100", "200", String(1000 + i), now),
     ),
   );
   expect(responses.filter((r) => !(r instanceof Date))).toHaveLength(1);
   const index = responses.findIndex((r) => !(r instanceof Date));
+  const noReroll = new DrizzleFishyCollectionRepository(db, () => {
+    throw Error("must not reroll");
+  });
   expect(
-    await repository.catchFishy(
+    await noReroll.catchFishy(
       "100",
       "200",
       String(1000 + index),
-      () => {
-        throw Error("must not reroll");
-      },
       new Date(now.getTime() + 86400000),
     ),
   ).toEqual(responses[index]);
@@ -60,8 +58,8 @@ test("simultaneous catches award once; interaction replay returns the committed 
 
 test("reciprocal first catches and rep cannot deadlock or overwrite balances", async () => {
   await Promise.all([
-    repository.catchFishy("300", "400", "2000", reward, now),
-    repository.catchFishy("400", "300", "2001", reward, now),
+    repository.catchFishy("300", "400", "2000", now),
+    repository.catchFishy("400", "300", "2001", now),
     repository.giveRep("300", "400", now),
     repository.giveRep("400", "300", now),
   ]);
@@ -78,26 +76,20 @@ test("reciprocal first catches and rep cannot deadlock or overwrite balances", a
 });
 
 test("self-fishing claims one cooldown, and failed transactions award nothing", async () => {
-  await expect(
-    repository.catchFishy(
-      "500",
-      "500",
-      "3000",
-      () => {
-        throw Error("roll failure");
-      },
-      now,
-    ),
-  ).rejects.toThrow("roll failure");
+  const failing = new DrizzleFishyCollectionRepository(db, () => {
+    throw Error("roll failure");
+  });
+  await expect(failing.catchFishy("500", "500", "3000", now)).rejects.toThrow(
+    "roll failure",
+  );
   expect(await repository.getCollection("500")).toEqual([]);
-  const result = await repository.catchFishy("500", "500", "3000", reward, now);
+  const result = await repository.catchFishy("500", "500", "3000", now);
   expect(result instanceof Date).toBe(false);
   expect(
     await repository.catchFishy(
       "500",
       "500",
       "3001",
-      reward,
       new Date(now.getTime() + 12 * 3600000 - 1),
     ),
   ).toBeInstanceOf(Date);
@@ -106,7 +98,6 @@ test("self-fishing claims one cooldown, and failed transactions award nothing", 
       "500",
       "500",
       "3002",
-      reward,
       new Date(now.getTime() + 12 * 3600000),
     ),
   ).not.toBeInstanceOf(Date);

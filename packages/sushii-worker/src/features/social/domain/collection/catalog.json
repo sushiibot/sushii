@@ -15,6 +15,16 @@
     "epic": 0.05,
     "legendary": 0.02
   },
+  "rarityPayouts": {
+    "common": { "min": 8, "max": 20 },
+    "uncommon": { "min": 15, "max": 30 },
+    "rare": { "min": 30, "max": 50 },
+    "epic": { "min": 60, "max": 100 },
+    "legendary": { "min": 150, "max": 300 }
+  },
+  "setPayouts": {
+    "junk": { "min": 1, "max": 5 }
+  },
   "items": [
     {
       "id": "bluegill",

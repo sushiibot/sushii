@@ -9,9 +9,11 @@ import {
   calculateStreak,
   rollRepAmount,
 } from "../domain";
-import type { CatchableType, FishyResult, RepResult } from "../domain";
+import type { FishyResult, RepResult } from "../domain";
+import type { Collectible } from "../domain/collection/Catalog";
 import {
   fishingCondition,
+  rollPayout,
   selectCollectible,
 } from "../domain/collection/Catalog";
 import type { FishyCollectionRepository } from "../domain/repositories/FishyCollectionRepository";
@@ -26,7 +28,10 @@ type Transaction = Parameters<
 export class DrizzleFishyCollectionRepository
   implements FishyCollectionRepository
 {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(
+    private readonly db: NodePgDatabase<typeof schema>,
+    private readonly roll: (item: Collectible) => number = rollPayout,
+  ) {}
 
   private async lockUsers(
     tx: Transaction,
@@ -57,7 +62,6 @@ export class DrizzleFishyCollectionRepository
     invokerId: string,
     targetId: string,
     interactionId: string,
-    rollPoints: () => { baseAmount: number; caughtType: CatchableType },
     now = new Date(),
   ): Promise<FishyResult | Date> {
     return this.db.transaction(async (tx) => {
@@ -84,8 +88,8 @@ export class DrizzleFishyCollectionRepository
       );
       const condition = fishingCondition(now);
       const item = selectCollectible(condition);
-      const reward = rollPoints();
-      const caughtAmount = Math.round(reward.baseAmount * streak.multiplier);
+      const baseAmount = this.roll(item);
+      const caughtAmount = Math.round(baseAmount * streak.multiplier);
       await tx
         .update(users)
         .set({ lastFishies: now, fishyStreak: streak.streak })
@@ -112,7 +116,7 @@ export class DrizzleFishyCollectionRepository
         })
         .returning();
       const result: FishyResult = {
-        ...reward,
+        baseAmount,
         caughtAmount,
         oldAmount: target.fishies.toString(),
         newAmount: updated.fishies.toString(),
@@ -122,15 +126,13 @@ export class DrizzleFishyCollectionRepository
         catchCount: entry.catchCount,
         firstDiscovery: entry.catchCount === 1,
       };
-      await tx
-        .insert(results)
-        .values({
-          interactionId: BigInt(interactionId),
-          userId: invoker.id,
-          targetId: target.id,
-          result,
-          createdAt: now,
-        });
+      await tx.insert(results).values({
+        interactionId: BigInt(interactionId),
+        userId: invoker.id,
+        targetId: target.id,
+        result,
+        createdAt: now,
+      });
       return result;
     });
   }

@@ -1,4 +1,4 @@
-import type { CatchableType, FishyResult, RepResult } from "..";
+import type { FishyResult, RepResult } from "..";
 
 export interface CollectionEntry {
   collectibleId: string;
@@ -11,7 +11,6 @@ export interface FishyCollectionRepository {
     invokerId: string,
     targetId: string,
     interactionId: string,
-    rollPoints: () => { baseAmount: number; caughtType: CatchableType },
     now?: Date,
   ): Promise<FishyResult | Date>;
   giveRep(

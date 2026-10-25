@@ -40,6 +40,17 @@ export const RARITY_WEIGHTS = Object.fromEntries(
 ) as Record<Rarity, number>;
 if (Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0) !== 10000)
   throw new Error("Rarity probabilities must total one");
+const payoutSchema = z
+  .object({ min: z.number().int().positive(), max: z.number().int() })
+  .refine((p) => p.max >= p.min, "Payout max must be at least min");
+export type Payout = z.infer<typeof payoutSchema>;
+export const RARITY_PAYOUTS = z
+  .record(raritySchema, payoutSchema)
+  .parse(source.rarityPayouts);
+// Set payouts take precedence so junk stays cheap regardless of its rarity.
+export const SET_PAYOUTS = z
+  .record(z.string(), payoutSchema)
+  .parse(source.setPayouts);
 export const CONDITION_LABELS: Record<FishingCondition, string> = {
   still: "Still waters",
   light_rain: "Light rain",
@@ -59,6 +70,8 @@ if (
   COLLECTIBLES.some((i) => !COLLECTION_SETS[i.set])
 )
   throw new Error("Invalid collection catalog");
+if (Object.keys(SET_PAYOUTS).some((set) => !COLLECTION_SETS[set]))
+  throw new Error("Payout for unknown collection set");
 for (const tier of raritySchema.options)
   if (!COLLECTIBLES.some((i) => i.rarity === tier))
     throw new Error(`Empty rarity tier: ${tier}`);
@@ -133,4 +146,16 @@ export function selectCollectible(
     ),
     draw,
   );
+}
+
+export function payoutFor(item: Collectible): Payout {
+  return SET_PAYOUTS[item.set] ?? RARITY_PAYOUTS[item.rarity];
+}
+
+export function rollPayout(
+  item: Collectible,
+  draw: (max: number) => number = randomInt,
+): number {
+  const { min, max } = payoutFor(item);
+  return min + draw(max - min + 1);
 }
