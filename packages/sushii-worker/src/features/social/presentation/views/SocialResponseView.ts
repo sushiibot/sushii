@@ -1,4 +1,10 @@
-import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+import {
+  AttachmentBuilder,
+  ContainerBuilder,
+  MessageFlags,
+  SectionBuilder,
+  TextDisplayBuilder,
+} from "discord.js";
 import type { InteractionReplyOptions } from "discord.js";
 
 import type dayjs from "@/shared/domain/dayjs";
@@ -6,6 +12,11 @@ import Color from "@/utils/colors";
 
 import { STREAK_MILESTONES } from "../../domain";
 import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
+import {
+  CONDITION_LABELS,
+  RARITY_COLORS,
+  getCollectible,
+} from "../../domain/collection/Catalog";
 
 // Fishy multiplies the catch, rep only gets a chance at bonus rep
 function formatFishyReward(multiplier: number): string {
@@ -45,27 +56,43 @@ function formatStreak(
 export function createFishySuccessMessage(
   result: FishyResult,
   targetUserId: string,
+  artwork?: Buffer,
 ): InteractionReplyOptions {
+  const item = getCollectible(result.collectibleId);
   const count = result.caughtAmount;
   const fishyWord = count === 1 ? "fishy" : "fishies";
 
-  const container = new ContainerBuilder()
-    .setAccentColor(Color.Success)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        `You caught a ${result.caughtType} for <@${targetUserId}> worth ${count} ${fishyWord}! (${result.oldAmount} → ${result.newAmount} total fishies)\n` +
-          formatStreak(
-            result.streak,
-            "fishy",
-            formatFishyReward,
-            ` (${result.baseAmount} → ${count})`,
-          ),
+  const text = new TextDisplayBuilder().setContent(
+    `### ${result.firstDiscovery ? "New discovery: " : "You caught "}${item.name}\n` +
+      `**${item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}** · ${CONDITION_LABELS[result.condition]} · ${item.habitat.replaceAll("_", " ")}\n` +
+      `${result.firstDiscovery ? "Added to your collection. Browse it with `/fishycollection`." : `You have caught this ${result.catchCount.toLocaleString()} times.`}\n\n` +
+      `<@${targetUserId}> received **${count} ${fishyWord}** (${result.oldAmount} → ${result.newAmount}).\n` +
+      formatStreak(
+        result.streak,
+        "fishy",
+        formatFishyReward,
+        ` (${result.baseAmount} → ${count})`,
       ),
+  );
+  const container = new ContainerBuilder().setAccentColor(
+    RARITY_COLORS[item.rarity],
+  );
+  if (artwork)
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(text)
+        .setThumbnailAccessory((thumbnail) =>
+          thumbnail.setURL("attachment://catch.png").setDescription(item.name),
+        ),
     );
-
+  else container.addTextDisplayComponents(text);
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+    files: artwork
+      ? [new AttachmentBuilder(artwork, { name: "catch.png" })]
+      : [],
   };
 }
 

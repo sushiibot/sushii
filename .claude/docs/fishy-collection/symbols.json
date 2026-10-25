@@ -1,0 +1,170 @@
+[
+  {
+    "id": "collection",
+    "sourcePath": "Items/Book/Book Outline 256.png",
+    "use": "Collection tab and collection header",
+    "note": "Use one book variant consistently.",
+    "bytes": 13465
+  },
+  {
+    "id": "fishing",
+    "sourcePath": "Tools/Fishing Rod/Fishing Rod Outline 256.png",
+    "use": "Fishy action and empty collection",
+    "note": "Decorative symbol only; no equipment mechanic.",
+    "bytes": 5545
+  },
+  {
+    "id": "new_discovery",
+    "sourcePath": "General/Sparkle/Sparkle Outline 256.png",
+    "use": "New discovery marker",
+    "note": "Pair with the words New discovery; omit on duplicates.",
+    "bytes": 11884
+  },
+  {
+    "id": "still",
+    "sourcePath": "Nature/Pond/Pond Outline 256.png",
+    "use": "Still waters",
+    "note": "Condition symbol, not a selectable location.",
+    "bytes": 6199
+  },
+  {
+    "id": "light_rain",
+    "sourcePath": "Nature/Rain/Rain Outline 256.png",
+    "use": "Light rain",
+    "note": "Keep the condition name beside the icon.",
+    "bytes": 12078
+  },
+  {
+    "id": "heavy_rain",
+    "sourcePath": "Nature/Storm/Storm Outline 256.png",
+    "use": "Heavy rain candidate",
+    "note": "Filename suggests a storm. Check artwork before treating it as rain without lightning.",
+    "bytes": 11849
+  },
+  {
+    "id": "mist",
+    "sourcePath": "Nature/Cloud/Cloud Outline 256.png",
+    "use": "Rolling mist fallback",
+    "note": "No dedicated fog or mist asset found. Cloud is an approximation.",
+    "bytes": 9600
+  },
+  {
+    "id": "moonlit",
+    "sourcePath": "Nature/Moon/Moon Outline 256.png",
+    "use": "Moonlit waters",
+    "note": "No actual local-time meaning.",
+    "bytes": 11958
+  },
+  {
+    "id": "river_set",
+    "sourcePath": "Transport/Rowboat/Rowboat Outline 256.png",
+    "use": "River Catches set",
+    "note": "Theme symbol, not travel or boat ownership.",
+    "bytes": 4982
+  },
+  {
+    "id": "sea_set",
+    "sourcePath": "Items/Anchor/Anchor Outline 256.png",
+    "use": "Sea Life set",
+    "note": "Theme symbol, not an equipped item.",
+    "bytes": 5480
+  },
+  {
+    "id": "wonders_set",
+    "sourcePath": "Tools/Compass/Compass Outline 256.png",
+    "use": "Water Wonders set",
+    "note": "Optional discovery theme.",
+    "bytes": 16126
+  },
+  {
+    "id": "junk_set",
+    "sourcePath": "Tools/Bucket/Bucket Outline 256.png",
+    "use": "Odd Catches set",
+    "note": "Avoid reusing a collectible icon as navigation when possible.",
+    "bytes": 6523
+  },
+  {
+    "id": "finds_set",
+    "sourcePath": "Items/Seashell/Seashell Outline 256.png",
+    "use": "Shore and Treasure set",
+    "note": "Also a collectible. Use a label to distinguish the set.",
+    "bytes": 5892
+  },
+  {
+    "id": "previous",
+    "sourcePath": "UI/Arrow/Arrow Left Outline 256.png",
+    "use": "Previous page",
+    "note": "Optional; existing labeled buttons may be enough.",
+    "bytes": 5598
+  },
+  {
+    "id": "next",
+    "sourcePath": "UI/Arrow/Arrow Right Outline 256.png",
+    "use": "Next page",
+    "note": "Match Previous style.",
+    "bytes": 5253
+  },
+  {
+    "id": "discovered",
+    "sourcePath": "UI/Check Mark/Check Mark Outline 256.png",
+    "use": "Discovered or completed set",
+    "note": "Already mapped as success/enabled; reuse existing emoji.",
+    "bytes": 1848
+  },
+  {
+    "id": "missing_fallback",
+    "sourcePath": "UI/Question Mark/Question Mark Outline 256.png",
+    "use": "Missing-art fallback",
+    "note": "Normal undiscovered entries use the actual species silhouette.",
+    "bytes": 8788
+  },
+  {
+    "id": "cooldown",
+    "sourcePath": "Tools/Clock/Clock Outline 256.png",
+    "use": "Cooldown or first caught date",
+    "note": "Already mapped as duration; no new upload required.",
+    "bytes": 5503
+  },
+  {
+    "id": "rank",
+    "sourcePath": "General/Trophy/Trophy Outline 256.png",
+    "use": "Rank tab",
+    "note": "Already mapped as rankings.",
+    "bytes": 5550
+  },
+  {
+    "id": "rarity_common",
+    "sourcePath": "General/Star/Star Bronze Outline 256.png",
+    "use": "Optional Common marker",
+    "note": "Proposal only; pair with text.",
+    "bytes": 4251
+  },
+  {
+    "id": "rarity_uncommon",
+    "sourcePath": "General/Star/Star Silver Outline 256.png",
+    "use": "Optional Uncommon marker",
+    "note": "Proposal only; pair with text.",
+    "bytes": 4252
+  },
+  {
+    "id": "rarity_rare",
+    "sourcePath": "General/Star/Star Blue Outline 256.png",
+    "use": "Optional Rare marker",
+    "note": "Proposal only; pair with text.",
+    "bytes": 4251
+  },
+  {
+    "id": "rarity_epic",
+    "sourcePath": "General/Star/Star Purple Outline 256.png",
+    "use": "Optional Epic marker",
+    "note": "Proposal only; pair with text.",
+    "bytes": 4251
+  },
+  {
+    "id": "rarity_legendary",
+    "sourcePath": "General/Star/Star Gold Outline 256.png",
+    "use": "Optional Legendary marker",
+    "note": "Star shape is also used for rep. Text-only rarity may be clearer.",
+    "bytes": 4392
+  }
+]

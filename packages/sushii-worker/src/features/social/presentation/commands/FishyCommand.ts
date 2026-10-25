@@ -5,6 +5,7 @@ import { SlashCommandBuilder } from "discord.js";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { FishyService } from "../../application";
+import type { CollectionArtwork } from "../../infrastructure/CollectionArtwork";
 import {
   createFishyCooldownMessage,
   createFishySuccessMessage,
@@ -22,34 +23,36 @@ export class FishyCommand extends SlashCommandHandler {
     )
     .toJSON();
 
-  constructor(private readonly fishyService: FishyService) {
+  constructor(
+    private readonly fishyService: FishyService,
+    private readonly artwork: CollectionArtwork,
+  ) {
     super();
   }
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const target = interaction.options.getUser("user", true);
 
-    try {
-      const result = await this.fishyService.fishyForUser(
-        interaction.user,
-        target,
-      );
-
-      if (isDayjs(result)) {
-        const message = createFishyCooldownMessage(result);
-        await interaction.reply(message);
-      } else {
-        const message = createFishySuccessMessage(result, target.id);
-        await interaction.reply(message);
-      }
-    } catch (error) {
-      // Log error for debugging
-      console.error("Fishy command error:", error);
-
-      await interaction.reply({
-        content: "Something went wrong while fishing! Please try again later.",
-        ephemeral: true,
-      });
-    }
+    await interaction.deferReply();
+    // Verify the configured pack before awarding a catch.
+    await this.artwork.load();
+    const result = await this.fishyService.fishyForUser(
+      interaction.user,
+      target,
+      interaction.id,
+    );
+    const message = isDayjs(result)
+      ? createFishyCooldownMessage(result)
+      : createFishySuccessMessage(
+          result,
+          target.id,
+          await this.artwork.icon(result.collectibleId),
+        );
+    await interaction.editReply({
+      components: message.components,
+      files: message.files,
+      allowedMentions: message.allowedMentions,
+      flags: "IsComponentsV2",
+    });
   }
 }

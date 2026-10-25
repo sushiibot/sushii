@@ -1,8 +1,6 @@
 import type { User } from "discord.js";
 
-import type { UserProfileRepository } from "@/features/user-profile";
-import type dayjs from "@/shared/domain/dayjs";
-import logger from "@/shared/infrastructure/logger";
+import dayjs from "@/shared/domain/dayjs";
 
 import type { FishyResult } from "../domain";
 import {
@@ -12,98 +10,35 @@ import {
   NORMAL_FISH_TYPES,
   SCALED_FISH_TYPES,
   SCALED_FISH_WEIGHTS,
-  calculateStreak,
 } from "../domain";
-import type { CooldownService } from "./CooldownService";
+import type { FishyCollectionRepository } from "../domain/repositories/FishyCollectionRepository";
 
 export class FishyService {
   constructor(
-    private readonly userProfileRepository: UserProfileRepository,
-    private readonly cooldownService: CooldownService,
+    private readonly collectionRepository: FishyCollectionRepository,
   ) {}
 
   async fishyForUser(
     invoker: User,
     target: User,
+    interactionId: string,
   ): Promise<FishyResult | dayjs.Dayjs> {
-    const targetProfile = await this.userProfileRepository.getByIdOrDefault(
+    const result = await this.collectionRepository.catchFishy(
+      invoker.id,
       target.id,
-    );
-
-    // Only fetch invoker profile if different from target
-    let invokerProfile = targetProfile;
-    if (invoker.id !== target.id) {
-      invokerProfile = await this.userProfileRepository.getByIdOrDefault(
-        invoker.id,
-      );
-    }
-
-    // Check cooldown for invoker (not target)
-    const cooldownTime =
-      this.cooldownService.checkFishyCooldown(invokerProfile);
-    if (cooldownTime) {
-      return cooldownTime;
-    }
-
-    // Streak belongs to the invoker
-    const now = new Date();
-    const streak = calculateStreak(
-      invokerProfile.getLastFishies(),
-      invokerProfile.getFishyStreak(),
-      now,
-    );
-
-    // Get random catch
-    const caughtType = this.getRandomCatchable();
-    const valueRange = FISHY_VALUE_RANGES[caughtType];
-    const baseAmount = Math.floor(
-      this.randDistNumber(valueRange.min, valueRange.max, valueRange.skew),
-    );
-    const caughtAmount = Math.round(baseAmount * streak.multiplier);
-
-    const oldAmount = targetProfile.getFishies().toString();
-    const newFishies = targetProfile.getFishies() + BigInt(caughtAmount);
-
-    // Update target's fishies (always gets the fish)
-    let updatedTarget = targetProfile.updateFishies(newFishies);
-
-    // Handle timestamp updates based on whether invoker is same as target
-    if (invoker.id !== target.id) {
-      // Different users: update only invoker's timestamp
-      const updatedInvoker = invokerProfile.recordFishy(now, streak.streak);
-      await Promise.all([
-        this.userProfileRepository.save(updatedTarget),
-        this.userProfileRepository.save(updatedInvoker),
-      ]);
-    } else {
-      // Same user: update invoker/target's timestamp
-      updatedTarget = updatedTarget.recordFishy(now, streak.streak);
-      await this.userProfileRepository.save(updatedTarget);
-    }
-
-    logger.info(
-      {
-        invokerId: invoker.id,
-        targetId: target.id,
-        caughtType,
-        baseAmount,
-        caughtAmount,
-        streak: streak.streak,
-        multiplier: streak.multiplier,
-        oldAmount,
-        newAmount: newFishies.toString(),
+      interactionId,
+      () => {
+        const caughtType = this.getRandomCatchable();
+        const range = FISHY_VALUE_RANGES[caughtType];
+        return {
+          caughtType,
+          baseAmount: Math.floor(
+            this.randDistNumber(range.min, range.max, range.skew),
+          ),
+        };
       },
-      "Fishy caught successfully",
     );
-
-    return {
-      baseAmount,
-      caughtAmount,
-      caughtType,
-      oldAmount,
-      newAmount: newFishies.toString(),
-      streak,
-    };
+    return result instanceof Date ? dayjs.utc(result) : result;
   }
 
   private getRandomCatchable(): CatchableType {

@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 
 import { DrizzleUserProfileRepository } from "@/features/user-profile/infrastructure/DrizzleUserProfileRepository";
 import type * as schema from "@/infrastructure/database/schema";
+import { env } from "@/shared/infrastructure/config/env";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import {
@@ -14,6 +15,8 @@ import {
   ReputationService,
 } from "./application";
 import { DrizzleSocialLeaderboardRepository } from "./infrastructure";
+import { CollectionArtwork } from "./infrastructure/CollectionArtwork";
+import { DrizzleFishyCollectionRepository } from "./infrastructure/DrizzleFishyCollectionRepository";
 import {
   FishyCommand,
   FishyLeaderboardCommand,
@@ -48,11 +51,9 @@ export function setupSocialFeature({
 
   // Create services
   const cooldownService = new CooldownService();
-  const fishyService = new FishyService(userProfileRepository, cooldownService);
-  const reputationService = new ReputationService(
-    userProfileRepository,
-    cooldownService,
-  );
+  const collectionRepository = new DrizzleFishyCollectionRepository(db);
+  const fishyService = new FishyService(collectionRepository);
+  const reputationService = new ReputationService(collectionRepository);
   const getRepLeaderboardService = new RepLeaderboardService(
     socialLeaderboardRepository,
     userProfileRepository,
@@ -63,7 +64,10 @@ export function setupSocialFeature({
   );
 
   // Create commands
-  const fishyCommand = new FishyCommand(fishyService);
+  const fishyCommand = new FishyCommand(
+    fishyService,
+    new CollectionArtwork(env.ASSET_DIR),
+  );
   const repCommand = new RepCommand(reputationService);
   const repLeaderboardCommand = new RepLeaderboardCommand(
     getRepLeaderboardService,

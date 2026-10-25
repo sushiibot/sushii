@@ -1,7 +1,12 @@
+import type { FishingCondition } from "../collection/Catalog";
 import type { CatchableType } from "../constants";
 import type { StreakUpdate } from "./Streak";
 
 export interface FishyResult {
+  collectibleId: string;
+  condition: FishingCondition;
+  catchCount: number;
+  firstDiscovery: boolean;
   // Amount before the streak multiplier
   baseAmount: number;
   caughtAmount: number;

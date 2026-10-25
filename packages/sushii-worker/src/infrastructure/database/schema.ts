@@ -1,3 +1,5 @@
+import type { FishyResult } from "@/features/social/domain";
+
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -111,6 +113,22 @@ export const usersInAppPublic = appPublic.table("users", {
   globalLeaderboardAnonymous: boolean("global_leaderboard_anonymous")
     .default(false)
     .notNull(),
+});
+
+export const userFishyCollection = appPublic.table("user_fishy_collection", {
+  userId: bigint("user_id", { mode: "bigint" }).notNull().references(() => usersInAppPublic.id, { onDelete: "cascade" }),
+  collectibleId: text("collectible_id").notNull(),
+  catchCount: integer("catch_count").notNull().default(1),
+  firstCaughtAt: timestamp("first_caught_at", { mode: "date", withTimezone: true }).notNull(),
+  lastCaughtAt: timestamp("last_caught_at", { mode: "date", withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.userId, t.collectibleId] }), check("fishy_positive_count", sql`${t.catchCount} > 0`)]);
+
+export const fishyInteractionResults = appPrivate.table("fishy_interaction_results", {
+  interactionId: bigint("interaction_id", { mode: "bigint" }).primaryKey(),
+  userId: bigint("user_id", { mode: "bigint" }).notNull().references(() => usersInAppPublic.id, { onDelete: "cascade" }),
+  targetId: bigint("target_id", { mode: "bigint" }).notNull(),
+  result: jsonb("result").$type<FishyResult>().notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).defaultNow().notNull(),
 });
 
 export const failuresInAppHidden = appHidden.table("failures", {

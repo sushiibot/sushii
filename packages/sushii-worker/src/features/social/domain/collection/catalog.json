@@ -1,0 +1,340 @@
+{
+  "version": "fishy-1",
+  "sets": {
+    "pond": "Pond Friends",
+    "river": "River Catches",
+    "sea": "Sea Life",
+    "wonders": "Water Wonders",
+    "junk": "Odd Catches",
+    "finds": "Shore and Treasure"
+  },
+  "rarityProbabilities": {
+    "common": 0.5,
+    "uncommon": 0.28,
+    "rare": 0.15,
+    "epic": 0.05,
+    "legendary": 0.02
+  },
+  "items": [
+    {
+      "id": "bluegill",
+      "name": "Bluegill",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "carp",
+      "name": "Carp",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "crucian_carp",
+      "name": "Crucian Carp",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "goldfish",
+      "name": "Goldfish",
+      "set": "pond",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "koi",
+      "name": "Koi",
+      "set": "pond",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "guppy",
+      "name": "Guppy",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "frog",
+      "name": "Frog",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "crawfish",
+      "name": "Crawfish",
+      "set": "pond",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "still",
+      "conditionMultiplier": 1.2,
+      "habitat": "pond"
+    },
+    {
+      "id": "brook_trout",
+      "name": "Brook Trout",
+      "set": "river",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "light_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "rainbow_trout",
+      "name": "Rainbow Trout",
+      "set": "river",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "light_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "salmon",
+      "name": "Salmon",
+      "set": "river",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "light_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "eel",
+      "name": "Eel",
+      "set": "river",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "moonlit",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "loach",
+      "name": "Loach",
+      "set": "river",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "light_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "sweetfish",
+      "name": "Sweetfish",
+      "set": "river",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "light_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "sea_bass",
+      "name": "Sea Bass",
+      "set": "sea",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "red_snapper",
+      "name": "Red Snapper",
+      "set": "sea",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "barred_knifejaw",
+      "name": "Barred Knifejaw",
+      "set": "sea",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "jellyfish",
+      "name": "Jellyfish",
+      "set": "sea",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "clownfish",
+      "name": "Clownfish",
+      "set": "sea",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "blue_tang",
+      "name": "Blue Tang",
+      "set": "sea",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "mist",
+      "conditionMultiplier": 1.2,
+      "habitat": "sea"
+    },
+    {
+      "id": "arapaima",
+      "name": "Arapaima",
+      "set": "wonders",
+      "rarity": "epic",
+      "baseWeight": 100,
+      "preferredCondition": "moonlit",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "arowana",
+      "name": "Arowana",
+      "set": "wonders",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "moonlit",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "giant_catfish",
+      "name": "Giant Catfish",
+      "set": "wonders",
+      "rarity": "epic",
+      "baseWeight": 100,
+      "preferredCondition": "moonlit",
+      "conditionMultiplier": 1.2,
+      "habitat": "river"
+    },
+    {
+      "id": "coelacanth",
+      "name": "Coelacanth",
+      "set": "wonders",
+      "rarity": "legendary",
+      "baseWeight": 100,
+      "preferredCondition": "moonlit",
+      "conditionMultiplier": 1.2,
+      "habitat": "deep_sea"
+    },
+    {
+      "id": "rubber_boots",
+      "name": "Rubber Boots",
+      "set": "junk",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "spoon",
+      "name": "Spoon",
+      "set": "junk",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "tyre",
+      "name": "Tyre",
+      "set": "junk",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "rubber_duck",
+      "name": "Rubber Duck",
+      "set": "junk",
+      "rarity": "uncommon",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "seashell",
+      "name": "Seashell",
+      "set": "finds",
+      "rarity": "common",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "shark_tooth",
+      "name": "Shark Tooth",
+      "set": "finds",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "coin",
+      "name": "Coin",
+      "set": "finds",
+      "rarity": "rare",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    },
+    {
+      "id": "treasure_chest",
+      "name": "Treasure Chest",
+      "set": "finds",
+      "rarity": "epic",
+      "baseWeight": 100,
+      "preferredCondition": "heavy_rain",
+      "conditionMultiplier": 1.2,
+      "habitat": "shore"
+    }
+  ]
+}

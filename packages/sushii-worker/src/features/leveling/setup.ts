@@ -5,7 +5,10 @@ import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { CollectionArtwork } from "@/features/social/infrastructure/CollectionArtwork";
+import { DrizzleFishyCollectionRepository } from "@/features/social/infrastructure/DrizzleFishyCollectionRepository";
 import type * as schema from "@/infrastructure/database/schema";
+import { env } from "@/shared/infrastructure/config/env";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import { GetGlobalLeaderboardService } from "./application/GetGlobalLeaderboardService";
@@ -15,10 +18,11 @@ import { LevelRoleService } from "./application/LevelRoleService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
 import { XpBlockService } from "./application/XpBlockService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
-import { GlobalLeaderboardRefreshTask } from "./infrastructure/tasks/GlobalLeaderboardRefreshTask";
 import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
+import { GlobalLeaderboardRefreshTask } from "./infrastructure/tasks/GlobalLeaderboardRefreshTask";
+import { FishyCollectionCommand } from "./presentation/commands/FishyCollectionCommand";
 import GlobalLeaderboardCommand from "./presentation/commands/GlobalLeaderboardCommand";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
 import LeaderboardPrivacyCommand from "./presentation/commands/LeaderboardPrivacyCommand";
@@ -54,7 +58,9 @@ export function createLevelingServices({
   );
 
   const getLeaderboardService = new GetLeaderboardService(userLevelRepository);
-  const getGlobalLeaderboardService = new GetGlobalLeaderboardService(userLevelRepository);
+  const getGlobalLeaderboardService = new GetGlobalLeaderboardService(
+    userLevelRepository,
+  );
 
   const updateUserXpService = new UpdateUserXpService(
     userLevelRepository,
@@ -70,6 +76,8 @@ export function createLevelingServices({
   );
 
   return {
+    collectionRepository: new DrizzleFishyCollectionRepository(db),
+    collectionArtwork: new CollectionArtwork(env.ASSET_DIR),
     userProfileRepository,
     userLevelRepository,
     levelRoleRepository,
@@ -98,11 +106,22 @@ export function createLevelingCommands(
     emojiRepository,
   } = services;
 
+  const overview = {
+    rankService: getUserRankService,
+    emojiRepository,
+    collectionRepository: services.collectionRepository,
+    artwork: services.collectionArtwork,
+    logger: logger.child({ module: "UserOverview" }),
+  };
   const commands = [
-    new RankCommand(getUserRankService, emojiRepository, logger.child({ module: "rank" })),
+    new RankCommand(overview),
+    new FishyCollectionCommand(overview),
     new LeaderboardCommand(getLeaderboardService),
     new GlobalLeaderboardCommand(getGlobalLeaderboardService),
-    new LeaderboardPrivacyCommand(userProfileRepository, logger.child({ module: "leaderboard-privacy" })),
+    new LeaderboardPrivacyCommand(
+      userProfileRepository,
+      logger.child({ module: "leaderboard-privacy" }),
+    ),
     new LevelRoleCommand(levelRoleService),
     new XpCommand(xpBlockService),
   ];
@@ -142,25 +161,37 @@ export function setupLevelingFeature({
   const taskLogger = logger.child({ component: "GlobalLeaderboardRefresh" });
   const tasks = [
     new GlobalLeaderboardRefreshTask(
-      client, deploymentService, taskLogger, db,
+      client,
+      deploymentService,
+      taskLogger,
+      db,
       sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app_public.global_user_level_rankings_all_time`,
       "Global leaderboard refresh all-time",
       "*/30 * * * *",
     ),
     new GlobalLeaderboardRefreshTask(
-      client, deploymentService, taskLogger, db,
+      client,
+      deploymentService,
+      taskLogger,
+      db,
       sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app_public.global_user_level_rankings_month`,
       "Global leaderboard refresh month",
       "*/30 * * * *",
     ),
     new GlobalLeaderboardRefreshTask(
-      client, deploymentService, taskLogger, db,
+      client,
+      deploymentService,
+      taskLogger,
+      db,
       sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app_public.global_user_level_rankings_week`,
       "Global leaderboard refresh week",
       "*/15 * * * *",
     ),
     new GlobalLeaderboardRefreshTask(
-      client, deploymentService, taskLogger, db,
+      client,
+      deploymentService,
+      taskLogger,
+      db,
       sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app_public.global_user_level_rankings_day`,
       "Global leaderboard refresh day",
       "*/5 * * * *",

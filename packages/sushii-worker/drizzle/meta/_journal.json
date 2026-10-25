@@ -449,6 +449,13 @@
       "when": 1792384876285,
       "tag": "0063_drop-legacy-command-notifications",
       "breakpoints": false
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1792891742157,
+      "tag": "0064_fishy_collection",
+      "breakpoints": false
     }
   ]
 }

@@ -7,6 +7,7 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0"
 # Install curl and build dependencies for native modules
 RUN apt-get update && apt-get install -y \
   curl \
+  fonts-dejavu-core \
   python3 \
   python3-dev \
   build-essential \
