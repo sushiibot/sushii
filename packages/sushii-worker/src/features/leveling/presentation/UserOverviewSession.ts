@@ -153,10 +153,8 @@ export class UserOverviewSession {
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(this.customId("collected"))
-            .setLabel("Collected only")
-            .setStyle(
-              this.collectedOnly ? ButtonStyle.Primary : ButtonStyle.Secondary,
-            ),
+            .setLabel(this.collectedOnly ? "Show all" : "Show collected only")
+            .setStyle(ButtonStyle.Secondary),
         ),
       );
     if (page.length === 0) {
