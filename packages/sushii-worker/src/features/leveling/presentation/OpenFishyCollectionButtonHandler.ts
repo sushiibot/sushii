@@ -17,7 +17,7 @@ export class OpenFishyCollectionButtonHandler extends ButtonHandler {
   async handleInteraction(interaction: ButtonInteraction): Promise<void> {
     if (!interaction.inCachedGuild()) {
       await interaction.reply({
-        content: "Open your collection with /fishycollection in a server.",
+        content: "Open your collection with /fishy-collection in a server.",
         flags: MessageFlags.Ephemeral,
       });
       return;

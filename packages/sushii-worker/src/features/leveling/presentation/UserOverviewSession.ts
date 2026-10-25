@@ -234,7 +234,7 @@ export class UserOverviewSession {
       interaction.customId.split("/");
     if (interaction.user.id !== ownerId) {
       await interaction.reply({
-        content: "Run /fishycollection or /rank to open your own view.",
+        content: "Run /fishy-collection or /rank to open your own view.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -250,7 +250,7 @@ export class UserOverviewSession {
       )
     ) {
       await interaction.reply({
-        content: "Run /fishycollection to open a new view.",
+        content: "Run /fishy-collection to open a new view.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -271,7 +271,7 @@ export class UserOverviewSession {
           const value = interaction.values[0];
           if (value !== "all" && !Object.hasOwn(COLLECTION_SETS, value ?? "")) {
             await interaction.reply({
-              content: "Run /fishycollection to open a new view.",
+              content: "Run /fishy-collection to open a new view.",
               flags: MessageFlags.Ephemeral,
             });
             return;

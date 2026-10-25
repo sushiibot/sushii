@@ -14,7 +14,7 @@ The [symbol shortlist](symbols.md) maps existing artwork to navigation, conditio
 Six sets organize the collection. Sets have progress counts, but no completion rewards.
 There is no trading, equipment, location selection, profile showcase, or size system.
 
-`/rank [user]` and `/fishycollection [user]` open the same interface on different tabs.
+`/rank [user]` and `/fishy-collection [user]` open the same interface on different tabs.
 Both tabs retain the target user. Rank retains its server context; Collection shows global discoveries.
 The collection supports set selection and pagination. Names remain visible for undiscovered entries.
 Discovered entries show color artwork and counts. Undiscovered entries show silhouettes and their rarity labels.
@@ -132,7 +132,7 @@ Retries of the same interaction return that result without rerolling or awarding
 
 - All 32 color icons and 32 silhouettes are exported in the private asset repository.
 - Collection pages use native Components V2 sections with one artwork thumbnail per catch. Names, rarity, and counts remain native text on mobile. Tabs, filters, and pagination sit inside the same container.
-- `/rank` and `/fishycollection` share a session. Controls expire after five idle minutes or fourteen total minutes.
+- `/rank` and `/fishy-collection` share a session. Controls expire after five idle minutes or fourteen total minutes.
 - Fishy and rep updates lock users in numeric ID order and update only their relevant columns.
 - Drizzle generated `0064_fishy_collection.sql`. Existing balances are not backfilled into collections.
 - Tests cover tier boundaries, availability, concurrent catches, replay, reciprocal gifts, rollback, cooldown boundaries, pagination, ownership, and expired controls.

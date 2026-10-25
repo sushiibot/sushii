@@ -31,7 +31,7 @@ export class UserOverviewComponentHandler extends ButtonHandler {
     ) {
       await interaction.reply({
         content:
-          "This older view has expired. Run /fishycollection or /rank to open a new view.",
+          "This older view has expired. Run /fishy-collection or /rank to open a new view.",
         flags: MessageFlags.Ephemeral,
       });
       return;

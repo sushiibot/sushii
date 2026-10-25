@@ -14,7 +14,7 @@ import {
 
 export class FishyCollectionCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
-    .setName("fishycollection")
+    .setName("fishy-collection")
     .setDescription("Browse your or another user's fishy discoveries.")
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
