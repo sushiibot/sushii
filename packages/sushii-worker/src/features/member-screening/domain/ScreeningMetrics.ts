@@ -18,8 +18,3 @@ export interface ScreeningMetrics {
     detail: { source: "button" | "audit_log"; reason?: IgnoreReason },
   ): void;
 }
-
-export const noopScreeningMetrics: ScreeningMetrics = {
-  recordCheck: () => undefined,
-  recordOutcome: () => undefined,
-};

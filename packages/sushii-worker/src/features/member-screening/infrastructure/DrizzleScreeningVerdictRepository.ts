@@ -266,12 +266,27 @@ export class DrizzleScreeningVerdictRepository
     return rows.length > 0;
   }
 
-  async hasCheckSince(
+  async findLatestCheckSince(
     guildId: string,
     userId: string,
     since: Date,
-  ): Promise<boolean> {
-    return this.existsSince(guildId, userId, since, [...CHECK_KINDS], true);
+  ): Promise<{ joinedAt: Date | null } | null> {
+    const [row] = await this.db
+      .select({ joinedAt: verdicts.joinedAt })
+      .from(verdicts)
+      .where(
+        and(
+          eq(verdicts.guildId, BigInt(guildId)),
+          eq(verdicts.userId, BigInt(userId)),
+          gte(verdicts.createdAt, since),
+          inArray(verdicts.kind, [...CHECK_KINDS]),
+          isNull(verdicts.error),
+        ),
+      )
+      .orderBy(desc(verdicts.createdAt), desc(verdicts.id))
+      .limit(1);
+
+    return row ?? null;
   }
 
   async hasMissSince(
@@ -287,7 +302,6 @@ export class DrizzleScreeningVerdictRepository
     userId: string,
     since: Date,
     kinds: VerdictKind[],
-    succeededOnly = false,
   ): Promise<boolean> {
     const rows = await this.db
       .select({ id: verdicts.id })
@@ -298,7 +312,6 @@ export class DrizzleScreeningVerdictRepository
           eq(verdicts.userId, BigInt(userId)),
           gte(verdicts.createdAt, since),
           inArray(verdicts.kind, kinds),
-          succeededOnly ? isNull(verdicts.error) : undefined,
         ),
       )
       .limit(1);

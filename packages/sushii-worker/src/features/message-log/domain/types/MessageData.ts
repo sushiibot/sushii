@@ -5,6 +5,8 @@
 export interface MessageData {
   id: string;
   channel_id: string;
+  /** Absent on rows cached before it was stored. */
+  type?: number;
   author: {
     id: string;
     username: string;

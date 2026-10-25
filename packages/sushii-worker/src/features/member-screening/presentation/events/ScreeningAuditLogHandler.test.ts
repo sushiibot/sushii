@@ -5,6 +5,7 @@ import {
   type Guild,
   type GuildAuditLogsEntry,
 } from "discord.js";
+import pino from "pino";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
 import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
@@ -30,15 +31,17 @@ function entry(overrides: Partial<GuildAuditLogsEntry>): GuildAuditLogsEntry {
 function setup(hasSettings = true) {
   const recordModAction = mock(async () => undefined);
   const wait = mock(async () => undefined);
+  const findByGuildId = mock(
+    async (): Promise<unknown> => (hasSettings ? { guildId: GUILD.id } : null),
+  );
   const handler = new ScreeningAuditLogHandler(
     { recordModAction } as unknown as MemberScreeningService,
-    {
-      findByGuildId: async () => (hasSettings ? { guildId: GUILD.id } : null),
-    } as unknown as ScreeningGuildRepository,
+    { findByGuildId } as unknown as ScreeningGuildRepository,
     { user: { id: BOT } } as unknown as Client,
+    pino({ level: "silent" }),
     wait,
   );
-  return { handler, recordModAction, wait };
+  return { handler, recordModAction, wait, findByGuildId };
 }
 
 describe("screeningActionFor", () => {
@@ -111,6 +114,19 @@ describe("ScreeningAuditLogHandler", () => {
       "banned",
       null,
     );
+  });
+
+  test("a failed settings lookup skips the entry instead of throwing", async () => {
+    const t = setup();
+    t.findByGuildId.mockRejectedValueOnce(new Error("connection refused"));
+
+    await t.handler.handle(
+      entry({ action: AuditLogEvent.MemberBanAdd }),
+      GUILD,
+    );
+
+    expect(t.findByGuildId).toHaveBeenCalledWith(GUILD.id);
+    expect(t.recordModAction).not.toHaveBeenCalled();
   });
 
   test("skips guilds without settings and unrelated actions", async () => {

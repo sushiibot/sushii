@@ -159,14 +159,18 @@ function fakeVerdictRepo() {
     }),
     postedForUser: mock(async () => [] as ScreeningVerdict[]),
     setActioned: mock(async () => [] as ScreeningVerdict[]),
-    hasCheckSince: mock(async (guildId: string, userId: string) =>
-      rows.some(
-        (r) =>
-          r.guildId === guildId &&
-          r.userId === userId &&
-          ["text", "pfp", "image"].includes(r.kind),
-      ),
-    ),
+    findLatestCheckSince: mock(async (guildId: string, userId: string) => {
+      const check = rows
+        .filter(
+          (r) =>
+            r.guildId === guildId &&
+            r.userId === userId &&
+            r.error === null &&
+            ["text", "pfp", "image"].includes(r.kind),
+        )
+        .at(-1);
+      return check ? { joinedAt: check.joinedAt } : null;
+    }),
     hasFlagSince: mock(async (guildId: string, userId: string) =>
       rows.some(
         (r) => r.guildId === guildId && r.userId === userId && r.flagged,
@@ -684,8 +688,13 @@ describe("MemberScreeningService.recordModAction", () => {
     expect(t.verdictRepo.insert).not.toHaveBeenCalled();
   });
 
-  const cleanCheck = () =>
-    posted({ flagged: false, postChannelId: null, postMessageId: null });
+  const cleanCheck = (overrides: Partial<ScreeningVerdict> = {}) =>
+    posted({
+      flagged: false,
+      postChannelId: null,
+      postMessageId: null,
+      ...overrides,
+    });
 
   test("records a miss for a screened member who was never flagged", async () => {
     const t = setup();
@@ -734,6 +743,46 @@ describe("MemberScreeningService.recordModAction", () => {
   test("records nothing for an already-actioned flag", async () => {
     const t = setup();
     t.rows.push(posted({ outcome: "actioned" }));
+
+    await t.service.recordModAction(GUILD, USER, "banned", MOD);
+
+    expect(t.verdictRepo.insert).not.toHaveBeenCalled();
+    expect(t.metrics.recordOutcome).not.toHaveBeenCalled();
+  });
+
+  test("records a miss for a member actioned inside the window", async () => {
+    const t = setup();
+    t.rows.push(cleanCheck({ joinedAt: hoursAgo(71) }));
+
+    await t.service.recordModAction(GUILD, USER, "banned", MOD);
+
+    expect(t.verdictRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "miss", outcomeAction: "banned" }),
+    );
+  });
+
+  test("a member who joined 5 days ago with a 72h window is not a miss", async () => {
+    const t = setup({ settings: settings({ windowHours: 72 }) });
+    t.rows.push(cleanCheck({ joinedAt: hoursAgo(5 * 24) }));
+
+    await t.service.recordModAction(GUILD, USER, "banned", MOD);
+
+    expect(t.verdictRepo.insert).not.toHaveBeenCalled();
+    expect(t.metrics.recordOutcome).not.toHaveBeenCalled();
+  });
+
+  test("a check without a join time is not a miss", async () => {
+    const t = setup();
+    t.rows.push(cleanCheck({ joinedAt: null }));
+
+    await t.service.recordModAction(GUILD, USER, "banned", MOD);
+
+    expect(t.verdictRepo.insert).not.toHaveBeenCalled();
+  });
+
+  test("records no miss when the guild has no settings", async () => {
+    const t = setup({ settings: null });
+    t.rows.push(cleanCheck());
 
     await t.service.recordModAction(GUILD, USER, "banned", MOD);
 
@@ -817,6 +866,31 @@ describe("judgedLines", () => {
       "t6",
     ]);
     expect(judged.context.map((l) => l.text)).toEqual(["c2", "c3"]);
+  });
+
+  test("skips rows with empty content", () => {
+    const line = (authorId: string, text: string): CachedMessage => ({
+      messageId: text || "empty",
+      authorId,
+      authorName: authorId === USER ? "Newbie" : "Other",
+      content: text,
+      createdAt: NOW,
+    });
+
+    const judged = judgedLines(
+      [
+        line(OTHER_USER, "c1"),
+        line(OTHER_USER, " "),
+        line(USER, ""),
+        line(USER, "t1"),
+      ],
+      USER,
+    );
+
+    expect(judged).toEqual({
+      context: [{ author: "Other", text: "c1" }],
+      target: [{ author: "Newbie", text: "t1" }],
+    });
   });
 });
 

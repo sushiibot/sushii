@@ -357,6 +357,7 @@ export function registerFeatures(
     deploymentService,
     moderationService: moderationFeature.services.moderationService,
     openRouterApiKey: secrets.OPENROUTER_API_KEY,
+    ownerUserId: config.deployment.ownerUserId,
   });
 
   // Message log feature

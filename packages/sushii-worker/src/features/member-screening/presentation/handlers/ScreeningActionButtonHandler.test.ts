@@ -10,8 +10,10 @@ import {
 import type { ButtonInteraction } from "discord.js";
 import {
   ContainerBuilder,
+  DiscordAPIError,
   MessageFlags,
   PermissionFlagsBits,
+  RESTJSONErrorCodes,
 } from "discord.js";
 import pino from "pino";
 import { Err, Ok } from "ts-results";
@@ -54,6 +56,28 @@ function verdict(overrides: Partial<ScreeningVerdict> = {}): ScreeningVerdict {
     createdAt: NOW,
     ...overrides,
   } as ScreeningVerdict;
+}
+
+function unknownMember(): DiscordAPIError {
+  return new DiscordAPIError(
+    { message: "Unknown Member", code: RESTJSONErrorCodes.UnknownMember },
+    RESTJSONErrorCodes.UnknownMember,
+    404,
+    "GET",
+    `/guilds/${GUILD}/members/${USER}`,
+    {},
+  );
+}
+
+function unknownUser(): DiscordAPIError {
+  return new DiscordAPIError(
+    { message: "Unknown User", code: RESTJSONErrorCodes.UnknownUser },
+    RESTJSONErrorCodes.UnknownUser,
+    404,
+    "GET",
+    `/users/${USER}`,
+    {},
+  );
 }
 
 function makeRepo() {
@@ -320,9 +344,7 @@ describe("ScreeningActionButtonHandler", () => {
 
   test("bans a member who left via the user fetch", async () => {
     const interaction = makeInteraction("ban");
-    interaction.guild.members.fetch.mockRejectedValueOnce(
-      new Error("Unknown Member"),
-    );
+    interaction.guild.members.fetch.mockRejectedValueOnce(unknownMember());
 
     await run(interaction);
 
@@ -332,18 +354,35 @@ describe("ScreeningActionButtonHandler", () => {
     expect(target.member).toBeNull();
   });
 
-  test("replies when the target user can't be fetched", async () => {
+  test("rethrows member fetch errors other than Unknown Member", async () => {
     const interaction = makeInteraction("ban");
     interaction.guild.members.fetch.mockRejectedValueOnce(
-      new Error("Unknown Member"),
+      new Error("Service Unavailable"),
     );
-    interaction.client.users.fetch.mockRejectedValueOnce(
-      new Error("Unknown User"),
-    );
+
+    await expect(run(interaction)).rejects.toThrow("Service Unavailable");
+
+    expect(interaction.client.users.fetch).not.toHaveBeenCalled();
+    expect(executeAction).not.toHaveBeenCalled();
+  });
+
+  test("replies when the target user can't be fetched", async () => {
+    const interaction = makeInteraction("ban");
+    interaction.guild.members.fetch.mockRejectedValueOnce(unknownMember());
+    interaction.client.users.fetch.mockRejectedValueOnce(unknownUser());
 
     await run(interaction);
 
     expect(interaction.modal.followUp).toHaveBeenCalledTimes(1);
+    expect(executeAction).not.toHaveBeenCalled();
+  });
+
+  test("rethrows unexpected user fetch errors", async () => {
+    const interaction = makeInteraction("ban");
+    interaction.guild.members.fetch.mockRejectedValueOnce(unknownMember());
+    interaction.client.users.fetch.mockRejectedValueOnce(new Error("boom"));
+
+    await expect(run(interaction)).rejects.toThrow("boom");
     expect(executeAction).not.toHaveBeenCalled();
   });
 

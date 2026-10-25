@@ -6,6 +6,7 @@ import {
   expect,
   test,
 } from "bun:test";
+import { MessageType } from "discord.js";
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
@@ -159,6 +160,46 @@ describe("DrizzleScreeningMessageContextRepository", () => {
       OTHER_USER,
     ]);
     expect(rows[0].createdAt).toEqual(minutesAgo(3));
+  });
+
+  test("system messages are neither counted nor returned", async () => {
+    const writer = new DrizzleMessageLogEventRepository(
+      db,
+      pino({ level: "silent" }),
+    );
+    const write = async (created: Date, type: MessageType) => {
+      nextMessageId += 1n;
+      await writer.save(
+        MessageLogEvent.fromRawMessageCreate({
+          id: nextMessageId.toString(),
+          guild_id: GUILD,
+          channel_id: CHANNEL,
+          type,
+          author: {
+            id: USER,
+            username: "plain",
+            global_name: null,
+            discriminator: "0",
+            avatar: null,
+          },
+          content: type === MessageType.UserJoin ? "" : `type ${type}`,
+          timestamp: created.toISOString(),
+        } as unknown as GuildMessageCreatePayload),
+      );
+      return nextMessageId.toString();
+    };
+    const plain = await write(minutesAgo(5), MessageType.Default);
+    await write(minutesAgo(4), MessageType.UserJoin);
+    await write(minutesAgo(3), MessageType.AutoModerationAction);
+    const reply = await write(minutesAgo(2), MessageType.Reply);
+    const legacy = await seed({ created: minutesAgo(1) });
+
+    const rows = await repo.recentInChannel(GUILD, CHANNEL, NOW, 20);
+
+    expect(rows.map((r) => r.messageId)).toEqual([plain, reply, legacy]);
+    expect(
+      await repo.countByAuthorSince(GUILD, USER, minutesAgo(30), NOW),
+    ).toBe(3);
   });
 
   test("countByAuthorSince counts the author's guild messages in [since, before)", async () => {

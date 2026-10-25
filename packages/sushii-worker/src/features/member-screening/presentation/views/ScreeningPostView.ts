@@ -103,6 +103,10 @@ function escapeName(name: string): string {
   return escapeMarkdown(name, { maskedLink: true });
 }
 
+function quoted(text: string): string {
+  return escapeMarkdown(oneLine(text), { maskedLink: true });
+}
+
 function oneLine(text: string): string {
   const flat = Array.from(text.replace(/\s*\n\s*/g, " ⏎ ").trim());
   return flat.length > LINE_MAX
@@ -184,10 +188,10 @@ function addTextBody(
   const judged = judgedText(verdict);
   const lines = [
     ...judged.context.map(
-      (l) => `-# ${escapeName(l.author)}: ${oneLine(l.text)}`,
+      (l) => `-# ${escapeName(l.author)}: ${quoted(l.text)}`,
     ),
     ...judged.target.map(
-      (l) => `> **${escapeName(l.author)}:** ${oneLine(l.text)}`,
+      (l) => `> **${escapeName(l.author)}:** ${quoted(l.text)}`,
     ),
   ];
   const scores: Record<string, number> = {};
@@ -256,6 +260,9 @@ function addControls(
     .setURL(
       `https://discord.com/channels/${verdict.guildId}/${verdict.channelId}/${verdict.messageId}`,
     );
+  if (verdict.messageDeleted) {
+    jump.setDisabled(true);
+  }
 
   const buttons: ButtonBuilder[] = [];
   if (verdict.outcome === null) {

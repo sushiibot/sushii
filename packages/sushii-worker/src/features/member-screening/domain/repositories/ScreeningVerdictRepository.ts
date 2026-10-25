@@ -37,8 +37,12 @@ export interface ScreeningVerdictRepository {
     since: Date,
   ): Promise<ScreeningVerdict[]>;
   hasFlagSince(guildId: string, userId: string, since: Date): Promise<boolean>;
-  /** A successful (no error) text, pfp or image check for the user created at or after `since`: tells a screened-but-missed member from one never screened. */
-  hasCheckSince(guildId: string, userId: string, since: Date): Promise<boolean>;
+  /** Latest successful (no error) text, pfp or image check for the user created at or after `since`: tells a screened-but-missed member from one never screened. */
+  findLatestCheckSince(
+    guildId: string,
+    userId: string,
+    since: Date,
+  ): Promise<{ joinedAt: Date | null } | null>;
   /** A `miss` row for the user created at or after `since`, so repeated actions record one miss. */
   hasMissSince(guildId: string, userId: string, since: Date): Promise<boolean>;
   automodSummary(
