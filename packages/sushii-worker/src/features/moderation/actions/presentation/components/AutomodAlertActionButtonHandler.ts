@@ -4,18 +4,10 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ContainerBuilder,
-  LabelBuilder,
   MessageFlags,
-  ModalBuilder,
   PermissionFlagsBits,
-  StringSelectMenuBuilder,
   TextDisplayBuilder,
-  TextInputBuilder,
-  TextInputStyle,
 } from "discord.js";
-
-import Color from "@/utils/colors";
 import type { Logger } from "pino";
 
 import { rebuildModerationActionRow } from "@/features/automod/utils/alertComponentUtils";
@@ -28,24 +20,16 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
-import {
-  REASON_MAX_LENGTH,
-  Reason,
-} from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import { requireMemberPermission } from "@/shared/presentation/requireMemberPermission";
 
-const DELETE_SECONDS_CUSTOM_ID = "delete_seconds";
-const REASON_CUSTOM_ID = "reason";
-
-const MODAL_TITLES = {
-  warn: "Warn User",
-  kick: "Kick User",
-  ban: "Ban User",
-  softban: "Softban User",
-  unban: "Unban User",
-} as const;
+import {
+  buildModerationActionModal,
+  buildModerationErrorReply,
+  parseModalDeleteSeconds,
+  parseModalReason,
+} from "./moderationActionModal";
 
 // Mirrors the default permissions of the equivalent slash commands.
 const REQUIRED_PERMISSIONS = {
@@ -63,78 +47,6 @@ const ACTION_VERBS = {
   softban: "softbanned",
   unban: "unbanned",
 } as const;
-
-function buildErrorReply(message: string): {
-  components: ReturnType<ContainerBuilder["toJSON"]>[];
-  flags: number;
-  ephemeral: boolean;
-} {
-  const container = new ContainerBuilder()
-    .setAccentColor(Color.Error)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(message),
-    );
-  return {
-    components: [container.toJSON()],
-    flags: MessageFlags.IsComponentsV2,
-    ephemeral: true,
-  };
-}
-
-function buildReasonInput(): TextInputBuilder {
-  return new TextInputBuilder()
-    .setCustomId(REASON_CUSTOM_ID)
-    .setLabel("Reason")
-    .setStyle(TextInputStyle.Paragraph)
-    .setMaxLength(REASON_MAX_LENGTH)
-    .setRequired(false);
-}
-
-function buildModal(
-  actionType: "warn" | "kick" | "ban" | "softban" | "unban",
-  customId: string,
-): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(customId)
-    .setTitle(MODAL_TITLES[actionType]);
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(buildReasonInput()),
-  );
-
-  if (actionType === "ban" || actionType === "softban") {
-    const deleteOptions =
-      actionType === "ban"
-        ? [
-            { label: "Previous hour", value: "3600", default: true },
-            { label: "Don't delete any", value: "0" },
-            { label: "Previous 12 hours", value: "43200" },
-            { label: "Previous 24 hours", value: "86400" },
-            { label: "Previous 3 days", value: "259200" },
-            { label: "Previous 7 days", value: "604800" },
-          ]
-        : [
-            { label: "Previous hour", value: "3600", default: true },
-            { label: "Previous 12 hours", value: "43200" },
-            { label: "Previous 24 hours", value: "86400" },
-            { label: "Previous 3 days", value: "259200" },
-            { label: "Previous 7 days", value: "604800" },
-          ];
-
-    modal.addLabelComponents(
-      new LabelBuilder()
-        .setLabel("Delete message history")
-        .setStringSelectMenuComponent(
-          new StringSelectMenuBuilder()
-            .setCustomId(DELETE_SECONDS_CUSTOM_ID)
-            .setPlaceholder("Previous hour")
-            .addOptions(deleteOptions),
-        ),
-    );
-  }
-
-  return modal;
-}
 
 function buildContextualActionRow(
   actionType: "warn" | "kick" | "ban" | "softban" | "unban",
@@ -198,7 +110,9 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       throw new Error("Not a guild interaction");
     }
 
-    const params = customIds.automodAlertAction.matchParams(interaction.customId);
+    const params = customIds.automodAlertAction.matchParams(
+      interaction.customId,
+    );
     if (!params) {
       throw new Error("No automod alert action match");
     }
@@ -207,12 +121,18 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
 
     const required = REQUIRED_PERMISSIONS[actionType];
     if (
-      !(await requireMemberPermission(interaction, required.flag, required.name))
+      !(await requireMemberPermission(
+        interaction,
+        required.flag,
+        required.name,
+      ))
     ) {
       return;
     }
 
-    await interaction.showModal(buildModal(actionType, interaction.customId));
+    await interaction.showModal(
+      buildModerationActionModal(actionType, interaction.customId),
+    );
 
     let modalSubmission;
     try {
@@ -232,33 +152,19 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
 
     await modalSubmission.deferUpdate();
 
-    // Extract reason (optional)
-    const reasonText = modalSubmission.fields
-      .getTextInputValue(REASON_CUSTOM_ID)
-      .trim();
-    let reason: Reason | null = null;
-    if (reasonText) {
-      const reasonResult = Reason.create(reasonText);
-      if (reasonResult.err) {
-        await modalSubmission.followUp(buildErrorReply(`Invalid reason: ${reasonResult.val}`));
-        return;
-      }
-      reason = reasonResult.val;
+    const reasonResult = parseModalReason(modalSubmission.fields);
+    if (reasonResult.err) {
+      await modalSubmission.followUp(
+        buildModerationErrorReply(reasonResult.val),
+      );
+      return;
     }
+    const reason = reasonResult.val;
 
-    // Extract delete seconds for ban/softban (optional select menu)
-    let deleteMessageSeconds = 0;
-    if (actionType === "ban" || actionType === "softban") {
-      try {
-        const values = modalSubmission.fields.getStringSelectValues(DELETE_SECONDS_CUSTOM_ID);
-        const val = parseInt(values[0] as string, 10);
-        if (!isNaN(val)) {
-          deleteMessageSeconds = val;
-        }
-      } catch {
-        // Select was not submitted — use default
-      }
-    }
+    const deleteMessageSeconds =
+      actionType === "ban" || actionType === "softban"
+        ? parseModalDeleteSeconds(modalSubmission.fields)
+        : 0;
 
     // Fetch target — member may be null if user left the guild (still valid for ban/unban)
     let member;
@@ -270,9 +176,12 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
 
     let targetUser;
     try {
-      targetUser = member?.user ?? (await interaction.client.users.fetch(userId));
+      targetUser =
+        member?.user ?? (await interaction.client.users.fetch(userId));
     } catch {
-      await modalSubmission.followUp(buildErrorReply("Could not find the target user."));
+      await modalSubmission.followUp(
+        buildModerationErrorReply("Could not find the target user."),
+      );
       return;
     }
 
@@ -283,10 +192,22 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     let action;
     switch (actionType) {
       case "warn":
-        action = new WarnAction(guildId, executor, executorMember, reason, "unspecified");
+        action = new WarnAction(
+          guildId,
+          executor,
+          executorMember,
+          reason,
+          "unspecified",
+        );
         break;
       case "kick":
-        action = new KickAction(guildId, executor, executorMember, reason, "unspecified");
+        action = new KickAction(
+          guildId,
+          executor,
+          executorMember,
+          reason,
+          "unspecified",
+        );
         break;
       case "ban":
         action = new BanAction(
@@ -311,7 +232,13 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
         );
         break;
       case "unban":
-        action = new UnbanAction(guildId, executor, executorMember, reason, "unspecified");
+        action = new UnbanAction(
+          guildId,
+          executor,
+          executorMember,
+          reason,
+          "unspecified",
+        );
         break;
     }
 
@@ -331,7 +258,11 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
         },
         "Automod alert action failed",
       );
-      await modalSubmission.followUp(buildErrorReply(`Action failed: ${result?.val ?? "unknown error"}`));
+      await modalSubmission.followUp(
+        buildModerationErrorReply(
+          `Action failed: ${result?.val ?? "unknown error"}`,
+        ),
+      );
       return;
     }
 
@@ -348,7 +279,9 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     );
 
     // Build the action result line appended to the alert
-    const caseRef = moderationCase.caseId ? ` (case #${moderationCase.caseId})` : "";
+    const caseRef = moderationCase.caseId
+      ? ` (case #${moderationCase.caseId})`
+      : "";
     const reasonSuffix = reason ? ` · ${reason.value}` : "";
     const actionLine = `-# ${executor.toString()} ${ACTION_VERBS[actionType]} ${targetUser.toString()}${reasonSuffix}${caseRef}`;
 
@@ -358,7 +291,8 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     }
 
     const rawMessage = modalSubmission.message.toJSON() as APIMessage;
-    const rawContainer = (rawMessage.components ?? [])[0] as APIContainerComponent;
+    const rawContainer = (rawMessage.components ??
+      [])[0] as APIContainerComponent;
 
     const newActionRow = buildContextualActionRow(actionType, userId);
 
