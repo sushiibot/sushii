@@ -13,7 +13,7 @@ import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
   InteractionEditReplyOptions,
-  Message,
+  StringSelectMenuInteraction,
   User,
 } from "discord.js";
 import type { Logger } from "pino";
@@ -39,16 +39,18 @@ export interface UserOverviewDependencies {
 }
 
 export class UserOverviewSession {
+  // Only in-flight edits are retained; navigation needs no stored session.
+  private static readonly updates = new Map<string, Promise<void>>();
   private tab: UserOverviewTab;
   private set = "all";
   private page = 0;
-  private expired = false;
-  private queue: Promise<void> = Promise.resolve();
+  private collectedOnly = false;
 
   constructor(
     private readonly interaction:
       | ChatInputCommandInteraction<"cached">
-      | ButtonInteraction<"cached">,
+      | ButtonInteraction<"cached">
+      | StringSelectMenuInteraction<"cached">,
     private readonly target: User,
     private readonly deps: UserOverviewDependencies,
     initialTab: UserOverviewTab,
@@ -56,16 +58,20 @@ export class UserOverviewSession {
     this.tab = initialTab;
   }
 
+  private customId(action: string): string {
+    return `fishyview/${this.target.id}/${this.interaction.user.id}/${this.tab}/${this.set}/${this.page}/${this.collectedOnly ? 1 : 0}/${action}`;
+  }
+
   private tabs() {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       ...(["rank", "collection"] as const).map((tab) =>
         new ButtonBuilder()
-          .setCustomId(`fishycollection:${tab}`)
+          .setCustomId(this.customId(tab))
           .setLabel(tab === "rank" ? "Rank" : "Fishy collection")
           .setStyle(
             this.tab === tab ? ButtonStyle.Primary : ButtonStyle.Secondary,
           )
-          .setDisabled(this.expired || this.tab === tab),
+          .setDisabled(this.tab === tab),
       ),
     );
   }
@@ -84,7 +90,6 @@ export class UserOverviewSession {
         this.target.displayAvatarURL({ size: 512 }),
         emojis,
         this.tabs(),
-        this.expired,
       );
       return {
         components: rank.components,
@@ -101,7 +106,9 @@ export class UserOverviewSession {
       entries.map((entry) => [entry.collectibleId, entry.catchCount]),
     );
     const items = COLLECTIBLES.filter(
-      (item) => this.set === "all" || item.set === this.set,
+      (item) =>
+        (this.set === "all" || item.set === this.set) &&
+        (!this.collectedOnly || (counts.get(item.id) ?? 0) > 0),
     );
     const pages = Math.max(1, Math.ceil(items.length / 4));
     this.page = Math.max(0, Math.min(this.page, pages - 1));
@@ -115,9 +122,8 @@ export class UserOverviewSession {
     const filter =
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId("fishycollection:set")
+          .setCustomId(this.customId("set"))
           .setPlaceholder("Choose a set")
-          .setDisabled(this.expired)
           .addOptions([
             { label: "All catches", value: "all", default: this.set === "all" },
             ...Object.entries(COLLECTION_SETS).map(([value, label]) => ({
@@ -129,20 +135,39 @@ export class UserOverviewSession {
       );
     const navigation = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("fishycollection:previous")
+        .setCustomId(this.customId("previous"))
         .setLabel("Previous")
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(this.expired || this.page === 0),
+        .setDisabled(this.page === 0),
       new ButtonBuilder()
-        .setCustomId("fishycollection:next")
+        .setCustomId(this.customId("next"))
         .setLabel("Next")
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(this.expired || this.page === pages - 1),
+        .setDisabled(this.page === pages - 1),
     );
     const container = new ContainerBuilder()
       .addActionRowComponents(this.tabs())
       .addTextDisplayComponents(header)
-      .addActionRowComponents(filter);
+      .addActionRowComponents(filter)
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(this.customId("collected"))
+            .setLabel("Collected only")
+            .setStyle(
+              this.collectedOnly ? ButtonStyle.Primary : ButtonStyle.Secondary,
+            ),
+        ),
+      );
+    if (page.length === 0) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          this.set === "all"
+            ? "No fishies collected yet."
+            : "No collected fishies in this set yet.",
+        ),
+      );
+    }
     const files: AttachmentBuilder[] = [];
     for (const item of page) {
       const count = counts.get(item.id) ?? 0;
@@ -172,15 +197,14 @@ export class UserOverviewSession {
         container.addTextDisplayComponents(text);
       }
     }
-    const footer = [
-      ...(pages > 1 ? [`Page ${this.page + 1}/${pages}`] : []),
-      ...(this.expired ? ["Run /fishycollection to reopen"] : []),
-    ];
-    if (footer.length)
+    if (pages > 1) {
       container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`-# ${footer.join(" · ")}`),
+        new TextDisplayBuilder().setContent(
+          `-# Page ${this.page + 1}/${pages}`,
+        ),
       );
-    if (pages > 1) container.addActionRowComponents(navigation);
+      container.addActionRowComponents(navigation);
+    }
     return {
       components: [container],
       attachments: [],
@@ -190,96 +214,91 @@ export class UserOverviewSession {
     };
   }
 
-  async start(ephemeral = false): Promise<void> {
-    await this.interaction.deferReply(
-      ephemeral ? { flags: MessageFlags.Ephemeral } : {},
-    );
-    const message = await this.interaction.editReply(await this.render());
-    this.collect(message);
+  async start(): Promise<void> {
+    await this.interaction.deferReply();
+    await this.interaction.editReply(await this.render());
   }
 
-  private collect(message: Message) {
-    const collector = message.createMessageComponentCollector({
-      idle: 5 * 60 * 1000,
-      time: 14 * 60 * 1000,
-    });
-    collector.on("collect", async (interaction) => {
-      try {
-        if (interaction.user.id !== this.interaction.user.id) {
-          await interaction.reply({
-            content: "Run /fishycollection or /rank to open your own view.",
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
+  // Every control carries its view state so it works after a restart without
+  // a collector or the original interaction's 15-minute webhook token.
+  static async navigate(
+    interaction:
+      | ButtonInteraction<"cached">
+      | StringSelectMenuInteraction<"cached">,
+    deps: UserOverviewDependencies,
+  ): Promise<void> {
+    const [, targetId, ownerId, tab, set, page, collected, action] =
+      interaction.customId.split("/");
+    if (interaction.user.id !== ownerId) {
+      await interaction.reply({
+        content: "Run /fishycollection or /rank to open your own view.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (
+      !/^\d{17,20}$/.test(targetId ?? "") ||
+      (tab !== "rank" && tab !== "collection") ||
+      (set !== "all" && !Object.hasOwn(COLLECTION_SETS, set ?? "")) ||
+      !/^\d{1,3}$/.test(page ?? "") ||
+      (collected !== "0" && collected !== "1") ||
+      !["rank", "collection", "previous", "next", "set", "collected"].includes(
+        action ?? "",
+      )
+    ) {
+      await interaction.reply({
+        content: "Run /fishycollection to open a new view.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await interaction.deferUpdate();
+    const messageId = interaction.message.id;
+    const previous = this.updates.get(messageId) ?? Promise.resolve();
+    const update = previous
+      .catch(() => {
+        // The previous interaction's router reports its failure independently.
+      })
+      .then(async () => {
+        const target = await interaction.client.users.fetch(targetId);
+        const session = new UserOverviewSession(interaction, target, deps, tab);
+        session.set = set;
+        session.page = Number(page);
+        session.collectedOnly = collected === "1";
+        if (interaction.isStringSelectMenu() && action === "set") {
+          const value = interaction.values[0];
+          if (value !== "all" && !Object.hasOwn(COLLECTION_SETS, value ?? ""))
+            return;
+          session.set = value;
+          session.page = 0;
+        } else if (interaction.isButton()) {
+          switch (action) {
+            case "rank":
+              session.tab = "rank";
+              break;
+            case "collection":
+              session.tab = "collection";
+              break;
+            case "previous":
+              session.page--;
+              break;
+            case "next":
+              session.page++;
+              break;
+            case "collected":
+              session.collectedOnly = !session.collectedOnly;
+              session.page = 0;
+              break;
+          }
         }
-        await interaction.deferUpdate();
-        // Serialize renders so rapid navigation cannot restore an older page.
-        this.queue = this.queue
-          .then(async () => {
-            if (this.expired) return;
-            if (
-              interaction.isStringSelectMenu() &&
-              interaction.customId === "fishycollection:set"
-            ) {
-              const value = interaction.values[0];
-              if (value !== "all" && !Object.hasOwn(COLLECTION_SETS, value))
-                return;
-              this.set = value;
-              this.page = 0;
-            } else if (interaction.isButton()) {
-              switch (interaction.customId) {
-                case "fishycollection:rank":
-                  this.tab = "rank";
-                  break;
-                case "fishycollection:collection":
-                  this.tab = "collection";
-                  break;
-                case "fishycollection:previous":
-                  this.page--;
-                  break;
-                case "fishycollection:next":
-                  this.page++;
-                  break;
-                default:
-                  return;
-              }
-            }
-            await this.interaction.editReply(await this.render());
-          })
-          .catch(async (err) => {
-            this.deps.logger.error(
-              { err },
-              "Fishy collection navigation failed",
-            );
-            try {
-              await interaction.followUp({
-                content: "Could not load that page. Please try again.",
-                flags: MessageFlags.Ephemeral,
-              });
-            } catch (replyError) {
-              this.deps.logger.debug(
-                { err: replyError },
-                "Could not send collection navigation error",
-              );
-            }
-          });
-        await this.queue;
-      } catch (err) {
-        this.deps.logger.error({ err }, "Fishy collection interaction failed");
-      }
-    });
-    collector.on("end", () => {
-      this.expired = true;
-      this.queue = this.queue
-        .then(async () => {
-          await this.interaction.editReply(await this.render());
-        })
-        .catch((err) => {
-          this.deps.logger.debug(
-            { err },
-            "Could not disable expired fishycollection controls",
-          );
-        });
-    });
+        await interaction.editReply(await session.render());
+      });
+    this.updates.set(messageId, update);
+    try {
+      await update;
+    } finally {
+      if (this.updates.get(messageId) === update)
+        this.updates.delete(messageId);
+    }
   }
 }

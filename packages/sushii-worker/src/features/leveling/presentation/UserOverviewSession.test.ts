@@ -1,33 +1,42 @@
-import { expect, test } from "bun:test";
-import type { ChatInputCommandInteraction, User } from "discord.js";
-import { EventEmitter } from "node:events";
+import { expect, mock, test } from "bun:test";
+import type {
+  ButtonInteraction,
+  ChatInputCommandInteraction,
+  User,
+} from "discord.js";
 import pino from "pino";
 
+import { OpenFishyCollectionButtonHandler } from "./OpenFishyCollectionButtonHandler";
+import { UserOverviewComponentHandler } from "./UserOverviewComponentHandler";
 import {
   type UserOverviewDependencies,
   UserOverviewSession,
 } from "./UserOverviewSession";
 
-function fixture(hosted = false) {
-  const collector = new EventEmitter();
+const owner = "111111111111111111";
+const target = { id: "222222222222222222", username: "Target" } as User;
+const json = (value: unknown) => JSON.stringify(value);
+function fixture(hosted = true, empty = false) {
   const edits: unknown[] = [];
-  let requester = "";
+  const deferReply = mock(() => Promise.resolve());
+  const reply = mock((_message: unknown) => Promise.resolve());
+  const getCollection = mock(async (_id: string) =>
+    empty ? [] : [{ collectibleId: "bluegill", catchCount: 2 }],
+  );
   const interaction = {
     guildId: "guild",
-    user: { id: "owner" },
-    deferReply: () => Promise.resolve(),
+    user: { id: owner },
+    deferReply,
+    reply,
+    inCachedGuild: () => true,
+    client: { users: { fetch: async () => target } },
+    message: { interactionMetadata: { user: target } },
     editReply: async (message: unknown) => {
       edits.push(message);
-      return { createMessageComponentCollector: () => collector };
     },
   } as unknown as ChatInputCommandInteraction<"cached">;
   const deps = {
-    collectionRepository: {
-      getCollection: async (id: string) => {
-        requester = id;
-        return [{ collectibleId: "bluegill", catchCount: 2 }];
-      },
-    },
+    collectionRepository: { getCollection },
     artwork: {
       url: async (id: string, silhouette: boolean) =>
         hosted
@@ -42,85 +51,122 @@ function fixture(hosted = false) {
   } as unknown as UserOverviewDependencies;
   const session = new UserOverviewSession(
     interaction,
-    { id: "target", username: "Target" } as User,
+    target,
     deps,
     "collection",
   );
-  return { collector, edits, session, requester: () => requester };
+  const click = async (action: string, value?: string, userId = owner) => {
+    const payload = json(edits.at(-1));
+    const ids = [...payload.matchAll(/"custom_id":"([^"]+)"/g)].map(
+      (match) => match[1] ?? "",
+    );
+    const customId = ids.find((id) => id.endsWith(`/${action}`)) ?? "";
+    expect(customId).toBeDefined();
+    const component = {
+      ...interaction,
+      customId,
+      user: { id: userId },
+      values: value ? [value] : [],
+      deferUpdate: mock(() => Promise.resolve()),
+      isButton: () => value === undefined,
+      isStringSelectMenu: () => value !== undefined,
+    } as unknown as ButtonInteraction<"cached">;
+    // Fresh handler for every click simulates loss of all process/session state.
+    const handler = new UserOverviewComponentHandler(deps);
+    expect(handler.customIDMatch(customId)).not.toBe(false);
+    await handler.handleInteraction(component);
+  };
+  return {
+    session,
+    edits,
+    click,
+    deps,
+    interaction,
+    deferReply,
+    reply,
+    getCollection,
+  };
 }
-const json = (value: unknown) => JSON.stringify(value);
 
-test("collection retains target and clamps set pagination", async () => {
+test("Open collection creates a public reply and navigation works in fresh handlers", async () => {
   const f = fixture();
-  await f.session.start();
-  expect(f.requester()).toBe("target");
-  expect(json(f.edits.at(-1))).toContain("Page 1/8");
-  f.session["page"] = 100;
-  f.session["set"] = "pond";
-  const message = await f.session["render"]();
-  expect(json(message)).not.toContain("Page 101");
-  expect(json(message)).toContain("Pond Friends");
-  expect(message.attachments).toEqual([]);
-});
-
-test("other users cannot navigate and expired controls are disabled", async () => {
-  const f = fixture();
-  await f.session.start();
-  let rejected = false;
-  f.collector.emit("collect", {
-    user: { id: "someone-else" },
-    reply: async () => {
-      rejected = true;
-    },
-  });
-  await Promise.resolve();
-  expect(rejected).toBe(true);
-  expect(f.edits).toHaveLength(1);
-  f.collector.emit("end");
-  await f.session["queue"];
-  const payload = JSON.parse(json(f.edits.at(-1)));
-  const rows = payload.components[0].components.filter(
-    (component: { type: number }) => component.type === 1,
+  await new OpenFishyCollectionButtonHandler(f.deps).handleInteraction(
+    f.interaction as unknown as ButtonInteraction,
   );
-  expect(rows).toHaveLength(3);
-  for (const row of rows)
-    for (const control of row.components) expect(control.disabled).toBe(true);
+  expect(f.deferReply).toHaveBeenCalledWith();
+  expect(json(f.edits.at(-1))).toContain("Page 1/8");
+  await f.click("next");
+  expect(json(f.edits.at(-1))).toContain("Page 2/8");
+  await f.click("next");
+  expect(json(f.edits.at(-1))).toContain("Page 3/8");
+  await f.click("previous");
+  expect(json(f.edits.at(-1))).toContain("Page 2/8");
+  expect(f.getCollection).toHaveBeenLastCalledWith(target.id);
 });
 
-test("set changes reset the page and rapid clicks render in order", async () => {
+test("collected filter resets pagination, intersects sets and can be toggled off", async () => {
   const f = fixture();
   await f.session.start();
-  const click = (id: string) => ({
-    user: { id: "owner" },
-    customId: id,
-    deferUpdate: () => Promise.resolve(),
-    isStringSelectMenu: () => false,
-    isButton: () => true,
-    followUp: () => Promise.resolve(),
-  });
-  f.collector.emit("collect", click("fishycollection:next"));
-  f.collector.emit("collect", click("fishycollection:next"));
-  await new Promise((resolve) => setImmediate(resolve));
-  await f.session["queue"];
-  expect(json(f.edits.at(-1))).toContain("Page 3/8");
-  f.collector.emit("collect", {
-    ...click("fishycollection:set"),
-    values: ["pond"],
-    isStringSelectMenu: () => true,
-    isButton: () => false,
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-  await f.session["queue"];
-  expect(json(f.edits.at(-1))).toContain("Page 1/");
-  expect(f.requester()).toBe("target");
+  await f.click("next");
+  await f.click("collected");
+  let payload = json(f.edits.at(-1));
+  expect(payload).toContain("Caught ×2");
+  expect(payload).not.toContain("Undiscovered");
+  expect(payload).not.toContain("Page ");
+  await f.click("set", "sea");
+  expect(json(f.edits.at(-1))).toContain(
+    "No collected fishies in this set yet.",
+  );
+  await f.click("set", "pond");
+  expect(json(f.edits.at(-1))).toContain("Caught ×2");
+  await f.click("collected");
+  payload = json(f.edits.at(-1));
+  expect(payload).toContain("Undiscovered");
+  expect(payload).toContain("Page 1/");
 });
 
-test("hosted collection pages send URLs without uploading files", async () => {
-  const f = fixture(true);
-  const message = await f.session["render"]();
-  expect(message.files).toEqual([]);
-  const payload = json(message);
-  expect(payload).toContain("https://assets.example.test/bluegill.png");
-  expect(payload).toContain("https://assets.example.test/carp-silhouette.png");
-  expect(payload).not.toContain("attachment://");
+test("empty collected view has guidance and other users cannot change it", async () => {
+  const f = fixture(true, true);
+  await f.session.start();
+  await f.click("collected");
+  expect(json(f.edits.at(-1))).toContain("No fishies collected yet.");
+  const before = f.edits.length;
+  await f.click("collected", undefined, "333333333333333333");
+  expect(f.edits).toHaveLength(before);
+  expect(json(f.reply.mock.calls)).toContain("open your own view");
+});
+
+test("hosted pages use URLs, fallback pages upload attachments, controls fit Discord limits", async () => {
+  for (const hosted of [true, false]) {
+    const f = fixture(hosted);
+    const message = await f.session["render"]();
+    if (hosted) {
+      expect(message.files).toEqual([]);
+      expect(json(message)).toContain(
+        "https://assets.example.test/bluegill.png",
+      );
+      expect(json(message)).toContain("carp-silhouette.png");
+    } else {
+      expect(message.files).toHaveLength(4);
+      expect(json(message)).toContain("attachment://bluegill.png");
+    }
+    for (const match of json(message).matchAll(/"custom_id":"([^"]+)"/g)) {
+      expect((match[1] ?? "").length).toBeLessThanOrEqual(100);
+    }
+  }
+});
+
+test("legacy controls get a useful reply instead of timing out", async () => {
+  const f = fixture();
+  const handler = new UserOverviewComponentHandler(f.deps);
+  for (const action of ["rank", "collection", "previous", "next", "set"]) {
+    const customId = `fishycollection:${action}`;
+    expect(handler.customIDMatch(customId)).not.toBe(false);
+    await handler.handleInteraction({
+      ...f.interaction,
+      customId,
+    } as unknown as ButtonInteraction);
+  }
+  expect(f.reply).toHaveBeenCalledTimes(5);
+  expect(json(f.reply.mock.calls)).toContain("older view has expired");
 });

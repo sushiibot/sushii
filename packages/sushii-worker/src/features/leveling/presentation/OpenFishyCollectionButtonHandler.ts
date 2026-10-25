@@ -29,6 +29,6 @@ export class OpenFishyCollectionButtonHandler extends ButtonHandler {
       owner,
       this.dependencies,
       "collection",
-    ).start(true);
+    ).start();
   }
 }

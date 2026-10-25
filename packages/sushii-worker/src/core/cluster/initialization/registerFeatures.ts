@@ -439,7 +439,10 @@ export function registerFeatures(
   interactionRouter.addModalHandlers(...automodFeature.modalHandlers);
 
   // Select menu handlers
-  interactionRouter.addSelectMenus(...roleMenuFeature.selectMenuHandlers);
+  interactionRouter.addSelectMenus(
+    ...roleMenuFeature.selectMenuHandlers,
+    ...levelingFeature.selectMenuHandlers,
+  );
 
   // ---------------------------------------------------------------------------
   // Build event handlers

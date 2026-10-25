@@ -20,7 +20,7 @@ cooldown. Constantly chatting for 20 minutes earns a maximum of 100 XP.
 Shows a member's current level, total XP, and their rank relative to the rest
 of the server. Omit `user` to check your own.
 
-<!-- source: packages/sushii-worker/src/features/leveling/presentation/commands/FishyCollectionCommand.ts#FishyCollectionCommand @8ec9384c, packages/sushii-worker/src/features/leveling/presentation/UserOverviewSession.ts#UserOverviewSession.tabs @1fcedf4e -->
+<!-- source: packages/sushii-worker/src/features/leveling/presentation/commands/FishyCollectionCommand.ts#FishyCollectionCommand @8ec9384c, packages/sushii-worker/src/features/leveling/presentation/UserOverviewSession.ts#UserOverviewSession.tabs @16d85d5e -->
 
 Switch to the **Fishy collection** tab to browse that member's discoveries.
 Use `/fishycollection` to open this tab directly.

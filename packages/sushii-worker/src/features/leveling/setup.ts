@@ -23,6 +23,7 @@ import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import { GlobalLeaderboardRefreshTask } from "./infrastructure/tasks/GlobalLeaderboardRefreshTask";
 import { OpenFishyCollectionButtonHandler } from "./presentation/OpenFishyCollectionButtonHandler";
+import { UserOverviewComponentHandler } from "./presentation/UserOverviewComponentHandler";
 import { FishyCollectionCommand } from "./presentation/commands/FishyCollectionCommand";
 import GlobalLeaderboardCommand from "./presentation/commands/GlobalLeaderboardCommand";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
@@ -118,6 +119,7 @@ export function createLevelingCommands(
     artwork: services.collectionArtwork,
     logger: logger.child({ module: "UserOverview" }),
   };
+  const overviewControls = new UserOverviewComponentHandler(overview);
   const commands = [
     new RankCommand(overview),
     new FishyCollectionCommand(overview),
@@ -133,7 +135,11 @@ export function createLevelingCommands(
 
   return {
     commands,
-    buttonHandlers: [new OpenFishyCollectionButtonHandler(overview)],
+    buttonHandlers: [
+      new OpenFishyCollectionButtonHandler(overview),
+      overviewControls,
+    ],
+    selectMenuHandlers: [overviewControls],
     autocompletes: [],
   };
 }
@@ -159,7 +165,7 @@ export function setupLevelingFeature({
   deploymentService,
 }: LevelingDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createLevelingServices>
-> {
+> & { selectMenuHandlers: UserOverviewComponentHandler[] } {
   const services = createLevelingServices({ db, logger, emojiRepository });
   const commands = createLevelingCommands(services, logger);
   const events = createLevelingEventHandlers(services, logger);
@@ -210,6 +216,7 @@ export function setupLevelingFeature({
     autocompletes: commands.autocompletes,
     contextMenuHandlers: [],
     buttonHandlers: commands.buttonHandlers,
+    selectMenuHandlers: commands.selectMenuHandlers,
     eventHandlers: events.eventHandlers,
     tasks,
   };
