@@ -28,7 +28,7 @@ function fixture() {
         return [{ collectibleId: "bluegill", catchCount: 2 }];
       },
     },
-    artwork: { grid: async () => Buffer.from("synthetic image") },
+    artwork: { icon: async () => Buffer.from("synthetic image") },
     logger: pino({ level: "silent" }),
   } as unknown as UserOverviewDependencies;
   const session = new UserOverviewSession(
@@ -70,7 +70,11 @@ test("other users cannot navigate and expired controls are disabled", async () =
   f.collector.emit("end");
   await f.session["queue"];
   const payload = JSON.parse(json(f.edits.at(-1)));
-  for (const row of payload.components.slice(1))
+  const rows = payload.components[0].components.filter(
+    (component: { type: number }) => component.type === 1,
+  );
+  expect(rows).toHaveLength(3);
+  for (const row of rows)
     for (const control of row.components) expect(control.disabled).toBe(true);
 });
 

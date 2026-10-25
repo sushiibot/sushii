@@ -4,9 +4,8 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
   MessageFlags,
+  SectionBuilder,
   StringSelectMenuBuilder,
   TextDisplayBuilder,
 } from "discord.js";
@@ -84,9 +83,11 @@ export class UserOverviewSession {
         result.val,
         this.target.displayAvatarURL({ size: 512 }),
         emojis,
+        this.tabs(),
+        this.expired,
       );
       return {
-        components: [...(rank.components ?? []), this.tabs()],
+        components: rank.components,
         attachments: [],
         files: [],
         allowedMentions: { parse: [] },
@@ -105,43 +106,12 @@ export class UserOverviewSession {
     const pages = Math.max(1, Math.ceil(items.length / 4));
     this.page = Math.max(0, Math.min(this.page, pages - 1));
     const page = items.slice(this.page * 4, (this.page + 1) * 4);
-    const discovered = items.filter((item) => counts.has(item.id)).length;
     const total = COLLECTIBLES.filter((item) => counts.has(item.id)).length;
-    const image = await this.deps.artwork.grid(page, counts);
-    const alt = page
-      .map(
-        (item) =>
-          `${item.name}, ${item.rarity}, ${counts.has(item.id) ? `${counts.get(item.id)} caught` : "not discovered"}`,
-      )
-      .join("; ");
     const header = new TextDisplayBuilder().setContent(
       `### ${this.target.username.replace(/[\\*_~`|]/g, "")}’s Fishy collection\n` +
-        `**${total}/${COLLECTIBLES.length} discovered** · ${this.set === "all" ? "All catches" : COLLECTION_SETS[this.set]}: ${discovered}/${items.length}\n` +
-        (total === 0
-          ? "Catch something with `/fishy` to start collecting.\n"
-          : "") +
-        `-# Personal collection · across all servers`,
+        `**${total}/${COLLECTIBLES.length} discovered**` +
+        (total === 0 ? "\nUse `/fishy` to make your first discovery." : ""),
     );
-    const container = new ContainerBuilder()
-      .addTextDisplayComponents(header)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder()
-            .setURL("attachment://fishycollection.png")
-            .setDescription(alt),
-        ),
-      )
-      .addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(
-          page
-            .map(
-              (item) =>
-                `**${item.name}** · ${item.rarity} · ${counts.has(item.id) ? `${counts.get(item.id)} caught` : "undiscovered"}`,
-            )
-            .join("\n") +
-            `\n-# Page ${this.page + 1}/${pages} · Silhouettes are undiscovered catches${this.expired ? " · Run /fishycollection to reopen" : ""}`,
-        ),
-      );
     const filter =
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
@@ -169,10 +139,49 @@ export class UserOverviewSession {
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(this.expired || this.page === pages - 1),
     );
+    const container = new ContainerBuilder()
+      .addActionRowComponents(this.tabs())
+      .addTextDisplayComponents(header)
+      .addActionRowComponents(filter);
+    const files: AttachmentBuilder[] = [];
+    for (const item of page) {
+      const count = counts.get(item.id) ?? 0;
+      const rarity = item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1);
+      const text = new TextDisplayBuilder().setContent(
+        `**${item.name}**\n${rarity} · ${count ? `Caught ×${count.toLocaleString()}` : "Undiscovered"}`,
+      );
+      const icon = await this.deps.artwork.icon(item.id, count === 0);
+      if (icon) {
+        const name = `${item.id}.png`;
+        files.push(new AttachmentBuilder(icon, { name }));
+        container.addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(text)
+            .setThumbnailAccessory((thumbnail) =>
+              thumbnail
+                .setURL(`attachment://${name}`)
+                .setDescription(
+                  count ? item.name : `Undiscovered ${item.name}`,
+                ),
+            ),
+        );
+      } else {
+        container.addTextDisplayComponents(text);
+      }
+    }
+    const footer = [
+      ...(pages > 1 ? [`Page ${this.page + 1}/${pages}`] : []),
+      ...(this.expired ? ["Run /fishycollection to reopen"] : []),
+    ];
+    if (footer.length)
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`-# ${footer.join(" · ")}`),
+      );
+    if (pages > 1) container.addActionRowComponents(navigation);
     return {
-      components: [container, this.tabs(), filter, navigation],
+      components: [container],
       attachments: [],
-      files: [new AttachmentBuilder(image, { name: "fishycollection.png" })],
+      files,
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
     };

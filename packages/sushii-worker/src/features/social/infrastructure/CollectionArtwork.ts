@@ -49,9 +49,11 @@ export class CollectionArtwork {
     return this.exports;
   }
 
-  async icon(id: string): Promise<Buffer | undefined> {
+  async icon(id: string, silhouette = false): Promise<Buffer | undefined> {
     getCollectible(id);
-    return (await this.load()).get(`collection/${id}`);
+    return (await this.load()).get(
+      `collection/${id}${silhouette ? "_silhouette" : ""}`,
+    );
   }
 
   async grid(

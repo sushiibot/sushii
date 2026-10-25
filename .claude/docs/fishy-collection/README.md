@@ -131,7 +131,7 @@ Retries of the same interaction return that result without rerolling or awarding
 ## Implementation and validation
 
 - All 32 color icons and 32 silhouettes are exported in the private asset repository.
-- Sharp composites icons over an SVG layout. Tabs, filters, and pagination use native Discord controls.
+- Collection pages use native Components V2 sections with one artwork thumbnail per catch. Names, rarity, and counts remain native text on mobile. Tabs, filters, and pagination sit inside the same container.
 - `/rank` and `/fishycollection` share a session. Controls expire after five idle minutes or fourteen total minutes.
 - Fishy and rep updates lock users in numeric ID order and update only their relevant columns.
 - Drizzle generated `0064_fishy_collection.sql`. Existing balances are not backfilled into collections.

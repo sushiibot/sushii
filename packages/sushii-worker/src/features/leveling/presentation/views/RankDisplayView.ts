@@ -4,7 +4,11 @@ import {
   SectionBuilder,
   TextDisplayBuilder,
 } from "discord.js";
-import type { InteractionReplyOptions } from "discord.js";
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  InteractionReplyOptions,
+} from "discord.js";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 
@@ -22,6 +26,8 @@ export function formatRankCard(
   data: UserRankData,
   avatarURL: string,
   emojis: EmojiMap<typeof RANK_CARD_EMOJIS>,
+  tabs?: ActionRowBuilder<ButtonBuilder>,
+  expired = false,
 ): InteractionReplyOptions {
   const { user, profile, guildLevel, globalLevel, rankings } = data;
 
@@ -52,7 +58,13 @@ ${globalProgressBar}
     .setThumbnailAccessory((b) => b.setURL(avatarURL))
     .addTextDisplayComponents(textContent);
 
-  const container = new ContainerBuilder().addSectionComponents(section);
+  const container = new ContainerBuilder();
+  if (tabs) container.addActionRowComponents(tabs);
+  container.addSectionComponents(section);
+  if (expired)
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent("-# Run /rank to reopen"),
+    );
 
   return {
     components: [container],

@@ -37,6 +37,8 @@ test("discovered and undiscovered cells choose different prepared assets", async
       [`collection/${COLLECTIBLES[0].id}_silhouette`, silhouette],
     ]),
   );
+  expect(await artwork.icon(COLLECTIBLES[0].id)).toEqual(color);
+  expect(await artwork.icon(COLLECTIBLES[0].id, true)).toEqual(silhouette);
   const seen = await artwork.grid(
     COLLECTIBLES.slice(0, 1),
     new Map([[COLLECTIBLES[0].id, 1]]),
