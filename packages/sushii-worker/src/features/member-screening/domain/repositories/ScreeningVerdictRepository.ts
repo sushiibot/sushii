@@ -37,6 +37,12 @@ export interface ScreeningVerdictRepository {
     since: Date,
   ): Promise<ScreeningVerdict[]>;
   hasFlagSince(guildId: string, userId: string, since: Date): Promise<boolean>;
+  /** Any verdict of any kind for the user in the guild created at or after `since`. Used to tell a screened-but-missed member from one never screened. */
+  hasVerdictSince(
+    guildId: string,
+    userId: string,
+    since: Date,
+  ): Promise<boolean>;
   automodSummary(
     guildId: string,
     userId: string,
@@ -50,7 +56,7 @@ export interface ScreeningVerdictRepository {
     reason: IgnoreReason,
     at: Date,
   ): Promise<ScreeningVerdict[]>;
-  /** Marks the user's flagged, outcome-less verdicts since `since` actioned. Returns the changed rows. */
+  /** Marks the user's flagged verdicts since `since` that have no outcome or were ignored as actioned: a mod action overrides an Ignore. Returns the changed rows. */
   setActioned(
     guildId: string,
     userId: string,

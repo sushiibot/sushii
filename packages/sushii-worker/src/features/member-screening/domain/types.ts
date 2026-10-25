@@ -152,6 +152,7 @@ export interface ScreeningGuildStats {
   guildId: string;
   /** text + pfp + image verdicts */
   checks: number;
+  /** flagged, actioned, ignored and awaiting count posts; an unposted verdict counts as its own. */
   flagged: number;
   actioned: number;
   ignored: number;
