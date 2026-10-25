@@ -3,7 +3,6 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type * as schema from "@/infrastructure/database/schema";
-import { secrets } from "@/shared/infrastructure/config";
 import { env } from "@/shared/infrastructure/config/env";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
@@ -30,7 +29,6 @@ export function createBotEmojiServices({
     botEmojiRepository,
     webhookService,
     logger.child({ module: "BotEmojiSyncService" }),
-    secrets.ASSET_KEY,
     env.ASSET_DIR,
   );
 

@@ -7,7 +7,6 @@ import { DrizzleBotEmojiRepository } from "@/features/bot-emojis/infrastructure/
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 import type * as schema from "@/infrastructure/database/schema";
-import { secrets } from "@/shared/infrastructure/config";
 import { env } from "@/shared/infrastructure/config/env";
 
 /**
@@ -37,7 +36,6 @@ export async function initStandaloneServices(
       botEmojiRepository,
       webhookService,
       logger.child({ module: "BotEmojiSyncService" }),
-      secrets.ASSET_KEY,
       env.ASSET_DIR,
     );
 

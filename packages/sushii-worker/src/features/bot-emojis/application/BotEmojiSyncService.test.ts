@@ -11,7 +11,7 @@ import type { WebhookService } from "@/features/webhook-logging/infrastructure/W
 import type { BotEmojiRepository } from "../domain/repositories/BotEmojiRepository";
 import { BotEmojiSyncService } from "./BotEmojiSyncService";
 
-test("external emoji overrides bundled encryption; collections never become emoji uploads", async () => {
+test("private emoji exports and bundled free icons load; collections never become emoji uploads", async () => {
   const root = await mkdtemp(join(tmpdir(), "emoji-overlay-"));
   try {
     const buffer = Buffer.from("synthetic icon");
@@ -33,7 +33,6 @@ test("external emoji overrides bundled encryption; collections never become emoj
       {} as BotEmojiRepository,
       {} as WebhookService,
       pino({ level: "silent" }),
-      undefined,
       root,
     );
     const loaded = await service["loadAssets"]();

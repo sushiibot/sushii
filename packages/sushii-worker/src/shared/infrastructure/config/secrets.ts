@@ -15,7 +15,6 @@ const schema = z.object({
   SENTRY_DSN: optional,
   GOOGLE_CALENDAR_API_KEY: optional,
   OPENROUTER_API_KEY: optional,
-  ASSET_KEY: optional,
   SCAM_IMAGE_STORE_ACCESS_KEY_ID: optional,
   SCAM_IMAGE_STORE_SECRET_ACCESS_KEY: optional,
 });

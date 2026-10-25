@@ -53,11 +53,11 @@ describe("loadSecrets", () => {
 
       const loaded = loadSecrets({
         ...REQUIRED,
-        ASSET_KEY: "asset-from-env",
-        ASSET_KEY_FILE: file,
+        OPENROUTER_API_KEY: "asset-from-env",
+        OPENROUTER_API_KEY_FILE: file,
       });
 
-      expect(loaded.ASSET_KEY).toBe("asset-from-file");
+      expect(loaded.OPENROUTER_API_KEY).toBe("asset-from-file");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -72,8 +72,8 @@ describe("loadSecrets", () => {
 
   test("an unreadable NAME_FILE names the variable and the error code only", () => {
     expect(() =>
-      loadSecrets({ ...REQUIRED, ASSET_KEY_FILE: "/nonexistent/asset" }),
-    ).toThrow("ASSET_KEY_FILE could not be read (ENOENT)");
+      loadSecrets({ ...REQUIRED, OPENROUTER_API_KEY_FILE: "/nonexistent/asset" }),
+    ).toThrow("OPENROUTER_API_KEY_FILE could not be read (ENOENT)");
   });
 
   test("an empty optional secret counts as unset, and the result is frozen", () => {

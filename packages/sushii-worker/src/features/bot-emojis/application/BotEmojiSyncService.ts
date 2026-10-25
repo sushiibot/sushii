@@ -1,4 +1,3 @@
-import { Decrypter } from "age-encryption";
 import { createHash } from "crypto";
 import type { Client } from "discord.js";
 import { readFile, readdir, stat } from "fs/promises";
@@ -25,9 +24,8 @@ interface SyncResult {
 /**
  * Service responsible for synchronizing emoji files with Discord and database.
  *
- * Reads from the assets/ directory. Files ending in .png.age are decrypted
- * using ASSET_KEY; plain .png files are used as-is. If both exist for the
- * same name, the encrypted asset takes priority.
+ * Loads licensed exports from the private asset mount and bundled free icons.
+ * Existing Discord emoji IDs are preserved when file hashes are unchanged.
  */
 export class BotEmojiSyncService {
   private readonly emojiService: BotEmojiService;
@@ -40,7 +38,6 @@ export class BotEmojiSyncService {
     private readonly repository: BotEmojiRepository,
     private readonly webhookService: WebhookService,
     private readonly logger: Logger,
-    private readonly assetKey: string | undefined,
     private readonly assetDirectory?: string,
   ) {
     this.emojiService = new BotEmojiService(client, logger);
@@ -193,14 +190,11 @@ export class BotEmojiSyncService {
   }
 
   /**
-   * Loads all assets from the assets/ directory.
-   * Supports plain .png and encrypted .png.age files.
-   * If both exist for the same name, the encrypted asset takes priority.
+   * Loads private emoji exports first, then bundled free PNGs.
    */
   private async loadAssets(): Promise<
     { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
   > {
-    const assetKey = this.assetKey;
     const assets: { name: BotEmojiNameType; buffer: Buffer; hash: string }[] =
       [];
     if (this.assetDirectory) {
@@ -221,34 +215,9 @@ export class BotEmojiSyncService {
     try {
       const files = await readdir(this.assetsDirectory);
 
-      // Group by emoji name, tracking plain and encrypted variants
-      const byName = new Map<string, { plain?: string; encrypted?: string }>();
-
       for (const filename of files) {
-        if (filename.endsWith(".png.age")) {
-          const name = filename.replace(/\.png\.age$/, "");
-          const entry = byName.get(name) ?? {};
-          entry.encrypted = filename;
-          byName.set(name, entry);
-        } else if (filename.endsWith(".png")) {
-          const name = filename.replace(/\.png$/, "");
-          const entry = byName.get(name) ?? {};
-          entry.plain = filename;
-          byName.set(name, entry);
-        }
-      }
-
-      const hasEncrypted = [...byName.entries()].some(
-        ([name, v]) =>
-          v.encrypted && !externalNames.has(name as BotEmojiNameType),
-      );
-      if (hasEncrypted && !assetKey) {
-        this.logger.warn(
-          "ASSET_KEY not set - encrypted assets will be skipped, falling back to plain files",
-        );
-      }
-
-      for (const [nameStr, { plain, encrypted }] of byName) {
+        if (!filename.endsWith(".png")) continue;
+        const nameStr = filename.slice(0, -4);
         const parsed = BotEmojiName.safeParse(nameStr);
         if (!parsed.success) {
           this.logger.error(
@@ -260,37 +229,20 @@ export class BotEmojiSyncService {
         const name = parsed.data;
         if (externalNames.has(name)) continue;
 
-        if (encrypted && assetKey) {
-          // Prefer encrypted asset
-          const filePath = join(this.assetsDirectory, encrypted);
-          const ciphertext = await readFile(filePath);
-          const decrypter = new Decrypter();
-          decrypter.addPassphrase(assetKey);
-          const plaintext = await decrypter.decrypt(
-            new Uint8Array(ciphertext),
-            "uint8array",
+        const filePath = join(this.assetsDirectory, filename);
+        const fileStats = await stat(filePath);
+        if (fileStats.size > 256 * 1024) {
+          this.logger.error(
+            { filename, size: fileStats.size },
+            "Emoji file too large - max 256KB",
           );
-          const buffer = Buffer.from(plaintext);
-          const hash = createHash("sha256").update(plaintext).digest("hex");
-          assets.push({ name, buffer, hash });
-        } else if (plain) {
-          // Fall back to plain PNG
-          const filePath = join(this.assetsDirectory, plain);
-          const fileStats = await stat(filePath);
-          if (fileStats.size > 256 * 1024) {
-            this.logger.error(
-              { filename: plain, size: fileStats.size },
-              "Emoji file too large - max 256KB",
-            );
-            continue;
-          }
-          const buffer = await readFile(filePath);
-          const hash = createHash("sha256")
-            .update(new Uint8Array(buffer))
-            .digest("hex");
-          assets.push({ name, buffer, hash });
+          continue;
         }
-        // if only encrypted but no key: skip silently (warning already logged above)
+        const buffer = await readFile(filePath);
+        const hash = createHash("sha256")
+          .update(new Uint8Array(buffer))
+          .digest("hex");
+        assets.push({ name, buffer, hash });
       }
 
       this.logger.info({ count: assets.length }, "Loaded assets");
