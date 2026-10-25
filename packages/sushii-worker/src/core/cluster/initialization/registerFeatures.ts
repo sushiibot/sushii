@@ -258,7 +258,12 @@ export function registerFeatures(
     logger,
     userLevelRepository: levelingFeature.services.userLevelRepository,
   });
-  const socialFeature = setupSocialFeature({ db, client, logger });
+  const socialFeature = setupSocialFeature({
+    db,
+    client,
+    logger,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
+  });
   const notificationFeature = setupNotificationFeature({ db, logger });
   const memberEventsFeature = setupMemberEventsFeature({ db, logger });
   const statusFeature = setupStatusFeature({ db });

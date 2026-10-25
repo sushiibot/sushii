@@ -2,6 +2,7 @@ import { isDayjs } from "dayjs";
 import type { ChatInputCommandInteraction } from "discord.js";
 import { SlashCommandBuilder } from "discord.js";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { FishyService } from "../../application";
@@ -26,6 +27,7 @@ export class FishyCommand extends SlashCommandHandler {
   constructor(
     private readonly fishyService: FishyService,
     private readonly artwork: CollectionArtwork,
+    private readonly emojiRepository: BotEmojiRepository,
   ) {
     super();
   }
@@ -40,6 +42,13 @@ export class FishyCommand extends SlashCommandHandler {
       target,
       interaction.id,
     );
+    const conditionEmoji = isDayjs(result)
+      ? undefined
+      : (
+          await this.emojiRepository.getEmojis([
+            `fishing_${result.condition}`,
+          ] as const)
+        )[`fishing_${result.condition}`];
     const message = isDayjs(result)
       ? createFishyCooldownMessage(result)
       : createFishySuccessMessage(
@@ -47,6 +56,7 @@ export class FishyCommand extends SlashCommandHandler {
           target.id,
           (await this.artwork.url(result.collectibleId)) ??
             (await this.artwork.icon(result.collectibleId)),
+          conditionEmoji,
         );
     await interaction.reply({
       components: message.components,

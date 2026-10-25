@@ -33,6 +33,13 @@ export const BotEmojiName = z.enum([
   "level_global",
   "rankings",
 
+  // Fishing conditions (private symbol exports)
+  "fishing_still",
+  "fishing_light_rain",
+  "fishing_heavy_rain",
+  "fishing_mist",
+  "fishing_moonlit",
+
   // States
   "success",
   "fail",

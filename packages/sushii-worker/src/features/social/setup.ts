@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { DrizzleUserProfileRepository } from "@/features/user-profile/infrastructure/DrizzleUserProfileRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import { env } from "@/shared/infrastructure/config/env";
@@ -33,6 +34,7 @@ interface SocialFeatureServices {
 }
 
 interface SetupParams {
+  emojiRepository: BotEmojiRepository;
   db: NodePgDatabase<typeof schema>;
   client: Client;
   logger: Logger;
@@ -40,6 +42,7 @@ interface SetupParams {
 
 export function setupSocialFeature({
   db,
+  emojiRepository,
   client: _client,
   logger: _logger,
 }: SetupParams): FullFeatureSetupReturn<SocialFeatureServices> {
@@ -71,6 +74,7 @@ export function setupSocialFeature({
       env.ASSET_PUBLIC_BASE_URL,
       env.ASSET_REVISION,
     ),
+    emojiRepository,
   );
   const repCommand = new RepCommand(reputationService);
   const repLeaderboardCommand = new RepLeaderboardCommand(

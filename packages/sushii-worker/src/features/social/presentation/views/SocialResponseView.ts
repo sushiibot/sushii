@@ -15,11 +15,17 @@ import Color from "@/utils/colors";
 
 import { STREAK_MILESTONES } from "../../domain";
 import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
-import {
-  CONDITION_LABELS,
-  RARITY_COLORS,
-  getCollectible,
-} from "../../domain/collection/Catalog";
+import type { FishingCondition } from "../../domain/collection/Catalog";
+import { RARITY_COLORS, getCollectible } from "../../domain/collection/Catalog";
+
+const CONDITION_COPY: Record<FishingCondition, { icon: string; text: string }> =
+  {
+    still: { icon: "🌊", text: "The water is calm." },
+    light_rain: { icon: "🌧️", text: "A light rain is falling." },
+    heavy_rain: { icon: "🌧️", text: "Heavy rain patters on the water." },
+    mist: { icon: "🌫️", text: "Mist hangs over the water." },
+    moonlit: { icon: "🌙", text: "Moonlight glimmers on the water." },
+  };
 
 // Fishy multiplies the catch, rep only gets a chance at bonus rep
 function formatFishyReward(multiplier: number): string {
@@ -60,14 +66,17 @@ export function createFishySuccessMessage(
   result: FishyResult,
   targetUserId: string,
   artwork?: Buffer | string,
+  conditionEmoji?: string,
 ): InteractionReplyOptions {
   const item = getCollectible(result.collectibleId);
+  const condition = CONDITION_COPY[result.condition];
   const count = result.caughtAmount;
   const fishyWord = count === 1 ? "fishy" : "fishies";
 
   const text = new TextDisplayBuilder().setContent(
     `### ${result.firstDiscovery ? "New discovery: " : "You caught "}${item.name}\n` +
-      `**${item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}** · ${CONDITION_LABELS[result.condition]} · ${item.habitat.replaceAll("_", " ")}\n` +
+      `**${item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}**\n` +
+      `${conditionEmoji || condition.icon} ${condition.text}\n` +
       `${result.firstDiscovery ? "" : `You have caught this ${result.catchCount.toLocaleString()} times.\n`}\n` +
       `<@${targetUserId}> received **${count} ${fishyWord}** (${result.oldAmount} → ${result.newAmount}).\n` +
       formatStreak(

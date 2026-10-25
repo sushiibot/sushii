@@ -199,8 +199,13 @@ export class BotEmojiSyncService {
       [];
     if (this.assetDirectory) {
       for (const asset of await loadAssetExports(this.assetDirectory)) {
-        if (!asset.id.startsWith("emoji/")) continue;
-        const parsed = BotEmojiName.safeParse(asset.id.slice("emoji/".length));
+        const name = asset.id.startsWith("emoji/")
+          ? asset.id.slice("emoji/".length)
+          : asset.id.startsWith("symbol/")
+            ? `fishing_${asset.id.slice("symbol/".length)}`
+            : undefined;
+        // Only named fishing symbols are eligible; collections stay artwork.
+        const parsed = BotEmojiName.safeParse(name);
         // The private pack may contain icons for a newer bot release.
         if (parsed.success)
           assets.push({

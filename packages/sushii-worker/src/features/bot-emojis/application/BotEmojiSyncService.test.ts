@@ -18,7 +18,20 @@ test.each([1, 2])(
     try {
       const buffer = Buffer.from("synthetic icon");
       const hash = createHash("sha256").update(buffer).digest("hex");
-      for (const name of ["emoji/rep.png", "collection/koi.png"]) {
+      const conditions = [
+        "still",
+        "light_rain",
+        "heavy_rain",
+        "mist",
+        "moonlit",
+      ] as const;
+      const files = [
+        "emoji/rep.png",
+        "collection/koi.png",
+        "symbol/next.png",
+        ...conditions.map((c) => `symbol/${c}.png`),
+      ];
+      for (const name of files) {
         await mkdir(join(root, name.split("/")[0]), { recursive: true });
         await writeFile(join(root, name), buffer);
       }
@@ -27,7 +40,7 @@ test.each([1, 2])(
         JSON.stringify({
           schemaVersion: 1,
           recipeVersion,
-          files: { "emoji/rep.png": hash, "collection/koi.png": hash },
+          files: Object.fromEntries(files.map((name) => [name, hash])),
         }),
       );
       const service = new BotEmojiSyncService(
@@ -43,6 +56,13 @@ test.each([1, 2])(
       ]);
       expect(loaded.some((a) => String(a.name).includes("koi"))).toBe(false);
       expect(loaded.some((a) => a.name === "member_join")).toBe(true);
+      expect(
+        loaded
+          .filter((a) => a.name.startsWith("fishing_"))
+          .map((a) => a.name)
+          .sort(),
+      ).toEqual(conditions.map((c) => `fishing_${c}` as const).sort());
+      expect(loaded.some((a) => String(a.name).includes("next"))).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

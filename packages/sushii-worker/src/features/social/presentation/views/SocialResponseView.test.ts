@@ -22,6 +22,9 @@ test("reveal shows the collection discovery and points without legacy catch name
   );
   const json = JSON.stringify(payload.components);
   expect(json).toContain("New discovery: Koi");
+  expect(json).toContain("🌫️ Mist hangs over the water.");
+  expect(json).not.toContain("Rolling mist");
+  expect(json).not.toContain("freshwater");
   expect(json).toContain("received **10 fishies**");
   expect(json).not.toContain("Mrs. Puff");
   expect(json).not.toContain("Browse it with");
