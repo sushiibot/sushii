@@ -15,6 +15,7 @@ import { GetGlobalLeaderboardService } from "./application/GetGlobalLeaderboardS
 import { GetLeaderboardService } from "./application/GetLeaderboardService";
 import { GetUserRankService } from "./application/GetUserRankService";
 import { LevelRoleService } from "./application/LevelRoleService";
+import { LevelRoleSyncService } from "./application/LevelRoleSyncService";
 import { UpdateUserXpService } from "./application/UpdateUserXpService";
 import { XpBlockService } from "./application/XpBlockService";
 import { LevelRoleRepositoryImpl } from "./infrastructure/LevelRoleRepositoryImpl";
@@ -31,6 +32,7 @@ import LeaderboardPrivacyCommand from "./presentation/commands/LeaderboardPrivac
 import LevelRoleCommand from "./presentation/commands/LevelRoleCommand";
 import RankCommand from "./presentation/commands/RankCommand";
 import XpCommand from "./presentation/commands/XpCommands";
+import { MemberJoinLevelRoleHandler } from "./presentation/events/MemberJoinLevelRoleHandler";
 import { MessageLevelHandler } from "./presentation/events/MessageLevelHandler";
 
 interface LevelingServiceDependencies {
@@ -64,9 +66,14 @@ export function createLevelingServices({
     userLevelRepository,
   );
 
-  const updateUserXpService = new UpdateUserXpService(
+  const levelRoleSyncService = new LevelRoleSyncService(
     userLevelRepository,
     levelRoleRepository,
+  );
+
+  const updateUserXpService = new UpdateUserXpService(
+    userLevelRepository,
+    levelRoleSyncService,
     xpBlockRepository,
   );
 
@@ -92,6 +99,7 @@ export function createLevelingServices({
     getLeaderboardService,
     getGlobalLeaderboardService,
     updateUserXpService,
+    levelRoleSyncService,
     levelRoleService,
     xpBlockService,
     emojiRepository,
@@ -148,9 +156,12 @@ export function createLevelingEventHandlers(
   services: ReturnType<typeof createLevelingServices>,
   _logger: Logger,
 ) {
-  const { updateUserXpService } = services;
+  const { updateUserXpService, levelRoleSyncService } = services;
 
-  const eventHandlers = [new MessageLevelHandler(updateUserXpService)];
+  const eventHandlers = [
+    new MessageLevelHandler(updateUserXpService),
+    new MemberJoinLevelRoleHandler(levelRoleSyncService),
+  ];
 
   return {
     eventHandlers,

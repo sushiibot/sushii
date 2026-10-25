@@ -5,6 +5,7 @@ import { UserLevel } from "../domain/entities/UserLevel";
 import type { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
 import type { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
 import type { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
+import { LevelRoleSyncService } from "./LevelRoleSyncService";
 import { UpdateUserXpService } from "./UpdateUserXpService";
 
 const GUILD_ID = "100";
@@ -49,7 +50,7 @@ describe("UpdateUserXpService", () => {
 
     service = new UpdateUserXpService(
       userLevelRepository,
-      levelRoleRepository,
+      new LevelRoleSyncService(userLevelRepository, levelRoleRepository),
       xpBlockRepository,
     );
   });
@@ -67,7 +68,7 @@ describe("UpdateUserXpService", () => {
     expect(result.removeRoleIds).toEqual(["role-lvl1"]);
   });
 
-  it("does not return role changes when the level did not change", async () => {
+  it("returns role changes for the current level when the level did not change", async () => {
     findByUserAndGuild.mockResolvedValue(existingLevel(150));
 
     const result = await service.execute(GUILD_ID, CHANNEL_ID, USER_ID, []);
@@ -75,8 +76,8 @@ describe("UpdateUserXpService", () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(result.oldLevel).toBe(2);
     expect(result.newLevel).toBe(2);
-    expect(result.addRoleIds).toBeNull();
-    expect(result.removeRoleIds).toBeNull();
+    expect(result.addRoleIds).toEqual(["role-lvl2"]);
+    expect(result.removeRoleIds).toEqual(["role-lvl1"]);
   });
 
   it("does nothing while on cooldown", async () => {

@@ -1,7 +1,7 @@
 import { UserLevel } from "../domain/entities/UserLevel";
-import type { LevelRoleRepository } from "../domain/repositories/LevelRoleRepository";
 import type { UserLevelRepository } from "../domain/repositories/UserLevelRepository";
 import type { XpBlockRepository } from "../domain/repositories/XpBlockRepository";
+import type { LevelRoleSyncService } from "./LevelRoleSyncService";
 
 export interface UpdateUserXpResult {
   oldLevel: number | null;
@@ -20,7 +20,7 @@ const NO_CHANGE: UpdateUserXpResult = {
 export class UpdateUserXpService {
   constructor(
     private readonly userLevelRepository: UserLevelRepository,
-    private readonly levelRoleRepository: LevelRoleRepository,
+    private readonly levelRoleSyncService: LevelRoleSyncService,
     private readonly xpBlockRepository: XpBlockRepository,
   ) {}
 
@@ -76,42 +76,11 @@ export class UpdateUserXpService {
     oldLevel: number,
     newLevel: number,
   ): Promise<UpdateUserXpResult> {
-    // Only sync level roles on a level change, so roles removed manually by
-    // admins are not re-added on every XP gain.
-    if (oldLevel === newLevel) {
-      return { oldLevel, newLevel, addRoleIds: null, removeRoleIds: null };
-    }
-
-    const { addRoleIds, removeRoleIds } = await this.calculateRoleChanges(
-      guildId,
-      newLevel,
-    );
+    // Synced on every XP gain, not just level-ups, so members who rejoin or
+    // lose a level role get it back on their next message.
+    const { addRoleIds, removeRoleIds } =
+      await this.levelRoleSyncService.getRoleChangesForLevel(guildId, newLevel);
 
     return { oldLevel, newLevel, addRoleIds, removeRoleIds };
-  }
-
-  private async calculateRoleChanges(
-    guildId: string,
-    newLevel: number,
-  ): Promise<{ addRoleIds: string[] | null; removeRoleIds: string[] | null }> {
-    const levelRoles = await this.levelRoleRepository.findByGuild(guildId);
-
-    const addRoleIds: string[] = [];
-    const removeRoleIds: string[] = [];
-
-    for (const levelRole of levelRoles) {
-      if (levelRole.shouldAddRole(newLevel)) {
-        addRoleIds.push(levelRole.getRoleId());
-      }
-
-      if (levelRole.shouldRemoveRole(newLevel)) {
-        removeRoleIds.push(levelRole.getRoleId());
-      }
-    }
-
-    return {
-      addRoleIds: addRoleIds.length > 0 ? addRoleIds : null,
-      removeRoleIds: removeRoleIds.length > 0 ? removeRoleIds : null,
-    };
   }
 }
