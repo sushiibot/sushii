@@ -14,7 +14,11 @@ enum Paths {
   SettingsToggleButton = "settings/toggle/:field/:newState",
   GiveawayEnterButton = "giveaway/enter",
   AutomodAlertAction = "/automod/alert/action/:actionType/:userId",
+  ScreeningIgnore = "/screening/ignore/:verdictId",
+  ScreeningAction = "/screening/action/:actionType/:verdictId",
 }
+
+export type ScreeningActionType = "timeout" | "untimeout" | "ban" | "unban";
 
 export type SettingsToggleOptions =
   | "join_msg_enabled"
@@ -78,7 +82,16 @@ type PathParams<T extends Paths> = T extends Paths.RoleMenuButton
                           | "unban";
                         userId: string;
                       }
-                    : never;
+                    : T extends Paths.ScreeningIgnore
+                      ? {
+                          verdictId: string;
+                        }
+                      : T extends Paths.ScreeningAction
+                        ? {
+                            actionType: ScreeningActionType;
+                            verdictId: string;
+                          }
+                        : never;
 
 /**
  * Returns a function that returns null if the match fails or the params.
@@ -129,6 +142,8 @@ const customIds = {
   settingsToggleButton: createCustomID(Paths.SettingsToggleButton),
   giveawayEnterButton: createCustomID(Paths.GiveawayEnterButton),
   automodAlertAction: createCustomID(Paths.AutomodAlertAction),
+  screeningIgnore: createCustomID(Paths.ScreeningIgnore),
+  screeningAction: createCustomID(Paths.ScreeningAction),
 };
 
 export default customIds;
