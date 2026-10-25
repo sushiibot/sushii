@@ -16,6 +16,9 @@ export class MessageCacheService {
     private readonly messageLogBlockRepository: MessageLogBlockRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly logger: Logger,
+    private readonly shouldCacheForScreening?: (
+      guildId: string,
+    ) => Promise<boolean>,
   ) {}
 
   async handleRawMessageCreate(
@@ -38,14 +41,17 @@ export class MessageCacheService {
       return;
     }
 
-    // Check if guild has message logging enabled
     const guildConfig = await this.guildConfigRepository.findByGuildId(
       payload.guild_id,
     );
+    const messageLogEnabled =
+      !!guildConfig.loggingSettings.messageLogChannel &&
+      guildConfig.loggingSettings.messageLogEnabled;
 
+    // Member screening reads earlier messages from this cache for context.
     if (
-      !guildConfig.loggingSettings.messageLogChannel ||
-      !guildConfig.loggingSettings.messageLogEnabled
+      !messageLogEnabled &&
+      !(await this.shouldCacheForScreening?.(payload.guild_id))
     ) {
       return;
     }
