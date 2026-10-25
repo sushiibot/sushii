@@ -3,7 +3,7 @@ title: Privacy Policy
 description: Privacy Policy for sushii bot
 ---
 
-Last updated: October 24, 2026
+Last updated: October 25, 2026
 ## Interpretation and Definitions
 
 ### Interpretation
@@ -88,6 +88,12 @@ These are only saved when a server moderator enables certain options.
 * Bans
 * Mutual servers with the Bot
 
+### Collected data in servers approved for member screening
+
+Member screening is not enabled by server moderators. We, the Bot operator,
+enable it only for servers we have approved. In those servers, we collect the
+data described under "Member Screening" below.
+
 ## How your information is used
 
 We use personal information collected via our Services for a variety of business
@@ -150,6 +156,37 @@ in relation to some specific use cases:
   administrators use this to review which roles still need their permissions.
 * **Statistics:** When statistics are provided by our Services, we only keep
   aggregated and anonymized data into our database.
+* **Member Screening:** Member screening is an opt-in feature that we enable
+  only for servers we have approved. It helps server moderators review new
+  members.
+  * **Who is screened:** New members, during their first 20 messages or first
+    72 hours after they join, whichever ends first. We may set different limits
+    for a server. Messages in channels that are excluded from message logging
+    are not counted toward the 20. Server owners and members whose roles grant
+    Administrator, Manage Server, Manage Messages, Timeout Members, Ban Members
+    or Kick Members are not screened.
+  * **What is checked:** The text of your messages, your avatar, and links to
+    images hosted on Discord in your messages. Messages that AutoMod blocks
+    are also scored if you joined within the last 72 hours (by default). The
+    checks use AI models (see "How your information may be shared").
+  * **What is stored for a flagged result:** Up to five of your recent
+    messages in that channel and up to two earlier messages from other
+    members, with their display names, so moderators can see the context.
+  * **What is stored for every check:** The scores, avatar hash, image link,
+    when you joined, which message number it was since you joined, and the
+    model cost. Message text is not stored for checks that are not flagged. We
+    use this data to avoid checking the same thing twice and to measure how
+    accurate screening is.
+  * **Moderator actions:** When a moderator bans, kicks or times out a
+    screened member, or ignores a result, we store the action, the
+    moderator's Discord ID and the reason they picked. We also record bans,
+    kicks and timeouts of new members who were never flagged, to measure
+    missed cases.
+  * **Review posts:** Flagged results are posted as Discord messages in the
+    server's moderator channel. The server controls these messages.
+  * **Message cache:** To show context, the Bot saves the messages of all
+    members in a screened server, not only new members, even if the server
+    has not enabled message logging.
 
 ## How your information may be shared
 
@@ -164,6 +201,15 @@ requests to third-party model providers to perform the classification. We only
 use models whose providers do not use submitted data for model training. You can
 review OpenRouter's privacy policy, including their sub-processors, at
 https://openrouter.ai/privacy.
+
+Member screening (see "How your information is used") also uses OpenRouter. The
+text of a new member's messages, including earlier messages from the same
+member, is sent to the TypeSafe Jev model. Avatars and Discord-hosted image
+links are sent to Google Gemini, which loads the images from Discord. Messages
+from other members that are shown to moderators as context are not sent. We
+send these requests with OpenRouter's `data_collection: deny` setting, which
+excludes providers that train on prompts. Google AI Studio, one of the providers
+that can serve the image requests, may still keep prompts for up to 55 days.
 
 In general, we have no business needs that justify, nor direct interests in,
 sharing your information with other entities.
@@ -196,7 +242,13 @@ required or permitted by law (such as tax, accounting or other legal
 requirements).
 
 For messages saved for logging purposes, messages are saved for a max of 7 days
-before they are removed from our database.
+before they are removed from our database. The same 7-day limit applies to
+messages saved in servers that use member screening.
+
+Member screening results are deleted after 90 days, together with the message
+text stored for flagged results and the moderator actions stored with them.
+Review posts are Discord messages in the server's moderator channel. The server
+controls them, and we don't delete them after 90 days.
 
 Perceptual hashes derived from image attachments for scam detection are retained
 indefinitely as part of our trust and safety database. Image attachments
@@ -285,6 +337,11 @@ policy frequently to be informed of how we are protecting your information.
 ## Data removal
 
 To request your data to be removed, please contact us in the following section.
+
+Member screening can't be turned off per member. If you don't want to be
+screened in a server, ask that server's moderators; we turn screening off for a
+server at their request. When screening is turned off, no new checks are made,
+and existing results are deleted on the normal 90-day schedule.
 
 ## Contact us
 

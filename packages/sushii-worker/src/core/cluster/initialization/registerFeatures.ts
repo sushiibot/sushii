@@ -21,6 +21,7 @@ import { setupInteractionHandlerFeature } from "@/features/interaction-handler/s
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupMemberEventsFeature } from "@/features/member-events/setup";
+import { setupMemberScreeningFeature } from "@/features/member-screening/setup";
 import { setupMessageLog } from "@/features/message-log/setup";
 import { setupMessageVerificationFeature } from "@/features/message-verification/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
@@ -349,6 +350,15 @@ export function registerFeatures(
     deploymentService,
   });
 
+  const memberScreeningFeature = setupMemberScreeningFeature({
+    client,
+    db,
+    logger: logger.child({ feature: "MemberScreening" }),
+    deploymentService,
+    moderationService: moderationFeature.services.moderationService,
+    openRouterApiKey: secrets.OPENROUTER_API_KEY,
+  });
+
   // Message log feature
   const messageLogFeature = setupMessageLog(
     client,
@@ -357,6 +367,7 @@ export function registerFeatures(
     botEmojiFeature.services.botEmojiRepository,
     deploymentService,
     logger.child({ component: "MessageLogFeature" }),
+    memberScreeningFeature.services.shouldCacheForScreening,
   );
 
   // Reaction log feature
@@ -398,6 +409,7 @@ export function registerFeatures(
     ...messageVerificationFeature.commands,
     ...altAccountsFeature.commands,
     ...permissionAuditFeature.commands,
+    ...memberScreeningFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
@@ -438,6 +450,7 @@ export function registerFeatures(
     ...promptsFeature.buttonHandlers,
     ...automodFeature.buttonHandlers,
     ...altAccountsFeature.buttonHandlers,
+    ...memberScreeningFeature.buttonHandlers,
   );
 
   // Modal handlers
@@ -447,6 +460,7 @@ export function registerFeatures(
   interactionRouter.addSelectMenus(
     ...roleMenuFeature.selectMenuHandlers,
     ...levelingFeature.selectMenuHandlers,
+    ...memberScreeningFeature.selectMenuHandlers,
   );
 
   // ---------------------------------------------------------------------------
@@ -478,6 +492,7 @@ export function registerFeatures(
     ...scheduleFeature.eventHandlers,
     ...promptsFeature.eventHandlers,
     ...permissionAuditFeature.eventHandlers,
+    ...memberScreeningFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------
@@ -546,6 +561,7 @@ export function registerFeatures(
     ...automodFeature.tasks,
     ...messageVerificationFeature.tasks,
     ...permissionAuditFeature.tasks,
+    ...memberScreeningFeature.tasks,
   ];
 
   client.once(Events.ClientReady, () => {

@@ -29,6 +29,7 @@ export function setupMessageLog(
   emojiRepository: BotEmojiRepository,
   deploymentService: DeploymentService,
   logger: Logger,
+  shouldCacheForScreening?: (guildId: string) => Promise<boolean>,
 ): FullFeatureSetupReturn<MessageLogServices> {
   // Create repositories
   const messageLogEventRepository = new DrizzleMessageLogEventRepository(
@@ -47,6 +48,7 @@ export function setupMessageLog(
     messageLogBlockRepository,
     guildConfigRepository,
     logger.child({ component: "MessageCacheService" }),
+    shouldCacheForScreening,
   );
 
   const auditLogCache = new MessageDeleteAuditLogCache();

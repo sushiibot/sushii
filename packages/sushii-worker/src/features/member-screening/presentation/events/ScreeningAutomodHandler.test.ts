@@ -28,6 +28,7 @@ function setup(
     cachedMember?: ReturnType<typeof member> | null;
     fetchedMember?: ReturnType<typeof member>;
     ruleFetchFails?: boolean;
+    settingsFail?: boolean;
   } = {},
 ) {
   const recordAutomodBlock = mock(async () => undefined);
@@ -59,7 +60,12 @@ function setup(
   const handler = new ScreeningAutomodHandler(
     { recordAutomodBlock } as unknown as MemberScreeningService,
     {
-      findByGuildId: async () => ({ guildId: GUILD, windowHours: 72 }),
+      findByGuildId: async () => {
+        if (opts.settingsFail) {
+          throw new Error("connection refused");
+        }
+        return { guildId: GUILD, windowHours: 72 };
+      },
     } as unknown as ScreeningGuildRepository,
     pino({ level: "silent" }),
     () => NOW,
@@ -70,6 +76,15 @@ function setup(
 describe("ScreeningAutomodHandler", () => {
   test("ignores actions other than BlockMessage", async () => {
     const t = setup({ type: AutoModerationActionType.SendAlertMessage });
+
+    await t.handler.handle(t.execution);
+
+    expect(t.membersFetch).not.toHaveBeenCalled();
+    expect(t.recordAutomodBlock).not.toHaveBeenCalled();
+  });
+
+  test("skips the block when the settings lookup fails", async () => {
+    const t = setup({ settingsFail: true });
 
     await t.handler.handle(t.execution);
 
