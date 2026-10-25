@@ -72,3 +72,34 @@ Three checks run on commit:
 
 - `ASSET_KEY` — passphrase for encrypting/decrypting assets (required at runtime and for `assets:encrypt`)
 - `ASSETS_ROOT` — path to the local icon pack (defaults to `../../../../assets` relative to the worker package, i.e. `~/sushii/assets/`)
+
+## Private asset repository
+
+The new workflow lives in the private `sushiibot/sushii-assets` repository.
+The existing encrypted files remain available during migration.
+
+For local development:
+
+```sh
+# Run from ~/sushii/sushii-assets
+bun install --frozen-lockfile
+bun run check
+bun run preview
+```
+
+Set `ASSET_DIR=/home/drk/sushii/sushii-assets/exports` in the worker's local environment.
+Use your own checkout path on another machine.
+The worker checks the export manifest and file hashes before loading icons.
+External `emoji/` files override bundled icons with the same name.
+Bundled free icons and legacy encrypted files cover entries absent from the external directory.
+Collection and symbol exports do not automatically upload as application emojis.
+
+The worker pins the asset repository in `packages/sushii-worker/asset-revision.txt`.
+CI writes that pin to the `bot.sushii.asset-revision` image label.
+Ansible fetches the exact commit and mounts its exports at `/app/assets` per deployment slot.
+The image build checks that `ASSET_REVISION` matches the pin file.
+For a manual Docker build, supply `--build-arg ASSET_REVISION=<full-pinned-sha>`.
+
+Only metadata and code belong in this repository. Paid originals and generated images belong in the private asset repository.
+Keep private checkouts outside the bot build context. Git and Docker exclude the designated private asset directory names.
+Do not retire `ASSET_KEY` or delete encrypted fallback files until staging and rollback are validated.

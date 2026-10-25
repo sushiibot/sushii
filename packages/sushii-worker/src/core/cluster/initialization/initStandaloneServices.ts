@@ -8,6 +8,7 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 import type * as schema from "@/infrastructure/database/schema";
 import { secrets } from "@/shared/infrastructure/config";
+import { env } from "@/shared/infrastructure/config/env";
 
 /**
  * Initialize standalone services that don't have dependencies from other features.
@@ -37,6 +38,7 @@ export async function initStandaloneServices(
       webhookService,
       logger.child({ module: "BotEmojiSyncService" }),
       secrets.ASSET_KEY,
+      env.ASSET_DIR,
     );
 
     await syncService.syncEmojis();

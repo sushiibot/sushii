@@ -16,6 +16,7 @@ const envSchema = z.object({
   LOOKUP_EXEMPT_GUILD_IDS: z.string().optional(),
 
   // System configuration
+  ASSET_DIR: z.string().min(1).optional(),
   LOG_LEVEL: z.string().optional().default("info"),
 
   // Core Discord configuration
@@ -56,7 +57,10 @@ const envSchema = z.object({
   // Development / test options
   MANUAL_SHARD_COUNT: z.coerce.number().optional(),
 
-  OPENROUTER_SCAM_CLASSIFY_MODEL: z.string().optional().default("stepfun/step-3.7-flash"),
+  OPENROUTER_SCAM_CLASSIFY_MODEL: z
+    .string()
+    .optional()
+    .default("stepfun/step-3.7-flash"),
 
   // Scam image dataset storage (Backblaze B2 / S3-compatible)
   // Uploads also need the SCAM_IMAGE_STORE_* secrets; absent = feature disabled

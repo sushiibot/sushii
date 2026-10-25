@@ -1,11 +1,12 @@
+import { Decrypter } from "age-encryption";
 import { createHash } from "crypto";
 import type { Client } from "discord.js";
 import { readFile, readdir, stat } from "fs/promises";
 import { join, resolve } from "path";
 import type { Logger } from "pino";
-import { Decrypter } from "age-encryption";
 
 import type { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
+import { loadAssetExports } from "@/shared/infrastructure/assets/AssetExports";
 
 import { BotEmojiName, type BotEmojiNameType } from "../domain";
 import { BotEmoji } from "../domain/entities/BotEmoji";
@@ -40,6 +41,7 @@ export class BotEmojiSyncService {
     private readonly webhookService: WebhookService,
     private readonly logger: Logger,
     private readonly assetKey: string | undefined,
+    private readonly assetDirectory?: string,
   ) {
     this.emojiService = new BotEmojiService(client, logger);
   }
@@ -199,6 +201,22 @@ export class BotEmojiSyncService {
     { name: BotEmojiNameType; buffer: Buffer; hash: string }[]
   > {
     const assetKey = this.assetKey;
+    const assets: { name: BotEmojiNameType; buffer: Buffer; hash: string }[] =
+      [];
+    if (this.assetDirectory) {
+      for (const asset of await loadAssetExports(this.assetDirectory)) {
+        if (!asset.id.startsWith("emoji/")) continue;
+        const parsed = BotEmojiName.safeParse(asset.id.slice("emoji/".length));
+        // The private pack may contain icons for a newer bot release.
+        if (parsed.success)
+          assets.push({
+            name: parsed.data,
+            buffer: asset.buffer,
+            hash: asset.hash,
+          });
+      }
+    }
+    const externalNames = new Set(assets.map((asset) => asset.name));
 
     try {
       const files = await readdir(this.assetsDirectory);
@@ -220,15 +238,15 @@ export class BotEmojiSyncService {
         }
       }
 
-      const hasEncrypted = [...byName.values()].some((v) => v.encrypted);
+      const hasEncrypted = [...byName.entries()].some(
+        ([name, v]) =>
+          v.encrypted && !externalNames.has(name as BotEmojiNameType),
+      );
       if (hasEncrypted && !assetKey) {
         this.logger.warn(
           "ASSET_KEY not set - encrypted assets will be skipped, falling back to plain files",
         );
       }
-
-      const assets: { name: BotEmojiNameType; buffer: Buffer; hash: string }[] =
-        [];
 
       for (const [nameStr, { plain, encrypted }] of byName) {
         const parsed = BotEmojiName.safeParse(nameStr);
@@ -240,6 +258,7 @@ export class BotEmojiSyncService {
           continue;
         }
         const name = parsed.data;
+        if (externalNames.has(name)) continue;
 
         if (encrypted && assetKey) {
           // Prefer encrypted asset
@@ -252,9 +271,7 @@ export class BotEmojiSyncService {
             "uint8array",
           );
           const buffer = Buffer.from(plaintext);
-          const hash = createHash("sha256")
-            .update(plaintext)
-            .digest("hex");
+          const hash = createHash("sha256").update(plaintext).digest("hex");
           assets.push({ name, buffer, hash });
         } else if (plain) {
           // Fall back to plain PNG
@@ -284,8 +301,8 @@ export class BotEmojiSyncService {
         "code" in error &&
         error.code === "ENOENT"
       ) {
-        this.logger.info("assets directory not found - skipping sync");
-        return [];
+        this.logger.info("Bundled assets directory not found");
+        return assets;
       }
       throw error;
     }

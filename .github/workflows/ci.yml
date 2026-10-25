@@ -112,6 +112,14 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+      - name: Read asset revision
+        id: assets
+        shell: bash
+        run: |
+          revision=$(cat packages/sushii-worker/asset-revision.txt)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid asset revision" >&2; exit 1; }
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -122,6 +130,7 @@ jobs:
           build-args: |
             GIT_HASH=${{ steps.sha.outputs.sha_short }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            ASSET_REVISION=${{ steps.assets.outputs.revision }}
           tags: |
             ghcr.io/sushiibot/sushii-worker:latest
             ghcr.io/sushiibot/sushii-worker:${{ steps.sha.outputs.sha_short }}

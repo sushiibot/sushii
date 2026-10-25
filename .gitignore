@@ -150,3 +150,7 @@ dist
 .kanban/
 .playwright-mcp/
 preview-full.png
+# Private licensed asset checkouts and generated exports
+**/sushii-assets/
+**/.private-assets/
+**/asset-exports/

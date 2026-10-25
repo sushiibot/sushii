@@ -30,6 +30,9 @@ COPY ./packages/sushii-worker/ ./packages/sushii-worker/
 # Build info, args at end to minimize cache invalidation
 ARG GIT_HASH
 ARG BUILD_DATE
+ARG ASSET_REVISION
+RUN test "$ASSET_REVISION" = "$(cat /config/packages/sushii-worker/asset-revision.txt)"
+LABEL bot.sushii.asset-revision=$ASSET_REVISION
 
 # Make build info available in the app
 ENV GIT_HASH=${GIT_HASH}
