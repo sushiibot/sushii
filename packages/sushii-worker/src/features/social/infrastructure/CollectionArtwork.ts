@@ -24,7 +24,29 @@ const escapeXml = (value: string) =>
 
 export class CollectionArtwork {
   private exports: Promise<Map<string, Buffer>> | undefined;
-  constructor(private readonly directory?: string) {}
+  private readonly urls = new Map<string, string>();
+  constructor(
+    private readonly directory?: string,
+    private readonly publicBaseUrl?: string,
+    private readonly revision?: string,
+  ) {
+    if (publicBaseUrl) {
+      const url = new URL(publicBaseUrl);
+      if (
+        url.protocol !== "https:" ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        !revision ||
+        !/^[a-f0-9]{40}$/.test(revision) ||
+        !directory
+      )
+        throw new Error(
+          "Hosted artwork requires HTTPS, a pinned revision, and local exports",
+        );
+    }
+  }
 
   async load(): Promise<Map<string, Buffer>> {
     if (!this.directory) return new Map();
@@ -39,6 +61,14 @@ export class CollectionArtwork {
                   `Missing collection artwork: ${item.id}${suffix}`,
                 );
             }
+          if (this.publicBaseUrl) {
+            for (const asset of assets)
+              if (asset.id.startsWith("collection/"))
+                this.urls.set(
+                  asset.id,
+                  `${this.publicBaseUrl.replace(/\/$/, "")}/${this.revision}/${asset.hash}.png`,
+                );
+          }
           return map;
         })
         .catch((error) => {
@@ -47,6 +77,13 @@ export class CollectionArtwork {
         });
     }
     return this.exports;
+  }
+
+  async url(id: string, silhouette = false): Promise<string | undefined> {
+    getCollectible(id);
+    if (!this.publicBaseUrl) return undefined;
+    await this.load();
+    return this.urls.get(`collection/${id}${silhouette ? "_silhouette" : ""}`);
   }
 
   async icon(id: string, silhouette = false): Promise<Buffer | undefined> {

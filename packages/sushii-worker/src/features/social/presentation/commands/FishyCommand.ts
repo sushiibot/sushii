@@ -46,7 +46,8 @@ export class FishyCommand extends SlashCommandHandler {
       : createFishySuccessMessage(
           result,
           target.id,
-          await this.artwork.icon(result.collectibleId),
+          (await this.artwork.url(result.collectibleId)) ??
+            (await this.artwork.icon(result.collectibleId)),
         );
     await interaction.editReply({
       components: message.components,

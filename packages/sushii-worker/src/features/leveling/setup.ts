@@ -78,7 +78,11 @@ export function createLevelingServices({
 
   return {
     collectionRepository: new DrizzleFishyCollectionRepository(db),
-    collectionArtwork: new CollectionArtwork(env.ASSET_DIR),
+    collectionArtwork: new CollectionArtwork(
+      env.ASSET_DIR,
+      env.ASSET_PUBLIC_BASE_URL,
+      env.ASSET_REVISION,
+    ),
     userProfileRepository,
     userLevelRepository,
     levelRoleRepository,

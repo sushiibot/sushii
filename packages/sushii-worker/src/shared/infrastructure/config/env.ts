@@ -17,6 +17,11 @@ const envSchema = z.object({
 
   // System configuration
   ASSET_DIR: z.string().min(1).optional(),
+  ASSET_PUBLIC_BASE_URL: z.url().optional(),
+  ASSET_REVISION: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/)
+    .optional(),
   LOG_LEVEL: z.string().optional().default("info"),
 
   // Core Discord configuration

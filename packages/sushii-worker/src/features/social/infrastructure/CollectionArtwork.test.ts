@@ -1,4 +1,8 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import sharp from "sharp";
 
 import { COLLECTIBLES } from "../domain/collection/Catalog";
@@ -45,4 +49,45 @@ test("discovered and undiscovered cells choose different prepared assets", async
   );
   const unseen = await artwork.grid(COLLECTIBLES.slice(0, 1), new Map());
   expect(seen.equals(unseen)).toBe(false);
+});
+
+test("hosted URLs use pinned revision and verified content hashes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "collection-hosting-"));
+  try {
+    await mkdir(join(root, "collection"));
+    const files: Record<string, string> = {};
+    for (const item of COLLECTIBLES)
+      for (const suffix of ["", "_silhouette"]) {
+        const bytes = Buffer.from(item.id + suffix);
+        const name = `collection/${item.id}${suffix}.png`;
+        files[name] = createHash("sha256").update(bytes).digest("hex");
+        await writeFile(join(root, name), bytes);
+      }
+    await writeFile(
+      join(root, "manifest.json"),
+      JSON.stringify({ schemaVersion: 1, recipeVersion: 1, files }),
+    );
+    const revision = "a".repeat(40);
+    const artwork = new CollectionArtwork(
+      root,
+      "https://assets.example.test",
+      revision,
+    );
+    const id = COLLECTIBLES[0].id;
+    expect(await artwork.url(id)).toBe(
+      `https://assets.example.test/${revision}/${files[`collection/${id}.png`]}.png`,
+    );
+    expect(await artwork.url(id, true)).toBe(
+      `https://assets.example.test/${revision}/${files[`collection/${id}_silhouette.png`]}.png`,
+    );
+    expect(await new CollectionArtwork(root).url(id)).toBeUndefined();
+    expect(
+      () => new CollectionArtwork(root, "http://insecure.test", revision),
+    ).toThrow();
+    expect(
+      () => new CollectionArtwork(root, "https://assets.example.test", "main"),
+    ).toThrow();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

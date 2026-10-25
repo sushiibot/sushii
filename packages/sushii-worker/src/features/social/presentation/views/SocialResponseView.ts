@@ -59,7 +59,7 @@ function formatStreak(
 export function createFishySuccessMessage(
   result: FishyResult,
   targetUserId: string,
-  artwork?: Buffer,
+  artwork?: Buffer | string,
 ): InteractionReplyOptions {
   const item = getCollectible(result.collectibleId);
   const count = result.caughtAmount;
@@ -85,7 +85,11 @@ export function createFishySuccessMessage(
       new SectionBuilder()
         .addTextDisplayComponents(text)
         .setThumbnailAccessory((thumbnail) =>
-          thumbnail.setURL("attachment://catch.png").setDescription(item.name),
+          thumbnail
+            .setURL(
+              typeof artwork === "string" ? artwork : "attachment://catch.png",
+            )
+            .setDescription(item.name),
         ),
     );
   else container.addTextDisplayComponents(text);
@@ -101,9 +105,10 @@ export function createFishySuccessMessage(
     components: [container],
     flags: MessageFlags.IsComponentsV2,
     allowedMentions: { parse: [] },
-    files: artwork
-      ? [new AttachmentBuilder(artwork, { name: "catch.png" })]
-      : [],
+    files:
+      artwork && typeof artwork !== "string"
+        ? [new AttachmentBuilder(artwork, { name: "catch.png" })]
+        : [],
   };
 }
 

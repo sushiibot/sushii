@@ -150,16 +150,19 @@ export class UserOverviewSession {
       const text = new TextDisplayBuilder().setContent(
         `**${item.name}**\n${rarity} · ${count ? `Caught ×${count.toLocaleString()}` : "Undiscovered"}`,
       );
-      const icon = await this.deps.artwork.icon(item.id, count === 0);
-      if (icon) {
+      const url = await this.deps.artwork.url(item.id, count === 0);
+      const icon = url
+        ? undefined
+        : await this.deps.artwork.icon(item.id, count === 0);
+      if (url || icon) {
         const name = `${item.id}.png`;
-        files.push(new AttachmentBuilder(icon, { name }));
+        if (icon) files.push(new AttachmentBuilder(icon, { name }));
         container.addSectionComponents(
           new SectionBuilder()
             .addTextDisplayComponents(text)
             .setThumbnailAccessory((thumbnail) =>
               thumbnail
-                .setURL(`attachment://${name}`)
+                .setURL(url ?? `attachment://${name}`)
                 .setDescription(
                   count ? item.name : `Undiscovered ${item.name}`,
                 ),

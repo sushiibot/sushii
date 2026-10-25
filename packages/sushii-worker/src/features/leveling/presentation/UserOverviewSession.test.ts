@@ -8,7 +8,7 @@ import {
   UserOverviewSession,
 } from "./UserOverviewSession";
 
-function fixture() {
+function fixture(hosted = false) {
   const collector = new EventEmitter();
   const edits: unknown[] = [];
   let requester = "";
@@ -28,7 +28,16 @@ function fixture() {
         return [{ collectibleId: "bluegill", catchCount: 2 }];
       },
     },
-    artwork: { icon: async () => Buffer.from("synthetic image") },
+    artwork: {
+      url: async (id: string, silhouette: boolean) =>
+        hosted
+          ? `https://assets.example.test/${id}${silhouette ? "-silhouette" : ""}.png`
+          : undefined,
+      icon: async () => {
+        if (hosted) throw new Error("Hosted pages must not upload images");
+        return Buffer.from("synthetic image");
+      },
+    },
     logger: pino({ level: "silent" }),
   } as unknown as UserOverviewDependencies;
   const session = new UserOverviewSession(
@@ -104,4 +113,14 @@ test("set changes reset the page and rapid clicks render in order", async () => 
   await f.session["queue"];
   expect(json(f.edits.at(-1))).toContain("Page 1/");
   expect(f.requester()).toBe("target");
+});
+
+test("hosted collection pages send URLs without uploading files", async () => {
+  const f = fixture(true);
+  const message = await f.session["render"]();
+  expect(message.files).toEqual([]);
+  const payload = json(message);
+  expect(payload).toContain("https://assets.example.test/bluegill.png");
+  expect(payload).toContain("https://assets.example.test/carp-silhouette.png");
+  expect(payload).not.toContain("attachment://");
 });

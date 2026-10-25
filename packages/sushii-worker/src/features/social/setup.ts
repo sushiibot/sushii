@@ -66,7 +66,11 @@ export function setupSocialFeature({
   // Create commands
   const fishyCommand = new FishyCommand(
     fishyService,
-    new CollectionArtwork(env.ASSET_DIR),
+    new CollectionArtwork(
+      env.ASSET_DIR,
+      env.ASSET_PUBLIC_BASE_URL,
+      env.ASSET_REVISION,
+    ),
   );
   const repCommand = new RepCommand(reputationService);
   const repLeaderboardCommand = new RepLeaderboardCommand(
