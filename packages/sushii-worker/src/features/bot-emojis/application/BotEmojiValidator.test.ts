@@ -7,26 +7,22 @@ import { BotEmojiName } from "../domain/BotEmojiName";
 const assetsDirectory = resolve(join(import.meta.dir, "../../../../assets"));
 
 describe("BotEmojiValidator", () => {
-  it("every BotEmojiName has a corresponding file in assets/", async () => {
+  it("bundles only the reviewed free icons; paid icons come from the private mount", async () => {
     const files = await readdir(assetsDirectory);
-    const assetNames = new Set(
-      files
-        .filter((f) => f.endsWith(".png.age") || f.endsWith(".png"))
-        .map((f) => f.replace(/\.png\.age$/, "").replace(/\.png$/, "")),
-    );
-
-    const missing = BotEmojiName.options.filter((name) => !assetNames.has(name));
-    expect(missing).toEqual([]);
+    expect(files.sort()).toEqual([
+      "member_join.png",
+      "member_leave.png",
+      "message_delete.png",
+      "message_edit.png",
+      "shield.png",
+      "sound_off.png",
+    ]);
   });
 
-  it("every file in assets/ has a name in BotEmojiName", async () => {
+  it("every bundled icon has a name in BotEmojiName", async () => {
     const files = await readdir(assetsDirectory);
-    const assetFiles = files.filter(
-      (f) => f.endsWith(".png.age") || f.endsWith(".png"),
-    );
-
-    const orphaned = assetFiles.filter((f) => {
-      const name = f.replace(/\.png\.age$/, "").replace(/\.png$/, "");
+    const orphaned = files.filter((file) => {
+      const name = file.replace(/\.png$/, "");
       return !BotEmojiName.safeParse(name).success;
     });
     expect(orphaned).toEqual([]);
