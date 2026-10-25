@@ -5,7 +5,8 @@ import { z } from "zod";
 
 const exportIndex = z.object({
   schemaVersion: z.literal(1),
-  recipeVersion: z.literal(1),
+  // Recipe 2 fills silhouette seams; both recipes use the same export format.
+  recipeVersion: z.union([z.literal(1), z.literal(2)]),
   files: z.record(
     z.string().regex(/^(emoji|collection|symbol)\/[a-z][a-z0-9_]*\.png$/),
     z.string().regex(/^[0-9a-f]{64}$/),

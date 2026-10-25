@@ -51,43 +51,47 @@ test("discovered and undiscovered cells choose different prepared assets", async
   expect(seen.equals(unseen)).toBe(false);
 });
 
-test("hosted URLs use pinned revision and verified content hashes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "collection-hosting-"));
-  try {
-    await mkdir(join(root, "collection"));
-    const files: Record<string, string> = {};
-    for (const item of COLLECTIBLES)
-      for (const suffix of ["", "_silhouette"]) {
-        const bytes = Buffer.from(item.id + suffix);
-        const name = `collection/${item.id}${suffix}.png`;
-        files[name] = createHash("sha256").update(bytes).digest("hex");
-        await writeFile(join(root, name), bytes);
-      }
-    await writeFile(
-      join(root, "manifest.json"),
-      JSON.stringify({ schemaVersion: 1, recipeVersion: 1, files }),
-    );
-    const revision = "a".repeat(40);
-    const artwork = new CollectionArtwork(
-      root,
-      "https://assets.example.test",
-      revision,
-    );
-    const id = COLLECTIBLES[0].id;
-    expect(await artwork.url(id)).toBe(
-      `https://assets.example.test/${revision}/${files[`collection/${id}.png`]}.png`,
-    );
-    expect(await artwork.url(id, true)).toBe(
-      `https://assets.example.test/${revision}/${files[`collection/${id}_silhouette.png`]}.png`,
-    );
-    expect(await new CollectionArtwork(root).url(id)).toBeUndefined();
-    expect(
-      () => new CollectionArtwork(root, "http://insecure.test", revision),
-    ).toThrow();
-    expect(
-      () => new CollectionArtwork(root, "https://assets.example.test", "main"),
-    ).toThrow();
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
+test.each([1, 2])(
+  "recipe %i hosted URLs use pinned revision and verified content hashes",
+  async (recipeVersion) => {
+    const root = await mkdtemp(join(tmpdir(), "collection-hosting-"));
+    try {
+      await mkdir(join(root, "collection"));
+      const files: Record<string, string> = {};
+      for (const item of COLLECTIBLES)
+        for (const suffix of ["", "_silhouette"]) {
+          const bytes = Buffer.from(item.id + suffix);
+          const name = `collection/${item.id}${suffix}.png`;
+          files[name] = createHash("sha256").update(bytes).digest("hex");
+          await writeFile(join(root, name), bytes);
+        }
+      await writeFile(
+        join(root, "manifest.json"),
+        JSON.stringify({ schemaVersion: 1, recipeVersion, files }),
+      );
+      const revision = "a".repeat(40);
+      const artwork = new CollectionArtwork(
+        root,
+        "https://assets.example.test",
+        revision,
+      );
+      const id = COLLECTIBLES[0].id;
+      expect(await artwork.url(id)).toBe(
+        `https://assets.example.test/${revision}/${files[`collection/${id}.png`]}.png`,
+      );
+      expect(await artwork.url(id, true)).toBe(
+        `https://assets.example.test/${revision}/${files[`collection/${id}_silhouette.png`]}.png`,
+      );
+      expect(await new CollectionArtwork(root).url(id)).toBeUndefined();
+      expect(
+        () => new CollectionArtwork(root, "http://insecure.test", revision),
+      ).toThrow();
+      expect(
+        () =>
+          new CollectionArtwork(root, "https://assets.example.test", "main"),
+      ).toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
