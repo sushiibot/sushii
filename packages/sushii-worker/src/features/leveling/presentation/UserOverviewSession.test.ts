@@ -67,7 +67,15 @@ function fixture(hosted = true, empty = false) {
       customId,
       user: { id: userId },
       values: value ? [value] : [],
-      deferUpdate: mock(() => Promise.resolve()),
+      deferUpdate: () => {
+        throw new Error("Navigation must acknowledge with update");
+      },
+      editReply: () => {
+        throw new Error("Navigation must send one update");
+      },
+      update: mock(async (message: unknown) => {
+        edits.push(message);
+      }),
       isButton: () => value === undefined,
       isStringSelectMenu: () => value !== undefined,
     } as unknown as ButtonInteraction<"cached">;
@@ -75,6 +83,7 @@ function fixture(hosted = true, empty = false) {
     const handler = new UserOverviewComponentHandler(deps);
     expect(handler.customIDMatch(customId)).not.toBe(false);
     await handler.handleInteraction(component);
+    expect(component.update).toHaveBeenCalledTimes(userId === owner ? 1 : 0);
   };
   return {
     session,

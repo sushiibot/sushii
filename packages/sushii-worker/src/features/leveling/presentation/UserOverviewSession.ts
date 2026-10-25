@@ -252,7 +252,6 @@ export class UserOverviewSession {
       });
       return;
     }
-    await interaction.deferUpdate();
     const messageId = interaction.message.id;
     const previous = this.updates.get(messageId) ?? Promise.resolve();
     const update = previous
@@ -267,8 +266,13 @@ export class UserOverviewSession {
         session.collectedOnly = collected === "1";
         if (interaction.isStringSelectMenu() && action === "set") {
           const value = interaction.values[0];
-          if (value !== "all" && !Object.hasOwn(COLLECTION_SETS, value ?? ""))
+          if (value !== "all" && !Object.hasOwn(COLLECTION_SETS, value ?? "")) {
+            await interaction.reply({
+              content: "Run /fishycollection to open a new view.",
+              flags: MessageFlags.Ephemeral,
+            });
             return;
+          }
           session.set = value;
           session.page = 0;
         } else if (interaction.isButton()) {
@@ -291,7 +295,7 @@ export class UserOverviewSession {
               break;
           }
         }
-        await interaction.editReply(await session.render());
+        await interaction.update(await session.render());
       });
     this.updates.set(messageId, update);
     try {
