@@ -36,6 +36,8 @@ ARG ASSET_REVISION
 RUN test "$ASSET_REVISION" = "$(cat /config/packages/sushii-worker/asset-revision.txt)"
 LABEL bot.sushii.asset-revision=$ASSET_REVISION
 ENV ASSET_REVISION=${ASSET_REVISION}
+LABEL bot.sushii.public-assets="true"
+ENV ASSET_PUBLIC_BASE_URL=https://assets.sushii.bot
 
 # Make build info available in the app
 ENV GIT_HASH=${GIT_HASH}
