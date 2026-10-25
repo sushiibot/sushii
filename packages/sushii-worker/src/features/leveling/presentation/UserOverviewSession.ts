@@ -11,6 +11,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 import type {
+  ButtonInteraction,
   ChatInputCommandInteraction,
   InteractionEditReplyOptions,
   Message,
@@ -46,7 +47,9 @@ export class UserOverviewSession {
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly interaction: ChatInputCommandInteraction<"cached">,
+    private readonly interaction:
+      | ChatInputCommandInteraction<"cached">
+      | ButtonInteraction<"cached">,
     private readonly target: User,
     private readonly deps: UserOverviewDependencies,
     initialTab: UserOverviewTab,
@@ -175,8 +178,10 @@ export class UserOverviewSession {
     };
   }
 
-  async start(): Promise<void> {
-    await this.interaction.deferReply();
+  async start(ephemeral = false): Promise<void> {
+    await this.interaction.deferReply(
+      ephemeral ? { flags: MessageFlags.Ephemeral } : {},
+    );
     const message = await this.interaction.editReply(await this.render());
     this.collect(message);
   }

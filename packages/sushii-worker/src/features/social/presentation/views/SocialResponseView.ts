@@ -1,5 +1,8 @@
 import {
+  ActionRowBuilder,
   AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ContainerBuilder,
   MessageFlags,
   SectionBuilder,
@@ -65,7 +68,7 @@ export function createFishySuccessMessage(
   const text = new TextDisplayBuilder().setContent(
     `### ${result.firstDiscovery ? "New discovery: " : "You caught "}${item.name}\n` +
       `**${item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}** · ${CONDITION_LABELS[result.condition]} · ${item.habitat.replaceAll("_", " ")}\n` +
-      `${result.firstDiscovery ? "Added to your collection. Browse it with `/fishycollection`." : `You have caught this ${result.catchCount.toLocaleString()} times.`}\n\n` +
+      `${result.firstDiscovery ? "" : `You have caught this ${result.catchCount.toLocaleString()} times.\n`}\n` +
       `<@${targetUserId}> received **${count} ${fishyWord}** (${result.oldAmount} → ${result.newAmount}).\n` +
       formatStreak(
         result.streak,
@@ -86,6 +89,14 @@ export function createFishySuccessMessage(
         ),
     );
   else container.addTextDisplayComponents(text);
+  container.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("fishycollection/open")
+        .setLabel("Open collection")
+        .setStyle(ButtonStyle.Secondary),
+    ),
+  );
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,

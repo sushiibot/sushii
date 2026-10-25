@@ -22,6 +22,7 @@ import { UserLevelRepository } from "./infrastructure/UserLevelRepository";
 import { UserProfileRepository } from "./infrastructure/UserProfileRepository";
 import { XpBlockRepositoryImpl } from "./infrastructure/XpBlockRepositoryImpl";
 import { GlobalLeaderboardRefreshTask } from "./infrastructure/tasks/GlobalLeaderboardRefreshTask";
+import { OpenFishyCollectionButtonHandler } from "./presentation/OpenFishyCollectionButtonHandler";
 import { FishyCollectionCommand } from "./presentation/commands/FishyCollectionCommand";
 import GlobalLeaderboardCommand from "./presentation/commands/GlobalLeaderboardCommand";
 import LeaderboardCommand from "./presentation/commands/LeaderboardCommand";
@@ -128,6 +129,7 @@ export function createLevelingCommands(
 
   return {
     commands,
+    buttonHandlers: [new OpenFishyCollectionButtonHandler(overview)],
     autocompletes: [],
   };
 }
@@ -203,7 +205,7 @@ export function setupLevelingFeature({
     commands: commands.commands,
     autocompletes: commands.autocompletes,
     contextMenuHandlers: [],
-    buttonHandlers: [],
+    buttonHandlers: commands.buttonHandlers,
     eventHandlers: events.eventHandlers,
     tasks,
   };
