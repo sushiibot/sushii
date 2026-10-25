@@ -9,6 +9,8 @@ const MODERATOR_PERMISSIONS = [
   PermissionFlagsBits.ManageGuild,
   PermissionFlagsBits.ManageMessages,
   PermissionFlagsBits.ModerateMembers,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.KickMembers,
 ];
 
 /** Owner and staff are never screened. Roles come from the event payload; their permissions from this cluster's guild cache. */

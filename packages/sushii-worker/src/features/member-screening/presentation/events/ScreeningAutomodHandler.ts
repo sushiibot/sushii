@@ -13,6 +13,7 @@ import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
 import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
 import { isScreeningExempt } from "./screeningExemption";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -38,14 +39,16 @@ async function fetchMember(
 /** One event fires per rule action, so only the block is recorded: a block+alert rule would otherwise count twice. */
 export class ScreeningAutomodHandler extends EventHandler<Events.AutoModerationActionExecution> {
   readonly eventType = Events.AutoModerationActionExecution;
+  private readonly settings: ScreeningSettingsLookup;
 
   constructor(
     private readonly service: MemberScreeningService,
-    private readonly guildRepo: ScreeningGuildRepository,
+    guildRepo: ScreeningGuildRepository,
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
   ) {
     super();
+    this.settings = new ScreeningSettingsLookup(guildRepo, logger, now);
   }
 
   async handle(execution: AutoModerationActionExecution): Promise<void> {
@@ -54,7 +57,7 @@ export class ScreeningAutomodHandler extends EventHandler<Events.AutoModerationA
     }
 
     const { guild } = execution;
-    const settings = await this.guildRepo.findByGuildId(guild.id);
+    const settings = await this.settings.find(guild.id);
     if (!settings) {
       return;
     }
