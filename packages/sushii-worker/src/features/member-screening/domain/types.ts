@@ -143,6 +143,9 @@ export const SCREENING_DEFAULTS = {
 
 export const VERDICT_RETENTION_DAYS = 90;
 
+/** How far back a mod action marks a member's flags actioned or decides a miss. */
+export const ACTION_LOOKBACK_DAYS = 7;
+
 export interface AutomodSummary {
   count: number;
   rules: string[];
