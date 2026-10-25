@@ -196,9 +196,11 @@ describe("DrizzleScreeningVerdictRepository", () => {
     );
   });
 
-  test("hasCheckSince ignores automod and miss rows; hasMissSince finds misses", async () => {
+  test("hasCheckSince ignores automod, miss and errored rows; hasMissSince finds misses", async () => {
     await repo.insert(verdict({ kind: "automod", createdAt: minutesAgo(5) }));
     await repo.insert(verdict({ kind: "miss", createdAt: minutesAgo(5) }));
+
+    await repo.insert(verdict({ error: "timeout", createdAt: minutesAgo(5) }));
 
     expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(60))).toBe(false);
     expect(await repo.hasMissSince(GUILD, USER, minutesAgo(60))).toBe(true);

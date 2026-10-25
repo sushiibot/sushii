@@ -271,7 +271,7 @@ export class DrizzleScreeningVerdictRepository
     userId: string,
     since: Date,
   ): Promise<boolean> {
-    return this.existsSince(guildId, userId, since, [...CHECK_KINDS]);
+    return this.existsSince(guildId, userId, since, [...CHECK_KINDS], true);
   }
 
   async hasMissSince(
@@ -287,6 +287,7 @@ export class DrizzleScreeningVerdictRepository
     userId: string,
     since: Date,
     kinds: VerdictKind[],
+    succeededOnly = false,
   ): Promise<boolean> {
     const rows = await this.db
       .select({ id: verdicts.id })
@@ -297,6 +298,7 @@ export class DrizzleScreeningVerdictRepository
           eq(verdicts.userId, BigInt(userId)),
           gte(verdicts.createdAt, since),
           inArray(verdicts.kind, kinds),
+          succeededOnly ? isNull(verdicts.error) : undefined,
         ),
       )
       .limit(1);
