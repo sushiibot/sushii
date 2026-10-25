@@ -22,6 +22,7 @@ import type {
   NewScreeningVerdict,
   ScreeningGuildStats,
   ScreeningVerdict,
+  VerdictKind,
 } from "../domain/types";
 
 type VerdictRow = typeof verdicts.$inferSelect;
@@ -265,10 +266,27 @@ export class DrizzleScreeningVerdictRepository
     return rows.length > 0;
   }
 
-  async hasVerdictSince(
+  async hasCheckSince(
     guildId: string,
     userId: string,
     since: Date,
+  ): Promise<boolean> {
+    return this.existsSince(guildId, userId, since, [...CHECK_KINDS]);
+  }
+
+  async hasMissSince(
+    guildId: string,
+    userId: string,
+    since: Date,
+  ): Promise<boolean> {
+    return this.existsSince(guildId, userId, since, ["miss"]);
+  }
+
+  private async existsSince(
+    guildId: string,
+    userId: string,
+    since: Date,
+    kinds: VerdictKind[],
   ): Promise<boolean> {
     const rows = await this.db
       .select({ id: verdicts.id })
@@ -278,6 +296,7 @@ export class DrizzleScreeningVerdictRepository
           eq(verdicts.guildId, BigInt(guildId)),
           eq(verdicts.userId, BigInt(userId)),
           gte(verdicts.createdAt, since),
+          inArray(verdicts.kind, kinds),
         ),
       )
       .limit(1);

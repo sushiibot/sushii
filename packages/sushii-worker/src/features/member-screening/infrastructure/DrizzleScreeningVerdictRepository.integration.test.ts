@@ -183,15 +183,27 @@ describe("DrizzleScreeningVerdictRepository", () => {
     ).toEqual([first.id, second.id]);
   });
 
-  test("hasFlagSince and hasVerdictSince", async () => {
+  test("hasFlagSince and hasCheckSince", async () => {
     await repo.insert(verdict({ flagged: false, createdAt: minutesAgo(5) }));
     await repo.insert(verdict({ flagged: true, createdAt: minutesAgo(120) }));
 
     expect(await repo.hasFlagSince(GUILD, USER, minutesAgo(60))).toBe(false);
     expect(await repo.hasFlagSince(GUILD, USER, minutesAgo(180))).toBe(true);
-    expect(await repo.hasVerdictSince(GUILD, USER, minutesAgo(60))).toBe(true);
-    expect(await repo.hasVerdictSince(GUILD, USER, minutesAgo(1))).toBe(false);
-    expect(await repo.hasVerdictSince(OTHER_GUILD, USER, minutesAgo(180))).toBe(
+    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(60))).toBe(true);
+    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(1))).toBe(false);
+    expect(await repo.hasCheckSince(OTHER_GUILD, USER, minutesAgo(180))).toBe(
+      false,
+    );
+  });
+
+  test("hasCheckSince ignores automod and miss rows; hasMissSince finds misses", async () => {
+    await repo.insert(verdict({ kind: "automod", createdAt: minutesAgo(5) }));
+    await repo.insert(verdict({ kind: "miss", createdAt: minutesAgo(5) }));
+
+    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(60))).toBe(false);
+    expect(await repo.hasMissSince(GUILD, USER, minutesAgo(60))).toBe(true);
+    expect(await repo.hasMissSince(GUILD, USER, minutesAgo(1))).toBe(false);
+    expect(await repo.hasMissSince(OTHER_GUILD, USER, minutesAgo(60))).toBe(
       false,
     );
   });

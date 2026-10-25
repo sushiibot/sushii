@@ -37,12 +37,10 @@ export interface ScreeningVerdictRepository {
     since: Date,
   ): Promise<ScreeningVerdict[]>;
   hasFlagSince(guildId: string, userId: string, since: Date): Promise<boolean>;
-  /** Any verdict of any kind for the user in the guild created at or after `since`. Used to tell a screened-but-missed member from one never screened. */
-  hasVerdictSince(
-    guildId: string,
-    userId: string,
-    since: Date,
-  ): Promise<boolean>;
+  /** A text, pfp or image check for the user created at or after `since`: tells a screened-but-missed member from one never screened. */
+  hasCheckSince(guildId: string, userId: string, since: Date): Promise<boolean>;
+  /** A `miss` row for the user created at or after `since`, so repeated actions record one miss. */
+  hasMissSince(guildId: string, userId: string, since: Date): Promise<boolean>;
   automodSummary(
     guildId: string,
     userId: string,
