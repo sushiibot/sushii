@@ -215,8 +215,13 @@ export class UserOverviewSession {
   }
 
   async start(): Promise<void> {
-    await this.interaction.deferReply();
-    await this.interaction.editReply(await this.render());
+    const message = await this.render();
+    await this.interaction.reply({
+      components: message.components,
+      files: message.files,
+      allowedMentions: message.allowedMentions,
+      flags: MessageFlags.IsComponentsV2,
+    });
   }
 
   // Every control carries its view state so it works after a restart without

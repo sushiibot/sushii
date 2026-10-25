@@ -18,8 +18,12 @@ const target = { id: "222222222222222222", username: "Target" } as User;
 const json = (value: unknown) => JSON.stringify(value);
 function fixture(hosted = true, empty = false) {
   const edits: unknown[] = [];
-  const deferReply = mock(() => Promise.resolve());
-  const reply = mock((_message: unknown) => Promise.resolve());
+  const deferReply = mock(() => {
+    throw new Error("Openers must reply directly");
+  });
+  const reply = mock(async (message: { components?: unknown }) => {
+    if (message.components) edits.push(message);
+  });
   const getCollection = mock(async (_id: string) =>
     empty ? [] : [{ collectibleId: "bluegill", catchCount: 2 }],
   );
@@ -31,8 +35,8 @@ function fixture(hosted = true, empty = false) {
     inCachedGuild: () => true,
     client: { users: { fetch: async () => target } },
     message: { interactionMetadata: { user: target } },
-    editReply: async (message: unknown) => {
-      edits.push(message);
+    editReply: () => {
+      throw new Error("Openers must send one reply");
     },
   } as unknown as ChatInputCommandInteraction<"cached">;
   const deps = {
@@ -102,7 +106,8 @@ test("Open collection creates a public reply and navigation works in fresh handl
   await new OpenFishyCollectionButtonHandler(f.deps).handleInteraction(
     f.interaction as unknown as ButtonInteraction,
   );
-  expect(f.deferReply).toHaveBeenCalledWith();
+  expect(f.deferReply).not.toHaveBeenCalled();
+  expect(f.reply).toHaveBeenCalledTimes(1);
   expect(json(f.edits.at(-1))).toContain("Page 1/8");
   await f.click("next");
   expect(json(f.edits.at(-1))).toContain("Page 2/8");

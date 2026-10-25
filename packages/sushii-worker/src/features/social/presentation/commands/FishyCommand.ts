@@ -33,7 +33,6 @@ export class FishyCommand extends SlashCommandHandler {
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
     const target = interaction.options.getUser("user", true);
 
-    await interaction.deferReply();
     // Verify the configured pack before awarding a catch.
     await this.artwork.load();
     const result = await this.fishyService.fishyForUser(
@@ -49,7 +48,7 @@ export class FishyCommand extends SlashCommandHandler {
           (await this.artwork.url(result.collectibleId)) ??
             (await this.artwork.icon(result.collectibleId)),
         );
-    await interaction.editReply({
+    await interaction.reply({
       components: message.components,
       files: message.files,
       allowedMentions: message.allowedMentions,
