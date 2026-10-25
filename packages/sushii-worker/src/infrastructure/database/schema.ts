@@ -5,6 +5,7 @@ import {
   bigint,
   boolean,
   check,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -20,6 +21,16 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+
+import { IGNORE_REASONS } from "@/features/member-screening/domain/types";
+import type {
+  IgnoreReason,
+  JudgedImage,
+  JudgedText,
+  ScreeningRuleId,
+  VerdictKind,
+  VerdictOutcome,
+} from "@/features/member-screening/domain/types";
 
 export const appPublic = pgSchema("app_public");
 export const appHidden = pgSchema("app_hidden");
@@ -185,6 +196,16 @@ export const messagesInAppPublic = appPublic.table(
     index("messages_created_idx").using(
       "btree",
       table.created.asc().nullsLast().op("timestamp_ops"),
+    ),
+    index("messages_guild_id_channel_id_created_idx").on(
+      table.guildId,
+      table.channelId,
+      table.created,
+    ),
+    index("messages_guild_id_author_id_created_idx").on(
+      table.guildId,
+      table.authorId,
+      table.created,
     ),
   ],
 );
@@ -1386,5 +1407,92 @@ export const permissionUsageCoverageInAppPublic = appPublic.table(
       to: ["sushii_admin"],
       using: sql`true`,
     }),
+  ],
+);
+
+export const screeningGuildsInAppPublic = appPublic.table("screening_guilds", {
+  guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+  logChannelId: bigint("log_channel_id", { mode: "bigint" }),
+  maxMessages: integer("max_messages").notNull(),
+  windowHours: integer("window_hours").notNull(),
+  reviewThreshold: doublePrecision("review_threshold").notNull(),
+  rules: text("rules").array().$type<ScreeningRuleId[]>(),
+  checkAvatars: boolean("check_avatars").notNull(),
+  dailyCheckCap: integer("daily_check_cap").notNull(),
+  enabledBy: bigint("enabled_by", { mode: "bigint" }).notNull(),
+  enabledAt: timestamp("enabled_at", {
+    mode: "date",
+    withTimezone: true,
+  }).notNull(),
+});
+
+export const screeningVerdictsInAppPublic = appPublic.table(
+  "screening_verdicts",
+  {
+    id: serial().primaryKey().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    messageId: bigint("message_id", { mode: "bigint" }).notNull(),
+    kind: text("kind").$type<VerdictKind>().notNull(),
+    scores: jsonb("scores").$type<Partial<Record<ScreeningRuleId, number>>>(),
+    categories: jsonb("categories").$type<string[]>(),
+    topRule: text("top_rule").$type<ScreeningRuleId>(),
+    flagged: boolean("flagged").default(false).notNull(),
+    avatarHash: text("avatar_hash"),
+    imageKey: text("image_key"),
+    sourceUrl: text("source_url"),
+    joinedAt: timestamp("joined_at", { mode: "date", withTimezone: true }),
+    ordinal: integer("ordinal"),
+    model: text("model"),
+    cost: doublePrecision("cost"),
+    judged: jsonb("judged").$type<JudgedText | JudgedImage>(),
+    error: text("error"),
+    postChannelId: bigint("post_channel_id", { mode: "bigint" }),
+    postMessageId: bigint("post_message_id", { mode: "bigint" }),
+    outcome: text("outcome").$type<VerdictOutcome>(),
+    outcomeBy: bigint("outcome_by", { mode: "bigint" }),
+    outcomeAction: text("outcome_action"),
+    ignoreReason: text("ignore_reason").$type<IgnoreReason>(),
+    outcomeAt: timestamp("outcome_at", { mode: "date", withTimezone: true }),
+    messageDeleted: boolean("message_deleted").default(false).notNull(),
+    createdAt: timestamp("created_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    check(
+      "screening_verdicts_kind_check",
+      sql`${table.kind} IN ('text', 'pfp', 'image', 'automod', 'miss')`,
+    ),
+    check(
+      "screening_verdicts_outcome_check",
+      sql`${table.outcome} IN ('ignored', 'actioned')`,
+    ),
+    check(
+      "screening_verdicts_ignore_reason_check",
+      sql`${table.ignoreReason} IN (${sql.raw(IGNORE_REASONS.map((r) => `'${r}'`).join(", "))})`,
+    ),
+    index("screening_verdicts_created_at_idx").on(table.createdAt),
+    index("screening_verdicts_guild_id_created_at_idx").on(
+      table.guildId,
+      table.createdAt,
+    ),
+    index("screening_verdicts_guild_id_user_id_created_at_idx").on(
+      table.guildId,
+      table.userId,
+      table.createdAt,
+    ),
+    index("screening_verdicts_user_id_avatar_hash_idx").on(
+      table.userId,
+      table.avatarHash,
+    ),
+    index("screening_verdicts_guild_id_image_key_idx").on(
+      table.guildId,
+      table.imageKey,
+    ),
+    index("screening_verdicts_message_id_idx").on(table.messageId),
+    index("screening_verdicts_post_message_id_idx").on(table.postMessageId),
   ],
 );
