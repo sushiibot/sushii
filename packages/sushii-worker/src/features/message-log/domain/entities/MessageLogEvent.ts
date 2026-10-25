@@ -41,6 +41,7 @@ export class MessageLogEvent {
     const messageData: MessageData = {
       id: payload.id,
       channel_id: payload.channel_id,
+      type: payload.type,
       author: {
         id: payload.author.id,
         username: payload.author.username,

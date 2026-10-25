@@ -1,5 +1,10 @@
-import type { ButtonInteraction } from "discord.js";
-import { MessageFlags, PermissionFlagsBits } from "discord.js";
+import type { ButtonInteraction, Guild, GuildMember } from "discord.js";
+import {
+  DiscordAPIError,
+  MessageFlags,
+  PermissionFlagsBits,
+  RESTJSONErrorCodes,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
@@ -58,6 +63,23 @@ const ACTIONS: Record<
     outcomeAction: "timeout removed",
   },
 };
+
+async function fetchMember(
+  guild: Guild,
+  userId: string,
+): Promise<GuildMember | null> {
+  try {
+    return await guild.members.fetch(userId);
+  } catch (err) {
+    if (
+      err instanceof DiscordAPIError &&
+      err.code === RESTJSONErrorCodes.UnknownMember
+    ) {
+      return null;
+    }
+    throw err;
+  }
+}
 
 function isScreeningActionType(value: string): value is ScreeningActionType {
   return Object.hasOwn(ACTIONS, value);
@@ -220,18 +242,20 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
     }
 
     // A member who left can still be banned or unbanned.
-    let member;
-    try {
-      member = await interaction.guild.members.fetch(verdict.userId);
-    } catch {
-      member = null;
-    }
+    const member = await fetchMember(interaction.guild, verdict.userId);
 
     let targetUser;
     try {
       targetUser =
         member?.user ?? (await interaction.client.users.fetch(verdict.userId));
-    } catch {
+    } catch (err) {
+      if (
+        !(err instanceof DiscordAPIError) ||
+        err.code !== RESTJSONErrorCodes.UnknownUser
+      ) {
+        throw err;
+      }
+
       await modalSubmission.followUp(
         buildModerationErrorReply("Could not find the target user."),
       );

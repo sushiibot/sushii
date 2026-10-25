@@ -430,6 +430,35 @@ describe("buildScreeningPost", () => {
     );
   });
 
+  test("quoted message text is markdown-escaped on one line", () => {
+    const json = render(
+      verdict({
+        judged: {
+          context: [{ author: "mochi", text: "**free** [nitro](https://x.y)" }],
+          target: [
+            {
+              author: "a",
+              text: "# CLAIM NOW\n[Steam gift](https://scam.example) ||now||",
+            },
+          ],
+        },
+      }),
+    );
+    expect(kids(json)[2]?.content).toBe(
+      "-# mochi: \\*\\*free\\*\\* \\[nitro](https://x.y)\n> **a:** # CLAIM NOW ⏎ \\[Steam gift](https://scam.example) \\|\\|now\\|\\|",
+    );
+  });
+
+  test("a deleted message disables the jump button", () => {
+    const json = render(verdict({ messageDeleted: true }));
+    expect(kids(lastRow(json)).at(-1)).toEqual({
+      ...JUMP_BUTTON,
+      disabled: true,
+    });
+
+    expect(kids(lastRow(render(verdict()))).at(-1)).toEqual(JUMP_BUTTON);
+  });
+
   test("long lines are truncated without splitting surrogate pairs", () => {
     const json = render(
       verdict({

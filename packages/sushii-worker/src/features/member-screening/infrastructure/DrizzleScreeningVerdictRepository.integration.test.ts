@@ -183,26 +183,55 @@ describe("DrizzleScreeningVerdictRepository", () => {
     ).toEqual([first.id, second.id]);
   });
 
-  test("hasFlagSince and hasCheckSince", async () => {
-    await repo.insert(verdict({ flagged: false, createdAt: minutesAgo(5) }));
+  test("hasFlagSince and findLatestCheckSince", async () => {
+    await repo.insert(
+      verdict({
+        flagged: false,
+        joinedAt: minutesAgo(600),
+        createdAt: minutesAgo(30),
+      }),
+    );
+    await repo.insert(
+      verdict({
+        kind: "pfp",
+        flagged: false,
+        joinedAt: minutesAgo(500),
+        createdAt: minutesAgo(5),
+      }),
+    );
     await repo.insert(verdict({ flagged: true, createdAt: minutesAgo(120) }));
 
     expect(await repo.hasFlagSince(GUILD, USER, minutesAgo(60))).toBe(false);
     expect(await repo.hasFlagSince(GUILD, USER, minutesAgo(180))).toBe(true);
-    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(60))).toBe(true);
-    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(1))).toBe(false);
-    expect(await repo.hasCheckSince(OTHER_GUILD, USER, minutesAgo(180))).toBe(
-      false,
-    );
+    expect(
+      await repo.findLatestCheckSince(GUILD, USER, minutesAgo(60)),
+    ).toEqual({ joinedAt: minutesAgo(500) });
+    expect(
+      await repo.findLatestCheckSince(GUILD, USER, minutesAgo(1)),
+    ).toBeNull();
+    expect(
+      await repo.findLatestCheckSince(OTHER_GUILD, USER, minutesAgo(180)),
+    ).toBeNull();
   });
 
-  test("hasCheckSince ignores automod, miss and errored rows; hasMissSince finds misses", async () => {
+  test("findLatestCheckSince ignores automod, miss and errored rows; hasMissSince finds misses", async () => {
+    await repo.insert(verdict({ createdAt: minutesAgo(50) }));
     await repo.insert(verdict({ kind: "automod", createdAt: minutesAgo(5) }));
     await repo.insert(verdict({ kind: "miss", createdAt: minutesAgo(5) }));
+    await repo.insert(
+      verdict({
+        error: "timeout",
+        joinedAt: minutesAgo(10),
+        createdAt: minutesAgo(5),
+      }),
+    );
 
-    await repo.insert(verdict({ error: "timeout", createdAt: minutesAgo(5) }));
-
-    expect(await repo.hasCheckSince(GUILD, USER, minutesAgo(60))).toBe(false);
+    expect(
+      await repo.findLatestCheckSince(GUILD, USER, minutesAgo(60)),
+    ).toEqual({ joinedAt: null });
+    expect(
+      await repo.findLatestCheckSince(GUILD, USER, minutesAgo(40)),
+    ).toBeNull();
     expect(await repo.hasMissSince(GUILD, USER, minutesAgo(60))).toBe(true);
     expect(await repo.hasMissSince(GUILD, USER, minutesAgo(1))).toBe(false);
     expect(await repo.hasMissSince(OTHER_GUILD, USER, minutesAgo(60))).toBe(

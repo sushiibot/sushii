@@ -14,6 +14,10 @@ function toTimestamp(date: Date): string {
   return date.toISOString();
 }
 
+// Default and Reply only, so joins, pins and AutoMod alerts don't count as the member's messages.
+// Rows cached before `type` was stored have none and are treated as Default.
+const isUserMessage = sql`coalesce(${messages.msg}->>'type', '0') in ('0', '19')`;
+
 function fromTimestamp(value: string): Date {
   const iso = value.includes("T") ? value : value.replace(" ", "T");
   return new Date(/(Z|[+-]\d{2}(:?\d{2})?)$/.test(iso) ? iso : `${iso}Z`);
@@ -44,6 +48,7 @@ export class DrizzleScreeningMessageContextRepository
           eq(messages.guildId, BigInt(guildId)),
           eq(messages.channelId, BigInt(channelId)),
           lt(messages.created, toTimestamp(before)),
+          isUserMessage,
         ),
       )
       .orderBy(desc(messages.created))
@@ -73,6 +78,7 @@ export class DrizzleScreeningMessageContextRepository
           eq(messages.authorId, BigInt(authorId)),
           gte(messages.created, toTimestamp(since)),
           lt(messages.created, toTimestamp(before)),
+          isUserMessage,
         ),
       );
 

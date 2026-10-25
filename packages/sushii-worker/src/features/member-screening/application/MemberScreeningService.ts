@@ -98,7 +98,11 @@ function errorMessage(err: unknown): string {
 }
 
 /** Up to TARGET_LINES of the member's messages, plus the CONTEXT_LINES other messages just before the first of them. */
-export function judgedLines(rows: CachedMessage[], userId: string): JudgedText {
+export function judgedLines(
+  allRows: CachedMessage[],
+  userId: string,
+): JudgedText {
+  const rows = allRows.filter((r) => r.content.trim());
   const targetIdx = rows
     .flatMap((r, i) => (r.authorId === userId ? [i] : []))
     .slice(-TARGET_LINES);
@@ -297,7 +301,17 @@ export class MemberScreeningService {
       return;
     }
 
-    if (!(await this.verdictRepo.hasCheckSince(guildId, userId, since))) {
+    const settings = await this.guildRepo.findByGuildId(guildId);
+    if (!settings) {
+      return;
+    }
+    // Only a member still being screened is a miss; one who joined long ago was never going to be checked.
+    const check = await this.verdictRepo.findLatestCheckSince(
+      guildId,
+      userId,
+      since,
+    );
+    if (!check?.joinedAt || !this.inWindow(check.joinedAt, settings, now)) {
       return;
     }
     if (await this.verdictRepo.hasFlagSince(guildId, userId, since)) {

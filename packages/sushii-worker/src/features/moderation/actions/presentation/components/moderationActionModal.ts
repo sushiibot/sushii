@@ -2,6 +2,8 @@ import type { ModalSubmitFields } from "discord.js";
 import {
   ActionRowBuilder,
   ContainerBuilder,
+  DiscordjsErrorCodes,
+  DiscordjsTypeError,
   LabelBuilder,
   MessageFlags,
   ModalBuilder,
@@ -65,9 +67,11 @@ const SOFTBAN_DELETE_OPTIONS = [
   { label: "Previous 7 days", value: "604800" },
 ];
 
+const DEFAULT_TIMEOUT_DURATION = "1h";
+
 const TIMEOUT_DURATION_OPTIONS = [
   { label: "10 minutes", value: "10m" },
-  { label: "1 hour", value: "1h", default: true },
+  { label: "1 hour", value: DEFAULT_TIMEOUT_DURATION, default: true },
   { label: "1 day", value: "1d" },
   { label: "1 week", value: "7d" },
 ];
@@ -172,12 +176,30 @@ export function parseModalDeleteSeconds(fields: ModerationModalFields): number {
   return isNaN(seconds) ? 0 : seconds;
 }
 
+/** The pre-selected default may arrive with no values or no component at all. */
+function selectedDuration(fields: ModerationModalFields): string {
+  let values: readonly string[] | undefined;
+  try {
+    values = fields.getStringSelectValues(DURATION_CUSTOM_ID);
+  } catch (err) {
+    if (
+      err instanceof DiscordjsTypeError &&
+      err.code === DiscordjsErrorCodes.ModalSubmitInteractionFieldNotFound
+    ) {
+      return DEFAULT_TIMEOUT_DURATION;
+    }
+    throw err;
+  }
+
+  return values?.[0] ?? DEFAULT_TIMEOUT_DURATION;
+}
+
 /** Err holds a user-facing message. */
 export function parseModalDuration(
   fields: ModerationModalFields,
 ): Result<Duration, string> {
-  const value = fields.getStringSelectValues(DURATION_CUSTOM_ID)[0];
-  if (!value || !TIMEOUT_DURATION_OPTIONS.some((o) => o.value === value)) {
+  const value = selectedDuration(fields);
+  if (!TIMEOUT_DURATION_OPTIONS.some((o) => o.value === value)) {
     return Err("Pick a timeout duration.");
   }
 

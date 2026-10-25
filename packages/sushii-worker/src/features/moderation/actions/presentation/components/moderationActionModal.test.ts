@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { DiscordjsErrorCodes, DiscordjsTypeError } from "discord.js";
 
 import {
   type ModerationModalFields,
@@ -130,10 +131,44 @@ describe("parseModalDuration", () => {
     expect(result.err).toBe(true);
   });
 
-  test("rejects an empty selection", () => {
+  test("an empty selection falls back to 1h", () => {
     const result = parseModalDuration(fields({}, { duration: [] }));
 
-    expect(result.err).toBe(true);
+    expect(result.unwrap().asSeconds()).toBe(3600);
+  });
+
+  test("a select missing from the submit falls back to 1h", () => {
+    const missing = {
+      getTextInputValue: () => "",
+      getStringSelectValues: (id: string) => {
+        // The constructor is private in the typings only.
+        const FieldError = DiscordjsTypeError as unknown as new (
+          code: string,
+          ...args: unknown[]
+        ) => Error;
+        throw new FieldError(
+          DiscordjsErrorCodes.ModalSubmitInteractionFieldNotFound,
+          id,
+        );
+      },
+    } as unknown as ModerationModalFields;
+
+    expect(parseModalDuration(missing).unwrap().asSeconds()).toBe(3600);
+  });
+
+  test("a select submitted without values falls back to 1h", () => {
+    const noValues = {
+      getTextInputValue: () => "",
+      getStringSelectValues: () => undefined,
+    } as unknown as ModerationModalFields;
+
+    expect(parseModalDuration(noValues).unwrap().asSeconds()).toBe(3600);
+  });
+
+  test("other errors are rethrown", () => {
+    expect(() => parseModalDuration(fields({}, {}))).toThrow(
+      "missing duration",
+    );
   });
 });
 

@@ -38,6 +38,7 @@ export interface MemberScreeningFeatureOptions {
   deploymentService: DeploymentService;
   moderationService: Pick<ModerationService, "executeAction">;
   openRouterApiKey?: string;
+  ownerUserId?: string;
 }
 
 interface MemberScreeningServices {
@@ -66,6 +67,7 @@ export function setupMemberScreeningFeature({
   deploymentService,
   moderationService,
   openRouterApiKey,
+  ownerUserId,
 }: MemberScreeningFeatureOptions): MemberScreeningFeature {
   const guildRepository = new DrizzleScreeningGuildRepository(
     db,
@@ -100,7 +102,12 @@ export function setupMemberScreeningFeature({
   );
 
   const eventHandlers: EventHandlers = [
-    new ScreeningAuditLogHandler(service, guildRepository, client),
+    new ScreeningAuditLogHandler(
+      service,
+      guildRepository,
+      client,
+      logger.child({ component: "ScreeningAuditLogHandler" }),
+    ),
     new ScreeningMessageDeleteHandler(
       service,
       guildRepository,
@@ -138,6 +145,7 @@ export function setupMemberScreeningFeature({
       new MemberScreeningCommand(
         guildRepository,
         verdictRepository,
+        ownerUserId,
         logger.child({ commandHandler: "member-screening" }),
       ),
     ],

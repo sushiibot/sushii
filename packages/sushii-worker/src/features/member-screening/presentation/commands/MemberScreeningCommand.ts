@@ -32,6 +32,8 @@ import { buildScreeningStatus } from "../views/ScreeningStatusView";
 
 const SNOWFLAKE_PATTERN = /^\d{17,19}$/;
 const STATUS_WINDOW_DAYS = 7;
+const WINDOW_HOURS_MAX = 168;
+const MAX_MESSAGES_MAX = 200;
 
 type RulesParseResult =
   | { ok: true; rules: ScreeningRuleId[] | null }
@@ -153,13 +155,15 @@ export class MemberScreeningCommand extends SlashCommandHandler {
           opt
             .setName("max_messages")
             .setDescription("Screen this many messages since join")
-            .setMinValue(1),
+            .setMinValue(1)
+            .setMaxValue(MAX_MESSAGES_MAX),
         )
         .addIntegerOption((opt) =>
           opt
             .setName("window_hours")
             .setDescription("Screen for this many hours since join")
-            .setMinValue(1),
+            .setMinValue(1)
+            .setMaxValue(WINDOW_HOURS_MAX),
         )
         .addNumberOption((opt) =>
           opt
@@ -197,12 +201,22 @@ export class MemberScreeningCommand extends SlashCommandHandler {
   constructor(
     private readonly guildRepo: ScreeningGuildRepository,
     private readonly verdictRepo: ScreeningVerdictRepository,
+    private readonly ownerUserId: string | undefined,
     private readonly logger: Logger,
   ) {
     super();
   }
 
   async handler(interaction: ChatInputCommandInteraction): Promise<void> {
+    // Registered in the home guild, where other admins exist too.
+    if (!this.ownerUserId || interaction.user.id !== this.ownerUserId) {
+      await interaction.reply({
+        content: "Only the bot owner can use this.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     const sub = interaction.options.getSubcommand(true);
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -366,10 +380,31 @@ export class MemberScreeningCommand extends SlashCommandHandler {
       next.rules = parsed.rules;
     }
 
-    next.maxMessages =
-      interaction.options.getInteger("max_messages") ?? next.maxMessages;
-    next.windowHours =
-      interaction.options.getInteger("window_hours") ?? next.windowHours;
+    const maxMessages = interaction.options.getInteger("max_messages");
+    if (
+      maxMessages !== null &&
+      (maxMessages < 1 || maxMessages > MAX_MESSAGES_MAX)
+    ) {
+      await this.reply(
+        interaction,
+        `\`max_messages\` must be between 1 and ${MAX_MESSAGES_MAX}.`,
+      );
+      return;
+    }
+    const windowHours = interaction.options.getInteger("window_hours");
+    if (
+      windowHours !== null &&
+      (windowHours < 1 || windowHours > WINDOW_HOURS_MAX)
+    ) {
+      await this.reply(
+        interaction,
+        `\`window_hours\` must be between 1 and ${WINDOW_HOURS_MAX}.`,
+      );
+      return;
+    }
+
+    next.maxMessages = maxMessages ?? next.maxMessages;
+    next.windowHours = windowHours ?? next.windowHours;
     next.reviewThreshold =
       interaction.options.getNumber("review_threshold") ?? next.reviewThreshold;
     next.checkAvatars =
