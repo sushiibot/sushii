@@ -42,21 +42,6 @@ export interface ModerationSettings {
   automodExemptRoleIds: string[];
 }
 
-export type ToggleableSetting =
-  | "joinMessage"
-  | "leaveMessage"
-  | "modLog"
-  | "memberLog"
-  | "messageLog"
-  | "reactionLog"
-  | "lookupOptIn"
-  | "timeoutCommandDm"
-  | "timeoutNativeDm"
-  | "banDm"
-  | "kickDm"
-  | "automodSpam"
-  | "automodScamImage";
-
 export class GuildConfig {
   constructor(
     public readonly guildId: string,

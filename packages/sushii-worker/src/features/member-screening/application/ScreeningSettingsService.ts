@@ -44,15 +44,14 @@ export class ScreeningSettingsService implements ScreeningSettingsPort {
     return settings ? toState(settings) : null;
   }
 
-  async setEnabled(guildId: string, enabled: boolean): Promise<void> {
-    await this.guildRepo.patch(guildId, { enabled });
-  }
-
   async setLogChannel(
     guildId: string,
     channelId: string | null,
   ): Promise<void> {
-    await this.guildRepo.patch(guildId, { logChannelId: channelId });
+    await this.guildRepo.patch(guildId, {
+      logChannelId: channelId,
+      enabled: channelId !== null,
+    });
   }
 
   async setCheckAvatars(guildId: string, checkAvatars: boolean): Promise<void> {

@@ -12,11 +12,11 @@ a member's history.
 
 ## Setup
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Set mod log channel" @ed520e25 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @b9ef4da2, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @8f995578 */}
 
 Before anything else, point sushii at a private moderation log channel via
-**`/settings` → Logging → Mod Logs**. Once set, every case will be
-posted there automatically.
+**`/settings` → Logging → Mod log**. Click **Edit** and pick a channel. Once
+set, every case will be posted there automatically.
 
 {/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488, packages/sushii-worker/src/features/moderation/audit-logs/application/AuditLogService.ts#AuditLogService.createNewCase @9296d8fa */}
 
@@ -96,11 +96,11 @@ closed, it's noted in the mod log.
 /tempban-list
 ```
 
-{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModerationPageBuilder.ts#addModerationContent @368bfa6d */}
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Ban" @a493814c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Kick" @71fbb3b5 */}
 
 By default, sushii DMs the reason for bans but not for kicks. Change the
-defaults in **`/settings` → Moderation**, or set `dm_reason` to override
-them for a single action. `/tempban-list`
+defaults with the **Ban** and **Kick** rows in **`/settings` → Moderation**,
+or set `dm_reason` to override them for a single action. `/tempban-list`
 shows active temporary bans.
 
 ### Cross-server ban lookup
@@ -120,13 +120,14 @@ actioned elsewhere.
 The command is available to servers that are Discord-discoverable with 1,000+
 members, or that are Discord-partnered or verified.
 
-{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LookupPageBuilder.ts#addLookupContent @1c4b63ba, packages/sushii-worker/src/features/moderation/cases/presentation/views/LookupBanEntryFormatter.ts#formatBanEntry @d711770e */}
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/moderation/cases/presentation/views/LookupBanEntryFormatter.ts#formatBanEntry @d711770e */}
 
 <Callout type="info" title="Sharing is opt-in">
   By default, your server's name and ban reasons are hidden when other servers
-  run `/lookup`. To share them, enable **`/settings` → Lookup → Lookup Data
-  Sharing**. Both servers need to have this enabled before either can see the
-  other's details — if one hasn't, the entry shows as anonymous.
+  run `/lookup`. To share them, go to **`/settings` → Moderation** and click
+  **Turn on** next to **Lookup sharing**. Both servers need to have this turned
+  on before either can see the other's details — if one hasn't, the entry shows
+  as anonymous.
 </Callout>
 
 ### Cleanup

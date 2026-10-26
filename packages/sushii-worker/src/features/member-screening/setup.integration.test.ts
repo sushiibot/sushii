@@ -53,7 +53,6 @@ describe("setupMemberScreeningFeature", () => {
       "member_screening",
       "100000000000000099",
     );
-    await feature.services.settingsPort.setEnabled(guildId, true);
     await feature.services.settingsPort.setLogChannel(
       guildId,
       "300000000000000001",
@@ -108,20 +107,15 @@ describe("setupMemberScreeningFeature", () => {
 
     expect(await shouldCacheForScreening(guildId)).toBe(false);
 
-    await settingsPort.setEnabled(guildId, true);
     await settingsPort.setLogChannel(guildId, "300000000000000001");
     expect(await shouldCacheForScreening(guildId)).toBe(false);
 
-    await settingsPort.setEnabled(guildId, false);
+    await settingsPort.setLogChannel(guildId, null);
     await flagRepository.enable(
       guildId,
       "member_screening",
       "100000000000000099",
     );
-    expect(await shouldCacheForScreening(guildId)).toBe(false);
-
-    await settingsPort.setLogChannel(guildId, null);
-    await settingsPort.setEnabled(guildId, true);
     expect(await shouldCacheForScreening(guildId)).toBe(false);
 
     await settingsPort.setLogChannel(guildId, "300000000000000001");

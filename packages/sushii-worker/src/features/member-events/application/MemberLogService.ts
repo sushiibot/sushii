@@ -152,7 +152,9 @@ export class MemberLogService {
   }
 
   private async removeMemberLogChannel(config: GuildConfig): Promise<void> {
-    const updatedConfig = config.updateLogChannel("member", null);
+    const updatedConfig = config
+      .updateLogChannel("member", null)
+      .setLoggingEnabled("member", false);
     await this.guildConfigRepository.save(updatedConfig);
   }
 }

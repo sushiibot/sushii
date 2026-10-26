@@ -1520,3 +1520,23 @@ export const screeningVerdictsInAppPublic = appPublic.table(
     index("screening_verdicts_post_message_id_idx").on(table.postMessageId),
   ],
 );
+
+export const feedbackInAppPublic = appPublic.table(
+  "feedback",
+  {
+    id: serial().primaryKey().notNull(),
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }),
+    source: text().notNull(),
+    kind: text().notNull(),
+    feature: text(),
+    traceId: text("trace_id"),
+    content: text().notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("feedback_user_id_created_at_idx").on(table.userId, table.createdAt),
+  ],
+);

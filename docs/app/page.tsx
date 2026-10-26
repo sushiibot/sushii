@@ -887,7 +887,7 @@ export default function HomePage() {
                 /settings
               </code>
               , and pick a mod log channel. XP, tags, and reminders work right
-              away; logging and automod stay off until you switch them on.
+              away; logging and automod stay off until you set them up.
             </p>
             <a
               href={DISCORD_INVITE_URL}

@@ -1,10 +1,9 @@
 import type { Logger } from "pino";
 
-import type {
-  GuildConfig,
-  ToggleableSetting,
-} from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+
+import type { GuildSettingsPatch } from "./SettingsPatch";
 
 export class GuildSettingsService {
   constructor(
@@ -16,198 +15,76 @@ export class GuildSettingsService {
     return this.guildConfigRepository.findByGuildId(guildId);
   }
 
-  async updateJoinMessage(
+  async apply(
     guildId: string,
-    message: string,
+    patch: GuildSettingsPatch,
   ): Promise<GuildConfig> {
-    this.logger.info({ guildId, message }, "Updating join message");
+    this.logger.info({ guildId, kind: patch.kind }, "Applying settings patch");
 
     const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateJoinMessage(message);
 
-    return this.guildConfigRepository.save(updatedConfig);
+    return this.guildConfigRepository.save(applyPatch(config, patch));
+  }
+}
+
+// The GuildConfig text updaters store "" as null.
+function textOrClear(text: string | null): string {
+  if (text === null || text.trim() === "") {
+    return "";
   }
 
-  async updateLeaveMessage(
-    guildId: string,
-    message: string,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, message }, "Updating leave message");
+  return text;
+}
 
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateLeaveMessage(message);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateTimeoutDmText(
-    guildId: string,
-    text: string,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, text }, "Updating timeout DM text");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateTimeoutDmText(text);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateWarnDmText(guildId: string, text: string): Promise<GuildConfig> {
-    this.logger.info({ guildId, text }, "Updating warn DM text");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateWarnDmText(text);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateBanDmText(guildId: string, text: string): Promise<GuildConfig> {
-    this.logger.info({ guildId, text }, "Updating ban DM text");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateBanDmText(text);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateKickDmText(guildId: string, text: string): Promise<GuildConfig> {
-    this.logger.info({ guildId, text }, "Updating kick DM text");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateKickDmText(text);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateMessageChannel(
-    guildId: string,
-    channelId: string | null,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, channelId }, "Updating message channel");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateMessageChannel(channelId);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateAutomodAlertsChannel(
-    guildId: string,
-    channelId: string | null,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, channelId }, "Updating automod alerts channel");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.setAutomodAlertsChannel(channelId);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateAutomodExemptRoles(
-    guildId: string,
-    roleIds: string[],
-  ): Promise<GuildConfig> {
-    this.logger.info(
-      { guildId, count: roleIds.length },
-      "Updating automod exempt roles",
-    );
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.setAutomodExemptRoles(roleIds);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async updateLogChannel(
-    guildId: string,
-    type: "mod" | "member" | "message" | "reaction",
-    channelId: string | null,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, type, channelId }, "Updating log channel");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-    const updatedConfig = config.updateLogChannel(type, channelId);
-
-    return this.guildConfigRepository.save(updatedConfig);
-  }
-
-  async toggleSetting(
-    guildId: string,
-    setting: ToggleableSetting,
-  ): Promise<GuildConfig> {
-    this.logger.info({ guildId, setting }, "Toggling setting");
-
-    const config = await this.guildConfigRepository.findByGuildId(guildId);
-
-    let updatedConfig: GuildConfig;
-    switch (setting) {
-      case "joinMessage":
-        updatedConfig = config.setJoinMessageEnabled(
-          !config.messageSettings.joinMessageEnabled,
-        );
-        break;
-      case "leaveMessage":
-        updatedConfig = config.setLeaveMessageEnabled(
-          !config.messageSettings.leaveMessageEnabled,
-        );
-        break;
-      case "modLog":
-        updatedConfig = config.setModLogEnabled(
-          !config.loggingSettings.modLogEnabled,
-        );
-        break;
-      case "memberLog":
-        updatedConfig = config.setMemberLogEnabled(
-          !config.loggingSettings.memberLogEnabled,
-        );
-        break;
-      case "messageLog":
-        updatedConfig = config.setMessageLogEnabled(
-          !config.loggingSettings.messageLogEnabled,
-        );
-        break;
-      case "reactionLog":
-        updatedConfig = config.setReactionLogEnabled(
-          !config.loggingSettings.reactionLogEnabled,
-        );
-        break;
-      case "lookupOptIn":
-        updatedConfig = config.setLookupOptInEnabled(
-          !config.moderationSettings.lookupDetailsOptIn,
-        );
-        break;
-      case "timeoutCommandDm":
-        updatedConfig = config.setTimeoutCommandDmEnabled(
-          !config.moderationSettings.timeoutCommandDmEnabled,
-        );
-        break;
-      case "timeoutNativeDm":
-        updatedConfig = config.setTimeoutNativeDmEnabled(
-          !config.moderationSettings.timeoutNativeDmEnabled,
-        );
-        break;
-      case "banDm":
-        updatedConfig = config.setBanDmEnabled(
-          !config.moderationSettings.banDmEnabled,
-        );
-        break;
-      case "kickDm":
-        updatedConfig = config.setKickDmEnabled(
-          !config.moderationSettings.kickDmEnabled,
-        );
-        break;
-      case "automodSpam":
-        updatedConfig = config.setAutomodSpamEnabled(
-          !config.moderationSettings.automodSpamEnabled,
-        );
-        break;
-      case "automodScamImage":
-        updatedConfig = config.setAutomodScamImageEnabled(
-          !config.moderationSettings.automodScamImageEnabled,
-        );
-        break;
-    }
-
-    return this.guildConfigRepository.save(updatedConfig);
+function applyPatch(
+  config: GuildConfig,
+  patch: GuildSettingsPatch,
+): GuildConfig {
+  switch (patch.kind) {
+    case "logChannel":
+      return config
+        .updateLogChannel(patch.log, patch.channelId)
+        .setLoggingEnabled(patch.log, patch.channelId !== null);
+    case "timeoutDm":
+      return config
+        .setTimeoutCommandDmEnabled(patch.commandEnabled)
+        .setTimeoutNativeDmEnabled(patch.nativeEnabled)
+        .updateTimeoutDmText(textOrClear(patch.text));
+    case "warnDm":
+      return config.updateWarnDmText(textOrClear(patch.text));
+    case "banDm":
+      return config
+        .setBanDmEnabled(patch.enabled)
+        .updateBanDmText(textOrClear(patch.text));
+    case "kickDm":
+      return config
+        .setKickDmEnabled(patch.enabled)
+        .updateKickDmText(textOrClear(patch.text));
+    case "welcomeChannel":
+      return config.updateMessageChannel(patch.channelId);
+    case "joinMessage":
+      return config
+        .setJoinMessageEnabled(patch.enabled)
+        .updateJoinMessage(textOrClear(patch.text));
+    case "leaveMessage":
+      return config
+        .setLeaveMessageEnabled(patch.enabled)
+        .updateLeaveMessage(textOrClear(patch.text));
+    case "automodExemptRoles":
+      // The guild ID is @everyone, which would exempt every member.
+      return config.setAutomodExemptRoles(
+        patch.roleIds.filter((id) => id !== config.guildId),
+      );
+    case "automodAlertsChannel":
+      return config.setAutomodAlertsChannel(patch.channelId);
+    case "flag":
+      switch (patch.setting) {
+        case "lookupOptIn":
+          return config.setLookupOptInEnabled(patch.enabled);
+        case "automodSpam":
+          return config.setAutomodSpamEnabled(patch.enabled);
+        case "automodScamImage":
+          return config.setAutomodScamImageEnabled(patch.enabled);
+      }
   }
 }

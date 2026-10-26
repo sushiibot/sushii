@@ -216,44 +216,38 @@ Components maintain state through:
 3. **Rebuild on change**: Recreate container with new state
 
 ### Disabled State
-```typescript
-// Disable all components when collector ends
-const disabledMessage = createSettingsMessage({
-  ...options,
-  disabled: true  // Propagates to all components
-});
-```
+Rebuild the message with every interactive component disabled when the collector ends. `buildSettingsPanel` takes an `expired` flag and passes it to each button builder.
 
 ## Best Practices
 
-1. **Custom IDs**: Use constants for consistency
+1. **Custom IDs**: Build and parse them in one module so builders and the collector can't drift. See `settingsIds` (`features/guild-settings/presentation/session/settingsIds.ts`).
    ```typescript
-   const SETTINGS_CUSTOM_IDS = {
-     TOGGLE_MOD_LOG: "settings_toggle_mod_log",
-     SET_CHANNEL: "settings_set_channel"
-   };
+   settingsIds.edit("modlog"); // Edit button for a row
+   settingsIds.toggle("spam"); // Turn on/off button for a row
+   settingsIds.tab("logging"); // tab bar button
    ```
 
-2. **Builder Functions**: Encapsulate complex components
+2. **Builder Functions**: Encapsulate repeated components. A settings row is a Section with the status in its text and a Secondary button accessory (`Edit`, or `Turn on`/`Turn off`). The row icon carries the state, so the button colour doesn't change. See `rowSection`, `editButton` and `toggleButton` in `features/guild-settings/presentation/views/panel/panelParts.ts`.
    ```typescript
-   function createToggleButton(enabled, name, customId, disabled) {
-     return new ButtonBuilder()
-       .setCustomId(customId)
-       .setLabel(enabled ? `Disable ${name}` : `Enable ${name}`)
-       .setStyle(enabled ? ButtonStyle.Secondary : ButtonStyle.Success)
-       .setDisabled(disabled);
-   }
+   container.addSectionComponents(
+     rowSection({
+       icon: statusIcon(emojis, state.kind),
+       name: "Spam",
+       value: spamOn ? "Times out cross-channel spam" : "Off",
+       accessory: toggleButton("spam", spamOn, expired),
+     }),
+   );
    ```
 
-3. **Page Navigation**: Use state tracking for multi-page interfaces
+3. **Page Navigation**: Track the current page on a session object the collector closes over
    ```typescript
-   let currentPage: SettingsPage = "logging";
-   // Update page based on navigation buttons
+   const session = { interaction, tab: "overview" as SettingsTab };
+   // On a tab click: session.tab = target, then re-render
    ```
 
-   For navigation itself, prefer a **button tab bar** over a `StringSelectMenuBuilder` dropdown once the page count is small enough to fit (Discord caps an ActionRow at 5 buttons — wrap to a second row past that). A dropdown must be opened to see what it contains and doesn't visually read as navigation; a row of buttons is always visible and its active state is obvious. Active tab = `Primary` + disabled (can't click your own tab); everything else = `Secondary`; on expiry, every tab becomes `Secondary` + disabled instead, so the "live" and "expired" states stay visually distinct. See `ModViewChrome.addTabRow`/`addChrome` (`features/moderation/mod-view/presentation/views/components/ModViewChrome.ts`) and `SettingsChrome.addTabRows` (`features/guild-settings/presentation/views/components/SettingsChrome.ts`) for two implementations of the same pattern.
+   For navigation itself, prefer a **button tab bar** over a `StringSelectMenuBuilder` dropdown once the page count is small enough to fit (Discord caps an ActionRow at 5 buttons — wrap to a second row past that). A dropdown must be opened to see what it contains and doesn't visually read as navigation; a row of buttons is always visible and its active state is obvious. Active tab = `Primary` + disabled (can't click your own tab); everything else = `Secondary`; on expiry, every tab becomes `Secondary` + disabled instead, so the "live" and "expired" states stay visually distinct. See `ModViewChrome.addTabRow`/`addChrome` (`features/moderation/mod-view/presentation/views/components/ModViewChrome.ts`) and `tabRow` in `buildSettingsPanel` (`features/guild-settings/presentation/views/panel/SettingsPanel.ts`) for two implementations of the same pattern.
 
-   For a landing/overview page that lists other pages as rows (name + description + status + a "View ›" button), route the button clicks through a single `customId → page` lookup map shared with the tab bar itself, rather than writing a separate handler per row. The "View ›" buttons need their own customIds (Discord rejects duplicate `custom_id`s on one message), but they can resolve through the same map as the tab row. See `ModViewSession`'s `TAB_BY_CUSTOM_ID` and `SettingsChrome`'s `SETTINGS_TAB_BY_CUSTOM_ID`.
+   For a landing/overview page that lists other pages as rows (name + description + status + a "View ›" button), route the button clicks through a single `customId → page` lookup map shared with the tab bar itself, rather than writing a separate handler per row. The "View ›" buttons need their own customIds (Discord rejects duplicate `custom_id`s on one message), but they can resolve through the same map as the tab row. See `ModViewSession`'s `TAB_BY_CUSTOM_ID`.
 
 4. **Message Titles**: Use `##` headings for status/error message titles so they render at heading size and don't look oddly small next to body text. Pair with an emoji for visual context.
    ```typescript

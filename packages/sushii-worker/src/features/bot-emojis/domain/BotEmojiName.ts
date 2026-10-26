@@ -21,7 +21,7 @@ export const BotEmojiName = z.enum([
   "lookup",
   "reason",
   "tip",
-  "dm_message",
+  "message",
   "additional_message",
   "history",
   "duration",
@@ -60,6 +60,7 @@ export const BotEmojiName = z.enum([
   "sound_off",
   "member_join",
   "member_leave",
+  "minus_silhouette",
 
   // Message Log
   "message_delete",

@@ -97,6 +97,16 @@ describe("derivedSecretValues", () => {
     );
   });
 
+  test("includes the feedback webhook token", () => {
+    const loaded = loadSecrets({
+      ...REQUIRED,
+      FEEDBACK_WEBHOOK_URL:
+        "https://discord.com/api/webhooks/123456789012345678/feedback-webhook-tok",
+    });
+
+    expect(derivedSecretValues(loaded)).toContain("feedback-webhook-tok");
+  });
+
   test("a password with a malformed percent-escape is still included", () => {
     const loaded = loadSecrets({
       ...REQUIRED,

@@ -103,6 +103,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     client: mockDiscord.client as unknown as Client,
     logger,
     deploymentService,
+    emojiRepository: botEmojiRepository,
   });
   const moderationFeature = setupModerationFeature({
     db,

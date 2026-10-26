@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
@@ -27,6 +28,7 @@ export interface PermissionAuditFeatureDependencies {
   client: Client;
   logger: Logger;
   deploymentService: DeploymentService;
+  emojiRepository: BotEmojiRepository;
 }
 
 interface PermissionAuditServices {
@@ -38,6 +40,7 @@ export function setupPermissionAuditFeature({
   client,
   logger,
   deploymentService,
+  emojiRepository,
 }: PermissionAuditFeatureDependencies): FullFeatureSetupReturn<PermissionAuditServices> {
   const repository = new DrizzlePermissionUsageRepository(db);
 
@@ -72,6 +75,7 @@ export function setupPermissionAuditFeature({
         auditService,
         new PermissionChangeService(logger),
         logger,
+        emojiRepository,
       ),
     ],
     autocompletes: [],

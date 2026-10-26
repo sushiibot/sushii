@@ -4,11 +4,13 @@ import type {
   ButtonBuilder,
   ButtonInteraction,
   ChatInputCommandInteraction,
+  ComponentEmojiResolvable,
   ContainerBuilder,
 } from "discord.js";
 import { ComponentType, MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
+import { isFeedbackCustomId } from "@/features/feedback/presentation/customIds";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
@@ -31,6 +33,7 @@ import {
   TAB_BY_CUSTOM_ID,
   buildAuditPages,
   createAuditMessage,
+  isCleanAudit,
 } from "./views/PermissionAuditMessageBuilder";
 
 const REJECTION_MESSAGE =
@@ -63,6 +66,7 @@ export class PermissionAuditSession {
     private readonly auditService: PermissionAuditService,
     private readonly changeService: PermissionChangeService,
     private readonly logger: Logger,
+    private readonly feedbackEmoji?: ComponentEmojiResolvable,
   ) {
     this.result = result;
     this.pages = buildAuditPages(result, interaction.guildId);
@@ -78,6 +82,8 @@ export class PermissionAuditSession {
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,
       idle: PERMISSION_AUDIT_IDLE_TIMEOUT_MS,
+      // The feedback button belongs to the global router.
+      filter: (i) => !isFeedbackCustomId(i.customId),
     });
 
     collector.on("collect", async (i) => {
@@ -120,6 +126,11 @@ export class PermissionAuditSession {
     });
 
     collector.on("end", async () => {
+      // The Feedback button is router-handled, so a clean result has nothing to disable.
+      if (isCleanAudit(this.result)) {
+        return;
+      }
+
       try {
         await this.latestInteraction.editReply(await this.renderExpired());
       } catch (err) {
@@ -307,6 +318,7 @@ export class PermissionAuditSession {
       pageBlocks,
       navButtons,
       disabled,
+      feedbackEmoji: this.feedbackEmoji,
     }).components[0];
   }
 
@@ -317,6 +329,7 @@ export class PermissionAuditSession {
       everyoneRoleId: this.interaction.guildId,
       tab: this.activeTab,
       disabled,
+      feedbackEmoji: this.feedbackEmoji,
     });
   }
 }

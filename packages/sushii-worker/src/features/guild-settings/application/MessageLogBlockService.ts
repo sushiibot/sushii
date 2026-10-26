@@ -13,18 +13,29 @@ export class MessageLogBlockService {
     return this.messageLogBlockRepository.findByGuildId(guildId);
   }
 
-  async addIgnoredChannel(guildId: string, channelId: string): Promise<void> {
-    this.logger.info({ guildId, channelId }, "Adding ignored channel");
-
-    await this.messageLogBlockRepository.addBlock(guildId, channelId);
-  }
-
-  async removeIgnoredChannel(
+  async setIgnoredChannels(
     guildId: string,
-    channelId: string,
+    channelIds: string[],
   ): Promise<void> {
-    this.logger.info({ guildId, channelId }, "Removing ignored channel");
+    const current = new Set(
+      (await this.getIgnoredChannels(guildId)).map((b) => b.channelId),
+    );
+    const desired = new Set(channelIds);
 
-    await this.messageLogBlockRepository.removeBlock(guildId, channelId);
+    const toAdd = [...desired].filter((id) => !current.has(id));
+    const toRemove = [...current].filter((id) => !desired.has(id));
+
+    this.logger.info(
+      { guildId, added: toAdd.length, removed: toRemove.length },
+      "Setting ignored channels",
+    );
+
+    for (const channelId of toAdd) {
+      await this.messageLogBlockRepository.addBlock(guildId, channelId);
+    }
+
+    for (const channelId of toRemove) {
+      await this.messageLogBlockRepository.removeBlock(guildId, channelId);
+    }
   }
 }

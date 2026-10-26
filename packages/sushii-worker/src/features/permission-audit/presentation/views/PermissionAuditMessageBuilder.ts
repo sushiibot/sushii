@@ -1,4 +1,7 @@
-import type { ButtonBuilder as ButtonBuilderType } from "discord.js";
+import type {
+  ButtonBuilder as ButtonBuilderType,
+  ComponentEmojiResolvable,
+} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -11,6 +14,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
+import { buildFeedbackPanelButton } from "@/features/feedback/presentation/views/FeedbackButton";
 import Color from "@/utils/colors";
 
 import type {
@@ -105,6 +109,8 @@ export interface AuditMessageOptions {
   pageBlocks?: readonly PageBlock[];
   navButtons?: ActionRowBuilder<ButtonBuilderType> | null;
   disabled: boolean;
+  /** Defaults to 💬 when unset. */
+  feedbackEmoji?: ComponentEmojiResolvable;
 }
 
 /** Each page is a list of blocks; overview is never paginated. */
@@ -178,16 +184,15 @@ export function createAuditMessage(options: AuditMessageOptions): {
     ),
   );
 
-  const isClean =
-    result.report.findings.length === 0 && result.report.bots.length === 0;
-
-  if (isClean) {
+  if (isCleanAudit(result)) {
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         "✅ No risky or unused permissions found.",
       ),
     );
+    // A clean result has no controls, so it never expires.
+    addFooter(container, null, options.feedbackEmoji);
     return wrap(container);
   }
 
@@ -211,16 +216,40 @@ export function createAuditMessage(options: AuditMessageOptions): {
     container.addActionRowComponents(options.navButtons);
   }
 
-  container.addSeparatorComponents(new SeparatorBuilder());
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      disabled
-        ? "-# Expired after 5 minutes of inactivity. Run `/permission-audit` again."
-        : "-# Expires after 5 minutes of inactivity.",
-    ),
+  addFooter(
+    container,
+    disabled
+      ? "-# Expired after 5 minutes of inactivity. Run `/permission-audit` again."
+      : "-# Expires after 5 minutes of inactivity.",
+    options.feedbackEmoji,
   );
 
   return wrap(container);
+}
+
+export function isCleanAudit(result: AuditResult): boolean {
+  return result.report.findings.length === 0 && result.report.bots.length === 0;
+}
+
+function addFooter(
+  container: ContainerBuilder,
+  expiry: string | null,
+  feedbackEmoji: ComponentEmojiResolvable | undefined,
+): void {
+  const prompt = "-# Have feedback on the audit?";
+  container.addSeparatorComponents(new SeparatorBuilder());
+  // Feedback goes through the global router, so it stays enabled after expiry.
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          expiry ? `${expiry}\n${prompt}` : prompt,
+        ),
+      )
+      .setButtonAccessory(
+        buildFeedbackPanelButton("permission-audit", feedbackEmoji),
+      ),
+  );
 }
 
 function headerLines(context: AuditContext): string {

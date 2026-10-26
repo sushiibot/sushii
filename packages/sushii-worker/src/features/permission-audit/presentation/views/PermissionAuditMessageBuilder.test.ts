@@ -390,6 +390,145 @@ describe("createAuditMessage", () => {
   });
 });
 
+describe("feedback footer", () => {
+  interface FooterJson {
+    type: number;
+    components?: { content?: string }[];
+    accessory?: {
+      custom_id?: string;
+      disabled?: boolean;
+      emoji?: { id?: string; name?: string };
+    };
+  }
+
+  function footer(container: ContainerBuilder): FooterJson | undefined {
+    const json = container.toJSON() as { components: FooterJson[] };
+    return json.components.at(-1);
+  }
+
+  function renderWith(
+    options: { disabled?: boolean; feedbackEmoji?: string } = {},
+  ) {
+    return createAuditMessage({
+      result: result(),
+      pages: buildAuditPages(result(), EVERYONE),
+      everyoneRoleId: EVERYONE,
+      tab: "overview",
+      disabled: options.disabled ?? false,
+      feedbackEmoji: options.feedbackEmoji,
+    }).components[0];
+  }
+
+  test.each<AuditViewTab>(["overview", "roles", "unused", "channels"])(
+    "%s ends with the expiry text and a Feedback button",
+    (tab) => {
+      const section = footer(render(tab));
+
+      expect(section?.type).toBe(9);
+      expect(section?.components?.[0]?.content).toBe(
+        "-# Expires after 5 minutes of inactivity.\n-# Have feedback on the audit?",
+      );
+      expect(section?.accessory?.custom_id).toBe(
+        "feedback/panel/permission-audit",
+      );
+      expect(section?.accessory?.emoji?.name).toBe("💬");
+    },
+  );
+
+  test("the Feedback button stays enabled when expired", () => {
+    const section = footer(renderWith({ disabled: true }));
+
+    expect(section?.components?.[0]?.content).toContain(
+      "Expired after 5 minutes",
+    );
+    expect(section?.accessory?.custom_id).toBe(
+      "feedback/panel/permission-audit",
+    );
+    expect(section?.accessory?.disabled).not.toBe(true);
+  });
+
+  test.each([false, true])(
+    "a clean audit gets a footer without expiry text (disabled: %p)",
+    (disabled) => {
+      const clean = result({ findings: [], bots: [] });
+      const section = footer(
+        createAuditMessage({
+          result: clean,
+          pages: buildAuditPages(clean, EVERYONE),
+          everyoneRoleId: EVERYONE,
+          tab: "overview",
+          disabled,
+        }).components[0],
+      );
+
+      expect(section?.type).toBe(9);
+      expect(section?.components?.[0]?.content).toBe(
+        "-# Have feedback on the audit?",
+      );
+      expect(section?.accessory?.custom_id).toBe(
+        "feedback/panel/permission-audit",
+      );
+      expect(section?.accessory?.disabled).not.toBe(true);
+    },
+  );
+
+  test("the worst-case Unused page stays within 40 components", () => {
+    const fixable = ["1", "3", "4", "5", "6"].map(
+      (roleId): RatedFinding => ({
+        finding: {
+          type: "unused_role_permission",
+          roleId,
+          permissions: ["ManageWebhooks"],
+          holderCount: 9,
+          lowConfidence: false,
+          actionableAt: null,
+        },
+        severity: "high",
+        tab: "unused",
+      }),
+    );
+    const res = result({
+      findings: fixable,
+      notTracked: [{ roleId: "7", permissions: ["ViewAuditLog"] }],
+    });
+    const pages = tabPages(res, "unused", EVERYONE);
+    const lastPage = pages.at(-1) ?? [];
+    expect(lastPage.filter((b) => b.fixIndex !== null)).toHaveLength(5);
+    expect(lastPage.at(-1)?.text).toContain("Not tracked");
+
+    const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      ...["a", "b", "c", "d", "e"].map((id) =>
+        new ButtonBuilder()
+          .setCustomId(id)
+          .setLabel(id)
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    );
+    const container = createAuditMessage({
+      result: res,
+      pages: buildAuditPages(res, EVERYONE),
+      everyoneRoleId: EVERYONE,
+      tab: "unused",
+      pageBlocks: lastPage,
+      navButtons: nav,
+      disabled: false,
+    }).components[0];
+
+    expect(footer(container)?.type).toBe(9);
+    expect(countComponents(container.toJSON())).toBeLessThanOrEqual(40);
+  });
+
+  test("the Feedback button uses the given emoji", () => {
+    const section = footer(
+      renderWith({ feedbackEmoji: "<:message:200000000000000000>" }),
+    );
+
+    expect(section?.accessory?.emoji).toEqual(
+      expect.objectContaining({ id: "200000000000000000", name: "message" }),
+    );
+  });
+});
+
 describe("overview groups", () => {
   test("findings of one type share a line", () => {
     const admin = (roleId: string): RatedFinding => ({
@@ -438,7 +577,7 @@ describe("fix buttons", () => {
     };
     return json.components
       .map((c) => c.accessory?.custom_id)
-      .filter((id): id is string => id !== undefined);
+      .filter((id): id is string => id?.startsWith("permaudit_fix") ?? false);
   }
 
   test("only findings with a planned change get a Review button", () => {

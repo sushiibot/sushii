@@ -94,25 +94,20 @@ describe("ScreeningSettingsService.getState", () => {
 });
 
 describe("ScreeningSettingsService setters", () => {
-  test("setEnabled patches only enabled", async () => {
-    const t = setup(true, null);
-
-    await t.service.setEnabled(GUILD, true);
-
-    expect(t.guildRepo.patch).toHaveBeenCalledWith(GUILD, { enabled: true });
-  });
-
-  test("setLogChannel patches the channel, including clearing it", async () => {
+  test("setLogChannel turns screening on with a channel and off without", async () => {
     const t = setup(true, row);
 
     await t.service.setLogChannel(GUILD, CHANNEL);
     await t.service.setLogChannel(GUILD, null);
 
+    expect(t.guildRepo.patch).toHaveBeenCalledTimes(2);
     expect(t.guildRepo.patch).toHaveBeenNthCalledWith(1, GUILD, {
       logChannelId: CHANNEL,
+      enabled: true,
     });
     expect(t.guildRepo.patch).toHaveBeenNthCalledWith(2, GUILD, {
       logChannelId: null,
+      enabled: false,
     });
   });
 
@@ -129,7 +124,7 @@ describe("ScreeningSettingsService setters", () => {
   test("setters don't check the flag", async () => {
     const t = setup(false, null);
 
-    await t.service.setEnabled(GUILD, true);
+    await t.service.setCheckAvatars(GUILD, true);
 
     expect(t.flagRepo.isEnabled).not.toHaveBeenCalled();
     expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);

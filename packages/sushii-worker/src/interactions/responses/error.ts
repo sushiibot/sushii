@@ -7,8 +7,16 @@ import type {
   InteractionReplyOptions,
   ModalSubmitInteraction,
 } from "discord.js";
-import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+import {
+  ActionRowBuilder,
+  ContainerBuilder,
+  MessageFlags,
+  TextDisplayBuilder,
+} from "discord.js";
+import type { ButtonBuilder } from "discord.js";
 import { t } from "i18next";
+
+import { buildErrorFeedbackButton } from "@/features/feedback/presentation/views/FeedbackButton";
 
 import Color from "../../utils/colors";
 
@@ -32,7 +40,10 @@ function buildErrorContainer(
   return container;
 }
 
-function buildInternalErrorContainer(traceId?: string): ContainerBuilder {
+export function buildInternalErrorContainer(
+  invokerId: string,
+  traceId?: string,
+): ContainerBuilder {
   const container = new ContainerBuilder().setAccentColor(Color.Error);
 
   const lines = [
@@ -42,34 +53,39 @@ function buildInternalErrorContainer(traceId?: string): ContainerBuilder {
 
   if (traceId) {
     lines.push(`**Error ID:** \`${traceId}\``);
-    lines.push(
-      `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL}) and share the error ID.`,
-    );
-  } else {
-    lines.push(
-      `If this keeps happening, [join our support server](${SUPPORT_SERVER_URL}).`,
-    );
   }
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(lines.join("\n")),
+    new TextDisplayBuilder().setContent(
+      `-# Tell us what you were doing so we can fix it, or [join our support server](${SUPPORT_SERVER_URL}).`,
+    ),
+  );
+  container.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      buildErrorFeedbackButton(invokerId, traceId),
+    ),
   );
   return container;
 }
 
-function getInternalErrorMessage(traceId?: string): InteractionReplyOptions {
+function getInternalErrorMessage(
+  invokerId: string,
+  traceId?: string,
+): InteractionReplyOptions {
   return {
-    components: [buildInternalErrorContainer(traceId)],
+    components: [buildInternalErrorContainer(invokerId, traceId)],
     flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     allowedMentions: { parse: [] },
   };
 }
 
 function getInternalErrorMessageEdit(
+  invokerId: string,
   traceId?: string,
 ): InteractionEditReplyOptions {
   return {
-    components: [buildInternalErrorContainer(traceId)],
+    components: [buildInternalErrorContainer(invokerId, traceId)],
     flags: MessageFlags.IsComponentsV2,
     allowedMentions: { parse: [] },
   };
@@ -161,14 +177,20 @@ export async function interactionReplyErrorInternal(
   traceId?: string,
 ): Promise<void> {
   if (interaction.deferred) {
-    await interaction.editReply(getInternalErrorMessageEdit(traceId));
+    await interaction.editReply(
+      getInternalErrorMessageEdit(interaction.user.id, traceId),
+    );
     return;
   }
 
   if (interaction.replied) {
-    await interaction.followUp(getInternalErrorMessage(traceId));
+    await interaction.followUp(
+      getInternalErrorMessage(interaction.user.id, traceId),
+    );
     return;
   }
 
-  await interaction.reply(getInternalErrorMessage(traceId));
+  await interaction.reply(
+    getInternalErrorMessage(interaction.user.id, traceId),
+  );
 }

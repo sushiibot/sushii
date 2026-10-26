@@ -39,15 +39,15 @@ alert message to report it as a false positive.
 
 ## Setup
 
-Enable it from **`/settings` → Automod**:
+Set it up in **`/settings` → Automod**:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Times out users who post known scam images." @aff719b8, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Select alerts channel..." @07d53bdc, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"### Exempt Roles" @7509c79f, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildAlertsModal @7ff8a03a, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildExemptModal @86cebc64, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54 */}
 
-- **Known Scam Images** turns detection on. Off by default.
-- **Alerts Channel** is where alerts and the moderation buttons show up.
+- **Scam images**: click **Turn on** to start detection. Off by default.
+- **Alerts channel** is where alerts and the moderation buttons show up.
   Optional, but recommended.
-- **Exempt Roles** are roles this feature never touches (bots, trusted
-  partners, etc).
+- **Exempt roles** are roles that scam image and spam detection never touch
+  (bots, trusted partners, etc).
 
 {/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SpamActionService.applySpamTimeout @98069199 */}
 

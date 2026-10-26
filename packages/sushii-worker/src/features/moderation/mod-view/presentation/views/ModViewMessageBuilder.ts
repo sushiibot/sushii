@@ -33,10 +33,8 @@ const MODVIEW_EXPIRED_FOOTER = `-# Session expired after ${MODVIEW_IDLE_TIMEOUT_
 
 /**
  * Everything a tab content builder needs. Shared across all five tabs rather
- * than one shape per tab (mirrors `SettingsMessageOptions` /
- * `add*Content(container, options)` in `SettingsMessageBuilder.ts`) so
- * `createModViewMessage` can switch on `activeTab` without importing a
- * different options type per case.
+ * than one shape per tab so `createModViewMessage` can switch on `activeTab`
+ * without importing a different options type per case.
  *
  * `data` is the full, once-resolved `ModViewResult` — no per-tab re-fetch.
  * Per-tab transient UI state (history page slice, alt filter toggle,

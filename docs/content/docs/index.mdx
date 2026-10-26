@@ -23,13 +23,20 @@ any role it assigns or acts on.
 
 ### Open the settings panel
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/commands/SettingsCommand.ts#SettingsCommand.command @2efb7eae, packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/commands/SettingsCommand.ts#SettingsCommand.command @2efb7eae, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#editButton @50070615, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#FOOTER_TEXT @f0800697 */}
 
-Run `/settings` in any channel. This opens an interactive menu where you can
-enable features and configure channels for logs.
+Run `/settings` in any channel. This opens a panel with five tabs: **Overview**,
+**Logging**, **Moderation**, **Automod**, and **Welcome**.
 
-Most features are disabled by default and need to be turned on here before
-they do anything.
+Each row shows its current state and flags anything that needs attention.
+Click **Edit** to change a setting, or **Turn on** / **Turn off** for simple switches.
+Changes save as soon as you make them.
+
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/OverviewPanel.ts#attentionLine @06284cbd, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#attentionDetail @b7653117, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#AttentionProblem @11e44f4d, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#computeSettingsStatus @4a0f6c8a */}
+
+The **Overview** tab sums up each tab and lists anything that **needs
+attention**, such as a log channel that was deleted, a channel sushii is
+missing permissions in, or a join message that's on with no channel picked.
 
 </Step>
 
@@ -40,11 +47,13 @@ they do anything.
 If you plan to use sushii for moderation, the most important first step is
 pointing it to a private moderation log channel:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/components/SettingsChrome.ts#TAB_DEFS @703b4097, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Set mod log channel" @ed520e25 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @b9ef4da2, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @8f995578 */}
 
 ```
-/settings → Logging → Mod Logs
+/settings → Logging → Mod log → Edit
 ```
+
+Picking a channel turns the log on. Clearing the channel turns it off.
 
 {/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488 */}
 
@@ -55,19 +64,21 @@ done through Discord itself.
 
 <Step>
 
-### Enable the features you want
+### Turn on the features you want
 
-From `/settings` you can also configure:
+From `/settings` you can also set up:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs message edits and deletions" @44128809, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs member joins and leaves" @8bafbc76, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/LoggingPageBuilder.ts#"Logs reaction removals, including who added" @84bda570, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/MessagesPageBuilder.ts#"Send custom messages when members join or leave" @bcd4e462, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModerationPageBuilder.ts#addModerationContent @368bfa6d, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/ModDmsPageBuilder.ts#"Extra text shown to members in moderation DMs" @a3e7259c, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Times out users who send the same message" @e46f3b46, packages/sushii-worker/src/features/guild-settings/presentation/views/pages/AutomodPageBuilder.ts#"Automod actions are always tracked in" @5be22e3e */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildTimeoutModal @f686289e, packages/sushii-worker/src/features/guild-settings/presentation/modals/logModals.ts#LOGS @af5b9db3, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildWarnModal @5ed3183c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/WelcomePanel.ts#addWelcomePanel @416fc764, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#EXTRA_TEXT_DESCRIPTION @53ee7147, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Times out cross-channel spam" @a1ed370b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Actions are always logged in " @a8005e17 */}
 
-- **Message logging** — edits and deletes
-- **Member logging** — join and leave activity
-- **Reaction logging** — reaction removals and who added reactions
-- **Welcome messages** — custom join/leave messages sent to a channel
-- **Moderation** — whether sushii DMs members when they're timed out, kicked, or banned
-- **Moderation DMs** — extra text added to those DMs
-- **Automod** — spam detection and an alerts channel for automod actions
+- **Logging** — message edits and deletes, member joins and leaves, and removed reactions, each in its own channel
+- **Moderation** — whether sushii DMs members when they're timed out, kicked, or banned, extra text for those DMs and for warnings, and whether other servers can see your server name and ban reasons in `/lookup`
+- **Automod** — scam image detection, spam detection, and an alerts channel for automod actions
+- **Welcome** — custom join and leave messages sent to a channel
+
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/OverviewPanel.ts#"More setup:" @310d3bcd */}
+
+Level roles, role menus, schedule channels, and tags have their own commands,
+listed at the bottom of the Overview tab.
 
 You don't have to set everything up at once. Come back to `/settings` whenever
 you're ready to add more.
@@ -116,6 +127,15 @@ configured with `/rolemenu`, not `/settings`.
 This opens an interactive builder where you can add roles, set descriptions and
 emoji, and cap how many roles a member can pick at once. When you're done, use
 `/rolemenu send` to post it to a channel.
+
+## Sending feedback
+
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/commands/SettingsCommand.ts#SettingsCommand.renderPanel @6c37fabb, packages/sushii-worker/src/features/permission-audit/presentation/views/PermissionAuditMessageBuilder.ts#addFooter @21ef9b3f, packages/sushii-worker/src/features/feedback/presentation/views/FeedbackButton.ts#buildFeedbackPanelButton @a3d846ad, packages/sushii-worker/src/features/feedback/presentation/views/FeedbackButton.ts#buildErrorFeedbackButton @b0c5f6d6, packages/sushii-worker/src/interactions/responses/error.ts#buildInternalErrorContainer @28aea053, packages/sushii-worker/src/features/feedback/presentation/views/FeedbackModal.ts#buildPanelModal @1614e254, packages/sushii-worker/src/features/feedback/presentation/views/FeedbackModal.ts#buildErrorModal @25c6c931, packages/sushii-worker/src/features/feedback/application/FeedbackService.ts#FEEDBACK_RATE_LIMIT @988de1a2, packages/sushii-worker/src/features/feedback/application/FeedbackService.ts#FEEDBACK_RATE_LIMIT_WINDOW_SECONDS @d8acf5e1 */}
+
+The `/settings` and `/permission-audit` panels have a **Feedback** button at
+the bottom, and unexpected errors titled **Something went wrong** have a **Send
+feedback** button. Either one opens a short form that goes straight to the sushii team. You can
+send up to 3 per hour.
 
 ## Where to go next
 

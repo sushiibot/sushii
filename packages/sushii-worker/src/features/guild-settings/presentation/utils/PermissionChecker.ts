@@ -9,8 +9,6 @@ export interface ChannelPermissionStatus {
   missingPermissions: string[];
 }
 
-export type ChannelPermissionsMap = Record<string, ChannelPermissionStatus>;
-
 const REQUIRED_PERMISSIONS = [
   { flag: PermissionFlagsBits.ViewChannel, name: "View Channel" },
   { flag: PermissionFlagsBits.SendMessages, name: "Send Messages" },
@@ -65,28 +63,4 @@ export function checkChannelPermissions(
     hasEmbedLinks,
     missingPermissions,
   };
-}
-
-export function checkMultipleChannelsPermissions(
-  guild: Guild,
-  channelIds: string[],
-): ChannelPermissionsMap {
-  const permissionsMap: ChannelPermissionsMap = {};
-
-  for (const channelId of channelIds) {
-    permissionsMap[channelId] = checkChannelPermissions(guild, channelId);
-  }
-
-  return permissionsMap;
-}
-
-export function formatPermissionWarning(
-  permissionStatus: ChannelPermissionStatus,
-): string | null {
-  if (permissionStatus.missingPermissions.length === 0) {
-    return null;
-  }
-
-  const missingPermsText = permissionStatus.missingPermissions.join(", ");
-  return `⚠️ **Missing permissions:** ${missingPermsText}`;
 }

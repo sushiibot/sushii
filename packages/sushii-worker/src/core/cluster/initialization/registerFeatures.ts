@@ -19,6 +19,7 @@ import {
   createFeatureFlagCommands,
   createFeatureFlagRepository,
 } from "@/features/feature-flags/setup";
+import { setupFeedbackFeature } from "@/features/feedback/setup";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import {
   createGuildSettingsServices,
@@ -245,6 +246,11 @@ export function registerFeatures(
     scamImageStore,
     scamImageMetrics,
   });
+  const feedbackFeature = setupFeedbackFeature({
+    db,
+    webhookUrl: secrets.FEEDBACK_WEBHOOK_URL,
+    logger,
+  });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const promptsFeature = setupPromptsFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({
@@ -308,6 +314,7 @@ export function registerFeatures(
     client,
     logger: logger.child({ feature: "PermissionAudit" }),
     deploymentService,
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
   });
   const altAccountsServices = createAltAccountsServices({
     db,
@@ -456,6 +463,7 @@ export function registerFeatures(
 
   // Button handlers
   interactionRouter.addButtons(
+    ...feedbackFeature.buttonHandlers,
     ...levelingFeature.buttonHandlers,
     ...tagFeature.buttonHandlers,
     ...userProfileFeature.buttonHandlers,
@@ -475,7 +483,10 @@ export function registerFeatures(
   );
 
   // Modal handlers
-  interactionRouter.addModalHandlers(...automodFeature.modalHandlers);
+  interactionRouter.addModalHandlers(
+    ...automodFeature.modalHandlers,
+    ...feedbackFeature.modalHandlers,
+  );
 
   // Select menu handlers
   interactionRouter.addSelectMenus(

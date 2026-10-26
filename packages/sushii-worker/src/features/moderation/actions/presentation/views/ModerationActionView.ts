@@ -4,7 +4,10 @@ import type { Result } from "ts-results";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
-import type { DMFailureReason, ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type {
+  DMFailureReason,
+  ModerationCase,
+} from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
 import {
   ActionType,
@@ -26,7 +29,7 @@ export const MODERATION_ACTION_EMOJIS = [
   "success",
   "fail",
   "additional_message",
-  "dm_message",
+  "message",
   "duration",
   "attachment",
   "warning",
@@ -294,7 +297,7 @@ export function buildActionResultMessage(
 
     // Don't show User DMs section for Note actions as they are private
     if (actionType !== ActionType.Note) {
-      fullContent += `### ${emojis.dm_message} DM Notifications\n`;
+      fullContent += `### ${emojis.message} DM Notifications\n`;
       fullContent += dmSectionContent;
     }
   }

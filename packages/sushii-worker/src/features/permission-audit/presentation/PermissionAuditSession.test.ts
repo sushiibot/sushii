@@ -1,5 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
-import { type ChatInputCommandInteraction, MessageFlags } from "discord.js";
+import {
+  type ChatInputCommandInteraction,
+  ComponentType,
+  MessageFlags,
+} from "discord.js";
 import { EventEmitter } from "node:events";
 import pino from "pino";
 import { Err, Ok } from "ts-results";
@@ -61,8 +65,21 @@ const RESULT: AuditResult = {
   },
 };
 
-function setup(options: { refusal?: string; applyError?: string } = {}) {
+interface CollectorOptions {
+  componentType: ComponentType;
+  filter: (i: { customId: string }) => boolean;
+}
+
+function setup(
+  options: {
+    refusal?: string;
+    applyError?: string;
+    feedbackEmoji?: string;
+    result?: AuditResult;
+  } = {},
+) {
   const collector = new EventEmitter();
+  const createCollector = mock((_opts: CollectorOptions) => collector);
   const changeService = {
     authorize: mock(() => (options.refusal ? Err(options.refusal) : Ok.EMPTY)),
     apply: mock(() =>
@@ -71,22 +88,31 @@ function setup(options: { refusal?: string; applyError?: string } = {}) {
         : Promise.resolve(Ok({})),
     ),
   };
-  const auditService = { generate: mock(() => Promise.resolve(RESULT)) };
+  const result = options.result ?? RESULT;
+  const auditService = { generate: mock(() => Promise.resolve(result)) };
   const interaction = {
     guildId: "1000",
     user: { id: OWNER_ID },
     editReply: mock((_options: unknown) =>
-      Promise.resolve({ createMessageComponentCollector: () => collector }),
+      Promise.resolve({ createMessageComponentCollector: createCollector }),
     ),
   };
   const session = new PermissionAuditSession(
     interaction as unknown as ChatInputCommandInteraction<"cached">,
-    RESULT,
+    result,
     auditService as unknown as PermissionAuditService,
     changeService as unknown as PermissionChangeService,
     pino({ level: "silent" }),
+    options.feedbackEmoji,
   );
-  return { collector, interaction, session, changeService, auditService };
+  return {
+    collector,
+    createCollector,
+    interaction,
+    session,
+    changeService,
+    auditService,
+  };
 }
 
 function click(userId: string, customId: string) {
@@ -123,6 +149,91 @@ describe("PermissionAuditSession", () => {
     expect(options.flags & MessageFlags.IsComponentsV2).toBe(
       MessageFlags.IsComponentsV2,
     );
+  });
+
+  test("the collector takes audit buttons but leaves feedback to the router", async () => {
+    const { createCollector, interaction, session } = setup();
+    await session.start();
+
+    const rendered = JSON.stringify(
+      (
+        interaction.editReply.mock.calls[0][0] as {
+          components: { toJSON(): unknown }[];
+        }
+      ).components.map((c) => c.toJSON()),
+    );
+    expect(rendered).toContain("feedback/panel/permission-audit");
+    const { componentType, filter } = createCollector.mock.calls[0][0];
+    expect(componentType).toBe(ComponentType.Button);
+    expect(filter({ customId: "feedback/panel/permission-audit" })).toBe(false);
+    expect(filter({ customId: PERMISSION_AUDIT_CUSTOM_IDS.tabRoles })).toBe(
+      true,
+    );
+  });
+
+  test("the expired view keeps the Feedback button enabled with its emoji", async () => {
+    const { collector, interaction, session } = setup({
+      feedbackEmoji: "<:message:200000000000000000>",
+    });
+    await session.start();
+
+    collector.emit("end");
+    await flush();
+
+    const [expired] = interaction.editReply.mock.calls[1] as unknown as [
+      { components: { toJSON(): unknown }[] },
+    ];
+    const json = expired.components[0].toJSON() as {
+      components: {
+        accessory?: {
+          custom_id?: string;
+          disabled?: boolean;
+          emoji?: { id?: string };
+        };
+      }[];
+    };
+    const accessory = json.components.at(-1)?.accessory;
+    expect(accessory?.custom_id).toBe("feedback/panel/permission-audit");
+    expect(accessory?.disabled).not.toBe(true);
+    expect(accessory?.emoji?.id).toBe("200000000000000000");
+  });
+
+  test("tab pages carry the Feedback emoji too", async () => {
+    const { collector, session } = setup({
+      feedbackEmoji: "<:message:200000000000000000>",
+    });
+    await session.start();
+
+    const button = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.tabRoles);
+    collector.emit("collect", button);
+    await flush();
+
+    const [page] = button.update.mock.calls[0] as unknown as [
+      { components: { toJSON(): unknown }[] },
+    ];
+    const json = page.components[0].toJSON() as {
+      components: {
+        accessory?: { custom_id?: string; emoji?: { id?: string } };
+      }[];
+    };
+    const accessory = json.components.at(-1)?.accessory;
+    expect(accessory?.custom_id).toBe("feedback/panel/permission-audit");
+    expect(accessory?.emoji?.id).toBe("200000000000000000");
+  });
+
+  test("a clean result is left as is when the collector ends", async () => {
+    const { collector, interaction, session } = setup({
+      result: {
+        ...RESULT,
+        report: { findings: [], bots: [], notTracked: [] },
+      },
+    });
+    await session.start();
+
+    collector.emit("end");
+    await flush();
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
   });
 
   test("expires through the original interaction when nothing was clicked", async () => {

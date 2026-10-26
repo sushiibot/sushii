@@ -12,6 +12,7 @@ const schema = z.object({
   NOTIFY_WEBHOOK_ERR_URL: optional,
   ACTIVITY_WEBHOOK_URL: optional,
   E2E_WEBHOOK_URL: optional,
+  FEEDBACK_WEBHOOK_URL: optional,
   SENTRY_DSN: optional,
   GOOGLE_CALENDAR_API_KEY: optional,
   OPENROUTER_API_KEY: optional,
@@ -27,6 +28,7 @@ const WEBHOOK_URL_NAMES = [
   "NOTIFY_WEBHOOK_ERR_URL",
   "ACTIVITY_WEBHOOK_URL",
   "E2E_WEBHOOK_URL",
+  "FEEDBACK_WEBHOOK_URL",
 ] as const satisfies readonly SecretName[];
 
 // An auth gate must not silently open because its value rendered empty.

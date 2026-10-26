@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -29,6 +30,7 @@ export class PermissionAuditCommand extends SlashCommandHandler {
     private readonly auditService: PermissionAuditService,
     private readonly changeService: PermissionChangeService,
     private readonly logger: Logger,
+    private readonly emojiRepository: BotEmojiRepository,
   ) {
     super();
   }
@@ -51,7 +53,10 @@ export class PermissionAuditCommand extends SlashCommandHandler {
     }
 
     await interaction.deferReply();
-    const result = await this.auditService.generate(interaction.guild);
+    const [result, emojis] = await Promise.all([
+      this.auditService.generate(interaction.guild),
+      this.emojiRepository.getEmojis(["message"] as const),
+    ]);
 
     this.logger.info(
       {
@@ -69,6 +74,8 @@ export class PermissionAuditCommand extends SlashCommandHandler {
       this.auditService,
       this.changeService,
       this.logger,
+      // An unsynced app emoji is "", which ButtonBuilder rejects.
+      emojis.message || undefined,
     ).start();
   }
 }

@@ -276,9 +276,7 @@ function buildMessage(
 
 /**
  * Recursively count all components in a component tree, including nested
- * children and accessories (e.g. button accessory on Section). Copied from
- * `SettingsMessageBuilder.test.ts`, the reference implementation for this
- * counter.
+ * children and accessories (e.g. button accessory on Section).
  */
 function countComponents(component: Record<string, unknown>): number {
   let count = 1;
