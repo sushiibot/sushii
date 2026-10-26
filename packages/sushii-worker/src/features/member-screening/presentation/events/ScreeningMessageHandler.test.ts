@@ -6,10 +6,9 @@ import {
   MessageType,
   PermissionFlagsBits,
 } from "discord.js";
-import pino from "pino";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import type { ActiveScreeningSettings } from "../../domain/types";
 import { ScreeningMessageHandler } from "./ScreeningMessageHandler";
 
 const GUILD = "100000000000000001";
@@ -67,28 +66,23 @@ function event(
   } as unknown as GatewayDispatchPayload;
 }
 
-function setup(hasSettings = true) {
-  const screenMessage = mock(async () => undefined);
-  const findByGuildId = mock(async () =>
-    hasSettings ? { guildId: GUILD } : null,
+function activeSettings(active: boolean) {
+  return mock(async () =>
+    active ? ({ guildId: GUILD } as ActiveScreeningSettings) : null,
   );
-  const logger = pino({ level: "silent" });
-  const warn = mock(() => undefined);
-  logger.warn = warn as unknown as typeof logger.warn;
-  let now = 0;
+}
+
+function setup(active = true) {
+  const screenMessage = mock(async () => undefined);
+  const find = activeSettings(active);
   const handler = new ScreeningMessageHandler(
     { screenMessage } as unknown as MemberScreeningService,
-    { findByGuildId } as unknown as ScreeningGuildRepository,
+    { find },
     {
       guilds: { cache: new Map([[GUILD, guild]]) },
     } as unknown as Client,
-    logger,
-    () => now,
   );
-  const advance = (ms: number) => {
-    now += ms;
-  };
-  return { handler, screenMessage, findByGuildId, warn, advance };
+  return { handler, screenMessage, find };
 }
 
 describe("ScreeningMessageHandler", () => {
@@ -125,11 +119,12 @@ describe("ScreeningMessageHandler", () => {
     });
   });
 
-  test("skips guilds without settings", async () => {
+  test("skips guilds where screening isn't active", async () => {
     const t = setup(false);
 
     await t.handler.handle(event());
 
+    expect(t.find).toHaveBeenCalledWith(GUILD);
     expect(t.screenMessage).not.toHaveBeenCalled();
   });
 
@@ -177,35 +172,14 @@ describe("ScreeningMessageHandler @everyone permissions", () => {
     const screenMessage = mock(async () => undefined);
     const handler = new ScreeningMessageHandler(
       { screenMessage } as unknown as MemberScreeningService,
-      {
-        findByGuildId: async () => ({ guildId: GUILD }),
-      } as unknown as ScreeningGuildRepository,
+      { find: activeSettings(true) },
       {
         guilds: { cache: new Map([[GUILD, everyoneMods]]) },
       } as unknown as Client,
-      pino({ level: "silent" }),
     );
 
     await handler.handle(event());
 
     expect(screenMessage).not.toHaveBeenCalled();
-  });
-});
-
-describe("ScreeningMessageHandler settings lookup failure", () => {
-  test("skips screening and warns at most once per minute", async () => {
-    const t = setup();
-    t.findByGuildId.mockImplementation(async () => {
-      throw new Error("db down");
-    });
-
-    await t.handler.handle(event());
-    t.advance(30_000);
-    await t.handler.handle(event());
-    t.advance(30_000);
-    await t.handler.handle(event());
-
-    expect(t.screenMessage).not.toHaveBeenCalled();
-    expect(t.warn).toHaveBeenCalledTimes(2);
   });
 });

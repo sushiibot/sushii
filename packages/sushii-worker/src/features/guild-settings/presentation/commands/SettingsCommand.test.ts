@@ -267,6 +267,24 @@ describe("SettingsCommand member screening routing", () => {
       `-# ✅ On · posting to <#${CHANNEL_ID}>`,
     );
   });
+
+  test("a failed screening load renders automod without the section", async () => {
+    port.getForSettings.mockImplementation(async () => {
+      throw new Error("feature flags not loaded");
+    });
+    const { command } = createCommand(port);
+    const { interaction, update } = createInteraction(
+      "button",
+      SETTINGS_CUSTOM_IDS.NAVIGATION.TAB_AUTOMOD,
+    );
+
+    const page = await handle(command, interaction);
+
+    expect(page).toBe("automod");
+    const json = renderedJson(update);
+    expect(json).toContain("Spam Detection");
+    expect(json).not.toContain("Member Screening");
+  });
 });
 
 function startPanel(command: SettingsCommand) {

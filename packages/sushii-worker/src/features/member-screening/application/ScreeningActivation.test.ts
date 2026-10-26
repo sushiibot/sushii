@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
 
-import type { ScreeningGuildSettings } from "../domain/types";
+import type {
+  ActiveScreeningSettings,
+  ScreeningGuildSettings,
+} from "../domain/types";
 import { defaultScreeningSettings } from "../domain/types";
 import { ScreeningActivation } from "./ScreeningActivation";
 
@@ -16,7 +19,7 @@ function setup(flagOn: boolean, settings: ScreeningGuildSettings | null) {
   };
 }
 
-const active: ScreeningGuildSettings = {
+const active: ActiveScreeningSettings = {
   ...defaultScreeningSettings(GUILD),
   enabled: true,
   logChannelId: "300000000000000001",

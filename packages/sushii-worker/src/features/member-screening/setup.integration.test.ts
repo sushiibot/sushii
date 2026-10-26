@@ -5,10 +5,10 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pino from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { DrizzleFeatureFlagRepository } from "@/features/feature-flags/infrastructure/DrizzleFeatureFlagRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
-import { SCREENING_DEFAULTS } from "./domain/types";
 import { ScreeningAutomodHandler } from "./presentation/events/ScreeningAutomodHandler";
 import { ScreeningMessageHandler } from "./presentation/events/ScreeningMessageHandler";
 import { setupMemberScreeningFeature } from "./setup";
@@ -37,10 +37,27 @@ describe("setupMemberScreeningFeature", () => {
       client,
       db,
       logger,
+      flagRepository: new DrizzleFeatureFlagRepository(db, logger),
       deploymentService,
       moderationService,
       openRouterApiKey,
     });
+  }
+
+  async function activate(
+    feature: ReturnType<typeof setup>,
+    guildId: string,
+  ): Promise<void> {
+    await feature.services.flagRepository.enable(
+      guildId,
+      "member_screening",
+      "100000000000000099",
+    );
+    await feature.services.settingsPort.setEnabled(guildId, true);
+    await feature.services.settingsPort.setLogChannel(
+      guildId,
+      "300000000000000001",
+    );
   }
 
   test("registers every handler with an API key", () => {
@@ -83,33 +100,60 @@ describe("setupMemberScreeningFeature", () => {
     ).toBe(false);
   });
 
-  test("caches messages only for screened guilds", async () => {
+  test("caches messages only once screening is active", async () => {
     const feature = setup("test-key");
+    const { flagRepository, settingsPort, shouldCacheForScreening } =
+      feature.services;
     const guildId = "100000000000000001";
 
-    expect(await feature.services.shouldCacheForScreening(guildId)).toBe(false);
+    expect(await shouldCacheForScreening(guildId)).toBe(false);
 
-    await feature.services.guildRepository.upsert({
+    await settingsPort.setEnabled(guildId, true);
+    await settingsPort.setLogChannel(guildId, "300000000000000001");
+    expect(await shouldCacheForScreening(guildId)).toBe(false);
+
+    await settingsPort.setEnabled(guildId, false);
+    await flagRepository.enable(
       guildId,
-      logChannelId: null,
-      ...SCREENING_DEFAULTS,
-      rules: null,
-      enabled: true,
-    });
+      "member_screening",
+      "100000000000000099",
+    );
+    expect(await shouldCacheForScreening(guildId)).toBe(false);
 
-    expect(await feature.services.shouldCacheForScreening(guildId)).toBe(true);
+    await settingsPort.setLogChannel(guildId, null);
+    await settingsPort.setEnabled(guildId, true);
+    expect(await shouldCacheForScreening(guildId)).toBe(false);
+
+    await settingsPort.setLogChannel(guildId, "300000000000000001");
+    expect(await shouldCacheForScreening(guildId)).toBe(true);
+
+    await flagRepository.disable(guildId, "member_screening");
+    expect(await shouldCacheForScreening(guildId)).toBe(false);
+  });
+
+  test("shows the settings section only while the flag is on", async () => {
+    const feature = setup("test-key");
+    const { flagRepository, settingsPort } = feature.services;
+    const guildId = "100000000000000003";
+
+    expect(await settingsPort.getForSettings(guildId)).toBeNull();
+
+    await flagRepository.enable(
+      guildId,
+      "member_screening",
+      "100000000000000099",
+    );
+    expect(await settingsPort.getForSettings(guildId)).toEqual({
+      enabled: false,
+      logChannelId: null,
+      checkAvatars: true,
+    });
   });
 
   test("doesn't cache for screened guilds without an API key", async () => {
     const guildId = "100000000000000002";
     const feature = setup(undefined);
-    await feature.services.guildRepository.upsert({
-      guildId,
-      logChannelId: null,
-      ...SCREENING_DEFAULTS,
-      rules: null,
-      enabled: true,
-    });
+    await activate(feature, guildId);
 
     expect(await feature.services.shouldCacheForScreening(guildId)).toBe(false);
   });
@@ -124,6 +168,7 @@ describe("setupMemberScreeningFeature", () => {
       client,
       db: failingDb,
       logger,
+      flagRepository: new DrizzleFeatureFlagRepository(failingDb, logger),
       deploymentService,
       moderationService,
       openRouterApiKey: "test-key",

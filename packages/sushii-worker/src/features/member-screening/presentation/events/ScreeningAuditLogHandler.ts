@@ -6,13 +6,11 @@ import {
   type Guild,
   type GuildAuditLogsEntry,
 } from "discord.js";
-import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
-import { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
+import type { ScreeningSettingsLookup } from "../../application/ScreeningSettingsLookup";
 
 /** sushii's own buttons record the moderator; waiting lets that land first so the bot isn't credited. */
 const OWN_ACTION_DELAY_MS = 5000;
@@ -37,17 +35,14 @@ export function screeningActionFor(entry: GuildAuditLogsEntry): string | null {
 /** Needs the GuildModeration intent and View Audit Log; without them the event never fires. */
 export class ScreeningAuditLogHandler extends EventHandler<Events.GuildAuditLogEntryCreate> {
   readonly eventType = Events.GuildAuditLogEntryCreate;
-  private readonly settings: ScreeningSettingsLookup;
 
   constructor(
     private readonly service: MemberScreeningService,
-    guildRepo: ScreeningGuildRepository,
+    private readonly settings: Pick<ScreeningSettingsLookup, "find">,
     private readonly client: Client,
-    logger: Logger,
     private readonly wait: (ms: number) => Promise<unknown> = sleep,
   ) {
     super();
-    this.settings = new ScreeningSettingsLookup(guildRepo, logger);
   }
 
   async handle(entry: GuildAuditLogsEntry, guild: Guild): Promise<void> {

@@ -1,25 +1,19 @@
 import type { GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents } from "discord.js";
-import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
-import { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
+import type { ScreeningSettingsLookup } from "../../application/ScreeningSettingsLookup";
 
 export class ScreeningMessageDeleteHandler extends EventHandler<Events.Raw> {
   readonly eventType = Events.Raw;
-  private readonly settings: ScreeningSettingsLookup;
 
   constructor(
     private readonly service: MemberScreeningService,
-    guildRepo: ScreeningGuildRepository,
-    logger: Logger,
-    now: () => number = Date.now,
+    private readonly settings: Pick<ScreeningSettingsLookup, "find">,
   ) {
     super();
-    this.settings = new ScreeningSettingsLookup(guildRepo, logger, now);
   }
 
   async handle(event: GatewayDispatchPayload): Promise<void> {

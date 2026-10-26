@@ -74,7 +74,16 @@ export default class SettingsCommand extends SlashCommandHandler {
       return null;
     }
 
-    return this.screeningSettings.getForSettings(guildId);
+    try {
+      return await this.screeningSettings.getForSettings(guildId);
+    } catch (err) {
+      // An optional section; a flag or DB outage shouldn't break every Automod page interaction.
+      this.logger.warn(
+        { err, guildId },
+        "Failed to load screening settings, hiding the section",
+      );
+      return null;
+    }
   }
 
   command = new SlashCommandBuilder()

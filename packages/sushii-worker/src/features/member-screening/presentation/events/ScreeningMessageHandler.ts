@@ -1,6 +1,5 @@
 import type { Client, GatewayDispatchPayload } from "discord.js";
 import { Events, GatewayDispatchEvents, MessageType } from "discord.js";
-import type { Logger } from "pino";
 
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
@@ -8,23 +7,18 @@ import type {
   MemberScreeningService,
   ScreenedMessage,
 } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
-import { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
+import type { ScreeningSettingsLookup } from "../../application/ScreeningSettingsLookup";
 import { isScreeningExempt } from "./screeningExemption";
 
 export class ScreeningMessageHandler extends EventHandler<Events.Raw> {
   readonly eventType = Events.Raw;
-  private readonly settings: ScreeningSettingsLookup;
 
   constructor(
     private readonly service: MemberScreeningService,
-    guildRepo: ScreeningGuildRepository,
+    private readonly settings: Pick<ScreeningSettingsLookup, "find">,
     private readonly client: Client,
-    logger: Logger,
-    now: () => number = Date.now,
   ) {
     super();
-    this.settings = new ScreeningSettingsLookup(guildRepo, logger, now);
   }
 
   async handle(event: GatewayDispatchPayload): Promise<void> {

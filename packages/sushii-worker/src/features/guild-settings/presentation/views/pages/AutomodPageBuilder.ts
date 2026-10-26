@@ -153,7 +153,7 @@ function addMemberScreeningSection(
     container,
     "🔍 Member Screening",
     [
-      "Checks new members' messages, avatars and image links with AI during their first 20 messages or 72 hours, and posts suspicious ones for review.",
+      "Checks new members' messages, avatars and image links with AI during their first messages after joining, and posts suspicious ones for review.",
       formatScreeningStatus(screening),
     ].join("\n"),
     screening.enabled,

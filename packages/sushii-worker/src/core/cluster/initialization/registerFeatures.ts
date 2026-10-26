@@ -15,8 +15,15 @@ import { createCacheFeature } from "@/features/cache/setup";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
 import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
+import {
+  createFeatureFlagCommands,
+  createFeatureFlagRepository,
+} from "@/features/feature-flags/setup";
 import { setupGiveawayFeature } from "@/features/giveaways/setup";
-import { setupGuildSettingsFeature } from "@/features/guild-settings/setup";
+import {
+  createGuildSettingsServices,
+  setupGuildSettingsFeature,
+} from "@/features/guild-settings/setup";
 import { setupInteractionHandlerFeature } from "@/features/interaction-handler/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
@@ -194,11 +201,11 @@ export function registerFeatures(
     logger,
   });
 
-  const guildSettingsFeature = setupGuildSettingsFeature({
-    db,
-    logger,
-    botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
-  });
+  // Shared by screening and /feature-flag: this cluster sees a change at once, other clusters within a minute.
+  const featureFlagRepository = createFeatureFlagRepository(db, logger);
+
+  // Settings services are needed early; the /settings command is built after screening.
+  const guildSettingsServices = createGuildSettingsServices({ db, logger });
   const scamImageStoreVars = [
     config.scamImageStoreEndpoint,
     config.scamImageStoreBucket,
@@ -231,8 +238,7 @@ export function registerFeatures(
     deploymentService,
     logger,
     db,
-    guildConfigRepository:
-      guildSettingsFeature.services.guildConfigurationRepository,
+    guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
     emojiRepository: botEmojiFeature.services.botEmojiRepository,
     openRouterApiKey: secrets.OPENROUTER_API_KEY,
     openRouterScamClassifyModel: config.openRouterScamClassifyModel,
@@ -338,8 +344,7 @@ export function registerFeatures(
 
   // Legacy audit logs feature
   const legacyAuditLogsFeature = setupLegacyAuditLogsFeature({
-    guildConfigRepository:
-      guildSettingsFeature.services.guildConfigurationRepository,
+    guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
     logger,
   });
 
@@ -354,17 +359,31 @@ export function registerFeatures(
     client,
     db,
     logger: logger.child({ feature: "MemberScreening" }),
+    flagRepository: featureFlagRepository,
     deploymentService,
     moderationService: moderationFeature.services.moderationService,
     openRouterApiKey: secrets.OPENROUTER_API_KEY,
     ownerUserId: config.deployment.ownerUserId,
+  });
+  const featureFlagCommands = createFeatureFlagCommands({
+    repository: featureFlagRepository,
+    screening: memberScreeningFeature.services.settingsPort,
+    ownerUserId: config.deployment.ownerUserId,
+    logger: logger.child({ feature: "FeatureFlags" }),
+  });
+
+  const guildSettingsFeature = setupGuildSettingsFeature({
+    services: guildSettingsServices,
+    logger,
+    botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
+    screeningSettings: memberScreeningFeature.services.settingsPort,
   });
 
   // Message log feature
   const messageLogFeature = setupMessageLog(
     client,
     db,
-    guildSettingsFeature.services.guildConfigurationRepository,
+    guildSettingsServices.guildConfigurationRepository,
     botEmojiFeature.services.botEmojiRepository,
     deploymentService,
     logger.child({ component: "MessageLogFeature" }),
@@ -375,7 +394,7 @@ export function registerFeatures(
   const reactionLogFeature = setupReactionLog(
     db,
     client,
-    guildSettingsFeature.services.guildConfigurationRepository,
+    guildSettingsServices.guildConfigurationRepository,
     deploymentService,
     logger.child({ component: "ReactionLogFeature" }),
   );
@@ -411,6 +430,7 @@ export function registerFeatures(
     ...altAccountsFeature.commands,
     ...permissionAuditFeature.commands,
     ...memberScreeningFeature.commands,
+    ...featureFlagCommands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,

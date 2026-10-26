@@ -104,7 +104,7 @@ describe("addAutomodContent member screening section", () => {
     );
 
     expect(toggle.components?.[0].content).toBe(
-      "### 🔍 Member Screening\nChecks new members' messages, avatars and image links with AI during their first 20 messages or 72 hours, and posts suspicious ones for review.\n-# Off",
+      "### 🔍 Member Screening\nChecks new members' messages, avatars and image links with AI during their first messages after joining, and posts suspicious ones for review.\n-# Off",
     );
     expect(toggle.accessory?.label).toBe("Enable");
     expect(label.content).toBe(
