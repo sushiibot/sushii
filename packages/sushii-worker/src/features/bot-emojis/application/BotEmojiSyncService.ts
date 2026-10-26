@@ -164,13 +164,17 @@ export class BotEmojiSyncService {
         this.logger.info({ name, oldId: discordId, newId }, "Updated emoji");
       }
     } else if (discordId && !dbEmoji) {
-      // Discord exists, DB missing - save to database (assume Discord is correct)
-      const newEmoji = new BotEmoji(name, discordId, hash);
-      await this.repository.saveEmoji(newEmoji);
-      result.created++;
+      // An untracked emoji with this name may be leftover art, so replace it rather than adopt it.
+      const newId = await this.emojiService.replaceEmoji(
+        name,
+        discordId,
+        buffer,
+      );
+      await this.repository.saveEmoji(new BotEmoji(name, newId, hash));
+      result.updated++;
       this.logger.info(
-        { name, id: discordId },
-        "Saved existing Discord emoji to database",
+        { name, oldId: discordId, newId },
+        "Replaced untracked Discord emoji",
       );
     } else if (!discordId && dbEmoji) {
       // DB exists, Discord missing - upload to Discord

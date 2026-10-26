@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import type { Client } from "discord.js";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -8,7 +8,9 @@ import pino from "pino";
 
 import type { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 
+import { BotEmoji } from "../domain/entities/BotEmoji";
 import type { BotEmojiRepository } from "../domain/repositories/BotEmojiRepository";
+import type { BotEmojiService } from "./BotEmojiService";
 import { BotEmojiSyncService } from "./BotEmojiSyncService";
 
 test.each([1, 2])(
@@ -68,3 +70,38 @@ test.each([1, 2])(
     }
   },
 );
+
+test("an untracked Discord emoji with the same name is replaced, not adopted", async () => {
+  const buffer = Buffer.from("current art");
+  const hash = createHash("sha256").update(buffer).digest("hex");
+  const replaceEmoji = mock(async () => "222");
+  const saveEmoji = mock(async () => undefined);
+  const service = new BotEmojiSyncService(
+    {} as Client,
+    { saveEmoji } as unknown as BotEmojiRepository,
+    {} as WebhookService,
+    pino({ level: "silent" }),
+  );
+  Object.defineProperty(service, "emojiService", {
+    value: { replaceEmoji } as unknown as BotEmojiService,
+  });
+  const result = {
+    processed: 0,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+    errorMessages: [],
+  };
+
+  await service["syncSingleEmoji"](
+    { name: "logs", buffer, hash },
+    new Map([["logs", "111"]]),
+    new Map(),
+    result,
+  );
+
+  expect(replaceEmoji).toHaveBeenCalledWith("logs", "111", buffer);
+  expect(saveEmoji).toHaveBeenCalledWith(new BotEmoji("logs", "222", hash));
+  expect(result.updated).toBe(1);
+});
