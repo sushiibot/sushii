@@ -5,10 +5,9 @@ import {
   type Guild,
   type GuildAuditLogsEntry,
 } from "discord.js";
-import pino from "pino";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import type { ActiveScreeningSettings } from "../../domain/types";
 import {
   ScreeningAuditLogHandler,
   screeningActionFor,
@@ -28,20 +27,19 @@ function entry(overrides: Partial<GuildAuditLogsEntry>): GuildAuditLogsEntry {
   } as unknown as GuildAuditLogsEntry;
 }
 
-function setup(hasSettings = true) {
+function setup(active = true) {
   const recordModAction = mock(async () => undefined);
   const wait = mock(async () => undefined);
-  const findByGuildId = mock(
-    async (): Promise<unknown> => (hasSettings ? { guildId: GUILD.id } : null),
+  const find = mock(async () =>
+    active ? ({ guildId: GUILD.id } as ActiveScreeningSettings) : null,
   );
   const handler = new ScreeningAuditLogHandler(
     { recordModAction } as unknown as MemberScreeningService,
-    { findByGuildId } as unknown as ScreeningGuildRepository,
+    { find },
     { user: { id: BOT } } as unknown as Client,
-    pino({ level: "silent" }),
     wait,
   );
-  return { handler, recordModAction, wait, findByGuildId };
+  return { handler, recordModAction, wait, find };
 }
 
 describe("screeningActionFor", () => {
@@ -116,27 +114,20 @@ describe("ScreeningAuditLogHandler", () => {
     );
   });
 
-  test("a failed settings lookup skips the entry instead of throwing", async () => {
-    const t = setup();
-    t.findByGuildId.mockRejectedValueOnce(new Error("connection refused"));
+  test("skips guilds where screening isn't active", async () => {
+    const t = setup(false);
 
     await t.handler.handle(
       entry({ action: AuditLogEvent.MemberBanAdd }),
       GUILD,
     );
 
-    expect(t.findByGuildId).toHaveBeenCalledWith(GUILD.id);
+    expect(t.find).toHaveBeenCalledWith(GUILD.id);
+    expect(t.wait).not.toHaveBeenCalled();
     expect(t.recordModAction).not.toHaveBeenCalled();
   });
 
-  test("skips guilds without settings and unrelated actions", async () => {
-    const noSettings = setup(false);
-    await noSettings.handler.handle(
-      entry({ action: AuditLogEvent.MemberBanAdd }),
-      GUILD,
-    );
-    expect(noSettings.recordModAction).not.toHaveBeenCalled();
-
+  test("skips unrelated actions", async () => {
     const t = setup();
     await t.handler.handle(
       entry({ action: AuditLogEvent.MessageDelete }),

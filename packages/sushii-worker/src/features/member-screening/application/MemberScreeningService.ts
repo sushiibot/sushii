@@ -12,7 +12,6 @@ import type {
 import type { CheckResult, ScreeningMetrics } from "../domain/ScreeningMetrics";
 import { extractImageLinks } from "../domain/imageLinks";
 import { isTrivialMessage } from "../domain/isTrivialMessage";
-import type { ScreeningGuildRepository } from "../domain/repositories/ScreeningGuildRepository";
 import type {
   CachedMessage,
   ScreeningMessageContextRepository,
@@ -21,6 +20,7 @@ import type { ScreeningVerdictRepository } from "../domain/repositories/Screenin
 import { rulesFor, topRule } from "../domain/rules";
 import {
   ACTION_LOOKBACK_DAYS,
+  type ActiveScreeningSettings,
   type ImageKind,
   type JudgedText,
   type NewScreeningVerdict,
@@ -31,6 +31,7 @@ import {
 import { verdictRef } from "../presentation/views/ScreeningPostView";
 import type { ScreeningPostPublisher } from "./ScreeningPostPublisher";
 import type { ScreeningPostRenderer } from "./ScreeningPostRenderer";
+import type { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
 
 const tracer = opentelemetry.trace.getTracer("member-screening");
 
@@ -88,7 +89,7 @@ interface CheckTarget {
 
 interface ScreenContext {
   msg: ScreenedMessage;
-  settings: ScreeningGuildSettings;
+  settings: ActiveScreeningSettings;
   ordinal: number;
   now: Date;
 }
@@ -131,7 +132,7 @@ export class MemberScreeningService {
   private readonly classifierSlots = new Semaphore(MAX_CLASSIFIER_CALLS);
 
   constructor(
-    private readonly guildRepo: ScreeningGuildRepository,
+    private readonly settings: Pick<ScreeningSettingsLookup, "find">,
     private readonly verdictRepo: ScreeningVerdictRepository,
     private readonly contextRepo: ScreeningMessageContextRepository,
     private readonly classifier: ScreeningClassifier,
@@ -148,7 +149,7 @@ export class MemberScreeningService {
     opts: { skipText?: boolean } = {},
   ): Promise<void> {
     try {
-      const settings = await this.guildRepo.findByGuildId(msg.guildId);
+      const settings = await this.settings.find(msg.guildId);
       if (!settings) {
         return;
       }
@@ -185,7 +186,7 @@ export class MemberScreeningService {
 
   /** Scored silently for recall measurement and shown on the member's posts. Never posts: AutoMod already alerted. */
   async recordAutomodBlock(block: AutomodBlock): Promise<void> {
-    const settings = await this.guildRepo.findByGuildId(block.guildId);
+    const settings = await this.settings.find(block.guildId);
     if (!settings) {
       return;
     }
@@ -301,7 +302,7 @@ export class MemberScreeningService {
       return;
     }
 
-    const settings = await this.guildRepo.findByGuildId(guildId);
+    const settings = await this.settings.find(guildId);
     if (!settings) {
       return;
     }
@@ -444,7 +445,7 @@ export class MemberScreeningService {
         { result: flagged ? "flagged" : "clean", span },
       );
     });
-    if (!row?.flagged || !settings.logChannelId) {
+    if (!row?.flagged) {
       return;
     }
 
@@ -590,7 +591,7 @@ export class MemberScreeningService {
       },
     );
 
-    if (row?.flagged && settings.logChannelId) {
+    if (row?.flagged) {
       await this.postNew(row, settings.logChannelId);
     }
   }

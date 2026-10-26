@@ -12,17 +12,23 @@ import { GuildSettingsService } from "./application/GuildSettingsService";
 import { MessageLogBlockService } from "./application/MessageLogBlockService";
 import SettingsCommand from "./presentation/commands/SettingsCommand";
 
+type GuildSettingsServices = ReturnType<typeof createGuildSettingsServices>;
+
 interface GuildSettingsDependencies {
-  db: NodePgDatabase<typeof schema>;
+  /** Built early by the caller: other features need the config repository before screening exists. */
+  services: GuildSettingsServices;
   logger: Logger;
   botEmojiRepository: BotEmojiRepository;
-  screeningSettings?: ScreeningSettingsPort | null;
+  screeningSettings: ScreeningSettingsPort | null;
 }
 
 export function createGuildSettingsServices({
   db,
   logger,
-}: Pick<GuildSettingsDependencies, "db" | "logger">) {
+}: {
+  db: NodePgDatabase<typeof schema>;
+  logger: Logger;
+}) {
   const guildConfigurationRepository = new DrizzleGuildConfigRepository(
     db,
     logger.child({ module: "guildConfigurationRepository" }),
@@ -52,10 +58,10 @@ export function createGuildSettingsServices({
 }
 
 export function createGuildSettingsCommands(
-  services: ReturnType<typeof createGuildSettingsServices>,
+  services: GuildSettingsServices,
   logger: Logger,
   botEmojiRepository: BotEmojiRepository,
-  screeningSettings: ScreeningSettingsPort | null = null,
+  screeningSettings: ScreeningSettingsPort | null,
 ) {
   const { guildSettingsService, messageLogBlockService } = services;
 
@@ -76,7 +82,7 @@ export function createGuildSettingsCommands(
 }
 
 export function createGuildSettingsEventHandlers(
-  _services: ReturnType<typeof createGuildSettingsServices>,
+  _services: GuildSettingsServices,
   _logger: Logger,
 ) {
   // Guild settings feature doesn't have event handlers currently
@@ -86,14 +92,11 @@ export function createGuildSettingsEventHandlers(
 }
 
 export function setupGuildSettingsFeature({
-  db,
+  services,
   logger,
   botEmojiRepository,
-  screeningSettings = null,
-}: GuildSettingsDependencies): FeatureSetupWithServices<
-  ReturnType<typeof createGuildSettingsServices>
-> {
-  const services = createGuildSettingsServices({ db, logger });
+  screeningSettings,
+}: GuildSettingsDependencies): FeatureSetupWithServices<GuildSettingsServices> {
   const commands = createGuildSettingsCommands(
     services,
     logger,

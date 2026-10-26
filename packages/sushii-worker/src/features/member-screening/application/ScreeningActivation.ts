@@ -2,7 +2,7 @@ import type { FeatureFlagRepository } from "@/features/feature-flags/domain/Feat
 
 import { isScreeningActive } from "../domain/isScreeningActive";
 import type { ScreeningGuildRepository } from "../domain/repositories/ScreeningGuildRepository";
-import type { ScreeningGuildSettings } from "../domain/types";
+import type { ActiveScreeningSettings } from "../domain/types";
 
 export class ScreeningActivation {
   constructor(
@@ -13,7 +13,7 @@ export class ScreeningActivation {
   /** The guild's settings when screening is active, otherwise null. Throws when flags can't be loaded, so hot-path callers must guard. */
   async activeSettings(
     guildId: string,
-  ): Promise<ScreeningGuildSettings | null> {
+  ): Promise<ActiveScreeningSettings | null> {
     if (!(await this.flagEnabled(guildId))) {
       return null;
     }

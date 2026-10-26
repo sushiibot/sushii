@@ -1,32 +1,22 @@
 import { describe, expect, mock, test } from "bun:test";
 import { GatewayDispatchEvents, type GatewayDispatchPayload } from "discord.js";
-import pino from "pino";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import type { ActiveScreeningSettings } from "../../domain/types";
 import { ScreeningMessageDeleteHandler } from "./ScreeningMessageDeleteHandler";
 
 const GUILD = "100000000000000001";
 
-function setup(hasSettings = true) {
+function setup(active = true) {
   const recordMessagesDeleted = mock(async () => undefined);
-  const findByGuildId = mock(async () =>
-    hasSettings ? { guildId: GUILD } : null,
+  const find = mock(async () =>
+    active ? ({ guildId: GUILD } as ActiveScreeningSettings) : null,
   );
-  const logger = pino({ level: "silent" });
-  const warn = mock(() => undefined);
-  logger.warn = warn as unknown as typeof logger.warn;
-  let now = 0;
   const handler = new ScreeningMessageDeleteHandler(
     { recordMessagesDeleted } as unknown as MemberScreeningService,
-    { findByGuildId } as unknown as ScreeningGuildRepository,
-    logger,
-    () => now,
+    { find },
   );
-  const advance = (ms: number) => {
-    now += ms;
-  };
-  return { handler, recordMessagesDeleted, findByGuildId, warn, advance };
+  return { handler, recordMessagesDeleted, find };
 }
 
 function payload(t: GatewayDispatchEvents, d: Record<string, unknown>) {
@@ -65,40 +55,24 @@ describe("ScreeningMessageDeleteHandler", () => {
     ]);
   });
 
-  test("skips DMs and guilds without settings", async () => {
-    const dm = setup();
-    await dm.handler.handle(
+  test("skips DMs", async () => {
+    const t = setup();
+    await t.handler.handle(
       payload(GatewayDispatchEvents.MessageDelete, { id: "1" }),
     );
-    expect(dm.recordMessagesDeleted).not.toHaveBeenCalled();
-
-    const t = setup(false);
-    await t.handler.handle(
-      payload(GatewayDispatchEvents.MessageDelete, {
-        id: "1",
-        guild_id: GUILD,
-      }),
-    );
+    expect(t.find).not.toHaveBeenCalled();
     expect(t.recordMessagesDeleted).not.toHaveBeenCalled();
   });
 
-  test("a failed settings lookup skips and warns at most once per minute", async () => {
-    const t = setup();
-    t.findByGuildId.mockImplementation(async () => {
-      throw new Error("db down");
-    });
-    const event = payload(GatewayDispatchEvents.MessageDelete, {
-      id: "500000000000000001",
-      guild_id: GUILD,
-    });
-
-    await t.handler.handle(event);
-    t.advance(30_000);
-    await t.handler.handle(event);
-    t.advance(30_000);
-    await t.handler.handle(event);
-
+  test("skips guilds where screening isn't active", async () => {
+    const t = setup(false);
+    await t.handler.handle(
+      payload(GatewayDispatchEvents.MessageDeleteBulk, {
+        ids: ["1", "2"],
+        guild_id: GUILD,
+      }),
+    );
+    expect(t.find).toHaveBeenCalledWith(GUILD);
     expect(t.recordMessagesDeleted).not.toHaveBeenCalled();
-    expect(t.warn).toHaveBeenCalledTimes(2);
   });
 });

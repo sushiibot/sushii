@@ -14,7 +14,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Rebuilds a review post from stored verdicts, so edits never depend on the flagged message still existing. */
 export class ScreeningPostRenderer {
   constructor(
-    private readonly guildRepo: ScreeningGuildRepository,
+    private readonly guildRepo: Pick<ScreeningGuildRepository, "findByGuildId">,
     private readonly verdictRepo: ScreeningVerdictRepository,
   ) {}
 
@@ -30,6 +30,7 @@ export class ScreeningPostRenderer {
 
   /** Shows the member's AutoMod blocks since joining alongside the flag. */
   async render(verdict: ScreeningVerdict): Promise<ContainerBuilder> {
+    // Display only, not a gate: posts stay actionable after screening is turned off.
     const settings = await this.guildRepo.findByGuildId(verdict.guildId);
     const since =
       verdict.joinedAt ??

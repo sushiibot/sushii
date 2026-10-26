@@ -90,9 +90,12 @@ These are only saved when a server moderator enables certain options.
 
 ### Collected data in servers approved for member screening
 
-Member screening is not enabled by server moderators. We, the Bot operator,
-enable it only for servers we have approved. In those servers, we collect the
-data described under "Member Screening" below.
+Member screening is available only in servers that we, the Bot operator, have
+approved. After we approve a server, that server's moderators decide whether to
+turn screening on, pick the channel for review posts, and choose whether
+avatars are checked. Screening runs only after they have turned it on and
+picked that channel. In those servers, we collect the data described under
+"Member Screening" below.
 
 ## How your information is used
 
@@ -156,17 +159,18 @@ in relation to some specific use cases:
   administrators use this to review which roles still need their permissions.
 * **Statistics:** When statistics are provided by our Services, we only keep
   aggregated and anonymized data into our database.
-* **Member Screening:** Member screening is an opt-in feature that we enable
-  only for servers we have approved. It helps server moderators review new
-  members.
+* **Member Screening:** Member screening is an opt-in feature. We approve a
+  server for it, and that server's moderators then turn it on and pick the
+  channel for review posts. It helps server moderators review new members.
   * **Who is screened:** New members, during their first 20 messages or first
     72 hours after they join, whichever ends first. We may set different limits
     for a server. Messages in channels that are excluded from message logging
     are not counted toward the 20. Server owners and members whose roles grant
     Administrator, Manage Server, Manage Messages, Timeout Members, Ban Members
     or Kick Members are not screened.
-  * **What is checked:** The text of your messages, your avatar, and links to
-    images hosted on Discord in your messages. Messages that AutoMod blocks
+  * **What is checked:** The text of your messages, your avatar (unless the
+    server's moderators turned avatar checks off), and links to images hosted
+    on Discord in your messages. Messages that AutoMod blocks
     are also scored if you joined within the last 72 hours (by default). The
     checks use AI models (see "How your information may be shared").
   * **What is stored for a flagged result:** Up to five of your recent
@@ -183,7 +187,8 @@ in relation to some specific use cases:
     kicks and timeouts of new members who were never flagged, to measure
     missed cases.
   * **Review posts:** Flagged results are posted as Discord messages in the
-    server's moderator channel. The server controls these messages.
+    channel the server's moderators picked. The server controls these
+    messages.
   * **Message cache:** To show context, the Bot saves the messages of all
     members in a screened server, not only new members, even if the server
     has not enabled message logging.
@@ -247,8 +252,8 @@ messages saved in servers that use member screening.
 
 Member screening results are deleted after 90 days, together with the message
 text stored for flagged results and the moderator actions stored with them.
-Review posts are Discord messages in the server's moderator channel. The server
-controls them, and we don't delete them after 90 days.
+Review posts are Discord messages in the channel the server's moderators picked.
+The server controls them, and we don't delete them after 90 days.
 
 Perceptual hashes derived from image attachments for scam detection are retained
 indefinitely as part of our trust and safety database. Image attachments
@@ -339,9 +344,10 @@ policy frequently to be informed of how we are protecting your information.
 To request your data to be removed, please contact us in the following section.
 
 Member screening can't be turned off per member. If you don't want to be
-screened in a server, ask that server's moderators; we turn screening off for a
-server at their request. When screening is turned off, no new checks are made,
-and existing results are deleted on the normal 90-day schedule.
+screened in a server, ask that server's moderators. They can turn screening off
+for the server, and we can also withdraw a server's approval. When screening is
+turned off, no new checks are made, and existing results are deleted on the
+normal 90-day schedule.
 
 ## Contact us
 

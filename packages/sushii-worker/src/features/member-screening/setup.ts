@@ -3,7 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { DrizzleFeatureFlagRepository } from "@/features/feature-flags/infrastructure/DrizzleFeatureFlagRepository";
+import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { SelectMenuHandler } from "@/shared/presentation/handlers";
@@ -13,9 +13,11 @@ import type {
 } from "@/shared/types/FeatureSetup";
 
 import { MemberScreeningService } from "./application/MemberScreeningService";
+import { ScreeningActivation } from "./application/ScreeningActivation";
 import { ScreeningPostRenderer } from "./application/ScreeningPostRenderer";
+import { ScreeningSettingsLookup } from "./application/ScreeningSettingsLookup";
+import { ScreeningSettingsService } from "./application/ScreeningSettingsService";
 import type { ScreeningClassifier } from "./domain/ScreeningClassifier";
-import type { ScreeningGuildRepository } from "./domain/repositories/ScreeningGuildRepository";
 import { DiscordScreeningPostPublisher } from "./infrastructure/DiscordScreeningPostPublisher";
 import { DrizzleScreeningGuildRepository } from "./infrastructure/DrizzleScreeningGuildRepository";
 import { DrizzleScreeningMessageContextRepository } from "./infrastructure/DrizzleScreeningMessageContextRepository";
@@ -28,7 +30,6 @@ import { ScreeningAuditLogHandler } from "./presentation/events/ScreeningAuditLo
 import { ScreeningAutomodHandler } from "./presentation/events/ScreeningAutomodHandler";
 import { ScreeningMessageDeleteHandler } from "./presentation/events/ScreeningMessageDeleteHandler";
 import { ScreeningMessageHandler } from "./presentation/events/ScreeningMessageHandler";
-import { ScreeningSettingsLookup } from "./presentation/events/ScreeningSettingsLookup";
 import { ScreeningActionButtonHandler } from "./presentation/handlers/ScreeningActionButtonHandler";
 import { ScreeningIgnoreSelectHandler } from "./presentation/handlers/ScreeningIgnoreSelectHandler";
 
@@ -36,6 +37,7 @@ export interface MemberScreeningFeatureOptions {
   client: Client;
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
+  flagRepository: FeatureFlagRepository;
   deploymentService: DeploymentService;
   moderationService: Pick<ModerationService, "executeAction">;
   openRouterApiKey?: string;
@@ -43,7 +45,9 @@ export interface MemberScreeningFeatureOptions {
 }
 
 interface MemberScreeningServices {
-  guildRepository: ScreeningGuildRepository;
+  /** Also the screening state reader for `/feature-flag list`. */
+  settingsPort: ScreeningSettingsService;
+  flagRepository: FeatureFlagRepository;
   /** For the message cache; resolves false instead of throwing when the lookup fails. */
   shouldCacheForScreening: (guildId: string) => Promise<boolean>;
 }
@@ -65,6 +69,7 @@ export function setupMemberScreeningFeature({
   client,
   db,
   logger,
+  flagRepository,
   deploymentService,
   moderationService,
   openRouterApiKey,
@@ -76,6 +81,15 @@ export function setupMemberScreeningFeature({
   );
   const verdictRepository = new DrizzleScreeningVerdictRepository(db);
   const contextRepository = new DrizzleScreeningMessageContextRepository(db);
+  const settingsPort = new ScreeningSettingsService(
+    flagRepository,
+    guildRepository,
+  );
+  // One lookup for every entry point, so a flag or DB outage warns once a minute in total.
+  const activeSettings = new ScreeningSettingsLookup(
+    new ScreeningActivation(flagRepository, guildRepository),
+    logger.child({ component: "ScreeningSettingsLookup" }),
+  );
 
   const metrics = new OtelScreeningMetrics();
   const renderer = new ScreeningPostRenderer(
@@ -92,7 +106,7 @@ export function setupMemberScreeningFeature({
     : unconfiguredClassifier;
 
   const service = new MemberScreeningService(
-    guildRepository,
+    activeSettings,
     verdictRepository,
     contextRepository,
     classifier,
@@ -103,30 +117,16 @@ export function setupMemberScreeningFeature({
   );
 
   const eventHandlers: EventHandlers = [
-    new ScreeningAuditLogHandler(
-      service,
-      guildRepository,
-      client,
-      logger.child({ component: "ScreeningAuditLogHandler" }),
-    ),
-    new ScreeningMessageDeleteHandler(
-      service,
-      guildRepository,
-      logger.child({ component: "ScreeningMessageDeleteHandler" }),
-    ),
+    new ScreeningAuditLogHandler(service, activeSettings, client),
+    new ScreeningMessageDeleteHandler(service, activeSettings),
   ];
 
   if (openRouterApiKey) {
     eventHandlers.push(
-      new ScreeningMessageHandler(
-        service,
-        guildRepository,
-        client,
-        logger.child({ component: "ScreeningMessageHandler" }),
-      ),
+      new ScreeningMessageHandler(service, activeSettings, client),
       new ScreeningAutomodHandler(
         service,
-        guildRepository,
+        activeSettings,
         logger.child({ component: "ScreeningAutomodHandler" }),
       ),
     );
@@ -136,19 +136,11 @@ export function setupMemberScreeningFeature({
     );
   }
 
-  const cacheLookup = new ScreeningSettingsLookup(
-    guildRepository,
-    logger.child({ component: "ScreeningCacheLookup" }),
-  );
-
   return {
     commands: [
       new MemberScreeningCommand(
         guildRepository,
-        new DrizzleFeatureFlagRepository(
-          db,
-          logger.child({ component: "FeatureFlagRepository" }),
-        ),
+        flagRepository,
         verdictRepository,
         ownerUserId,
         logger.child({ commandHandler: "member-screening" }),
@@ -183,10 +175,11 @@ export function setupMemberScreeningFeature({
       ),
     ],
     services: {
-      guildRepository,
+      settingsPort,
+      flagRepository,
       // Without a key nothing is screened, so other members' messages aren't needed as context.
       shouldCacheForScreening: async (guildId) =>
-        !!openRouterApiKey && (await cacheLookup.find(guildId)) !== null,
+        !!openRouterApiKey && (await activeSettings.find(guildId)) !== null,
     },
   };
 }

@@ -6,7 +6,7 @@ import {
 import pino from "pino";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import type { ActiveScreeningSettings } from "../../domain/types";
 import { ScreeningAutomodHandler } from "./ScreeningAutomodHandler";
 
 const GUILD = "100000000000000001";
@@ -28,7 +28,7 @@ function setup(
     cachedMember?: ReturnType<typeof member> | null;
     fetchedMember?: ReturnType<typeof member>;
     ruleFetchFails?: boolean;
-    settingsFail?: boolean;
+    inactive?: boolean;
   } = {},
 ) {
   const recordAutomodBlock = mock(async () => undefined);
@@ -60,13 +60,11 @@ function setup(
   const handler = new ScreeningAutomodHandler(
     { recordAutomodBlock } as unknown as MemberScreeningService,
     {
-      findByGuildId: async () => {
-        if (opts.settingsFail) {
-          throw new Error("connection refused");
-        }
-        return { guildId: GUILD, windowHours: 72 };
-      },
-    } as unknown as ScreeningGuildRepository,
+      find: async () =>
+        opts.inactive
+          ? null
+          : ({ guildId: GUILD, windowHours: 72 } as ActiveScreeningSettings),
+    },
     pino({ level: "silent" }),
     () => NOW,
   );
@@ -83,8 +81,8 @@ describe("ScreeningAutomodHandler", () => {
     expect(t.recordAutomodBlock).not.toHaveBeenCalled();
   });
 
-  test("skips the block when the settings lookup fails", async () => {
-    const t = setup({ settingsFail: true });
+  test("skips guilds where screening isn't active", async () => {
+    const t = setup({ inactive: true });
 
     await t.handler.handle(t.execution);
 

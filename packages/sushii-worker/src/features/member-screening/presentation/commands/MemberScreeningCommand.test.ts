@@ -1,11 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ChatInputCommandInteraction, REST } from "discord.js";
-import {
-  ChannelType,
-  DiscordAPIError,
-  MessageFlags,
-  RESTJSONErrorCodes,
-} from "discord.js";
+import type { ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags } from "discord.js";
 import pino from "pino";
 
 import type { FeatureFlagEntry } from "@/features/feature-flags/domain/FeatureFlag";
@@ -21,33 +16,10 @@ import {
   SCREENING_DEFAULTS,
   defaultScreeningSettings,
 } from "../../domain/types";
-import {
-  MemberScreeningCommand,
-  parseRules,
-  validateLogChannel,
-} from "./MemberScreeningCommand";
+import { MemberScreeningCommand, parseRules } from "./MemberScreeningCommand";
 
 const GUILD = "100000000000000001";
 const CHANNEL = "300000000000000001";
-
-function restReturning(value: unknown): Pick<REST, "get"> {
-  return { get: mock(() => Promise.resolve(value)) };
-}
-
-function restRejecting(err: unknown): Pick<REST, "get"> {
-  return { get: mock(() => Promise.reject(err)) };
-}
-
-function apiError(code: number, status: number): DiscordAPIError {
-  return new DiscordAPIError(
-    { message: "error", code },
-    code,
-    status,
-    "GET",
-    `/channels/${CHANNEL}`,
-    {},
-  );
-}
 
 describe("parseRules", () => {
   test("default resets to null", () => {
@@ -77,94 +49,6 @@ describe("parseRules", () => {
       ok: false,
       invalid: ["spam", "nope"],
     });
-  });
-});
-
-describe("validateLogChannel", () => {
-  test("accepts a text channel in the guild", async () => {
-    const rest = restReturning({
-      id: CHANNEL,
-      guild_id: GUILD,
-      type: ChannelType.GuildText,
-    });
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toBeNull();
-    expect(rest.get).toHaveBeenCalledWith(`/channels/${CHANNEL}`);
-  });
-
-  test("accepts an announcement channel", async () => {
-    const rest = restReturning({
-      id: CHANNEL,
-      guild_id: GUILD,
-      type: ChannelType.GuildAnnouncement,
-    });
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toBeNull();
-  });
-
-  test("rejects a malformed id without calling Discord", async () => {
-    const rest = restReturning({});
-
-    expect(await validateLogChannel(rest, GUILD, "abc")).toContain(
-      "must be a channel ID",
-    );
-    expect(rest.get).not.toHaveBeenCalled();
-  });
-
-  test("rejects a channel in another guild", async () => {
-    const rest = restReturning({
-      id: CHANNEL,
-      guild_id: "100000000000000002",
-      type: ChannelType.GuildText,
-    });
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toContain(
-      "isn't in server",
-    );
-  });
-
-  test("rejects a non-text channel", async () => {
-    const rest = restReturning({
-      id: CHANNEL,
-      guild_id: GUILD,
-      type: ChannelType.GuildVoice,
-    });
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toContain(
-      "text or announcement",
-    );
-  });
-
-  test("unknown channel is a validation message", async () => {
-    const rest = restRejecting(
-      apiError(RESTJSONErrorCodes.UnknownChannel, 404),
-    );
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toContain(
-      "can't see",
-    );
-  });
-
-  test("missing access is a validation message", async () => {
-    const rest = restRejecting(apiError(RESTJSONErrorCodes.MissingAccess, 403));
-
-    expect(await validateLogChannel(rest, GUILD, CHANNEL)).toContain(
-      "can't see",
-    );
-  });
-
-  test("other errors are rethrown", async () => {
-    const rest = restRejecting(
-      apiError(RESTJSONErrorCodes.MissingPermissions, 403),
-    );
-
-    await expect(
-      validateLogChannel(rest, GUILD, CHANNEL),
-    ).rejects.toBeInstanceOf(DiscordAPIError);
-
-    await expect(
-      validateLogChannel(restRejecting(new Error("network")), GUILD, CHANNEL),
-    ).rejects.toThrow("network");
   });
 });
 
@@ -271,6 +155,22 @@ describe("MemberScreeningCommand definition", () => {
       "status",
     ]);
   });
+
+  test("configure leaves the log channel and avatar checks to moderators", () => {
+    const t = setupCommand(OWNER);
+    const configure = t.command.command.options?.find(
+      (o) => o.name === "configure",
+    ) as { options?: { name: string }[] } | undefined;
+
+    expect(configure?.options?.map((o) => o.name)).toEqual([
+      "guild_id",
+      "max_messages",
+      "window_hours",
+      "review_threshold",
+      "rules",
+      "daily_check_cap",
+    ]);
+  });
 });
 
 describe("MemberScreeningCommand owner check", () => {
@@ -310,7 +210,6 @@ describe("MemberScreeningCommand configure", () => {
     const interaction = interactionFor("configure", OWNER, {
       strings: { rules: "scam,sale" },
       integers: { max_messages: 10 },
-      booleans: { check_avatars: false },
     });
 
     await runCommand(t.command, interaction);
@@ -325,35 +224,8 @@ describe("MemberScreeningCommand configure", () => {
     ).toEqual({
       rules: ["scam", "sale"],
       maxMessages: 10,
-      checkAvatars: false,
     });
     expect(t.guildRepo.list).not.toHaveBeenCalled();
-  });
-
-  test('log_channel_id "none" clears the channel', async () => {
-    const t = setupCommand(OWNER);
-    const interaction = interactionFor("configure", OWNER, {
-      strings: { log_channel_id: "None" },
-    });
-
-    await runCommand(t.command, interaction);
-
-    expect(t.guildRepo.patch).toHaveBeenCalledWith(
-      GUILD,
-      expect.objectContaining({ logChannelId: null }),
-    );
-  });
-
-  test("an invalid log channel isn't saved", async () => {
-    const t = setupCommand(OWNER);
-    const interaction = interactionFor("configure", OWNER, {
-      strings: { log_channel_id: "abc" },
-    });
-
-    await runCommand(t.command, interaction);
-
-    expect(t.guildRepo.patch).not.toHaveBeenCalled();
-    expect(editedText(interaction)).toContain("must be a channel ID");
   });
 
   test("notes when the flag is off", async () => {

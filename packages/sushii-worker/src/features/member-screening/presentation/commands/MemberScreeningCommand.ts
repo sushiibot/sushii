@@ -1,17 +1,9 @@
-import type {
-  APIChannel,
-  APIGuild,
-  ChatInputCommandInteraction,
-  REST,
-} from "discord.js";
+import type { APIGuild, ChatInputCommandInteraction } from "discord.js";
 import {
   ApplicationIntegrationType,
-  ChannelType,
   ContainerBuilder,
-  DiscordAPIError,
   MessageFlags,
   PermissionFlagsBits,
-  RESTJSONErrorCodes,
   Routes,
   SlashCommandBuilder,
   TextDisplayBuilder,
@@ -68,49 +60,6 @@ export function parseRules(input: string): RulesParseResult {
   return { ok: true, rules: ids as ScreeningRuleId[] };
 }
 
-const LOG_CHANNEL_TYPES: readonly ChannelType[] = [
-  ChannelType.GuildText,
-  ChannelType.GuildAnnouncement,
-];
-
-/**
- * Returns a validation message, or null when the channel is a text channel in the guild.
- * Uses REST because the guild usually isn't cached on the cluster running this command.
- */
-export async function validateLogChannel(
-  rest: Pick<REST, "get">,
-  guildId: string,
-  channelId: string,
-): Promise<string | null> {
-  if (!SNOWFLAKE_PATTERN.test(channelId)) {
-    return "`log_channel_id` must be a channel ID.";
-  }
-
-  let channel: APIChannel;
-  try {
-    channel = (await rest.get(Routes.channel(channelId))) as APIChannel;
-  } catch (err) {
-    if (
-      err instanceof DiscordAPIError &&
-      (err.code === RESTJSONErrorCodes.UnknownChannel ||
-        err.code === RESTJSONErrorCodes.MissingAccess)
-    ) {
-      return `sushii can't see channel \`${channelId}\`.`;
-    }
-    throw err;
-  }
-
-  if (!("guild_id" in channel) || channel.guild_id !== guildId) {
-    return `Channel \`${channelId}\` isn't in server \`${guildId}\`.`;
-  }
-
-  if (!LOG_CHANNEL_TYPES.includes(channel.type)) {
-    return `<#${channelId}> must be a text or announcement channel.`;
-  }
-
-  return null;
-}
-
 export class MemberScreeningCommand extends SlashCommandHandler {
   // sushii home guild; screening access is bot-owner-managed
   readonly registeredGuilds = ["418504865543749642"] as const;
@@ -126,13 +75,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
         .setDescription("Change owner-only screening settings for a server")
         .addStringOption((opt) =>
           opt.setName("guild_id").setDescription("Server ID").setRequired(true),
-        )
-        .addStringOption((opt) =>
-          opt
-            .setName("log_channel_id")
-            .setDescription(
-              'Channel ID to post flags in, or "none" to stop posting',
-            ),
         )
         .addIntegerOption((opt) =>
           opt
@@ -161,11 +103,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
             .setDescription(
               `Comma-separated rule IDs (${SCREENING_RULE_IDS.join(", ")}), or "default"`,
             ),
-        )
-        .addBooleanOption((opt) =>
-          opt
-            .setName("check_avatars")
-            .setDescription("Check new member avatars"),
         )
         .addIntegerOption((opt) =>
           opt
@@ -228,24 +165,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
 
     const changes: ScreeningGuildPatch = {};
 
-    const logChannelId = interaction.options
-      .getString("log_channel_id")
-      ?.trim();
-    if (logChannelId?.toLowerCase() === "none") {
-      changes.logChannelId = null;
-    } else if (logChannelId !== undefined) {
-      const channelError = await validateLogChannel(
-        interaction.client.rest,
-        guildId,
-        logChannelId,
-      );
-      if (channelError) {
-        await this.reply(interaction, channelError);
-        return;
-      }
-      changes.logChannelId = logChannelId;
-    }
-
     const rulesInput = interaction.options.getString("rules");
     if (rulesInput !== null) {
       const parsed = parseRules(rulesInput);
@@ -290,8 +209,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     changes.windowHours = windowHours ?? undefined;
     changes.reviewThreshold =
       interaction.options.getNumber("review_threshold") ?? undefined;
-    changes.checkAvatars =
-      interaction.options.getBoolean("check_avatars") ?? undefined;
     changes.dailyCheckCap =
       interaction.options.getInteger("daily_check_cap") ?? undefined;
 

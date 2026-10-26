@@ -9,15 +9,14 @@ import type {
   TextVerdict,
 } from "../domain/ScreeningClassifier";
 import type { ScreeningMetrics } from "../domain/ScreeningMetrics";
-import type { ScreeningGuildRepository } from "../domain/repositories/ScreeningGuildRepository";
 import type {
   CachedMessage,
   ScreeningMessageContextRepository,
 } from "../domain/repositories/ScreeningMessageContextRepository";
 import type { ScreeningVerdictRepository } from "../domain/repositories/ScreeningVerdictRepository";
 import type {
+  ActiveScreeningSettings,
   NewScreeningVerdict,
-  ScreeningGuildSettings,
   ScreeningVerdict,
 } from "../domain/types";
 import {
@@ -43,8 +42,8 @@ function hoursAgo(hours: number): Date {
 }
 
 function settings(
-  overrides: Partial<ScreeningGuildSettings> = {},
-): ScreeningGuildSettings {
+  overrides: Partial<ActiveScreeningSettings> = {},
+): ActiveScreeningSettings {
   return {
     guildId: GUILD,
     logChannelId: LOG_CHANNEL,
@@ -189,13 +188,13 @@ function fakeVerdictRepo() {
 
 function setup(
   opts: {
-    settings?: ScreeningGuildSettings | null;
+    settings?: ActiveScreeningSettings | null;
     priorMessages?: number;
     recent?: CachedMessage[];
   } = {},
 ) {
-  const guildRepo = {
-    findByGuildId: mock(async () =>
+  const settingsLookup = {
+    find: mock(async () =>
       opts.settings === undefined ? settings() : opts.settings,
     ),
   };
@@ -233,7 +232,7 @@ function setup(
   };
 
   const service = new MemberScreeningService(
-    guildRepo as unknown as ScreeningGuildRepository,
+    settingsLookup,
     verdictRepo as unknown as ScreeningVerdictRepository,
     contextRepo as unknown as ScreeningMessageContextRepository,
     classifier as unknown as ScreeningClassifier,
@@ -246,7 +245,7 @@ function setup(
 
   return {
     service,
-    guildRepo,
+    settingsLookup,
     verdictRepo,
     rows,
     contextRepo,
@@ -292,7 +291,7 @@ function posted(overrides: Partial<ScreeningVerdict> = {}): ScreeningVerdict {
 }
 
 describe("MemberScreeningService.screenMessage", () => {
-  test("skips guilds without settings", async () => {
+  test("skips guilds where screening isn't active", async () => {
     const t = setup({ settings: null });
 
     await t.service.screenMessage(message());
@@ -460,18 +459,6 @@ describe("MemberScreeningService.screenMessage", () => {
     expect(t.verdictRepo.setPost).toHaveBeenCalledWith(1, LOG_CHANNEL, POST);
   });
 
-  test("records flags without posting when no log channel is set", async () => {
-    const t = setup({ settings: settings({ logChannelId: null }) });
-    t.classifier.classifyText.mockImplementation(async () => textVerdict(0.9));
-
-    await t.service.screenMessage(message());
-
-    expect(t.verdictRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ flagged: true }),
-    );
-    expect(t.publisher.post).not.toHaveBeenCalled();
-  });
-
   test("a burst of flagged messages edits one post", async () => {
     const t = setup();
     t.classifier.classifyText.mockImplementation(async () => textVerdict(0.9));
@@ -598,7 +585,7 @@ describe("MemberScreeningService.screenMessage", () => {
 
   test("never throws when the settings lookup fails", async () => {
     const t = setup();
-    t.guildRepo.findByGuildId.mockImplementation(async () => {
+    t.settingsLookup.find.mockImplementation(async () => {
       throw new Error("db down");
     });
 

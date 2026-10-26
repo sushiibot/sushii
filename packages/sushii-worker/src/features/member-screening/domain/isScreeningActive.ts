@@ -1,9 +1,9 @@
-import type { ScreeningGuildSettings } from "./types";
+import type { ActiveScreeningSettings, ScreeningGuildSettings } from "./types";
 
 export function isScreeningActive(
   flagOn: boolean,
   settings: ScreeningGuildSettings | null,
-): boolean {
+): settings is ActiveScreeningSettings {
   return (
     flagOn &&
     settings !== null &&

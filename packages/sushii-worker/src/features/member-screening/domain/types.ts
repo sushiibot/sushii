@@ -133,6 +133,10 @@ export interface ScreeningGuildSettings {
   dailyCheckCap: number;
 }
 
+export type ActiveScreeningSettings = ScreeningGuildSettings & {
+  logChannelId: string;
+};
+
 export const SCREENING_DEFAULTS = {
   enabled: false,
   maxMessages: 20,

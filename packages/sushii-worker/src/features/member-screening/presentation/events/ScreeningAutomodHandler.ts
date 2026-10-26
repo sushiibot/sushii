@@ -12,8 +12,7 @@ import type { Logger } from "pino";
 import { EventHandler } from "@/core/cluster/presentation/EventHandler";
 
 import type { MemberScreeningService } from "../../application/MemberScreeningService";
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
-import { ScreeningSettingsLookup } from "./ScreeningSettingsLookup";
+import type { ScreeningSettingsLookup } from "../../application/ScreeningSettingsLookup";
 import { isScreeningExempt } from "./screeningExemption";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -39,16 +38,14 @@ async function fetchMember(
 /** One event fires per rule action, so only the block is recorded: a block+alert rule would otherwise count twice. */
 export class ScreeningAutomodHandler extends EventHandler<Events.AutoModerationActionExecution> {
   readonly eventType = Events.AutoModerationActionExecution;
-  private readonly settings: ScreeningSettingsLookup;
 
   constructor(
     private readonly service: MemberScreeningService,
-    guildRepo: ScreeningGuildRepository,
+    private readonly settings: Pick<ScreeningSettingsLookup, "find">,
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
   ) {
     super();
-    this.settings = new ScreeningSettingsLookup(guildRepo, logger, now);
   }
 
   async handle(execution: AutoModerationActionExecution): Promise<void> {
