@@ -18,16 +18,21 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import dayjs from "@/shared/domain/dayjs";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
-import type { ScreeningVerdictRepository } from "../../domain/repositories/ScreeningVerdictRepository";
+import { isScreeningActive } from "../../domain/isScreeningActive";
 import type {
-  ScreeningGuildSettings,
-  ScreeningRuleId,
+  ScreeningGuildPatch,
+  ScreeningGuildRepository,
+} from "../../domain/repositories/ScreeningGuildRepository";
+import type { ScreeningVerdictRepository } from "../../domain/repositories/ScreeningVerdictRepository";
+import type { ScreeningRuleId } from "../../domain/types";
+import {
+  SCREENING_RULE_IDS,
+  defaultScreeningSettings,
 } from "../../domain/types";
-import { SCREENING_DEFAULTS, SCREENING_RULE_IDS } from "../../domain/types";
 import { buildScreeningStatus } from "../views/ScreeningStatusView";
 
 const SNOWFLAKE_PATTERN = /^\d{17,19}$/;
@@ -112,35 +117,13 @@ export class MemberScreeningCommand extends SlashCommandHandler {
 
   readonly command = new SlashCommandBuilder()
     .setName("member-screening")
-    .setDescription("Manage the new member screening allowlist")
+    .setDescription("Configure member screening for flagged servers")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((sub) =>
       sub
-        .setName("enable")
-        .setDescription("Allowlist a server for member screening")
-        .addStringOption((opt) =>
-          opt.setName("guild_id").setDescription("Server ID").setRequired(true),
-        )
-        .addStringOption((opt) =>
-          opt
-            .setName("log_channel_id")
-            .setDescription("Channel ID to post flags in")
-            .setRequired(true),
-        ),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("disable")
-        .setDescription("Remove a server from the allowlist")
-        .addStringOption((opt) =>
-          opt.setName("guild_id").setDescription("Server ID").setRequired(true),
-        ),
-    )
-    .addSubcommand((sub) =>
-      sub
         .setName("configure")
-        .setDescription("Change screening settings for an allowlisted server")
+        .setDescription("Change owner-only screening settings for a server")
         .addStringOption((opt) =>
           opt.setName("guild_id").setDescription("Server ID").setRequired(true),
         )
@@ -192,14 +175,13 @@ export class MemberScreeningCommand extends SlashCommandHandler {
         ),
     )
     .addSubcommand((sub) =>
-      sub
-        .setName("status")
-        .setDescription("Show allowlisted servers and stats"),
+      sub.setName("status").setDescription("Show flagged servers and stats"),
     )
     .toJSON();
 
   constructor(
     private readonly guildRepo: ScreeningGuildRepository,
+    private readonly flagRepo: FeatureFlagRepository,
     private readonly verdictRepo: ScreeningVerdictRepository,
     private readonly ownerUserId: string | undefined,
     private readonly logger: Logger,
@@ -222,12 +204,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     switch (sub) {
-      case "enable":
-        await this.handleEnable(interaction);
-        break;
-      case "disable":
-        await this.handleDisable(interaction);
-        break;
       case "configure":
         await this.handleConfigure(interaction);
         break;
@@ -240,87 +216,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     }
   }
 
-  private async handleEnable(
-    interaction: ChatInputCommandInteraction,
-  ): Promise<void> {
-    const guildId = interaction.options.getString("guild_id", true).trim();
-    const logChannelId = interaction.options
-      .getString("log_channel_id", true)
-      .trim();
-
-    if (!SNOWFLAKE_PATTERN.test(guildId)) {
-      await this.reply(interaction, "`guild_id` must be a server ID.");
-      return;
-    }
-
-    const existing = (await this.guildRepo.list()).find(
-      (s) => s.guildId === guildId,
-    );
-    if (existing) {
-      await this.reply(
-        interaction,
-        `\`${guildId}\` is already enabled. Use \`/member-screening configure\` to change its settings.`,
-      );
-      return;
-    }
-
-    const channelError = await validateLogChannel(
-      interaction.client.rest,
-      guildId,
-      logChannelId,
-    );
-    if (channelError) {
-      await this.reply(interaction, channelError);
-      return;
-    }
-
-    const settings = await this.guildRepo.upsert({
-      guildId,
-      logChannelId,
-      ...SCREENING_DEFAULTS,
-      rules: null,
-      enabledBy: interaction.user.id,
-      enabledAt: new Date(),
-    });
-
-    this.logger.info(
-      { guildId, logChannelId, enabledBy: interaction.user.id },
-      "Enabled member screening",
-    );
-
-    await this.reply(
-      interaction,
-      `Enabled member screening for \`${settings.guildId}\`, logging to <#${logChannelId}> with default settings.`,
-    );
-  }
-
-  private async handleDisable(
-    interaction: ChatInputCommandInteraction,
-  ): Promise<void> {
-    const guildId = interaction.options.getString("guild_id", true).trim();
-
-    if (!SNOWFLAKE_PATTERN.test(guildId)) {
-      await this.reply(interaction, "`guild_id` must be a server ID.");
-      return;
-    }
-
-    const deleted = await this.guildRepo.delete(guildId);
-    if (!deleted) {
-      await this.reply(interaction, `\`${guildId}\` isn't allowlisted.`);
-      return;
-    }
-
-    this.logger.info(
-      { guildId, disabledBy: interaction.user.id },
-      "Disabled member screening",
-    );
-
-    await this.reply(
-      interaction,
-      `Disabled member screening for \`${guildId}\`.`,
-    );
-  }
-
   private async handleConfigure(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
@@ -331,25 +226,13 @@ export class MemberScreeningCommand extends SlashCommandHandler {
       return;
     }
 
-    // Read from the database, not the snapshot, so edits never start from stale settings.
-    const current = (await this.guildRepo.list()).find(
-      (s) => s.guildId === guildId,
-    );
-    if (!current) {
-      await this.reply(
-        interaction,
-        `\`${guildId}\` isn't allowlisted. Use \`/member-screening enable\` first.`,
-      );
-      return;
-    }
-
-    const next: ScreeningGuildSettings = { ...current };
+    const changes: ScreeningGuildPatch = {};
 
     const logChannelId = interaction.options
       .getString("log_channel_id")
       ?.trim();
     if (logChannelId?.toLowerCase() === "none") {
-      next.logChannelId = null;
+      changes.logChannelId = null;
     } else if (logChannelId !== undefined) {
       const channelError = await validateLogChannel(
         interaction.client.rest,
@@ -360,7 +243,7 @@ export class MemberScreeningCommand extends SlashCommandHandler {
         await this.reply(interaction, channelError);
         return;
       }
-      next.logChannelId = logChannelId;
+      changes.logChannelId = logChannelId;
     }
 
     const rulesInput = interaction.options.getString("rules");
@@ -377,7 +260,7 @@ export class MemberScreeningCommand extends SlashCommandHandler {
         );
         return;
       }
-      next.rules = parsed.rules;
+      changes.rules = parsed.rules;
     }
 
     const maxMessages = interaction.options.getInteger("max_messages");
@@ -403,16 +286,18 @@ export class MemberScreeningCommand extends SlashCommandHandler {
       return;
     }
 
-    next.maxMessages = maxMessages ?? next.maxMessages;
-    next.windowHours = windowHours ?? next.windowHours;
-    next.reviewThreshold =
-      interaction.options.getNumber("review_threshold") ?? next.reviewThreshold;
-    next.checkAvatars =
-      interaction.options.getBoolean("check_avatars") ?? next.checkAvatars;
-    next.dailyCheckCap =
-      interaction.options.getInteger("daily_check_cap") ?? next.dailyCheckCap;
+    changes.maxMessages = maxMessages ?? undefined;
+    changes.windowHours = windowHours ?? undefined;
+    changes.reviewThreshold =
+      interaction.options.getNumber("review_threshold") ?? undefined;
+    changes.checkAvatars =
+      interaction.options.getBoolean("check_avatars") ?? undefined;
+    changes.dailyCheckCap =
+      interaction.options.getInteger("daily_check_cap") ?? undefined;
 
-    await this.guildRepo.upsert(next);
+    // A partial write, so moderator-owned fields changed elsewhere aren't overwritten.
+    await this.guildRepo.patch(guildId, changes);
+    const flagOn = await this.flagRepo.isEnabled(guildId, "member_screening");
 
     this.logger.info(
       { guildId, configuredBy: interaction.user.id },
@@ -421,7 +306,11 @@ export class MemberScreeningCommand extends SlashCommandHandler {
 
     await this.reply(
       interaction,
-      `Updated member screening for \`${guildId}\`. Use \`/member-screening status\` to review.`,
+      `Updated member screening for \`${guildId}\`. Use \`/member-screening status\` to review.${
+        flagOn
+          ? ""
+          : "\n-# The `member_screening` flag is off for this server, so nothing is screened. Turn it on with `/feature-flag enable`."
+      }`,
     );
   }
 
@@ -429,24 +318,34 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
     const since = dayjs().utc().subtract(STATUS_WINDOW_DAYS, "day").toDate();
-    const [settings, stats] = await Promise.all([
+    const [flagged, rows, stats] = await Promise.all([
+      this.flagRepo.listGuilds("member_screening"),
       this.guildRepo.list(),
       this.verdictRepo.statsSince(since),
     ]);
 
+    const rowsByGuild = new Map(rows.map((row) => [row.guildId, row]));
+    const guilds = flagged.map(({ guildId }) => {
+      const row = rowsByGuild.get(guildId) ?? null;
+      return {
+        settings: row ?? defaultScreeningSettings(guildId),
+        active: isScreeningActive(true, row),
+      };
+    });
+
     const guildNames = new Map<string, string>();
     await Promise.all(
-      settings.map(async (s) => {
+      flagged.map(async ({ guildId }) => {
         try {
           // REST, not guilds.fetch: the guild may live on another cluster and shouldn't enter this cache.
           const guild = (await interaction.client.rest.get(
-            Routes.guild(s.guildId),
+            Routes.guild(guildId),
           )) as APIGuild;
-          guildNames.set(s.guildId, guild.name);
+          guildNames.set(guildId, guild.name);
         } catch (err) {
           // Best-effort: the view falls back to the guild ID.
           this.logger.debug(
-            { err, guildId: s.guildId },
+            { err, guildId },
             "Failed to fetch screening guild name",
           );
         }
@@ -454,7 +353,7 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     );
 
     await interaction.editReply({
-      components: [buildScreeningStatus(settings, stats, guildNames)],
+      components: [buildScreeningStatus(guilds, stats, guildNames)],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
     });

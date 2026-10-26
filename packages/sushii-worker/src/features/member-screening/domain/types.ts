@@ -117,7 +117,9 @@ export type NewScreeningVerdict = Pick<
 
 export interface ScreeningGuildSettings {
   guildId: string;
-  /** Unset = verdicts are recorded but not posted. */
+  /** Set by server moderators; screening also needs the flag and a log channel. */
+  enabled: boolean;
+  /** Unset = nothing is screened (see isScreeningActive). */
   logChannelId: string | null;
   /** Screen a member until this many messages since join... */
   maxMessages: number;
@@ -129,17 +131,22 @@ export interface ScreeningGuildSettings {
   checkAvatars: boolean;
   /** Text + image checks per UTC day; beyond it checks are skipped. */
   dailyCheckCap: number;
-  enabledBy: string;
-  enabledAt: Date;
 }
 
 export const SCREENING_DEFAULTS = {
+  enabled: false,
   maxMessages: 20,
   windowHours: 72,
   reviewThreshold: 0.7,
   checkAvatars: true,
   dailyCheckCap: 2000,
 } as const;
+
+export function defaultScreeningSettings(
+  guildId: string,
+): ScreeningGuildSettings {
+  return { guildId, logChannelId: null, rules: null, ...SCREENING_DEFAULTS };
+}
 
 export const VERDICT_RETENTION_DAYS = 90;
 

@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import { DrizzleFeatureFlagRepository } from "@/features/feature-flags/infrastructure/DrizzleFeatureFlagRepository";
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
 import type * as schema from "@/infrastructure/database/schema";
 import type { SelectMenuHandler } from "@/shared/presentation/handlers";
@@ -144,6 +145,10 @@ export function setupMemberScreeningFeature({
     commands: [
       new MemberScreeningCommand(
         guildRepository,
+        new DrizzleFeatureFlagRepository(
+          db,
+          logger.child({ component: "FeatureFlagRepository" }),
+        ),
         verdictRepository,
         ownerUserId,
         logger.child({ commandHandler: "member-screening" }),

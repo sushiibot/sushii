@@ -10,8 +10,6 @@ function settings(
     guildId: "1",
     logChannelId: null,
     rules,
-    enabledBy: "2",
-    enabledAt: new Date(0),
     ...SCREENING_DEFAULTS,
   };
 }

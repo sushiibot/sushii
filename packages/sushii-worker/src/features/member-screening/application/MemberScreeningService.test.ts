@@ -54,8 +54,7 @@ function settings(
     rules: null,
     checkAvatars: false,
     dailyCheckCap: 2000,
-    enabledBy: MOD,
-    enabledAt: hoursAgo(1000),
+    enabled: true,
     ...overrides,
   };
 }
