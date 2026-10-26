@@ -9,6 +9,7 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
+import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/shared/domain/entities/GuildConfig";
 
 import { formatPermissionWarning } from "../../utils/PermissionChecker";
@@ -102,6 +103,10 @@ export function addAutomodContent(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 
+  if (options.screening) {
+    addMemberScreeningSection(container, options.screening, options);
+  }
+
   // Exempt Roles Section
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
@@ -121,5 +126,85 @@ export function addAutomodContent(
     new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
       exemptRoleSelect,
     ),
+  );
+}
+
+function formatScreeningStatus(screening: ScreeningSettingsState): string {
+  if (!screening.enabled) {
+    return "-# Off";
+  }
+
+  if (!screening.logChannelId) {
+    return "-# ⚠️ Pick a log channel to start screening";
+  }
+
+  return `-# ✅ On · posting to <#${screening.logChannelId}>`;
+}
+
+// The header doubles as the Screening toggle's section to stay within 40 components.
+function addMemberScreeningSection(
+  container: ContainerBuilder,
+  screening: ScreeningSettingsState,
+  options: SettingsMessageOptions,
+): void {
+  const disabled = options.disabled ?? false;
+
+  addToggleSetting(
+    container,
+    "🔍 Member Screening",
+    [
+      "Checks new members' messages, avatars and image links with AI during their first 20 messages or 72 hours, and posts suspicious ones for review.",
+      formatScreeningStatus(screening),
+    ].join("\n"),
+    screening.enabled,
+    SETTINGS_CUSTOM_IDS.SCREENING.TOGGLE,
+    disabled,
+  );
+
+  const channelPermStatus =
+    screening.logChannelId &&
+    options.channelPermissions?.[screening.logChannelId];
+  const channelPermWarning = channelPermStatus
+    ? formatPermissionWarning(channelPermStatus)
+    : null;
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      [
+        "**Log channel**",
+        "Where flagged members are posted for review.",
+        channelPermWarning,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    ),
+  );
+
+  const logChannelSelect = new ChannelSelectMenuBuilder()
+    .setCustomId(SETTINGS_CUSTOM_IDS.SCREENING.SET_CHANNEL)
+    .setPlaceholder("Select screening log channel...")
+    .setDefaultChannels(screening.logChannelId ? [screening.logChannelId] : [])
+    .setMaxValues(1)
+    .setMinValues(0)
+    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setDisabled(disabled);
+
+  container.addActionRowComponents(
+    new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
+      logChannelSelect,
+    ),
+  );
+
+  addToggleSetting(
+    container,
+    "Check profile pictures",
+    "Also check new members' avatars.",
+    screening.checkAvatars,
+    SETTINGS_CUSTOM_IDS.SCREENING.TOGGLE_AVATARS,
+    disabled,
+  );
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large),
   );
 }

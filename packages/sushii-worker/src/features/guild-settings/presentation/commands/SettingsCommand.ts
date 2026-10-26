@@ -17,6 +17,10 @@ import type { ModalMessageModalSubmitInteraction } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
+import type {
+  ScreeningSettingsPort,
+  ScreeningSettingsState,
+} from "@/features/member-screening/application/ScreeningSettingsPort";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
@@ -53,12 +57,24 @@ export default class SettingsCommand extends SlashCommandHandler {
     private readonly messageLogBlockService: MessageLogBlockService,
     private readonly logger: Logger,
     private readonly emojiRepository: BotEmojiRepository,
+    private readonly screeningSettings: ScreeningSettingsPort | null,
   ) {
     super();
   }
 
   private async getEmojis() {
     return this.emojiRepository.getEmojis(SETTINGS_EMOJI_NAMES);
+  }
+
+  private async getScreening(
+    guildId: string,
+    page: SettingsPage,
+  ): Promise<ScreeningSettingsState | null> {
+    if (page !== "automod" || !this.screeningSettings) {
+      return null;
+    }
+
+    return this.screeningSettings.getForSettings(guildId);
   }
 
   command = new SlashCommandBuilder()
@@ -83,6 +99,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       | MessageComponentInteraction<"cached">
       | ModalMessageModalSubmitInteraction<"cached">,
     config: GuildConfig,
+    screening: ScreeningSettingsState | null,
   ): ChannelPermissionsMap {
     const channelIds: string[] = [];
 
@@ -104,6 +121,9 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (config.moderationSettings.automodAlertsChannelId) {
       channelIds.push(config.moderationSettings.automodAlertsChannelId);
     }
+    if (screening?.logChannelId) {
+      channelIds.push(screening.logChannelId);
+    }
 
     const uniqueChannelIds = [...new Set(channelIds)];
     return checkMultipleChannelsPermissions(
@@ -120,13 +140,21 @@ export default class SettingsCommand extends SlashCommandHandler {
       | RoleSelectMenuInteraction<"cached">
       | ModalMessageModalSubmitInteraction<"cached">,
     guildId: string,
+    loadedScreening?: ScreeningSettingsState | null,
   ): Promise<SettingsPage> {
-    const [config, messageLogBlocks, emojis] = await Promise.all([
+    const [config, messageLogBlocks, emojis, screening] = await Promise.all([
       this.guildSettingsService.getGuildSettings(guildId),
       this.messageLogBlockService.getIgnoredChannels(guildId),
       this.getEmojis(),
+      loadedScreening !== undefined
+        ? loadedScreening
+        : this.getScreening(guildId, page),
     ]);
-    const channelPermissions = this.getChannelPermissions(interaction, config);
+    const channelPermissions = this.getChannelPermissions(
+      interaction,
+      config,
+      screening,
+    );
 
     const updatedMessage = createSettingsMessage(
       {
@@ -136,6 +164,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         channelPermissions,
         disabled: false,
         emojis,
+        screening,
       },
       interaction,
     );
@@ -147,14 +176,19 @@ export default class SettingsCommand extends SlashCommandHandler {
   private async showSettingsPanel(
     interaction: ChatInputCommandInteraction<"cached">,
   ): Promise<void> {
-    const [config, messageLogBlocks, emojis] = await Promise.all([
+    let currentPage: SettingsPage = "overview";
+
+    const [config, messageLogBlocks, emojis, screening] = await Promise.all([
       this.guildSettingsService.getGuildSettings(interaction.guildId),
       this.messageLogBlockService.getIgnoredChannels(interaction.guildId),
       this.getEmojis(),
+      this.getScreening(interaction.guildId, currentPage),
     ]);
-
-    let currentPage: SettingsPage = "overview";
-    const channelPermissions = this.getChannelPermissions(interaction, config);
+    const channelPermissions = this.getChannelPermissions(
+      interaction,
+      config,
+      screening,
+    );
 
     const settingsMessage = createSettingsMessage(
       {
@@ -164,6 +198,7 @@ export default class SettingsCommand extends SlashCommandHandler {
         channelPermissions,
         disabled: false,
         emojis,
+        screening,
       },
       interaction,
     );
@@ -211,16 +246,17 @@ export default class SettingsCommand extends SlashCommandHandler {
     // no live interaction to update once the collector has expired.
     collector.on("end", async () => {
       try {
-        const [currentConfig, currentBlocks, currentEmojis] = await Promise.all(
-          [
+        const [currentConfig, currentBlocks, currentEmojis, currentScreening] =
+          await Promise.all([
             this.guildSettingsService.getGuildSettings(interaction.guildId),
             this.messageLogBlockService.getIgnoredChannels(interaction.guildId),
             this.getEmojis(),
-          ],
-        );
+            this.getScreening(interaction.guildId, currentPage),
+          ]);
         const currentChannelPermissions = this.getChannelPermissions(
           interaction,
           currentConfig,
+          currentScreening,
         );
 
         const disabledMessage = createSettingsMessage(
@@ -231,6 +267,7 @@ export default class SettingsCommand extends SlashCommandHandler {
             channelPermissions: currentChannelPermissions,
             disabled: true,
             emojis: currentEmojis,
+            screening: currentScreening,
           },
           interaction,
         );
@@ -275,7 +312,45 @@ export default class SettingsCommand extends SlashCommandHandler {
       return this.handleAutomodAlertsChannelSelection(interaction, guildId);
     }
 
+    if (interaction.customId === SETTINGS_CUSTOM_IDS.SCREENING.SET_CHANNEL) {
+      return this.handleScreeningLogChannelSelection(interaction, guildId);
+    }
+
     return this.handleLogChannelSelection(interaction, guildId);
+  }
+
+  private async handleScreeningLogChannelSelection(
+    interaction: ChannelSelectMenuInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage> {
+    let screening = await this.getScreening(guildId, "automod");
+    if (this.screeningSettings && screening) {
+      const logChannelId = interaction.values[0] ?? null;
+      await this.screeningSettings.setLogChannel(guildId, logChannelId);
+      screening = { ...screening, logChannelId };
+    }
+
+    return this.renderPage("automod", interaction, guildId, screening);
+  }
+
+  private async handleScreeningToggle(
+    interaction: ButtonInteraction<"cached">,
+    guildId: string,
+  ): Promise<SettingsPage> {
+    let screening = await this.getScreening(guildId, "automod");
+    if (this.screeningSettings && screening) {
+      if (interaction.customId === SETTINGS_CUSTOM_IDS.SCREENING.TOGGLE) {
+        const enabled = !screening.enabled;
+        await this.screeningSettings.setEnabled(guildId, enabled);
+        screening = { ...screening, enabled };
+      } else {
+        const checkAvatars = !screening.checkAvatars;
+        await this.screeningSettings.setCheckAvatars(guildId, checkAvatars);
+        screening = { ...screening, checkAvatars };
+      }
+    }
+
+    return this.renderPage("automod", interaction, guildId, screening);
   }
 
   private async handleAutomodAlertsChannelSelection(
@@ -424,6 +499,13 @@ export default class SettingsCommand extends SlashCommandHandler {
     const tabPage = SETTINGS_TAB_BY_CUSTOM_ID.get(interaction.customId);
     if (tabPage) {
       return this.renderPage(tabPage, interaction, guildId);
+    }
+
+    if (
+      interaction.customId === SETTINGS_CUSTOM_IDS.SCREENING.TOGGLE ||
+      interaction.customId === SETTINGS_CUSTOM_IDS.SCREENING.TOGGLE_AVATARS
+    ) {
+      return this.handleScreeningToggle(interaction, guildId);
     }
 
     const currentConfig =
