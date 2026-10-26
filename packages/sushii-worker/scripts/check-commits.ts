@@ -3,7 +3,6 @@
  *
  *   check-commits.ts message <file>   commit-msg hook
  *   check-commits.ts pre-push         pre-push hook, reads refs from stdin
- *   check-commits.ts range <from> <to>
  */
 
 export const COMMIT_TYPES = [
@@ -108,7 +107,9 @@ function listCommits(revListArgs: string[]): Commit[] {
 }
 
 function commitExists(sha: string): boolean {
-  return Bun.spawnSync(["git", "cat-file", "-e", `${sha}^{commit}`]).exitCode === 0;
+  return (
+    Bun.spawnSync(["git", "cat-file", "-e", `${sha}^{commit}`]).exitCode === 0
+  );
 }
 
 function pushedCommits(localSha: string, remoteSha: string): Commit[] {
@@ -157,16 +158,7 @@ async function main(): Promise<void> {
     report(checkCommits(commits));
   }
 
-  if (mode === "range") {
-    const [from, to] = args;
-    const commits =
-      !from || ZERO_SHA.test(from) || !commitExists(from)
-        ? listCommits(["-1", to])
-        : listCommits([`${from}..${to}`]);
-    report(checkCommits(commits));
-  }
-
-  console.error("Usage: check-commits.ts message <file> | pre-push | range <from> <to>");
+  console.error("Usage: check-commits.ts message <file> | pre-push");
   process.exit(2);
 }
 

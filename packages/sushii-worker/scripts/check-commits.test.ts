@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { checkCommits, checkSubject, subjectFromMessage } from "./check-commits";
+import {
+  checkCommits,
+  checkSubject,
+  subjectFromMessage,
+} from "./check-commits";
 
 describe("checkSubject", () => {
   it.each([
