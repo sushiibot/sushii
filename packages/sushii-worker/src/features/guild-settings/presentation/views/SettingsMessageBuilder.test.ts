@@ -162,3 +162,47 @@ describe("SettingsMessageBuilder component limits", () => {
     }
   });
 });
+
+describe("SettingsMessageBuilder automod page with member screening", () => {
+  const screeningVariants = [
+    { enabled: false, logChannelId: null, checkAvatars: true },
+    { enabled: true, logChannelId: null, checkAvatars: true },
+    {
+      enabled: true,
+      logChannelId: "666666666666666666",
+      checkAvatars: false,
+    },
+  ];
+
+  for (const screening of screeningVariants) {
+    test(`uses exactly ${DISCORD_MAX_COMPONENTS} components (${JSON.stringify(screening)})`, () => {
+      for (const config of [defaultConfig, allEnabledConfig]) {
+        for (const disabled of [false, true]) {
+          const message = createSettingsMessage({
+            page: "automod",
+            config,
+            emojis: mockEmojis,
+            screening,
+            disabled,
+          });
+          // Automod is at Discord's 40-component limit with the screening section on.
+          expect(totalComponentCount(message)).toBe(DISCORD_MAX_COMPONENTS);
+        }
+      }
+    });
+  }
+
+  test("hidden section leaves the automod page at its current count", () => {
+    for (const screening of [null, undefined]) {
+      const message = createSettingsMessage({
+        page: "automod",
+        config: defaultConfig,
+        emojis: mockEmojis,
+        screening,
+      });
+      expect(totalComponentCount(message)).toBe(
+        EXPECTED_MAX_COMPONENTS.automod,
+      );
+    }
+  });
+});

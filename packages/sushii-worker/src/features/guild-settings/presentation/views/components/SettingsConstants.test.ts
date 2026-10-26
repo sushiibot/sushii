@@ -54,6 +54,12 @@ describe("TOGGLE_SETTING_PAGE_BY_CUSTOM_ID", () => {
     }
   });
 
+  test("member screening ids are not GuildConfig toggles", () => {
+    for (const customId of Object.values(SETTINGS_CUSTOM_IDS.SCREENING)) {
+      expect(TOGGLE_SETTING_PAGE_BY_CUSTOM_ID.has(customId)).toBe(false);
+    }
+  });
+
   test("maps each toggle to the expected setting and page", () => {
     expect(
       TOGGLE_SETTING_PAGE_BY_CUSTOM_ID.get(SETTINGS_CUSTOM_IDS.TOGGLES.MOD_LOG),

@@ -2,6 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
+import type { ScreeningSettingsPort } from "@/features/member-screening/application/ScreeningSettingsPort";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
@@ -15,6 +16,7 @@ interface GuildSettingsDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
   botEmojiRepository: BotEmojiRepository;
+  screeningSettings?: ScreeningSettingsPort | null;
 }
 
 export function createGuildSettingsServices({
@@ -53,6 +55,7 @@ export function createGuildSettingsCommands(
   services: ReturnType<typeof createGuildSettingsServices>,
   logger: Logger,
   botEmojiRepository: BotEmojiRepository,
+  screeningSettings: ScreeningSettingsPort | null = null,
 ) {
   const { guildSettingsService, messageLogBlockService } = services;
 
@@ -62,6 +65,7 @@ export function createGuildSettingsCommands(
       messageLogBlockService,
       logger.child({ module: "settingsCommand" }),
       botEmojiRepository,
+      screeningSettings,
     ),
   ];
 
@@ -85,11 +89,17 @@ export function setupGuildSettingsFeature({
   db,
   logger,
   botEmojiRepository,
+  screeningSettings = null,
 }: GuildSettingsDependencies): FeatureSetupWithServices<
   ReturnType<typeof createGuildSettingsServices>
 > {
   const services = createGuildSettingsServices({ db, logger });
-  const commands = createGuildSettingsCommands(services, logger, botEmojiRepository);
+  const commands = createGuildSettingsCommands(
+    services,
+    logger,
+    botEmojiRepository,
+    screeningSettings,
+  );
   const events = createGuildSettingsEventHandlers(services, logger);
 
   return {

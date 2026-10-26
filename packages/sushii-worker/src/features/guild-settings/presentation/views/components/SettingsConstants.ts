@@ -1,4 +1,5 @@
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
+import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import type { MessageLogBlock } from "@/features/message-log/domain/entities/MessageLogBlock";
 import type {
   GuildConfig,
@@ -44,6 +45,8 @@ export interface SettingsMessageOptions {
   channelPermissions?: ChannelPermissionsMap;
   disabled?: boolean;
   emojis: EmojiMap<typeof SETTINGS_EMOJI_NAMES>;
+  /** Null or undefined hides the Member Screening section. */
+  screening?: ScreeningSettingsState | null;
 }
 
 export const SETTINGS_CUSTOM_IDS = {
@@ -109,6 +112,13 @@ export const SETTINGS_CUSTOM_IDS = {
 
     // Automod Channels
     SET_AUTOMOD_ALERTS: "settings_set_automod_alerts_channel",
+  },
+
+  // Routed to ScreeningSettingsPort, not GuildConfig
+  SCREENING: {
+    TOGGLE: "settings_toggle_member_screening",
+    TOGGLE_AVATARS: "settings_toggle_member_screening_avatars",
+    SET_CHANNEL: "settings_set_member_screening_channel",
   },
 
   MODALS: {
