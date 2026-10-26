@@ -16,6 +16,7 @@ Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, Post
 **Logging**: Use pino directly — `logger.info({context}, 'message')`, `err` field for errors.
 **Imports**: Absolute (`@/`) for cross-feature/shared, relative for within-feature.
 **Sleep**: Use built-in `sleep` from `"bun"`.
+**Commits**: Conventional Commits (`feat(scope): ...`) with linear history: rebase or squash, never merge commits. Enforced by lefthook (`commit-msg`, `pre-merge-commit`, `pre-push`) and the Commits workflow; recent merge-style commits in `git log` are not a precedent.
 
 ## Error Handling
 
