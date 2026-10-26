@@ -120,6 +120,12 @@ export const usersInAppPublic = appPublic.table("users", {
   lastRep: timestamp("last_rep", { mode: "date" }),
   fishyStreak: integer("fishy_streak").default(0).notNull(),
   repStreak: integer("rep_streak").default(0).notNull(),
+  // Bit N set = used N UTC days before the anchor day (days since the Unix epoch)
+  fishyDaysMask: integer("fishy_days_mask").default(0).notNull(),
+  fishyDaysAnchor: integer("fishy_days_anchor"),
+  fishyDaysTotal: integer("fishy_days_total").default(0).notNull(),
+  repDaysMask: integer("rep_days_mask").default(0).notNull(),
+  repDaysAnchor: integer("rep_days_anchor"),
   lastfmUsername: text("lastfm_username"),
   patronEmoji: text("patron_emoji"),
   profileData: jsonb("profile_data"),

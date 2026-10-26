@@ -1,2 +1,2 @@
 export * from "./SocialConstants";
-export * from "./StreakConstants";
+export * from "./ActiveDaysConstants";

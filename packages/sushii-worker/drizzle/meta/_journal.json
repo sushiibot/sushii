@@ -470,6 +470,20 @@
       "when": 1792978897648,
       "tag": "0066_member-screening-flags",
       "breakpoints": false
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1792999333653,
+      "tag": "0067_fishy-rep-active-days",
+      "breakpoints": false
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792999334132,
+      "tag": "0068_seed-active-days-from-streaks",
+      "breakpoints": false
     }
   ]
 }

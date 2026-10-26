@@ -4,6 +4,7 @@ export class UserProfile {
     private readonly reputation: number,
     private readonly fishies: number,
     private readonly isPatron: boolean,
+    private readonly fishyDaysTotal: number,
     private readonly patronEmojiUrl?: string,
   ) {
     if (reputation < 0) {
@@ -24,6 +25,10 @@ export class UserProfile {
 
   getFishies(): number {
     return this.fishies;
+  }
+
+  getFishyDaysTotal(): number {
+    return this.fishyDaysTotal;
   }
 
   isPatronUser(): boolean {
@@ -55,6 +60,7 @@ export class UserProfile {
       rep: string | number;
       fishies: string | number;
       isPatron: boolean;
+      fishyDaysTotal?: number;
       profileData?: { patronEmojiURL?: string } | null;
     },
   ): UserProfile {
@@ -83,6 +89,7 @@ export class UserProfile {
       reputation,
       fishies,
       profileData.isPatron,
+      profileData.fishyDaysTotal ?? 0,
       patronEmojiUrl,
     );
   }

@@ -13,8 +13,8 @@ import type { InteractionReplyOptions } from "discord.js";
 import type dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
-import { STREAK_MILESTONES } from "../../domain";
-import type { FishyResult, RepResult, StreakUpdate } from "../../domain";
+import { ACTIVE_DAYS_WINDOW } from "../../domain";
+import type { ActiveDaysSummary, FishyResult, RepResult } from "../../domain";
 import type { FishingCondition } from "../../domain/collection/Catalog";
 import { RARITY_COLORS, getCollectible } from "../../domain/collection/Catalog";
 
@@ -27,36 +27,40 @@ const CONDITION_COPY: Record<FishingCondition, { icon: string; text: string }> =
     moonlit: { icon: "🌙", text: "Moonlight glimmers on the water." },
   };
 
-// Fishy multiplies the catch, rep only gets a chance at bonus rep
-function formatFishyReward(multiplier: number): string {
-  return `${Number(multiplier.toFixed(2))}x`;
+function formatBonusPercent(multiplier: number): number {
+  return Math.round((multiplier - 1) * 100);
 }
 
-function formatRepReward(multiplier: number): string {
-  return `${Math.round((multiplier - 1) * 100)}% bonus rep chance`;
+function formatActiveDays(activity: ActiveDaysSummary, action: string): string {
+  return `${action} ${activity.activeDays} of the last ${ACTIVE_DAYS_WINDOW} days`;
 }
 
-function formatStreak(
-  streak: StreakUpdate,
-  name: string,
-  formatReward: (multiplier: number) => string,
-  bonus: string,
-): string {
-  let content = "";
+function formatFishyActivity(result: FishyResult): string {
+  const { activity } = result;
+  let content = `-# 🎣 ${formatActiveDays(activity, "Fished")}`;
 
-  // A streak below the first milestone had no bonus, so losing it isn't worth a notice
-  if (streak.brokenStreak && streak.brokenStreak >= STREAK_MILESTONES[0].days) {
-    content += `-# 💔 You missed a day, so your **${streak.brokenStreak} day ${name} streak** ended. Starting over at day 1.\n`;
+  if (activity.multiplier > 1) {
+    content += ` · +${formatBonusPercent(activity.multiplier)}% fishies`;
   }
 
-  content += `-# ${streak.streak} day ${name} streak`;
-
-  if (streak.multiplier > 1) {
-    content += ` · ${formatReward(streak.multiplier)}${bonus}`;
+  // Small bonuses can round away, so only show the change when there is one
+  if (result.caughtAmount !== result.baseAmount) {
+    content += ` (${result.baseAmount} → ${result.caughtAmount})`;
   }
 
-  if (streak.nextMilestone) {
-    content += ` · next: ${formatReward(streak.nextMilestone.multiplier)} at ${streak.nextMilestone.label}`;
+  return content;
+}
+
+function formatRepActivity(result: RepResult): string {
+  const { activity } = result;
+  let content = `-# 💝 ${formatActiveDays(activity, "Gave rep")}`;
+
+  if (activity.multiplier > 1) {
+    content += ` · ${formatBonusPercent(activity.multiplier)}% chance of bonus rep`;
+  }
+
+  if (result.isBonus) {
+    content += " · bonus rep!";
   }
 
   return content;
@@ -79,12 +83,7 @@ export function createFishySuccessMessage(
       `${conditionEmoji || condition.icon} ${condition.text}\n` +
       `${result.firstDiscovery ? "" : `You have caught this ${result.catchCount.toLocaleString()} times.\n`}\n` +
       `<@${targetUserId}> received **${count} ${fishyWord}** (${result.oldAmount} → ${result.newAmount}).\n` +
-      formatStreak(
-        result.streak,
-        "fishy",
-        formatFishyReward,
-        ` (${result.baseAmount} → ${count})`,
-      ),
+      formatFishyActivity(result),
   );
   const container = new ContainerBuilder().setAccentColor(
     RARITY_COLORS[item.rarity],
@@ -142,15 +141,14 @@ export function createRepSuccessMessage(
   result: RepResult,
   targetUserId: string,
 ): InteractionReplyOptions {
-  const given = result.isStreakBonus ? `${result.amount} rep` : "a rep";
-  const bonus = result.isStreakBonus ? " · bonus rep!" : "";
+  const given = result.isBonus ? `${result.amount} rep` : "a rep";
 
   const container = new ContainerBuilder()
     .setAccentColor(Color.Success)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         `You gave <@${targetUserId}> ${given}! (${result.oldAmount} → ${result.newAmount} total)\n` +
-          formatStreak(result.streak, "rep", formatRepReward, bonus),
+          formatRepActivity(result),
       ),
     );
 
