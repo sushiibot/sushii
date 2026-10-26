@@ -22,6 +22,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { FEATURE_FLAGS } from "@/features/feature-flags/domain/FeatureFlag";
+import type { FeatureFlag } from "@/features/feature-flags/domain/FeatureFlag";
 import { IGNORE_REASONS } from "@/features/member-screening/domain/types";
 import type {
   IgnoreReason,
@@ -1419,12 +1421,28 @@ export const screeningGuildsInAppPublic = appPublic.table("screening_guilds", {
   rules: text("rules").array().$type<ScreeningRuleId[]>(),
   checkAvatars: boolean("check_avatars").notNull(),
   dailyCheckCap: integer("daily_check_cap").notNull(),
-  enabledBy: bigint("enabled_by", { mode: "bigint" }).notNull(),
-  enabledAt: timestamp("enabled_at", {
-    mode: "date",
-    withTimezone: true,
-  }).notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
 });
+
+export const guildFeatureFlagsInAppPublic = appPublic.table(
+  "guild_feature_flags",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    flag: text("flag").$type<FeatureFlag>().notNull(),
+    enabledBy: bigint("enabled_by", { mode: "bigint" }).notNull(),
+    enabledAt: timestamp("enabled_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.flag] }),
+    check(
+      "guild_feature_flags_flag_check",
+      sql`${table.flag} IN (${sql.raw(FEATURE_FLAGS.map((f) => `'${f}'`).join(", "))})`,
+    ),
+  ],
+);
 
 export const screeningVerdictsInAppPublic = appPublic.table(
   "screening_verdicts",

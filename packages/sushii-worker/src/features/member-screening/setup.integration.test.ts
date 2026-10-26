@@ -94,8 +94,7 @@ describe("setupMemberScreeningFeature", () => {
       logChannelId: null,
       ...SCREENING_DEFAULTS,
       rules: null,
-      enabledBy: "400000000000000001",
-      enabledAt: new Date("2026-03-01T00:00:00Z"),
+      enabled: true,
     });
 
     expect(await feature.services.shouldCacheForScreening(guildId)).toBe(true);
@@ -109,8 +108,7 @@ describe("setupMemberScreeningFeature", () => {
       logChannelId: null,
       ...SCREENING_DEFAULTS,
       rules: null,
-      enabledBy: "400000000000000001",
-      enabledAt: new Date("2026-03-01T00:00:00Z"),
+      enabled: true,
     });
 
     expect(await feature.services.shouldCacheForScreening(guildId)).toBe(false);

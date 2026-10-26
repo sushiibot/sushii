@@ -5,13 +5,18 @@ import type { Logger } from "pino";
 import type * as schema from "@/infrastructure/database/schema";
 import { screeningGuildsInAppPublic } from "@/infrastructure/database/schema";
 
-import type { ScreeningGuildRepository } from "../domain/repositories/ScreeningGuildRepository";
+import type {
+  ScreeningGuildPatch,
+  ScreeningGuildRepository,
+} from "../domain/repositories/ScreeningGuildRepository";
 import type { ScreeningGuildSettings } from "../domain/types";
+import { defaultScreeningSettings } from "../domain/types";
 
 const SNAPSHOT_TTL_MS = 60_000;
 const RETRY_AFTER_FAILURE_MS = 5_000;
 
 type ScreeningGuildRow = typeof screeningGuildsInAppPublic.$inferSelect;
+type ScreeningGuildInsert = typeof screeningGuildsInAppPublic.$inferInsert;
 
 function toSettings(row: ScreeningGuildRow): ScreeningGuildSettings {
   return {
@@ -23,8 +28,21 @@ function toSettings(row: ScreeningGuildRow): ScreeningGuildSettings {
     rules: row.rules ?? null,
     checkAvatars: row.checkAvatars,
     dailyCheckCap: row.dailyCheckCap,
-    enabledBy: row.enabledBy.toString(),
-    enabledAt: row.enabledAt,
+    enabled: row.enabled,
+  };
+}
+
+function toRow(settings: ScreeningGuildSettings): ScreeningGuildInsert {
+  return {
+    guildId: BigInt(settings.guildId),
+    logChannelId: settings.logChannelId ? BigInt(settings.logChannelId) : null,
+    maxMessages: settings.maxMessages,
+    windowHours: settings.windowHours,
+    reviewThreshold: settings.reviewThreshold,
+    rules: settings.rules,
+    checkAvatars: settings.checkAvatars,
+    dailyCheckCap: settings.dailyCheckCap,
+    enabled: settings.enabled,
   };
 }
 
@@ -51,7 +69,7 @@ export class DrizzleScreeningGuildRepository
     const rows = await this.db
       .select()
       .from(screeningGuildsInAppPublic)
-      .orderBy(screeningGuildsInAppPublic.enabledAt);
+      .orderBy(screeningGuildsInAppPublic.guildId);
 
     return rows.map(toSettings);
   }
@@ -59,28 +77,38 @@ export class DrizzleScreeningGuildRepository
   async upsert(
     settings: ScreeningGuildSettings,
   ): Promise<ScreeningGuildSettings> {
-    const values = {
-      guildId: BigInt(settings.guildId),
-      logChannelId: settings.logChannelId
-        ? BigInt(settings.logChannelId)
-        : null,
-      maxMessages: settings.maxMessages,
-      windowHours: settings.windowHours,
-      reviewThreshold: settings.reviewThreshold,
-      rules: settings.rules,
-      checkAvatars: settings.checkAvatars,
-      dailyCheckCap: settings.dailyCheckCap,
-      enabledBy: BigInt(settings.enabledBy),
-      enabledAt: settings.enabledAt,
-    };
+    const values = toRow(settings);
+    return this.write(values, values);
+  }
 
+  async patch(
+    guildId: string,
+    changes: ScreeningGuildPatch,
+  ): Promise<ScreeningGuildSettings> {
+    const defined = Object.keys(changes).filter(
+      (key) => changes[key as keyof ScreeningGuildPatch] !== undefined,
+    ) as (keyof ScreeningGuildPatch)[];
+    const values = toRow({
+      ...defaultScreeningSettings(guildId),
+      ...Object.fromEntries(defined.map((key) => [key, changes[key]])),
+    });
+    const set = Object.fromEntries(defined.map((key) => [key, values[key]]));
+
+    // A self-assignment keeps the conflict path an update, so RETURNING still yields the row.
+    return this.write(
+      values,
+      Object.keys(set).length > 0 ? set : { guildId: values.guildId },
+    );
+  }
+
+  private async write(
+    values: ScreeningGuildInsert,
+    set: Partial<ScreeningGuildInsert>,
+  ): Promise<ScreeningGuildSettings> {
     const [row] = await this.db
       .insert(screeningGuildsInAppPublic)
       .values(values)
-      .onConflictDoUpdate({
-        target: screeningGuildsInAppPublic.guildId,
-        set: values,
-      })
+      .onConflictDoUpdate({ target: screeningGuildsInAppPublic.guildId, set })
       .returning();
 
     const saved = toSettings(row);

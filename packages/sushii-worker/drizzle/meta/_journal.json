@@ -463,6 +463,13 @@
       "when": 1792956128317,
       "tag": "0065_member-screening",
       "breakpoints": false
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1792978897648,
+      "tag": "0066_member-screening-flags",
+      "breakpoints": false
     }
   ]
 }

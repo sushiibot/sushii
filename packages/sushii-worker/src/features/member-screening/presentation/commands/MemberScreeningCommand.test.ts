@@ -8,10 +8,19 @@ import {
 } from "discord.js";
 import pino from "pino";
 
-import type { ScreeningGuildRepository } from "../../domain/repositories/ScreeningGuildRepository";
+import type { FeatureFlagEntry } from "@/features/feature-flags/domain/FeatureFlag";
+import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
+
+import type {
+  ScreeningGuildPatch,
+  ScreeningGuildRepository,
+} from "../../domain/repositories/ScreeningGuildRepository";
 import type { ScreeningVerdictRepository } from "../../domain/repositories/ScreeningVerdictRepository";
 import type { ScreeningGuildSettings } from "../../domain/types";
-import { SCREENING_DEFAULTS } from "../../domain/types";
+import {
+  SCREENING_DEFAULTS,
+  defaultScreeningSettings,
+} from "../../domain/types";
 import {
   MemberScreeningCommand,
   parseRules,
@@ -161,64 +170,108 @@ describe("validateLogChannel", () => {
 
 const OWNER = "400000000000000001";
 
-function settings(): ScreeningGuildSettings {
+function settings(
+  overrides: Partial<ScreeningGuildSettings> = {},
+): ScreeningGuildSettings {
   return {
     guildId: GUILD,
     logChannelId: CHANNEL,
     ...SCREENING_DEFAULTS,
     rules: null,
-    enabledBy: OWNER,
-    enabledAt: new Date("2026-03-01T00:00:00Z"),
+    enabled: true,
+    ...overrides,
   };
 }
 
-function setupCommand(ownerUserId: string | undefined) {
+function setupCommand(
+  ownerUserId: string | undefined,
+  opts: {
+    flagOn?: boolean;
+    rows?: ScreeningGuildSettings[];
+    flagged?: FeatureFlagEntry[];
+  } = {},
+) {
   const guildRepo = {
-    list: mock(async () => [settings()]),
-    upsert: mock(async (s: ScreeningGuildSettings) => s),
-    delete: mock(async () => true),
+    list: mock(async () => opts.rows ?? [settings()]),
+    patch: mock(async (guildId: string, changes: ScreeningGuildPatch) => ({
+      ...defaultScreeningSettings(guildId),
+      ...changes,
+    })),
+  };
+  const flagRepo = {
+    isEnabled: mock(async () => opts.flagOn ?? true),
+    listGuilds: mock(async () => opts.flagged ?? []),
   };
   const verdictRepo = { statsSince: mock(async () => []) };
   const command = new MemberScreeningCommand(
     guildRepo as unknown as ScreeningGuildRepository,
+    flagRepo as unknown as FeatureFlagRepository,
     verdictRepo as unknown as ScreeningVerdictRepository,
     ownerUserId,
     pino({ level: "silent" }),
   );
-  return { command, guildRepo };
+  return { command, guildRepo, flagRepo };
 }
 
-function configureInteraction(
+function interactionFor(
+  sub: string,
   userId: string,
-  integers: Record<string, number> = {},
+  values: {
+    strings?: Record<string, string>;
+    integers?: Record<string, number>;
+    booleans?: Record<string, boolean>;
+  } = {},
 ) {
+  const strings: Record<string, string> = {
+    guild_id: GUILD,
+    ...values.strings,
+  };
   return {
     user: { id: userId },
     options: {
-      getSubcommand: () => "configure",
-      getString: (name: string) => (name === "guild_id" ? GUILD : null),
-      getInteger: (name: string) => integers[name] ?? null,
+      getSubcommand: () => sub,
+      getString: (name: string) => strings[name] ?? null,
+      getInteger: (name: string) => values.integers?.[name] ?? null,
       getNumber: () => null,
-      getBoolean: () => null,
+      getBoolean: (name: string) => values.booleans?.[name] ?? null,
     },
+    client: { rest: { get: mock(async (_route: string) => ({})) } },
     reply: mock(async () => undefined),
     deferReply: mock(async () => undefined),
     editReply: mock(async (_reply: unknown) => undefined),
   };
 }
 
+function configureInteraction(
+  userId: string,
+  integers: Record<string, number> = {},
+) {
+  return interactionFor("configure", userId, { integers });
+}
+
+type TestInteraction = ReturnType<typeof interactionFor>;
+
 async function runCommand(
   command: MemberScreeningCommand,
-  interaction: ReturnType<typeof configureInteraction>,
+  interaction: TestInteraction,
 ) {
   await command.handler(interaction as unknown as ChatInputCommandInteraction);
 }
 
-function editedText(
-  interaction: ReturnType<typeof configureInteraction>,
-): string {
+function editedText(interaction: TestInteraction): string {
   return JSON.stringify(interaction.editReply.mock.calls[0]?.[0]);
 }
+
+describe("MemberScreeningCommand definition", () => {
+  test("only has configure and status", () => {
+    const t = setupCommand(OWNER);
+
+    expect(t.command.command.options?.map((o) => o.name)).toEqual([
+      "configure",
+      "status",
+    ]);
+  });
+});
 
 describe("MemberScreeningCommand owner check", () => {
   test.each([
@@ -236,7 +289,7 @@ describe("MemberScreeningCommand owner check", () => {
     });
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(t.guildRepo.list).not.toHaveBeenCalled();
-    expect(t.guildRepo.upsert).not.toHaveBeenCalled();
+    expect(t.guildRepo.patch).not.toHaveBeenCalled();
   });
 
   test("lets the owner through", async () => {
@@ -247,7 +300,116 @@ describe("MemberScreeningCommand owner check", () => {
 
     expect(interaction.reply).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledTimes(1);
-    expect(t.guildRepo.upsert).toHaveBeenCalledTimes(1);
+    expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MemberScreeningCommand configure", () => {
+  test("patches only the given fields", async () => {
+    const t = setupCommand(OWNER);
+    const interaction = interactionFor("configure", OWNER, {
+      strings: { rules: "scam,sale" },
+      integers: { max_messages: 10 },
+      booleans: { check_avatars: false },
+    });
+
+    await runCommand(t.command, interaction);
+
+    expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);
+    const [guildId, changes] = t.guildRepo.patch.mock.calls[0];
+    expect(guildId).toBe(GUILD);
+    expect(
+      Object.fromEntries(
+        Object.entries(changes).filter(([, v]) => v !== undefined),
+      ),
+    ).toEqual({
+      rules: ["scam", "sale"],
+      maxMessages: 10,
+      checkAvatars: false,
+    });
+    expect(t.guildRepo.list).not.toHaveBeenCalled();
+  });
+
+  test('log_channel_id "none" clears the channel', async () => {
+    const t = setupCommand(OWNER);
+    const interaction = interactionFor("configure", OWNER, {
+      strings: { log_channel_id: "None" },
+    });
+
+    await runCommand(t.command, interaction);
+
+    expect(t.guildRepo.patch).toHaveBeenCalledWith(
+      GUILD,
+      expect.objectContaining({ logChannelId: null }),
+    );
+  });
+
+  test("an invalid log channel isn't saved", async () => {
+    const t = setupCommand(OWNER);
+    const interaction = interactionFor("configure", OWNER, {
+      strings: { log_channel_id: "abc" },
+    });
+
+    await runCommand(t.command, interaction);
+
+    expect(t.guildRepo.patch).not.toHaveBeenCalled();
+    expect(editedText(interaction)).toContain("must be a channel ID");
+  });
+
+  test("notes when the flag is off", async () => {
+    const t = setupCommand(OWNER, { flagOn: false });
+    const interaction = configureInteraction(OWNER);
+
+    await runCommand(t.command, interaction);
+
+    expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);
+    expect(editedText(interaction)).toContain(
+      "The `member_screening` flag is off for this server",
+    );
+  });
+
+  test("no flag note when the flag is on", async () => {
+    const t = setupCommand(OWNER);
+    const interaction = configureInteraction(OWNER);
+
+    await runCommand(t.command, interaction);
+
+    expect(editedText(interaction)).not.toContain("flag is off");
+  });
+});
+
+describe("MemberScreeningCommand status", () => {
+  test("lists flagged guilds as active or inactive", async () => {
+    const other = "100000000000000002";
+    const third = "100000000000000003";
+    const t = setupCommand(OWNER, {
+      rows: [
+        settings(),
+        settings({ guildId: other, enabled: false }),
+        settings({ guildId: "100000000000000009" }),
+      ],
+      flagged: [GUILD, other, third].map((guildId) => ({
+        guildId,
+        flag: "member_screening",
+        enabledBy: OWNER,
+        enabledAt: new Date("2026-10-01T00:00:00Z"),
+      })),
+    });
+    const interaction = interactionFor("status", OWNER);
+
+    await runCommand(t.command, interaction);
+
+    const text = editedText(interaction);
+    expect(text).toContain("3 servers flagged · 1 active");
+    expect(text).toContain(`\`${GUILD}\` · ✅ active · logs to <#${CHANNEL}>`);
+    expect(text).toContain(
+      `\`${other}\` · ⏸️ inactive · mods haven't turned it on`,
+    );
+    expect(text).toContain(
+      `\`${third}\` · ⏸️ inactive · mods haven't turned it on`,
+    );
+    expect(text).not.toContain("100000000000000009");
+    expect(t.flagRepo.listGuilds).toHaveBeenCalledWith("member_screening");
   });
 });
 
@@ -263,7 +425,7 @@ describe("MemberScreeningCommand configure bounds", () => {
 
     await runCommand(t.command, interaction);
 
-    expect(t.guildRepo.upsert).not.toHaveBeenCalled();
+    expect(t.guildRepo.patch).not.toHaveBeenCalled();
     expect(editedText(interaction)).toContain(`\`${name}\` must be between 1`);
   });
 
@@ -276,7 +438,8 @@ describe("MemberScreeningCommand configure bounds", () => {
 
     await runCommand(t.command, interaction);
 
-    expect(t.guildRepo.upsert).toHaveBeenCalledWith(
+    expect(t.guildRepo.patch).toHaveBeenCalledWith(
+      GUILD,
       expect.objectContaining({ windowHours: 168, maxMessages: 200 }),
     );
   });

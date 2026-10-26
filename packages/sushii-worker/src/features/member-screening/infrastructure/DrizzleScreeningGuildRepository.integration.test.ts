@@ -13,7 +13,7 @@ import * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
 import type { ScreeningGuildSettings } from "../domain/types";
-import { SCREENING_DEFAULTS } from "../domain/types";
+import { SCREENING_DEFAULTS, defaultScreeningSettings } from "../domain/types";
 import { DrizzleScreeningGuildRepository } from "./DrizzleScreeningGuildRepository";
 
 const GUILD = "100000000000000001";
@@ -27,8 +27,7 @@ function settings(
     logChannelId: "300000000000000001",
     ...SCREENING_DEFAULTS,
     rules: null,
-    enabledBy: "400000000000000001",
-    enabledAt: new Date("2026-03-01T00:00:00Z"),
+    enabled: true,
     ...overrides,
   };
 }
@@ -73,6 +72,47 @@ describe("DrizzleScreeningGuildRepository", () => {
     expect(updated.rules).toEqual(["scam", "sale"]);
     expect(updated.reviewThreshold).toBe(0.55);
     expect(await repo.list()).toEqual([updated]);
+  });
+
+  test("patch creates a missing row from defaults", async () => {
+    const repo = newRepo();
+
+    const created = await repo.patch(GUILD, { enabled: true });
+
+    expect(created).toEqual({
+      ...defaultScreeningSettings(GUILD),
+      enabled: true,
+    });
+    expect(await repo.findByGuildId(GUILD)).toEqual(created);
+  });
+
+  test("patch changes only the given fields", async () => {
+    const repo = newRepo();
+    await repo.upsert(settings({ rules: ["scam"], maxMessages: 5 }));
+
+    const updated = await repo.patch(GUILD, {
+      logChannelId: null,
+      checkAvatars: false,
+      windowHours: undefined,
+    });
+
+    expect(updated).toEqual(
+      settings({
+        rules: ["scam"],
+        maxMessages: 5,
+        logChannelId: null,
+        checkAvatars: false,
+      }),
+    );
+    expect(await repo.findByGuildId(GUILD)).toEqual(updated);
+    expect(await repo.list()).toEqual([updated]);
+  });
+
+  test("patch with no changes returns the existing row", async () => {
+    const repo = newRepo();
+    await repo.upsert(settings({ maxMessages: 9 }));
+
+    expect(await repo.patch(GUILD, {})).toEqual(settings({ maxMessages: 9 }));
   });
 
   test("findByGuildId reflects upsert and delete right away", async () => {
