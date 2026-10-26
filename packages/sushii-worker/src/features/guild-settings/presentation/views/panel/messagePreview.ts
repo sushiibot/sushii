@@ -5,8 +5,8 @@ export interface MessagePreviewContext {
   memberCount: number;
 }
 
-const MAX_PREVIEW_CHARS = 700;
-const MAX_PREVIEW_LINES = 8;
+const MAX_PREVIEW_CHARS = 200;
+const MAX_PREVIEW_LINES = 2;
 
 const PLACEHOLDER_REGEX = /<username>|<mention>|<server>|<member_number>/g;
 
@@ -55,14 +55,9 @@ function withEllipsis(body: string): string {
   return out;
 }
 
-// Capped by lines too, since every line gains a "> " prefix and the page has a 3000 character budget.
-export function quotedPreview(
-  template: string,
-  context: MessagePreviewContext,
-): string {
-  const rendered = renderMessagePreview(template, context).trim();
-
-  let lines = rendered.split("\n");
+// Every message on the panel shows as the same short quote; the full text is in the Edit modal.
+export function quotedBlock(text: string): string {
+  let lines = text.trim().split("\n");
   let truncated = false;
   if (lines.length > MAX_PREVIEW_LINES) {
     lines = lines.slice(0, MAX_PREVIEW_LINES);
@@ -79,4 +74,11 @@ export function quotedPreview(
   }
 
   return `> ${body.replace(/\n/g, "\n> ")}`;
+}
+
+export function quotedPreview(
+  template: string,
+  context: MessagePreviewContext,
+): string {
+  return quotedBlock(renderMessagePreview(template, context));
 }

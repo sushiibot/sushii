@@ -2,11 +2,11 @@ import type { ContainerBuilder } from "discord.js";
 
 import type { RowState } from "@/features/guild-settings/application/SettingsStatus";
 
+import { quotedBlock } from "./messagePreview";
 import {
   attentionDetail,
   divider,
   editButton,
-  quoteSnippet,
   rowSection,
   smallText,
   statusIcon,
@@ -40,7 +40,7 @@ function dmTextDetail(
     return null;
   }
   if (dmText?.trim()) {
-    return smallText(quoteSnippet(dmText));
+    return quotedBlock(dmText);
   }
   return fallback ? smallText(fallback) : null;
 }

@@ -19,7 +19,11 @@ import { ignoredText } from "./LoggingPanel";
 import type { PanelEmojis, PanelInput } from "./SettingsPanel";
 import { buildSettingsPanel } from "./SettingsPanel";
 import type { MessagePreviewContext } from "./messagePreview";
-import { quotedPreview, renderMessagePreview } from "./messagePreview";
+import {
+  quotedBlock,
+  quotedPreview,
+  renderMessagePreview,
+} from "./messagePreview";
 import { attentionDetail } from "./panelParts";
 
 const GUILD_ID = "1029384756102938000";
@@ -480,13 +484,13 @@ describe("buildSettingsPanel", () => {
       const text = allText(json);
       expect(text).toContain("**DMs sent to members**");
       expect(text).toContain(
-        "<:enabled:1400000000000000001> **Timeout** · `/timeout` and right-click timeouts\n-# “Please review the server rules. Contact a moderator via ModMail…”",
+        "<:enabled:1400000000000000001> **Timeout** · `/timeout` and right-click timeouts\n> Please review the server rules. Contact a moderator via ModMail if you have questions.",
       );
       expect(text).toContain(
         "<:enabled:1400000000000000001> **Warn** · Always sent\n-# Default text",
       );
       expect(text).toContain(
-        "<:enabled:1400000000000000001> **Ban** · `/ban` only\n-# “You can appeal this ban at https://forms.gle/onceloungeappeals…”",
+        "<:enabled:1400000000000000001> **Ban** · `/ban` only\n> You can appeal this ban at https://forms.gle/onceloungeappeals within 30 days.",
       );
       expect(text).toContain(
         "<:minus_silhouette:1400000000000000003> **Kick** · Off",
@@ -507,7 +511,7 @@ describe("buildSettingsPanel", () => {
       const json = toJson(makeInput("moderation", { config }));
       expect(json.accent_color).toBe(Color.Info);
       expect(allText(json)).toContain(
-        "<:warning:1400000000000000002> **Timeout** · `/timeout` and right-click timeouts\n-# Right-click timeouts need the mod log turned on\n-# “Please review",
+        "<:warning:1400000000000000002> **Timeout** · `/timeout` and right-click timeouts\n-# Right-click timeouts need the mod log turned on\n> Please review",
       );
     });
 
@@ -515,7 +519,7 @@ describe("buildSettingsPanel", () => {
       const json = toJson(makeInput("moderation", fresh()));
       const text = allText(json);
       expect(text).toContain("**Ban** · `/ban` only");
-      expect(text).not.toContain("“");
+      expect(text).not.toContain("\n> ");
       expect(text).toContain(
         "<:minus_silhouette:1400000000000000003> **Lookup sharing** · Off",
       );
@@ -1011,32 +1015,38 @@ describe("message previews", () => {
     ].join("\n");
     const out = quotedPreview(template, ctx("x"));
     expect(out.startsWith("> I <3 this server\n> line 0")).toBe(true);
-    expect(out.endsWith("> line 6…")).toBe(true);
+    expect(out).toBe("> I <3 this server\n> line 0…");
   });
 
   test("char cut keeps a stray < near the end", () => {
     const out = quotedPreview(
-      `${"a".repeat(690)} <3 ${"b".repeat(20)}`,
+      `${"a".repeat(190)} <3 ${"b".repeat(20)}`,
       ctx("x"),
     );
-    expect(out).toBe(`> ${"a".repeat(690)} <3 ${"b".repeat(6)}…`);
+    expect(out).toBe(`> ${"a".repeat(190)} <3 ${"b".repeat(6)}…`);
   });
 
   test("char cut drops a lone high surrogate", () => {
-    const out = quotedPreview(`${"a".repeat(699)}😀tail`, ctx("x"));
-    expect(out).toBe(`> ${"a".repeat(699)}…`);
+    const out = quotedPreview(`${"a".repeat(199)}😀tail`, ctx("x"));
+    expect(out).toBe(`> ${"a".repeat(199)}…`);
   });
 
   test("truncation drops a half-cut mention", () => {
-    const template = `${"a".repeat(690)} <mention> end`;
+    const template = `${"a".repeat(190)} <mention> end`;
     const out = quotedPreview(template, ctx("x"));
-    expect(out).toBe(`> ${"a".repeat(690)}…`);
+    expect(out).toBe(`> ${"a".repeat(190)}…`);
   });
 
   test("truncation closes an open code fence", () => {
-    const template = `intro\n\`\`\`\n${"code ".repeat(200)}\n\`\`\``;
+    const template = `\`\`\`\n${"code ".repeat(60)}\n\`\`\``;
     const out = quotedPreview(template, ctx("x"));
     expect(out.endsWith("…\n> ```")).toBe(true);
     expect(out.match(/```/g)).toHaveLength(2);
+  });
+
+  test("DM text uses the same two-line quote as welcome previews", () => {
+    expect(quotedBlock("line one\nline two\nline three")).toBe(
+      "> line one\n> line two…",
+    );
   });
 });

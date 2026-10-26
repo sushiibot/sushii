@@ -147,32 +147,6 @@ export function text(content: string): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(content);
 }
 
-const DM_PREVIEW_LENGTH = 60;
-const DM_PREVIEW_MAX_LENGTH = 80;
-
-// Cuts at a word end so a trailing link isn't left half-clickable.
-export function quoteSnippet(raw: string): string {
-  const flat = raw.replace(/\s+/g, " ").trim();
-  if (flat.length <= DM_PREVIEW_LENGTH) {
-    return `“${flat}”`;
-  }
-
-  const wordEnd = flat.indexOf(" ", DM_PREVIEW_LENGTH);
-  if (wordEnd === -1 && flat.length <= DM_PREVIEW_MAX_LENGTH) {
-    return `“${flat}”`;
-  }
-
-  let cut: string;
-  if (wordEnd !== -1 && wordEnd <= DM_PREVIEW_MAX_LENGTH) {
-    cut = flat.slice(0, wordEnd);
-  } else {
-    const head = flat.slice(0, DM_PREVIEW_LENGTH);
-    const lastSpace = head.lastIndexOf(" ");
-    cut = lastSpace > 0 ? head.slice(0, lastSpace) : head;
-  }
-  return `“${cut.trimEnd()}…”`;
-}
-
 export function isOnLike(state: RowState): boolean {
   return state.kind === "on" || state.kind === "attention";
 }
