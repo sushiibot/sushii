@@ -30,6 +30,7 @@ export class UserProfileRepository implements UserProfileRepositoryI {
         rep: 0n,
         fishies: 0n,
         isPatron: false,
+        fishyDaysTotal: 0,
         lastFishies: null,
         lastRep: null,
         lastfmUsername: null,
@@ -53,6 +54,7 @@ export class UserProfileRepository implements UserProfileRepositoryI {
       rep: Number(userData.rep),
       fishies: Number(userData.fishies),
       isPatron: userData.isPatron,
+      fishyDaysTotal: userData.fishyDaysTotal,
       profileData: userData.profileData as { patronEmojiURL?: string } | null,
     });
   }

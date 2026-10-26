@@ -6,7 +6,7 @@ import * as schema from "@/infrastructure/database/schema";
 import {
   REP_INCREMENT,
   SOCIAL_COOLDOWN_HOURS,
-  calculateStreak,
+  recordActiveDay,
   rollRepAmount,
 } from "../domain";
 import type { FishyResult, RepResult } from "../domain";
@@ -81,18 +81,24 @@ export class DrizzleFishyCollectionRepository
           invoker.lastFishies.getTime() + SOCIAL_COOLDOWN_HOURS * 3600000,
         );
       if (next && next > now) return next;
-      const streak = calculateStreak(
-        invoker.lastFishies,
-        invoker.fishyStreak,
+      const activity = recordActiveDay(
+        { mask: invoker.fishyDaysMask, anchorDay: invoker.fishyDaysAnchor },
         now,
       );
       const condition = fishingCondition(now);
       const item = selectCollectible(condition);
       const baseAmount = this.roll(item);
-      const caughtAmount = Math.round(baseAmount * streak.multiplier);
+      const caughtAmount = Math.round(baseAmount * activity.multiplier);
       await tx
         .update(users)
-        .set({ lastFishies: now, fishyStreak: streak.streak })
+        .set({
+          lastFishies: now,
+          fishyDaysMask: activity.mask,
+          fishyDaysAnchor: activity.anchorDay,
+          fishyDaysTotal: activity.isNewDay
+            ? sql`${users.fishyDaysTotal} + 1`
+            : users.fishyDaysTotal,
+        })
         .where(eq(users.id, invoker.id));
       const [updated] = await tx
         .update(users)
@@ -120,7 +126,10 @@ export class DrizzleFishyCollectionRepository
         caughtAmount,
         oldAmount: target.fishies.toString(),
         newAmount: updated.fishies.toString(),
-        streak,
+        activity: {
+          activeDays: activity.activeDays,
+          multiplier: activity.multiplier,
+        },
         collectibleId: item.id,
         condition,
         catchCount: entry.catchCount,
@@ -148,11 +157,18 @@ export class DrizzleFishyCollectionRepository
         invoker.lastRep &&
         new Date(invoker.lastRep.getTime() + SOCIAL_COOLDOWN_HOURS * 3600000);
       if (next && next > now) return next;
-      const streak = calculateStreak(invoker.lastRep, invoker.repStreak, now);
-      const amount = rollRepAmount(streak.multiplier);
+      const activity = recordActiveDay(
+        { mask: invoker.repDaysMask, anchorDay: invoker.repDaysAnchor },
+        now,
+      );
+      const amount = rollRepAmount(activity.multiplier);
       await tx
         .update(users)
-        .set({ lastRep: now, repStreak: streak.streak })
+        .set({
+          lastRep: now,
+          repDaysMask: activity.mask,
+          repDaysAnchor: activity.anchorDay,
+        })
         .where(eq(users.id, invoker.id));
       const [updated] = await tx
         .update(users)
@@ -161,10 +177,13 @@ export class DrizzleFishyCollectionRepository
         .returning({ rep: users.rep });
       return {
         amount,
-        isStreakBonus: amount > REP_INCREMENT,
+        isBonus: amount > REP_INCREMENT,
         oldAmount: target.rep.toString(),
         newAmount: updated.rep.toString(),
-        streak,
+        activity: {
+          activeDays: activity.activeDays,
+          multiplier: activity.multiplier,
+        },
       };
     });
   }

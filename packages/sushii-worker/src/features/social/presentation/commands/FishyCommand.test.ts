@@ -5,7 +5,6 @@ import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import dayjs from "@/shared/domain/dayjs";
 
 import type { FishyService } from "../../application";
-import { calculateStreak } from "../../domain";
 import type { CollectionArtwork } from "../../infrastructure/CollectionArtwork";
 import { FishyCommand } from "./FishyCommand";
 
@@ -37,7 +36,7 @@ for (const cooldown of [false, true]) {
               caughtAmount: 10,
               oldAmount: "20",
               newAmount: "30",
-              streak: calculateStreak(null, 0, new Date()),
+              activity: { activeDays: 1, multiplier: 1 },
             },
     } as unknown as FishyService;
     const artwork = {

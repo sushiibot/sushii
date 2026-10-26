@@ -196,19 +196,23 @@ Both have server leaderboards.
 | `/fishy-leaderboard` | Server fishy leaderboard |
 | `/fishy-collection` | Browse your or another member's fishy collection |
 
-{/* source: packages/sushii-worker/src/features/social/domain/entities/Streak.ts#calculateStreak @97845c79, packages/sushii-worker/src/features/social/domain/constants/StreakConstants.ts#STREAK_MILESTONES @1adc5355, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#getStreakMultiplier @7b240ac0, packages/sushii-worker/src/features/social/domain/entities/Streak.ts#rollRepAmount @09b9e933 */}
+{/* source: packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#recordActiveDay @727cba98, packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#getActiveDaysMultiplier @809be11f, packages/sushii-worker/src/features/social/domain/constants/ActiveDaysConstants.ts#ACTIVE_DAYS_WINDOW @eb79cf13, packages/sushii-worker/src/features/social/domain/constants/ActiveDaysConstants.ts#MAX_ACTIVE_DAYS_BONUS @fa73153d, packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#rollRepAmount @09b9e933, packages/sushii-worker/src/features/leveling/presentation/views/RankDisplayView.ts#formatFishyDays @9721fd3a */}
 
-Using `/fishy` or `/rep` at least once each UTC day builds a separate daily streak for each.
-Skipping a full UTC day resets that streak. Longer streaks multiply the fishies you catch. For rep,
-the bonus is a chance to give 2 rep instead of 1.
+The more of the last 30 UTC days you use `/fishy` or `/rep`, the bigger your bonus. Each command
+counts separately, and using it twice in one day counts once. Missed days don't reset anything. A day
+you used the command stops counting once it's more than 30 days old.
 
-| Streak | Fishy multiplier | Chance of 2 rep |
+Each active day adds about 1.7% to the fishies you catch, up to +50% at 30 of 30 days. For rep, the
+bonus is a chance to give 2 rep instead of 1, up to 50%.
+
+| Days used (of the last 30) | Fishy bonus | Chance of 2 rep |
 |---|---|---|
-| 1 week | 1.1x | 10% |
-| 1 month (30 days) | 1.25x | 25% |
-| 3 months (90 days) | 1.5x | 50% |
-| 6 months (180 days) | 1.75x | 75% |
-| 1 year (365 days) | 2x | 100% |
+| 6 | +10% | 10% |
+| 15 | +25% | 25% |
+| 21 | +35% | 35% |
+| 30 | +50% | 50% |
+
+Your rank card shows the total number of days you've fished.
 
 ---
 

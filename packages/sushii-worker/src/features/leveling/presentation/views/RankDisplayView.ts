@@ -22,6 +22,14 @@ export const RANK_CARD_EMOJIS = [
   "rankings",
 ] as const satisfies readonly BotEmojiNameType[];
 
+function formatFishyDays(total: number): string {
+  if (total === 0) {
+    return "";
+  }
+
+  return `\n-# 🎣 ${total.toLocaleString()} ${total === 1 ? "day" : "days"} fished`;
+}
+
 export function formatRankCard(
   data: UserRankData,
   avatarURL: string,
@@ -35,7 +43,7 @@ export function formatRankCard(
   const globalProgressBar = globalLevel.getProgressBar().render();
 
   const content = `**${user.username}**
-${emojis.rep} **Rep**: ${profile.getReputation().toLocaleString()}   ${emojis.fishies} **Fishies**: ${profile.getFishies().toLocaleString()}
+${emojis.rep} **Rep**: ${profile.getReputation().toLocaleString()}   ${emojis.fishies} **Fishies**: ${profile.getFishies().toLocaleString()}${formatFishyDays(profile.getFishyDaysTotal())}
 
 ${emojis.level_server} **Server Level ${guildLevel.getCurrentLevel()}**
 ${guildProgressBar}

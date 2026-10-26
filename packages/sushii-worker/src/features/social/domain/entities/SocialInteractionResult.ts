@@ -1,24 +1,28 @@
 import type { FishingCondition } from "../collection/Catalog";
-import type { StreakUpdate } from "./Streak";
+
+export interface ActiveDaysSummary {
+  activeDays: number;
+  multiplier: number;
+}
 
 export interface FishyResult {
   collectibleId: string;
   condition: FishingCondition;
   catchCount: number;
   firstDiscovery: boolean;
-  // Amount before the streak multiplier
+  // Amount before the active days multiplier
   baseAmount: number;
   caughtAmount: number;
   oldAmount: string;
   newAmount: string;
-  streak: StreakUpdate;
+  activity: ActiveDaysSummary;
 }
 
 export interface RepResult {
   amount: number;
-  // Whether the streak multiplier rolled a bonus rep
-  isStreakBonus: boolean;
+  // Whether the active days multiplier rolled a bonus rep
+  isBonus: boolean;
   oldAmount: string;
   newAmount: string;
-  streak: StreakUpdate;
+  activity: ActiveDaysSummary;
 }
