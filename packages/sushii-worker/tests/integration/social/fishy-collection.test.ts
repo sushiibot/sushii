@@ -70,8 +70,9 @@ test("reciprocal first catches and rep cannot deadlock or overwrite balances", a
       .where(eq(schema.usersInAppPublic.id, id));
     expect(user.fishies).toBe(10n);
     expect(user.rep).toBe(1n);
-    expect(user.fishyStreak).toBe(1);
-    expect(user.repStreak).toBe(1);
+    expect(user.fishyDaysMask).toBe(1);
+    expect(user.fishyDaysTotal).toBe(1);
+    expect(user.repDaysMask).toBe(1);
   }
 });
 
