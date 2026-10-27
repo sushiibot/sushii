@@ -36,10 +36,22 @@ const MAX_QUERY_DISPLAY = 50;
 // Leaves room for the title, tab line and footer under the 4000 character limit.
 const MAX_LIST_CHARACTERS = 3000;
 
+function hasSubcommands(input: HelpDetailInput, entry: HelpIndexEntry) {
+  return (
+    entry.path === entry.root &&
+    input.entries.some((e) => e.root === entry.root && e.path !== e.root)
+  );
+}
+
+/** Discord won't render a mention of a command that has subcommands, so those stay bold text. */
 function label(input: HelpDetailInput, entry: HelpIndexEntry): string {
-  return entry.kind === "app"
-    ? `**${entry.path}** (right-click app)`
-    : input.mentions.mention(entry.path, input.guildId);
+  if (entry.kind === "app") {
+    return `**${entry.path}** (right-click app)`;
+  }
+  if (hasSubcommands(input, entry)) {
+    return `**/${entry.path}**`;
+  }
+  return input.mentions.mention(entry.path, input.guildId);
 }
 
 function listLine(input: HelpDetailInput, entry: HelpIndexEntry): string {
@@ -151,6 +163,15 @@ function notFound(input: HelpDetailInput): string[] {
     heading,
     `**Did you mean**\n${suggestions.map((e) => listLine(input, e)).join("\n")}`,
   ];
+}
+
+/** A found command card is worth posting publicly; misses and denials aren't. */
+export function isShareableDetail(input: HelpDetailInput): boolean {
+  const exact = findExactEntry(input.entries, input.query);
+  return (
+    exact !== null &&
+    canRun(exact.defaultMemberPermissions, input.memberPermissions)
+  );
 }
 
 export function buildHelpDetail(input: HelpDetailInput): {

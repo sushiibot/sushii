@@ -16,6 +16,7 @@ import Color from "@/utils/colors";
 
 import type { HelpAudience } from "../../domain/helpCatalog";
 import type { HELP_EMOJI_NAMES } from "../../domain/helpCatalog";
+import type { HelpCommandEntry } from "../../domain/helpCatalog";
 import { HELP_NEW_ORDER } from "../../domain/helpCatalog";
 import { helpTabId } from "../helpIds";
 import type { VisibleCategory, VisibleHelp } from "../helpVisibility";
@@ -29,6 +30,8 @@ export interface HelpViewInput {
   emojis: HelpEmojis;
   mentions: CommandMentions;
   guildId?: string;
+  /** User whose tabs these are; anyone else clicking gets their own private copy. */
+  ownerId: string;
   now: Date;
 }
 
@@ -75,13 +78,14 @@ export function addHelpFooter(
 function tabRow(
   active: HelpAudience,
   audiences: readonly HelpAudience[],
+  ownerId: string,
 ): ActionRowBuilder<ButtonBuilderType> {
   const row = new ActionRowBuilder<ButtonBuilderType>();
   for (const audience of audiences) {
     const isActive = audience === active;
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(helpTabId(audience))
+        .setCustomId(helpTabId(audience, ownerId))
         .setLabel(TAB_LABELS[audience])
         .setStyle(isActive ? ButtonStyle.Primary : ButtonStyle.Secondary)
         .setDisabled(isActive),
@@ -95,25 +99,25 @@ function newLine(input: HelpViewInput): string | null {
     const i = HELP_NEW_ORDER.indexOf(name);
     return i === -1 ? HELP_NEW_ORDER.length : i;
   };
-  const names = input.visible.categories
-    .flatMap((v) =>
-      v.commands.filter((c) => isNew(c, input.now)).map((c) => c.name),
-    )
-    .sort((a, b) => rank(a) - rank(b));
-  if (names.length === 0) {
+  const commands = input.visible.categories
+    .flatMap((v) => v.commands.filter((c) => isNew(c, input.now)))
+    .sort((a, b) => rank(a.name) - rank(b.name));
+  if (commands.length === 0) {
     return null;
   }
 
-  const list = names
-    .map((name) => input.mentions.mention(name, input.guildId))
-    .join(" · ");
+  const list = commands.map((c) => commandMention(input, c)).join(" · ");
   return prefixed(input.emojis.sparkle, `**New:** ${list}`);
+}
+
+function commandMention(input: HelpViewInput, command: HelpCommandEntry) {
+  return input.mentions.mention(command.link ?? command.name, input.guildId);
 }
 
 function categoryBlock(input: HelpViewInput, visible: VisibleCategory): string {
   const { category } = visible;
   const lines = visible.commands.map((command) => {
-    const mention = input.mentions.mention(command.name, input.guildId);
+    const mention = commandMention(input, command);
     const sparkle =
       isNew(command, input.now) && input.emojis.sparkle
         ? ` ${input.emojis.sparkle}`
@@ -141,7 +145,7 @@ export function buildHelpPage(input: HelpViewInput): {
 
   if (input.visible.audiences.length >= 2) {
     container.addActionRowComponents(
-      tabRow(input.audience, input.visible.audiences),
+      tabRow(input.audience, input.visible.audiences, input.ownerId),
     );
     container.addSeparatorComponents(divider());
   }

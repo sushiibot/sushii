@@ -8,7 +8,7 @@ import type { HelpAudience } from "../domain/helpCatalog";
 import { HELP_EMOJI_NAMES } from "../domain/helpCatalog";
 import type { CommandListProvider } from "./helpVisibility";
 import { resolveVisibleHelp } from "./helpVisibility";
-import { buildHelpDetail } from "./views/HelpDetailView";
+import { buildHelpDetail, isShareableDetail } from "./views/HelpDetailView";
 import { buildHelpPage } from "./views/HelpView";
 
 export type HelpPayload = ReturnType<typeof buildHelpPage>;
@@ -25,6 +25,7 @@ export class HelpRenderer {
     requested: HelpAudience,
     memberPermissions: Readonly<PermissionsBitField> | null,
     guildId: string | undefined,
+    ownerId: string,
   ): Promise<HelpPayload> {
     const visible = resolveVisibleHelp(this.commandList(), memberPermissions);
     const audience = visible.audiences.includes(requested)
@@ -38,6 +39,7 @@ export class HelpRenderer {
       emojis,
       mentions: this.mentions,
       guildId,
+      ownerId,
       now: this.now(),
     });
   }
@@ -46,16 +48,20 @@ export class HelpRenderer {
     query: string,
     memberPermissions: Readonly<PermissionsBitField> | null,
     guildId: string | undefined,
-  ): Promise<HelpPayload> {
+  ): Promise<{ payload: HelpPayload; shareable: boolean }> {
     const emojis = await this.emojiRepository.getEmojis(HELP_EMOJI_NAMES);
-
-    return buildHelpDetail({
+    const input = {
       query,
       entries: buildHelpIndex(this.commandList()),
       memberPermissions,
       emojis,
       mentions: this.mentions,
       guildId,
-    });
+    };
+
+    return {
+      payload: buildHelpDetail(input),
+      shareable: isShareableDetail(input),
+    };
   }
 }

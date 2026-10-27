@@ -52,7 +52,7 @@ const FOOTER = `-# Search any command: ${m("help")} \`command:\` · Full docs: <
 describe("buildHelpDetail", () => {
   test("root with subcommands lists them with the permission and tab line", () => {
     expect(render("rolemenu", PERMISSIONS.rolesAdmin)).toEqual([
-      `## ${GEAR} ${m("rolemenu")}\nCreate a role menu.`,
+      `## ${GEAR} **/rolemenu**\nCreate a role menu.`,
       [
         "**Subcommands**",
         `${m("rolemenu create")} · Start a new menu`,
@@ -160,7 +160,7 @@ describe("buildHelpDetail", () => {
     const texts = render("rolemenu", PERMISSIONS.member);
 
     expect(texts).toEqual([
-      `You don't have permission to use ${m("rolemenu")}. It needs **Manage Roles**.`,
+      `You don't have permission to use **/rolemenu**. It needs **Manage Roles**.`,
       FOOTER,
     ]);
   });

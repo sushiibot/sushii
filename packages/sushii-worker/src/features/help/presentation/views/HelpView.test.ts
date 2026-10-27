@@ -22,6 +22,7 @@ import { resolveVisibleHelp } from "../helpVisibility";
 import type { HelpEmojis, HelpViewInput } from "./HelpView";
 import { buildHelpPage } from "./HelpView";
 
+const OWNER_ID = "150443906511667200";
 const BEFORE_NEW_ENDS = new Date("2026-10-26T12:00:00Z");
 const AFTER_NEW_ENDS = new Date("2026-11-25T00:00:00Z");
 
@@ -36,6 +37,7 @@ function render(
     emojis: ALL_EMOJIS as HelpEmojis,
     mentions: KNOWN_MENTIONS,
     guildId: "167058919611564043",
+    ownerId: OWNER_ID,
     now: BEFORE_NEW_ENDS,
     ...overrides,
   });
@@ -105,10 +107,19 @@ describe("buildHelpPage tabs", () => {
       ["Admins", 2, false],
     ]);
     expect(buttons.map((b) => "custom_id" in b && b.custom_id)).toEqual([
-      "help:tab:members",
-      "help:tab:moderators",
-      "help:tab:admins",
+      `help:tab:members:${OWNER_ID}`,
+      `help:tab:moderators:${OWNER_ID}`,
+      `help:tab:admins:${OWNER_ID}`,
     ]);
+  });
+
+  test("commands with subcommands link their main subcommand", () => {
+    const content = texts(render("members", PERMISSIONS.member)).join("\n");
+
+    expect(content).toContain(
+      "</notification add:1300000000000000000> · Get pinged when someone says a keyword",
+    );
+    expect(content).not.toContain("</notification:");
   });
 
   test("Manage Server without Ban Members skips the Moderators tab", () => {

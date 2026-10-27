@@ -16,6 +16,11 @@ Moderators and admins get tabs for their commands.
 Search with `command:` to find any command or subcommand you can use and see
 its details.
 
+{/* source: packages/sushii-worker/src/features/help/presentation/HelpCommand.ts#HelpCommand.handler @466527cc, packages/sushii-worker/src/features/help/presentation/HelpTabButtonHandler.ts#HelpTabButtonHandler.handleInteraction @efb8d2c5 */}
+
+The reply is public. If someone else clicks its tabs, they get their own private
+copy. A search that finds nothing, or a command you can't use, replies only to you.
+
 | Command | What it does |
 |---|---|
 | `/help` | See what sushii can do, or search with `command:` for a command's subcommands and permissions |

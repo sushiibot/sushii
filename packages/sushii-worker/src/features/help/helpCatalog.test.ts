@@ -95,6 +95,20 @@ describe("help catalog", () => {
     expect(names.length).toBe(new Set(names).size);
   });
 
+  test("commands with subcommands link a real subcommand, and only they do", () => {
+    const paths = new Set(buildHelpIndex(registered).map((e) => e.path));
+    const parents = new Set(
+      [...paths].filter((p) => p.includes(" ")).map((p) => p.split(" ")[0]),
+    );
+    const wrong = HELP_CATEGORIES.flatMap((c) => c.commands).filter((c) =>
+      parents.has(c.name)
+        ? !c.link?.startsWith(`${c.name} `) || !paths.has(c.link)
+        : c.link !== undefined,
+    );
+
+    expect(wrong.map((c) => c.name)).toEqual([]);
+  });
+
   test("loads every category emoji", () => {
     const loaded = new Set<string>(HELP_EMOJI_NAMES);
 

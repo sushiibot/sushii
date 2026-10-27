@@ -3,15 +3,28 @@ import { HELP_AUDIENCES } from "../domain/helpCatalog";
 
 const TAB_PREFIX = "help:tab:";
 
-export function helpTabId(audience: HelpAudience): string {
-  return `${TAB_PREFIX}${audience}`;
+export interface HelpTabTarget {
+  audience: HelpAudience;
+  /** Null on tabs from private /help replies, which only their owner can click. */
+  ownerId: string | null;
 }
 
-export function parseHelpTabId(customId: string): HelpAudience | null {
+export function helpTabId(audience: HelpAudience, ownerId: string): string {
+  return `${TAB_PREFIX}${audience}:${ownerId}`;
+}
+
+export function parseHelpTabId(customId: string): HelpTabTarget | null {
   if (!customId.startsWith(TAB_PREFIX)) {
     return null;
   }
 
-  const audience = customId.slice(TAB_PREFIX.length);
-  return HELP_AUDIENCES.find((a) => a === audience) ?? null;
+  const [audienceId, ownerId, ...rest] = customId
+    .slice(TAB_PREFIX.length)
+    .split(":");
+  const audience = HELP_AUDIENCES.find((a) => a === audienceId);
+  if (!audience || rest.length > 0 || ownerId === "") {
+    return null;
+  }
+
+  return { audience, ownerId: ownerId ?? null };
 }

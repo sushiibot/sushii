@@ -11,6 +11,8 @@ export const HELP_AUDIENCES: readonly HelpAudience[] = [
 export interface HelpCommandEntry {
   name: string;
   summary: string;
+  /** Subcommand path to link; Discord won't render a mention of a command that has subcommands. */
+  link?: string;
   /** ISO date; the command shows as new until this day starts (UTC). */
   newUntil?: string;
   keywords?: string[];
@@ -70,7 +72,11 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
     emoji: "note",
     commands: [
       { name: "t", summary: "Use a tag" },
-      { name: "tag", summary: "Browse, search and get info on tags" },
+      {
+        name: "tag",
+        link: "tag list",
+        summary: "Browse, search and get info on tags",
+      },
       { name: "tag-add", summary: "Create a tag" },
       { name: "tag-edit", summary: "Edit, rename or delete your tag" },
     ],
@@ -83,11 +89,13 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
     commands: [
       {
         name: "notification",
+        link: "notification add",
         summary: "Get pinged when someone says a keyword",
         keywords: ["keyword", "highlight"],
       },
       {
         name: "reminder",
+        link: "reminder add",
         summary: "Remind yourself later",
         keywords: ["remind"],
       },
@@ -140,7 +148,7 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
       { name: "modview", summary: "Full moderation view for a user" },
       { name: "uncase", summary: "Delete cases" },
       { name: "names", summary: "A user's name history" },
-      { name: "alts", summary: "Track alt accounts" },
+      { name: "alts", link: "alts view", summary: "Track alt accounts" },
       { name: "tempban-list", summary: "Active temporary bans" },
       { name: "verify-message", summary: "Look up a verified message" },
       {
@@ -162,26 +170,34 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
       },
       {
         name: "rolemenu",
+        link: "rolemenu create",
         summary: "Self-assign role menus",
         keywords: ["self roles", "reaction roles"],
       },
       {
         name: "levelrole",
+        link: "levelrole new",
         summary: "Roles given at levels",
         keywords: ["role rewards"],
       },
       {
         name: "xp",
+        link: "xp block channel",
         summary: "Block XP in channels or for roles",
         keywords: ["no xp"],
       },
-      { name: "giveaway", summary: "Host giveaways" },
+      { name: "giveaway", link: "giveaway create", summary: "Host giveaways" },
       {
         name: "schedule-config",
+        link: "schedule-config new",
         summary: "Sync a Google Calendar to a channel",
         keywords: ["calendar", "events"],
       },
-      { name: "tag-admin", summary: "Manage server tags" },
+      {
+        name: "tag-admin",
+        link: "tag-admin delete",
+        summary: "Manage server tags",
+      },
       {
         name: "permission-audit",
         summary: "Find risky or unused role permissions",

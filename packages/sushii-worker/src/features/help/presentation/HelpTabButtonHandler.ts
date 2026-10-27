@@ -1,4 +1,5 @@
 import type { ButtonInteraction } from "discord.js";
+import { MessageFlags } from "discord.js";
 
 import { ButtonHandler } from "@/shared/presentation/handlers";
 
@@ -17,19 +18,30 @@ export class HelpTabButtonHandler extends ButtonHandler {
   }
 
   async handleInteraction(interaction: ButtonInteraction): Promise<void> {
-    const audience = parseHelpTabId(interaction.customId);
-    if (!audience) {
+    const target = parseHelpTabId(interaction.customId);
+    if (!target) {
       throw new Error("Unexpected help tab custom ID", {
         cause: interaction.customId,
       });
     }
 
     const payload = await this.renderer.render(
-      audience,
+      target.audience,
       interaction.memberPermissions,
       interaction.guildId ?? undefined,
+      interaction.user.id,
     );
 
-    await interaction.update(payload);
+    const isOwner =
+      target.ownerId === null || target.ownerId === interaction.user.id;
+    if (isOwner) {
+      await interaction.update(payload);
+      return;
+    }
+
+    await interaction.reply({
+      ...payload,
+      flags: payload.flags | MessageFlags.Ephemeral,
+    });
   }
 }

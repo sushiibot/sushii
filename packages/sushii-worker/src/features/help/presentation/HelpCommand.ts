@@ -37,21 +37,27 @@ export class HelpCommand extends SlashCommandHandler {
     // /help is hidden from the index, so searching for it shows the tabs.
     const isSearch =
       query !== undefined && !["", "help"].includes(normalizeQuery(query));
-    const payload = isSearch
-      ? await this.renderer.renderDetail(
-          query,
-          interaction.memberPermissions,
-          guildId,
-        )
-      : await this.renderer.render(
-          "members",
-          interaction.memberPermissions,
-          guildId,
-        );
+    if (!isSearch) {
+      const payload = await this.renderer.render(
+        "members",
+        interaction.memberPermissions,
+        guildId,
+        interaction.user.id,
+      );
+      await interaction.reply(payload);
+      return;
+    }
 
-    await interaction.reply({
-      ...payload,
-      flags: payload.flags | MessageFlags.Ephemeral,
-    });
+    const { payload, shareable } = await this.renderer.renderDetail(
+      query,
+      interaction.memberPermissions,
+      guildId,
+    );
+    // Misses and permission denials only matter to the person searching.
+    await interaction.reply(
+      shareable
+        ? payload
+        : { ...payload, flags: payload.flags | MessageFlags.Ephemeral },
+    );
   }
 }

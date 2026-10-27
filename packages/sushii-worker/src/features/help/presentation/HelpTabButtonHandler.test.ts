@@ -34,15 +34,25 @@ function setup() {
   return { handler: new HelpTabButtonHandler(renderer), emojiRepository };
 }
 
-function click(customId: string, permissions: PermissionsBitField | null) {
+const OWNER_ID = "150443906511667200";
+const OTHER_ID = "80351110224678912";
+
+function click(
+  customId: string,
+  permissions: PermissionsBitField | null,
+  userId = OWNER_ID,
+) {
   const update = mock((_payload: HelpPayload) => Promise.resolve());
+  const reply = mock((_payload: HelpPayload) => Promise.resolve());
   const interaction = {
     customId,
     memberPermissions: permissions,
     guildId: "167058919611564043",
+    user: { id: userId },
     update,
+    reply,
   } as unknown as ButtonInteraction;
-  return { interaction, update };
+  return { interaction, update, reply };
 }
 
 function activeTab(payload: HelpPayload): string | undefined {
@@ -58,14 +68,22 @@ describe("HelpTabButtonHandler", () => {
   test("matches only help tab IDs", () => {
     const { handler } = setup();
 
+    expect(handler.customIDMatch(`help:tab:admins:${OWNER_ID}`)).not.toBe(
+      false,
+    );
     expect(handler.customIDMatch("help:tab:admins")).not.toBe(false);
-    expect(handler.customIDMatch("help:tab:owners")).toBe(false);
+    expect(handler.customIDMatch(`help:tab:owners:${OWNER_ID}`)).toBe(false);
+    expect(handler.customIDMatch("help:tab:admins:")).toBe(false);
+    expect(handler.customIDMatch("help:tab:admins:1:2")).toBe(false);
     expect(handler.customIDMatch("settings:tab:admins")).toBe(false);
   });
 
   test("updates the message in place with the requested tab", async () => {
     const { handler, emojiRepository } = setup();
-    const { interaction, update } = click("help:tab:admins", PERMISSIONS.admin);
+    const { interaction, update } = click(
+      `help:tab:admins:${OWNER_ID}`,
+      PERMISSIONS.admin,
+    );
 
     await handler.handleInteraction(interaction);
 
@@ -80,7 +98,7 @@ describe("HelpTabButtonHandler", () => {
   test("re-checks permissions and falls back to Members", async () => {
     const { handler } = setup();
     const { interaction, update } = click(
-      "help:tab:admins",
+      `help:tab:admins:${OWNER_ID}`,
       PERMISSIONS.moderator,
     );
 
@@ -95,7 +113,7 @@ describe("HelpTabButtonHandler", () => {
   test("a member who lost mod permissions gets Members with no tabs", async () => {
     const { handler } = setup();
     const { interaction, update } = click(
-      "help:tab:moderators",
+      `help:tab:moderators:${OWNER_ID}`,
       PERMISSIONS.member,
     );
 
@@ -106,5 +124,40 @@ describe("HelpTabButtonHandler", () => {
     expect(activeTab(payload)).toBeUndefined();
     expect(content).toContain("What sushii can do");
     expect(content).not.toContain("Moderation");
+  });
+
+  test("someone else's click gets a private copy and leaves the message alone", async () => {
+    const { handler } = setup();
+    const { interaction, update, reply } = click(
+      `help:tab:moderators:${OWNER_ID}`,
+      PERMISSIONS.moderator,
+      OTHER_ID,
+    );
+
+    await handler.handleInteraction(interaction);
+
+    expect(update).not.toHaveBeenCalled();
+    const payload = reply.mock.calls[0][0];
+    expect(payload.flags).toBe(
+      MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    );
+    expect(activeTab(payload)).toBe("Moderators");
+    expect(JSON.stringify(payload.components[0].toJSON())).toContain(
+      `help:tab:members:${OTHER_ID}`,
+    );
+  });
+
+  test("tabs on older private replies still update for whoever clicks", async () => {
+    const { handler } = setup();
+    const { interaction, update, reply } = click(
+      "help:tab:admins",
+      PERMISSIONS.admin,
+      OTHER_ID,
+    );
+
+    await handler.handleInteraction(interaction);
+
+    expect(reply).not.toHaveBeenCalled();
+    expect(activeTab(update.mock.calls[0][0])).toBe("Admins");
   });
 });
