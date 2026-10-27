@@ -31,7 +31,7 @@ test("reveal shows the collection discovery and points without legacy catch name
   expect(json).not.toContain("Browse it with");
   expect(json).toContain("Open collection");
   expect(json).toContain("fishycollection/open");
-  expect(payload.allowedMentions).toEqual({ parse: [] });
+  expect(payload.allowedMentions).toEqual({ users: ["123"] });
 });
 
 const baseFishy = {

@@ -112,7 +112,7 @@ export function createFishySuccessMessage(
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
+    allowedMentions: { users: [targetUserId] },
     files:
       artwork && typeof artwork !== "string"
         ? [new AttachmentBuilder(artwork, { name: "catch.png" })]
