@@ -8,7 +8,6 @@ import pino from "pino";
 
 import type { WebhookService } from "@/features/webhook-logging/infrastructure/WebhookService";
 
-import { BotEmoji } from "../domain/entities/BotEmoji";
 import type { BotEmojiRepository } from "../domain/repositories/BotEmojiRepository";
 import type { BotEmojiService } from "./BotEmojiService";
 import { BotEmojiSyncService } from "./BotEmojiSyncService";
@@ -102,6 +101,8 @@ test("an untracked Discord emoji with the same name is replaced, not adopted", a
   );
 
   expect(replaceEmoji).toHaveBeenCalledWith("logs", "111", buffer);
-  expect(saveEmoji).toHaveBeenCalledWith(new BotEmoji("logs", "222", hash));
+  expect(saveEmoji).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "logs", id: "222", sha256: hash }),
+  );
   expect(result.updated).toBe(1);
 });
