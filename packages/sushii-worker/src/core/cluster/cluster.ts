@@ -91,6 +91,7 @@ async function initializeShardCluster(): Promise<void> {
     client,
     deploymentService,
     interactionRouter,
+    interactionRouter.commandIdCache,
   );
 
   // AFTER features are registered (includes registering commands)
@@ -110,6 +111,8 @@ async function initializeShardCluster(): Promise<void> {
       },
       "skipping interaction handler registration on cluster",
     );
+    // Not awaited: prime() logs its own failures and must not delay login.
+    void interactionRouter.commandIdCache.prime();
   }
 
   process.on("SIGTERM", async () => {

@@ -7,6 +7,21 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 A quick reference for everything sushii offers.
 
+## Help
+
+{/* source: packages/sushii-worker/src/features/help/presentation/HelpCommand.ts#HelpCommand.command @20301a27, packages/sushii-worker/src/features/help/presentation/helpVisibility.ts#canRun @4cae9544, packages/sushii-worker/src/features/help/application/helpIndex.ts#subcommandPaths @887822ab, packages/sushii-worker/src/features/help/presentation/HelpSearchAutocomplete.ts#buildHelpChoices @16821b86 */}
+
+`/help` lists sushii's commands by category, filtered by each command's default permissions.
+Moderators and admins get tabs for their commands.
+Search with `command:` to find any command or subcommand you can use and see
+its details.
+
+| Command | What it does |
+|---|---|
+| `/help` | See what sushii can do, or search with `command:` for a command's subcommands and permissions |
+
+---
+
 ## Moderation
 
 {/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488 */}
@@ -220,11 +235,12 @@ Your rank card shows the total number of days you've fished.
 
 Quick lookups for any member's profile info.
 
-{/* source: packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoCommand.ts#UserInfoCommand.command @77aaadfe, packages/sushii-worker/src/features/user-profile/presentation/commands/AvatarCommand.ts#AvatarCommand @c0478422, packages/sushii-worker/src/features/user-profile/presentation/commands/BannerCommand.ts#BannerCommand @2d1cb57f */}
+{/* source: packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoCommand.ts#UserInfoCommand.command @77aaadfe, packages/sushii-worker/src/features/user-profile/presentation/commands/AvatarCommand.ts#AvatarCommand @c0478422, packages/sushii-worker/src/features/user-profile/presentation/commands/BannerCommand.ts#BannerCommand @2d1cb57f, packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoContextMenuHandler.ts#UserInfoContextMenuHandler.command @8883e6a5 */}
 
 | Command | What it does |
 |---|---|
 | `/userinfo` | View account details, join dates, and roles |
 | `/avatar` | View someone's avatar at full size |
 | `/banner` | View someone's profile banner |
+| Right-click a user → Apps → **User Info** | View their account details privately, only visible to you |
 

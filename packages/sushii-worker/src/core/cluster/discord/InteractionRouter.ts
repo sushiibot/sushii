@@ -11,6 +11,8 @@ import type {
   Interaction,
   ModalSubmitInteraction,
   RESTPostAPIApplicationCommandsJSONBody,
+  RESTPutAPIApplicationCommandsResult,
+  RESTPutAPIApplicationGuildCommandsResult,
 } from "discord.js";
 import {
   ApplicationCommandType,
@@ -37,6 +39,8 @@ import type {
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import getFullCommandName from "@/utils/getFullCommandName";
 import parseValidationError from "@/utils/parseValidationError";
+
+import { CommandIdCache } from "./CommandIdCache";
 
 const tracer = opentelemetry.trace.getTracer("interaction-client");
 
@@ -169,6 +173,11 @@ export default class InteractionRouter {
    */
   private selectMenuHandlers: SelectMenuHandler[];
 
+  /**
+   * Command IDs for rendering clickable command mentions
+   */
+  public readonly commandIdCache: CommandIdCache;
+
   constructor(
     client: Client,
     deploymentService: DeploymentService,
@@ -185,6 +194,17 @@ export default class InteractionRouter {
     this.buttonHandlers = [];
     this.selectMenuHandlers = [];
     this.contextMenuHandlers = new Collection();
+    this.commandIdCache = new CommandIdCache(
+      client.rest,
+      config.discord.applicationId,
+      {
+        isKnown: (name, guildId) =>
+          this.commands.has(name) ||
+          (guildId !== undefined &&
+            (this.guildCommands.get(guildId)?.has(name) ?? false)),
+        guildIds: () => this.guildCommands.keys(),
+      },
+    );
   }
 
   /**
@@ -365,10 +385,18 @@ export default class InteractionRouter {
     log.info("registering %s global commands...", this.commands.size);
 
     try {
-      await this.client.rest.put(
+      const registered = (await this.client.rest.put(
         Routes.applicationCommands(config.discord.applicationId),
         { body: this.getCommandsArray() },
-      );
+      )) as RESTPutAPIApplicationCommandsResult;
+      if (Array.isArray(registered)) {
+        this.commandIdCache.setGlobal(registered);
+      } else {
+        log.warn(
+          { responseType: typeof registered },
+          "global command registration returned a non-array, skipping command ID cache",
+        );
+      }
     } catch (err) {
       log.error(err, "error registering global commands");
     }
@@ -380,13 +408,21 @@ export default class InteractionRouter {
         "registering guild-specific commands",
       );
       try {
-        await this.client.rest.put(
+        const registered = (await this.client.rest.put(
           Routes.applicationGuildCommands(
             config.discord.applicationId,
             guildId,
           ),
           { body },
-        );
+        )) as RESTPutAPIApplicationGuildCommandsResult;
+        if (Array.isArray(registered)) {
+          this.commandIdCache.setGuild(guildId, registered);
+        } else {
+          log.warn(
+            { guildId, responseType: typeof registered },
+            "guild command registration returned a non-array, skipping command ID cache",
+          );
+        }
       } catch (err) {
         log.error({ err, guildId }, "error registering guild commands");
       }

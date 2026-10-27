@@ -35,10 +35,13 @@ export function setupUserProfileFeature({
   // Create commands
   const avatarCommand = new AvatarCommand(client, logger);
   const bannerCommand = new BannerCommand(client, logger);
-  const userInfoCommand = new UserInfoCommand(client, logger, userLevelRepository);
+  const userInfoCommand = new UserInfoCommand(
+    client,
+    logger,
+    userLevelRepository,
+  );
   const userInfoContextMenuHandler = new UserInfoContextMenuHandler(
     userLevelRepository,
-    logger,
   );
 
   return {

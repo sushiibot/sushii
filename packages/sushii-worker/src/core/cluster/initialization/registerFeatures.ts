@@ -25,6 +25,7 @@ import {
   createGuildSettingsServices,
   setupGuildSettingsFeature,
 } from "@/features/guild-settings/setup";
+import { setupHelpFeature } from "@/features/help/setup";
 import { setupInteractionHandlerFeature } from "@/features/interaction-handler/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
@@ -50,6 +51,7 @@ import { setupWebhookLoggingFeature } from "@/features/webhook-logging/setup";
 import type * as schema from "@/infrastructure/database/schema";
 import { config, secrets } from "@/shared/infrastructure/config";
 import logger from "@/shared/infrastructure/logger";
+import type { CommandMentions } from "@/shared/presentation/commandMentions";
 
 import type InteractionRouter from "../discord/InteractionRouter";
 import type { EventHandler, EventType } from "../presentation/EventHandler";
@@ -163,6 +165,7 @@ export function registerFeatures(
   client: Client,
   deploymentService: DeploymentService,
   interactionRouter: InteractionRouter,
+  commandMentions: CommandMentions,
 ) {
   // --------------------------------------------------------------------------
   // Build commands
@@ -406,6 +409,12 @@ export function registerFeatures(
     logger.child({ component: "ReactionLogFeature" }),
   );
 
+  const helpFeature = setupHelpFeature({
+    commandList: () => interactionRouter.getCommandsArray(),
+    emojiRepository: botEmojiFeature.services.botEmojiRepository,
+    commandMentions,
+  });
+
   // Guild IDs that previously had guild-specific commands.
   // Add a guild here when removing it from a command's registeredGuilds so the
   // stale commands are wiped from Discord on next deploy, then remove once cleared.
@@ -438,6 +447,7 @@ export function registerFeatures(
     ...permissionAuditFeature.commands,
     ...memberScreeningFeature.commands,
     ...featureFlagCommands,
+    ...helpFeature.commands,
   );
   interactionRouter.addAutocompleteHandlers(
     ...levelingFeature.autocompletes,
@@ -452,11 +462,13 @@ export function registerFeatures(
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
     ...emojiStatsFeature.autocompletes,
+    ...helpFeature.autocompleteHandlers,
   );
 
   // Context menu handlers
   interactionRouter.addContextMenus(
     ...moderationFeature.contextMenuHandlers,
+    ...userProfileFeature.contextMenuHandlers,
     ...reactionLogFeature.contextMenuHandlers,
     ...messageVerificationFeature.contextMenuHandlers,
   );
@@ -480,6 +492,7 @@ export function registerFeatures(
     ...automodFeature.buttonHandlers,
     ...altAccountsFeature.buttonHandlers,
     ...memberScreeningFeature.buttonHandlers,
+    ...helpFeature.buttonHandlers,
   );
 
   // Modal handlers

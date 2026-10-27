@@ -6,21 +6,13 @@ import {
   InteractionContextType,
   MessageFlags,
 } from "discord.js";
-import type { Logger } from "pino";
 
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 
 import { createUserInfoEmbed } from "../views/UserInfoView";
 
-/**
- * The always-visible counterpart to `/userinfo` and Mod View's moderator
- * branch — right-click account info for everyone, guild-optional like
- * `UserInfoCommand`, so it stays usable in DMs. Ephemeral, unlike
- * `/userinfo`: a context menu click has none of a slash command's typing
- * friction, so a public reply here would let anyone spam embeds into a
- * channel by right-clicking repeatedly.
- */
+/** Ephemeral so repeated right-clicks can't spam a channel. */
 export class UserInfoContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("User Info")
@@ -36,10 +28,7 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
     )
     .toJSON();
 
-  constructor(
-    private readonly userLevelRepository: UserLevelRepository,
-    private readonly logger: Logger,
-  ) {
+  constructor(private readonly userLevelRepository: UserLevelRepository) {
     super();
   }
 
@@ -56,32 +45,18 @@ export class UserInfoContextMenuHandler extends ContextMenuHandler {
       ? (interaction.targetMember ?? undefined)
       : undefined;
 
-    const [guildLevelResult, globalLevelResult] = await Promise.allSettled([
+    const [guildLevel, globalLevel] = await Promise.all([
       guildId
         ? this.userLevelRepository.getUserGuildLevel(guildId, targetUser.id)
         : Promise.resolve(null),
       this.userLevelRepository.getUserGlobalLevel(targetUser.id),
     ]);
 
-    if (guildLevelResult.status === "rejected") {
-      this.logger.error(
-        { err: guildLevelResult.reason, targetId: targetUser.id, guildId },
-        "Failed to fetch guild level for User Info context menu",
-      );
-    }
-
-    if (globalLevelResult.status === "rejected") {
-      this.logger.error(
-        { err: globalLevelResult.reason, targetId: targetUser.id },
-        "Failed to fetch global level for User Info context menu",
-      );
-    }
-
     const embed = createUserInfoEmbed(
       targetUser,
       targetMember,
-      guildLevelResult.status === "fulfilled" ? guildLevelResult.value : null,
-      globalLevelResult.status === "fulfilled" ? globalLevelResult.value : null,
+      guildLevel,
+      globalLevel,
     );
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });

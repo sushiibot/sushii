@@ -49,6 +49,9 @@ export const BotEmojiName = z.enum([
 
   // UI
   "user",
+  "sparkle",
+  "gear",
+  "wrench",
 
   // Settings UI
   "save",
