@@ -126,5 +126,5 @@ including any liability or expense arising from all claims, losses, damages (act
 
 In order to resolve a complaint regarding our Services, or to receive further information regarding use of our Services, please contact us:
 
-* By email: contact@sushii.xyz
+* By email: contact@sushii.bot
 * Discord support server: https://discord.gg/PjDRRXSSAF

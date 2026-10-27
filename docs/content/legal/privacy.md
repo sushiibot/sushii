@@ -353,6 +353,6 @@ normal 90-day schedule.
 
 If you have any questions about this Privacy Policy, You can contact us:
 
-* By email: contact@sushii.xyz
+* By email: contact@sushii.bot
 * Discord support server: https://discord.gg/PjDRRXSSAF
 
