@@ -322,10 +322,10 @@ describe("PermissionAuditSession", () => {
       collector.emit("collect", confirm);
       await flush();
 
-      expect(confirm.deferUpdate).toHaveBeenCalledTimes(1);
+      expect(confirm.deferUpdate).not.toHaveBeenCalled();
       expect(changeService.apply).toHaveBeenCalledTimes(1);
       expect(auditService.generate).not.toHaveBeenCalled();
-      expect(contentOf(confirm.editReply.mock.calls[0]?.[0])).toContain(
+      expect(contentOf(confirm.update.mock.calls[0]?.[0])).toContain(
         "To restore",
       );
     });
@@ -352,17 +352,59 @@ describe("PermissionAuditSession", () => {
     test("double-clicking Confirm applies once", async () => {
       const { collector, changeService } = await openPreview();
 
-      collector.emit(
-        "collect",
-        click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm),
+      const first = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm);
+      const second = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm);
+      collector.emit("collect", first);
+      collector.emit("collect", second);
+      await flush();
+
+      expect(changeService.apply).toHaveBeenCalledTimes(1);
+      expect(first.update).toHaveBeenCalledTimes(1);
+      expect(second.deferUpdate).toHaveBeenCalledTimes(1);
+      expect(second.update).not.toHaveBeenCalled();
+    });
+
+    test("a repeat Confirm after the result re-shows it without applying again", async () => {
+      const { collector, changeService } = await openPreview();
+
+      const first = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm);
+      collector.emit("collect", first);
+      await flush();
+      const repeat = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm);
+      collector.emit("collect", repeat);
+      await flush();
+
+      expect(changeService.apply).toHaveBeenCalledTimes(1);
+      expect(repeat.deferUpdate).not.toHaveBeenCalled();
+      expect(repeat.update).toHaveBeenCalledTimes(1);
+      expect(repeat.update.mock.calls[0]?.[0]).toBe(
+        first.update.mock.calls[0]?.[0],
       );
+    });
+
+    test("Confirm after Back shows the report, not the old result", async () => {
+      const { collector, changeService } = await openPreview();
       collector.emit(
         "collect",
         click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm),
       );
       await flush();
+      collector.emit(
+        "collect",
+        click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.back),
+      );
+      await flush();
+
+      const stale = click(OWNER_ID, PERMISSION_AUDIT_CUSTOM_IDS.confirm);
+      collector.emit("collect", stale);
+      await flush();
 
       expect(changeService.apply).toHaveBeenCalledTimes(1);
+      expect(stale.deferUpdate).not.toHaveBeenCalled();
+      expect(stale.update).toHaveBeenCalledTimes(1);
+      const shown = contentOf(stale.update.mock.calls[0]?.[0]);
+      expect(shown).not.toContain("To restore");
+      expect(shown).toContain("permaudit_tab_roles");
     });
 
     test("a Discord error shows nothing changed and skips the refresh", async () => {
@@ -374,7 +416,7 @@ describe("PermissionAuditSession", () => {
       collector.emit("collect", confirm);
       await flush();
 
-      const shown = contentOf(confirm.editReply.mock.calls[0]?.[0]);
+      const shown = contentOf(confirm.update.mock.calls[0]?.[0]);
       expect(shown).toContain("Nothing was changed");
       expect(shown).toContain("Missing Permissions");
       expect(auditService.generate).not.toHaveBeenCalled();

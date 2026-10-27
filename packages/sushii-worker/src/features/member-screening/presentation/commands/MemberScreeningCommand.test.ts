@@ -120,7 +120,7 @@ function interactionFor(
       getBoolean: (name: string) => values.booleans?.[name] ?? null,
     },
     client: { rest: { get: mock(async (_route: string) => ({})) } },
-    reply: mock(async () => undefined),
+    reply: mock(async (_reply: unknown) => undefined),
     deferReply: mock(async () => undefined),
     editReply: mock(async (_reply: unknown) => undefined),
   };
@@ -144,6 +144,10 @@ async function runCommand(
 
 function editedText(interaction: TestInteraction): string {
   return JSON.stringify(interaction.editReply.mock.calls[0]?.[0]);
+}
+
+function repliedText(interaction: TestInteraction): string {
+  return JSON.stringify(interaction.reply.mock.calls[0]?.[0]);
 }
 
 describe("MemberScreeningCommand definition", () => {
@@ -192,14 +196,19 @@ describe("MemberScreeningCommand owner check", () => {
     expect(t.guildRepo.patch).not.toHaveBeenCalled();
   });
 
-  test("lets the owner through", async () => {
+  test("lets the owner through and replies without deferring", async () => {
     const t = setupCommand(OWNER);
     const interaction = configureInteraction(OWNER);
 
     await runCommand(t.command, interaction);
 
-    expect(interaction.reply).not.toHaveBeenCalled();
-    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    expect(interaction.deferReply).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledTimes(1);
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      }),
+    );
     expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);
   });
 });
@@ -235,7 +244,7 @@ describe("MemberScreeningCommand configure", () => {
     await runCommand(t.command, interaction);
 
     expect(t.guildRepo.patch).toHaveBeenCalledTimes(1);
-    expect(editedText(interaction)).toContain(
+    expect(repliedText(interaction)).toContain(
       "The `member_screening` flag is off for this server",
     );
   });
@@ -246,7 +255,7 @@ describe("MemberScreeningCommand configure", () => {
 
     await runCommand(t.command, interaction);
 
-    expect(editedText(interaction)).not.toContain("flag is off");
+    expect(repliedText(interaction)).not.toContain("flag is off");
   });
 });
 
@@ -271,6 +280,9 @@ describe("MemberScreeningCommand status", () => {
 
     await runCommand(t.command, interaction);
 
+    expect(interaction.deferReply).toHaveBeenCalledWith({
+      flags: MessageFlags.Ephemeral,
+    });
     const text = editedText(interaction);
     expect(text).toContain("3 servers flagged · 1 active");
     expect(text).toContain(`\`${GUILD}\` · ✅ active · logs to <#${CHANNEL}>`);
@@ -298,7 +310,7 @@ describe("MemberScreeningCommand configure bounds", () => {
     await runCommand(t.command, interaction);
 
     expect(t.guildRepo.patch).not.toHaveBeenCalled();
-    expect(editedText(interaction)).toContain(`\`${name}\` must be between 1`);
+    expect(repliedText(interaction)).toContain(`\`${name}\` must be between 1`);
   });
 
   test("accepts the bounds themselves", async () => {

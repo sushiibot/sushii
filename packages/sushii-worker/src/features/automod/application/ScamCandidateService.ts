@@ -188,11 +188,9 @@ export class ScamCandidateService {
   }
 
   async handleIgnore(reviewId: string, interaction: ButtonInteraction): Promise<void> {
-    await interaction.deferUpdate();
-
     const current = await this.candidateRepository.getByReviewId(reviewId);
     if (!current) {
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review has expired — a new review will appear automatically.",
         flags: MessageFlags.Ephemeral,
       });
@@ -200,21 +198,21 @@ export class ScamCandidateService {
     }
     const guardMsg = this.getStatusGuardMessage(current.status);
     if (guardMsg) {
-      await interaction.followUp({ content: guardMsg, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: guardMsg, flags: MessageFlags.Ephemeral });
       return;
     }
 
     const state = await this.candidateRepository.resolveReview(reviewId, "ignored");
     if (!state) {
       // Race: another moderator resolved it between check and resolveReview
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.editReply(
+    await interaction.update(
       await this.buildReviewFromState(state, { statusLine: "*ignored*", buttonLabel: "Ignored" }),
     );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "ignored", trigger: state.trigger });
@@ -266,8 +264,9 @@ export class ScamCandidateService {
       });
       return;
     }
-
-    await interaction.deferUpdate();
+    if (!interaction.isFromMessage()) {
+      throw new Error("Scam candidate label modal should be from a button on a message");
+    }
 
     const label =
       interaction.fields.getTextInputValue(SCAM_CANDIDATE_MODAL_LABEL_INPUT).trim() || undefined;
@@ -276,7 +275,7 @@ export class ScamCandidateService {
     const { added, failed } = await this.insertHashes(imageResults, label);
 
     if (added.length === 0) {
-      await interaction.editReply(
+      await interaction.update(
         await this.buildReviewFromState(preState, { statusLine: "*failed to add hashes*", buttonLabel: "Failed" }),
       );
       this.metrics.reviewOutcomeCounter.add(1, { outcome: "add_failed", trigger: preState.trigger });
@@ -288,7 +287,7 @@ export class ScamCandidateService {
     const state = await this.candidateRepository.resolveReview(reviewId, "added");
     if (!state) {
       // Race: another moderator resolved it between insert(s) and resolveReview
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
       });
@@ -302,7 +301,7 @@ export class ScamCandidateService {
       ...added.map((a) => `• **#${a.id}** \`${a.filename}\``),
     ].join("\n");
 
-    await interaction.editReply(
+    await interaction.update(
       await this.buildReviewFromState(state, { statusLine: statusSuffix, buttonLabel: addedLabel }),
     );
 
@@ -315,11 +314,9 @@ export class ScamCandidateService {
     statusMismatchMessage: string,
     interaction: ButtonInteraction,
   ): Promise<ScamCandidateState | null> {
-    await interaction.deferUpdate();
-
     const current = await this.candidateRepository.getByReviewId(reviewId);
     if (!current) {
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review has expired — a new review will appear automatically.",
         flags: MessageFlags.Ephemeral,
       });
@@ -327,7 +324,7 @@ export class ScamCandidateService {
     }
 
     if (current.status !== expectedStatus) {
-      await interaction.followUp({ content: statusMismatchMessage, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: statusMismatchMessage, flags: MessageFlags.Ephemeral });
       return null;
     }
 
@@ -347,7 +344,7 @@ export class ScamCandidateService {
 
     const state = await this.candidateRepository.revertReview(reviewId);
     if (!state) {
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review has already been resolved.",
         flags: MessageFlags.Ephemeral,
       });
@@ -361,7 +358,7 @@ export class ScamCandidateService {
       await this.hashRepository.removeByPhashes(phashes);
     }
 
-    await interaction.editReply(
+    await interaction.update(
       await this.buildReviewFromState(state, { statusLine: "*reverted*", buttonLabel: "Reverted" }),
     );
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "reverted", trigger: state.trigger });
@@ -380,14 +377,14 @@ export class ScamCandidateService {
 
     const state = await this.candidateRepository.undoIgnore(reviewId);
     if (!state) {
-      await interaction.followUp({
+      await interaction.reply({
         content: "This review is no longer in an ignored state.",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.editReply(await this.buildReviewFromState(state));
+    await interaction.update(await this.buildReviewFromState(state));
     this.metrics.reviewOutcomeCounter.add(1, { outcome: "undo_ignored", trigger: state.trigger });
   }
 

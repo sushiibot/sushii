@@ -222,8 +222,6 @@ export class FeatureFlagCommand extends SlashCommandHandler {
     const sub = interaction.options.getSubcommand(true);
     const flag = this.parseFlag(interaction.options.getString("flag", true));
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     if (!flag) {
       await this.replyText(
         interaction,
@@ -320,6 +318,9 @@ export class FeatureFlagCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction,
     flag: FeatureFlag,
   ): Promise<void> {
+    // defer: fetches the name of every listed guild over REST
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     // Newest first, so the cap hides the oldest.
     const entries = (await this.repo.listGuilds(flag)).sort(
       (a, b) => b.enabledAt.getTime() - a.enabledAt.getTime(),
@@ -337,10 +338,11 @@ export class FeatureFlagCommand extends SlashCommandHandler {
           return { entry, name, screening: state };
         }),
     );
-    await this.replyContainer(
-      interaction,
-      buildFlagList(flag, guilds, entries.length),
-    );
+    await interaction.editReply({
+      components: [buildFlagList(flag, guilds, entries.length)],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    });
   }
 
   private async readScreeningState(
@@ -388,9 +390,9 @@ export class FeatureFlagCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction,
     container: ContainerBuilder,
   ): Promise<void> {
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
     });
   }

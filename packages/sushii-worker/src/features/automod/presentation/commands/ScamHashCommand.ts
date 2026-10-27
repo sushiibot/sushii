@@ -90,6 +90,7 @@ export class ScamHashCommand extends SlashCommandHandler {
   private async handleAdd(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
+    // defer: downloads the image and computes its perceptual hash
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const attachment = interaction.options.getAttachment("image", true);
@@ -150,27 +151,27 @@ export class ScamHashCommand extends SlashCommandHandler {
   private async handleDelete(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const id = interaction.options.getInteger("id", true);
     const deleted = await this.repository.delete(id);
 
-    if (deleted) {
-      await interaction.editReply(`Deleted entry ID **${id}**.`);
-    } else {
-      await interaction.editReply(`No entry found with ID **${id}**.`);
-    }
+    await interaction.reply({
+      content: deleted
+        ? `Deleted entry ID **${id}**.`
+        : `No entry found with ID **${id}**.`,
+      flags: MessageFlags.Ephemeral,
+    });
   }
 
   private async handleList(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const entries = await this.repository.list();
 
     if (entries.length === 0) {
-      await interaction.editReply("No scam hashes stored yet.");
+      await interaction.reply({
+        content: "No scam hashes stored yet.",
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -197,9 +198,9 @@ export class ScamHashCommand extends SlashCommandHandler {
         );
     }
 
-    await interaction.editReply({
+    await interaction.reply({
       components: [container],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 }

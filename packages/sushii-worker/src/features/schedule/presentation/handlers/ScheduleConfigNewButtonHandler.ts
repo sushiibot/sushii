@@ -166,10 +166,7 @@ export class ScheduleConfigNewButtonHandler extends ButtonHandler {
         });
 
         try {
-          // deferUpdate() + editReply() instead of update(): the button lives on an IsComponentsV2
-          // message and Discord returns 10062 for type-7 UPDATE_MESSAGE responses in that context.
-          // deferUpdate() (type 6) acknowledges immediately; editReply() PATCHes the message via
-          // the webhook endpoint which handles IsComponentsV2 correctly.
+          // defer: configure() fetches the calendar's metadata from the Google Calendar API
           await submit.deferUpdate();
           submitSpan.addEvent("deferUpdate");
 

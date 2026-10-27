@@ -91,7 +91,7 @@ export class TagAddCommand extends SlashCommandHandler {
     }
 
     if (tagAttachment) {
-      // Defer before slow work — gives 15 minutes for the upload + DB write
+      // defer: downloads the attachment and re-uploads it with the reply
       await interaction.deferReply();
 
       // Inline download: fetch the attachment from Discord

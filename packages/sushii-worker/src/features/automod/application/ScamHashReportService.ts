@@ -222,6 +222,7 @@ export class ScamHashReportService {
       | APIContainerComponent
       | undefined;
     if (!rawContainer) {
+      // defer: ack-only, the review message has no container to update
       await interaction.deferUpdate();
       return;
     }

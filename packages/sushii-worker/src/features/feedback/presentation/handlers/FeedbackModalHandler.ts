@@ -99,7 +99,7 @@ export class FeedbackModalHandler extends ModalHandler {
       return;
     }
 
-    // The webhook post can wait out a rate limit, so don't race the 3s reply window.
+    // defer: the feedback webhook post can wait out a rate limit
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const result = await this.feedbackService.submit({

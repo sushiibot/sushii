@@ -349,6 +349,7 @@ export class ModerationCommand extends SlashCommandHandler {
       return;
     }
 
+    // defer: fetches every target, then DMs and runs the action REST call for each one
     await interaction.deferReply();
 
     const targetsResult =

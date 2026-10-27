@@ -463,8 +463,7 @@ export class GiveawayCommand extends SlashCommandHandler {
       return;
     }
 
-    // Flushing entries, drawing and editing the giveaway message can take a
-    // while
+    // defer: fetches the giveaway channel, edits the giveaway message and posts the winners announcement
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     // Runs on the cluster owning this guild, so buffered entries are flushed

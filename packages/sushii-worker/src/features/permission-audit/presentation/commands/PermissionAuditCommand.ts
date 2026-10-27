@@ -52,6 +52,7 @@ export class PermissionAuditCommand extends SlashCommandHandler {
       return;
     }
 
+    // defer: generating the audit fetches guild members from Discord
     await interaction.deferReply();
     const [result, emojis] = await Promise.all([
       this.auditService.generate(interaction.guild),

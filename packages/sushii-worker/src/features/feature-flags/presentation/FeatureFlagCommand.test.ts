@@ -85,7 +85,15 @@ async function run(command: FeatureFlagCommand, i: TestInteraction) {
 }
 
 function edited(i: TestInteraction) {
-  const reply = i.editReply.mock.calls[0]?.[0] as {
+  return toJSONPayload(i.editReply.mock.calls[0]?.[0]);
+}
+
+function replied(i: TestInteraction) {
+  return toJSONPayload(i.reply.mock.calls[0]?.[0]);
+}
+
+function toJSONPayload(payload: unknown) {
+  const reply = payload as {
     components: { toJSON(): unknown }[];
     flags: number;
     allowedMentions: unknown;
@@ -147,16 +155,14 @@ describe("FeatureFlagCommand enable", () => {
 
     await run(t.command, i);
 
-    expect(i.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
+    expect(i.deferReply).not.toHaveBeenCalled();
     expect(t.repo.enable).toHaveBeenCalledWith(
       GUILD_TWO,
       "member_screening",
       OWNER,
     );
-    expect(edited(i)).toEqual({
-      flags: MessageFlags.IsComponentsV2,
+    expect(replied(i)).toEqual({
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
       components: [
         {
@@ -183,7 +189,7 @@ describe("FeatureFlagCommand enable", () => {
 
     await run(t.command, i);
 
-    expect(JSON.stringify(edited(i))).toContain(
+    expect(JSON.stringify(replied(i))).toContain(
       "Enabled `member_screening` for `138194444645040128`.",
     );
   });
@@ -198,7 +204,7 @@ describe("FeatureFlagCommand enable", () => {
     await run(t.command, i);
 
     expect(t.repo.enable).not.toHaveBeenCalled();
-    expect(JSON.stringify(edited(i))).toContain(
+    expect(JSON.stringify(replied(i))).toContain(
       "`guild_id` must be a server ID.",
     );
   });
@@ -210,7 +216,7 @@ describe("FeatureFlagCommand enable", () => {
     await run(t.command, i);
 
     expect(t.repo.enable).not.toHaveBeenCalled();
-    expect(JSON.stringify(edited(i))).toContain("`flag` must be one of");
+    expect(JSON.stringify(replied(i))).toContain("`flag` must be one of");
   });
 });
 
@@ -226,7 +232,7 @@ describe("FeatureFlagCommand disable", () => {
     await run(t.command, i);
 
     expect(t.repo.disable).toHaveBeenCalledWith(GUILD_TWO, "member_screening");
-    expect(JSON.stringify(edited(i))).toContain(
+    expect(JSON.stringify(replied(i))).toContain(
       "Disabled `member_screening` for **Server Two** (`138194444645040128`).",
     );
   });
@@ -240,7 +246,7 @@ describe("FeatureFlagCommand disable", () => {
 
     await run(t.command, i);
 
-    expect(JSON.stringify(edited(i))).toContain(
+    expect(JSON.stringify(replied(i))).toContain(
       "`member_screening` isn't on for `138194444645040128`.",
     );
   });
@@ -267,6 +273,9 @@ describe("FeatureFlagCommand list", () => {
 
     await run(t.command, i);
 
+    expect(i.deferReply).toHaveBeenCalledWith({
+      flags: MessageFlags.Ephemeral,
+    });
     expect(t.repo.listGuilds).toHaveBeenCalledWith("member_screening");
     expect(edited(i)).toEqual({
       flags: MessageFlags.IsComponentsV2,

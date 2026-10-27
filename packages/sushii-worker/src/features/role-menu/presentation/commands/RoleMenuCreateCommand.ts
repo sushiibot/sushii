@@ -542,7 +542,7 @@ export class RoleMenuCreateCommand {
       return;
     }
 
-    // Defer the reply as updating can take time
+    // defer: edits every active message of this menu, possibly across many channels
     await interaction.deferReply({ ephemeral: true });
 
     // Get current menu data to build the message content

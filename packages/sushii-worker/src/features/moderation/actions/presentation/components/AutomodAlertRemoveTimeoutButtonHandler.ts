@@ -48,8 +48,7 @@ export class AutomodAlertRemoveTimeoutButtonHandler extends ButtonHandler {
       return;
     }
 
-    // Ack immediately — the untimeout below is a Discord REST call plus a DB
-    // write and can exceed Discord's 3s interaction-token window under load.
+    // defer: fetches the member, then runs the untimeout REST call and posts the mod log
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     let member;

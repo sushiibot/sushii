@@ -48,6 +48,9 @@ jobs:
       - name: Typecheck sushii-worker
         run: cd packages/sushii-worker && bun run typecheck
 
+      - name: Check interaction defers are justified
+        run: cd packages/sushii-worker && bun scripts/check-defer.ts && bun test ./scripts/check-defer.test.ts
+
       - name: Check docs source citations
         working-directory: ./docs
         run: |

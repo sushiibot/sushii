@@ -150,6 +150,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       return;
     }
 
+    // defer: fetches the member/user, then runs the moderation action (DM, action REST call, mod log)
     await modalSubmission.deferUpdate();
 
     const reasonResult = parseModalReason(modalSubmission.fields);

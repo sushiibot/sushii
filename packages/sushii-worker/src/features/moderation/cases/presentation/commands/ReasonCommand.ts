@@ -247,7 +247,7 @@ export class ReasonCommand extends SlashCommandHandler {
     reason: string,
     onlyEmpty: boolean,
   ): Promise<void> {
-    // Defer reply for potentially long-running operations
+    // defer: fetches and edits the mod log message of every case in the range
     await interaction.deferReply();
 
     const updateResult = await this.reasonUpdateService.updateReasons({

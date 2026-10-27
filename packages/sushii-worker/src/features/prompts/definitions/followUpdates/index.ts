@@ -69,6 +69,7 @@ export const followUpdatesPrompt: PromptDefinition = {
         return;
       }
 
+      // defer: fetches the updates channel over REST and creates a follower webhook in the target channel
       await i.deferUpdate();
 
       try {

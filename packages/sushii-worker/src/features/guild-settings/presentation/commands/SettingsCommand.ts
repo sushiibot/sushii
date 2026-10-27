@@ -226,21 +226,26 @@ export default class SettingsCommand extends SlashCommandHandler {
     return payload;
   }
 
-  private async followUpInternalError(
-    acked:
+  private async sendInternalError(
+    i:
       | ButtonInteraction<"cached">
       | ModalMessageModalSubmitInteraction<"cached">,
   ): Promise<void> {
     const traceId = opentelemetry.trace.getActiveSpan()?.spanContext().traceId;
+    const payload = {
+      components: [buildInternalErrorContainer(i.user.id, traceId)],
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    } as const;
     try {
-      await acked.followUp({
-        components: [buildInternalErrorContainer(acked.user.id, traceId)],
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        allowedMentions: { parse: [] },
-      });
+      if (i.replied || i.deferred) {
+        await i.followUp(payload);
+      } else {
+        await i.reply(payload);
+      }
     } catch (err) {
       this.logger.warn(
-        { err, guildId: acked.guildId },
+        { err, guildId: i.guildId },
         "Failed to send settings error follow-up",
       );
     }
@@ -290,9 +295,9 @@ export default class SettingsCommand extends SlashCommandHandler {
           { err, customId: i.customId, guildId: interaction.guildId },
           "Failed to handle settings interaction",
         );
-        // Deferred means the click was acked without a reply, so the error would otherwise be silent.
-        if (i.inCachedGuild() && i.isButton() && i.deferred) {
-          await this.followUpInternalError(i);
+        // Replied means the edit modal opened; its submit reports its own failure.
+        if (i.inCachedGuild() && i.isButton() && !i.replied) {
+          await this.sendInternalError(i);
         }
       }
     });
@@ -354,10 +359,8 @@ export default class SettingsCommand extends SlashCommandHandler {
 
     switch (parsed.kind) {
       case "tab":
-        // Rendering reads the DB and checks channels, so acknowledge first.
-        await i.deferUpdate();
         session.tab = parsed.tab;
-        await i.editReply(await this.renderSession(session, false));
+        await i.update(await this.renderSession(session, false));
         return;
       case "toggle":
         await this.handleToggle(session, i, parsed.target);
@@ -373,9 +376,10 @@ export default class SettingsCommand extends SlashCommandHandler {
     i: ButtonInteraction<"cached">,
     target: SettingsToggleTarget,
   ): Promise<void> {
-    await i.deferUpdate();
     // A double click would read the same value twice and flip it back.
     if (session.togglesInFlight.has(target)) {
+      // defer: ack-only, the in-flight click renders the result; a render here could land after it with stale state
+      await i.deferUpdate();
       return;
     }
 
@@ -394,7 +398,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       session.togglesInFlight.delete(target);
     }
 
-    await i.editReply(await this.renderSession(session, false));
+    await i.update(await this.renderSession(session, false));
   }
 
   private async handleEdit(
@@ -412,7 +416,6 @@ export default class SettingsCommand extends SlashCommandHandler {
     if (!submission) {
       return;
     }
-    await submission.deferUpdate();
 
     try {
       for (const patch of parseSettingsModal(target, submission, ctx)) {
@@ -420,11 +423,11 @@ export default class SettingsCommand extends SlashCommandHandler {
       }
 
       // A submit that lands after the collector ended must not re-enable a dead panel.
-      await submission.editReply(
+      await submission.update(
         await this.renderSession(session, session.collector.ended),
       );
     } catch (err) {
-      await this.followUpInternalError(submission);
+      await this.sendInternalError(submission);
       throw err;
     }
   }

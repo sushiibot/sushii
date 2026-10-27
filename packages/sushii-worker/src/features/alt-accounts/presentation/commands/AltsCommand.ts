@@ -207,6 +207,7 @@ export class AltsCommand extends SlashCommandHandler {
     // path keeps its immediate reply.
     const deferred = parsedUserIds.length > 0;
     if (deferred) {
+      // defer: fetches each additional account (up to 25) from Discord
       await interaction.deferReply();
 
       ({ targets: additional, unresolvedIds } = await resolveAdditionalAccounts(

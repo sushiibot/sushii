@@ -54,8 +54,6 @@ export class ScamHashReportButtonHandler extends ButtonHandler {
       throw new Error("Not a guild interaction");
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     const result = await this.service.submitReport({
       hashId,
       reporterId: interaction.user.id,
@@ -64,14 +62,16 @@ export class ScamHashReportButtonHandler extends ButtonHandler {
     });
 
     if (!result.ok) {
-      await interaction.editReply({
+      await interaction.reply({
         content: "Couldn't send this for review — the hash entry may already be gone.",
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.editReply({
+    await interaction.reply({
       content: "Sent for review, thank you!",
+      flags: MessageFlags.Ephemeral,
     });
 
     await disableAlertButton(

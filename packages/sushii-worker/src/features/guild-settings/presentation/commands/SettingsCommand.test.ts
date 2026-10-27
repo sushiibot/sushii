@@ -63,15 +63,14 @@ interface Payload {
   flags?: unknown;
 }
 
-function expectDeferredThenEdited(
-  deferUpdate: { mock: { invocationCallOrder: number[] } },
-  editReply: { mock: { invocationCallOrder: number[] } },
-) {
-  expect(deferUpdate.mock.invocationCallOrder).toHaveLength(1);
-  expect(editReply.mock.invocationCallOrder).toHaveLength(1);
-  expect(deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-    editReply.mock.invocationCallOrder[0],
-  );
+function expectUpdatedDirectly(responses: {
+  update: { mock: { calls: unknown[] } };
+  deferUpdate: { mock: { calls: unknown[] } };
+  editReply: { mock: { calls: unknown[] } };
+}) {
+  expect(responses.update.mock.calls).toHaveLength(1);
+  expect(responses.deferUpdate.mock.calls).toHaveLength(0);
+  expect(responses.editReply.mock.calls).toHaveLength(0);
 }
 
 function json(payload: Payload): string {
@@ -263,11 +262,19 @@ function createButton(
   const deferUpdate = mock(async () => {
     interaction.deferred = true;
   });
+  const update = mock(async (_payload: Payload) => {
+    interaction.replied = true;
+  });
   const editReply = mock(async (_payload: Payload) => undefined);
   const followUp = mock(async (_payload: Payload) => undefined);
   const rejection = { delete: mock(async () => undefined) };
-  const reply = mock(async (_payload: unknown) => rejection);
-  const showModal = mock(async (_modal: unknown) => undefined);
+  const reply = mock(async (_payload: unknown) => {
+    interaction.replied = true;
+    return rejection;
+  });
+  const showModal = mock(async (_modal: unknown) => {
+    interaction.replied = true;
+  });
   const awaitModalSubmit = mock(async (_opts: unknown): Promise<unknown> => {
     throw new Error("awaitModalSubmit not stubbed");
   });
@@ -280,7 +287,9 @@ function createButton(
     inCachedGuild: () => true,
     isButton: () => true,
     deferred: false,
+    replied: false,
     deferUpdate,
+    update,
     editReply,
     followUp,
     reply,
@@ -291,6 +300,7 @@ function createButton(
   return {
     interaction: interaction as unknown as MessageComponentInteraction,
     deferUpdate,
+    update,
     editReply,
     followUp,
     reply,
@@ -317,8 +327,14 @@ function createSubmission(components: Record<string, unknown>[]) {
     component,
   }));
   const deferUpdate = mock(async () => undefined);
+  const update = mock(async (_payload: Payload) => {
+    submission.replied = true;
+  });
   const editReply = mock(async (_payload: Payload) => undefined);
   const followUp = mock(async (_payload: Payload) => undefined);
+  const reply = mock(async (_payload: Payload) => {
+    submission.replied = true;
+  });
   const submission = {
     id: "678901234567890123",
     customId: "",
@@ -326,12 +342,16 @@ function createSubmission(components: Record<string, unknown>[]) {
     guildId: GUILD_ID,
     isFromMessage: () => true,
     fields: new ModalSubmitFieldsCtor(raw.map(transformComponent)),
+    deferred: false,
+    replied: false,
     deferUpdate,
+    update,
     editReply,
     followUp,
+    reply,
   };
 
-  return { submission, deferUpdate, editReply, followUp };
+  return { submission, deferUpdate, update, editReply, followUp, reply };
 }
 
 function submitWith(
@@ -399,7 +419,7 @@ describe("SettingsCommand", () => {
       const button = createButton(panel, settingsIds.tab(tab));
       await panel.collect(button.interaction);
 
-      const footer = feedbackButton(button.editReply.mock.calls[0][0]);
+      const footer = feedbackButton(button.update.mock.calls[0][0]);
       expect(footer.custom_id).toBe(`feedback/panel/settings.${tab}`);
       expect(footer.disabled).not.toBe(true);
     }
@@ -470,15 +490,15 @@ describe("SettingsCommand", () => {
     expect(checked).toEqual(new Set(Object.values(CH)));
   });
 
-  test("a tab click defers, then re-renders that tab", async () => {
+  test("a tab click re-renders that tab with a direct update", async () => {
     const panel = startPanel(createCommand(port).command);
     const button = createButton(panel, settingsIds.tab("logging"));
 
     await panel.run();
     await panel.collect(button.interaction);
 
-    expectDeferredThenEdited(button.deferUpdate, button.editReply);
-    const rendered = json(button.editReply.mock.calls[0][0]);
+    expectUpdatedDirectly(button);
+    const rendered = json(button.update.mock.calls[0][0]);
     expect(rendered).toContain(settingsIds.edit("modlog"));
     expect(rendered).not.toContain(EXPIRED_TEXT);
   });
@@ -502,7 +522,7 @@ describe("SettingsCommand", () => {
       setting: "automodSpam",
       enabled: false,
     });
-    expectDeferredThenEdited(button.deferUpdate, button.editReply);
+    expectUpdatedDirectly(button);
   });
 
   test("a foreign user's click gets an ephemeral rejection", async () => {
@@ -522,7 +542,7 @@ describe("SettingsCommand", () => {
       flags: MessageFlags.Ephemeral,
     });
     expect(button.rejection.delete).toHaveBeenCalledTimes(1);
-    expect(button.editReply).not.toHaveBeenCalled();
+    expect(button.update).not.toHaveBeenCalled();
     expect(apply).not.toHaveBeenCalled();
   });
 
@@ -538,10 +558,11 @@ describe("SettingsCommand", () => {
     ignored.forEach((id) => panel.textChannels.add(id));
     const tab = createButton(panel, settingsIds.tab("logging"));
     const edit = createButton(panel, settingsIds.edit("msglog"));
-    const { submission, deferUpdate, editReply } = createSubmission([
+    const responses = createSubmission([
       channelSelect("channel", [CH.message]),
       channelSelect("ignored", ignored.slice(0, 2)),
     ]);
+    const { submission, update } = responses;
     // A reload after the click would see a different list; parse must use the click-time ctx.
     const reloaded = ignored.map((id) => id.replace(/^3/, "4"));
     submitWith(edit, submission, () => setIgnored(reloaded));
@@ -562,11 +583,11 @@ describe("SettingsCommand", () => {
       ignored[25],
     ]);
     expect(panel.collector.resetTimer).toHaveBeenCalledTimes(2);
-    expectDeferredThenEdited(deferUpdate, editReply);
-    expect(deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      apply.mock.invocationCallOrder[0],
+    expectUpdatedDirectly(responses);
+    expect(apply.mock.invocationCallOrder[0]).toBeLessThan(
+      update.mock.invocationCallOrder[0],
     );
-    const rendered = json(editReply.mock.calls[0][0]);
+    const rendered = json(update.mock.calls[0][0]);
     expect(rendered).toContain(settingsIds.edit("msglog"));
     expect(rendered).not.toContain(EXPIRED_TEXT);
   });
@@ -600,11 +621,11 @@ describe("SettingsCommand", () => {
     const { command, apply } = createCommand(port);
     const panel = startPanel(command);
     const edit = createButton(panel, settingsIds.edit("screening"));
-    const { submission, deferUpdate, editReply } = createSubmission([
+    const responses = createSubmission([
       channelSelect("channel", [CH.screening]),
       { type: ComponentType.Checkbox, custom_id: "avatars", value: false },
     ]);
-    submitWith(edit, submission);
+    submitWith(edit, responses.submission);
 
     await panel.run();
     await panel.collect(edit.interaction);
@@ -612,7 +633,7 @@ describe("SettingsCommand", () => {
     expect(port.setLogChannel).toHaveBeenCalledWith(GUILD_ID, CH.screening);
     expect(port.setCheckAvatars).toHaveBeenCalledWith(GUILD_ID, false);
     expect(apply).not.toHaveBeenCalled();
-    expectDeferredThenEdited(deferUpdate, editReply);
+    expectUpdatedDirectly(responses);
   });
 
   test("a modal timeout leaves the panel untouched", async () => {
@@ -630,7 +651,7 @@ describe("SettingsCommand", () => {
     await panel.collect(edit.interaction);
 
     expect(edit.showModal).toHaveBeenCalledTimes(1);
-    expect(edit.editReply).not.toHaveBeenCalled();
+    expect(edit.update).not.toHaveBeenCalled();
     expect(apply).not.toHaveBeenCalled();
     expect(setIgnoredChannels).not.toHaveBeenCalled();
     expect(panel.editReply).not.toHaveBeenCalled();
@@ -640,10 +661,8 @@ describe("SettingsCommand", () => {
     const { command, apply } = createCommand(port);
     const panel = startPanel(command);
     const edit = createButton(panel, settingsIds.edit("modlog"));
-    const { submission, deferUpdate, editReply } = createSubmission([
-      channelSelect("channel", [CH.mod]),
-    ]);
-    submitWith(edit, submission, () => {
+    const responses = createSubmission([channelSelect("channel", [CH.mod])]);
+    submitWith(edit, responses.submission, () => {
       panel.collector.ended = true;
     });
 
@@ -655,8 +674,8 @@ describe("SettingsCommand", () => {
       log: "mod",
       channelId: CH.mod,
     });
-    expectDeferredThenEdited(deferUpdate, editReply);
-    expect(json(editReply.mock.calls[0][0])).toContain(EXPIRED_TEXT);
+    expectUpdatedDirectly(responses);
+    expect(json(responses.update.mock.calls[0][0])).toContain(EXPIRED_TEXT);
   });
 
   test("on end, the panel is redrawn as expired on the current tab", async () => {
@@ -713,7 +732,7 @@ describe("SettingsCommand", () => {
     await panel.run();
     await panel.collect(tab.interaction);
 
-    const rendered = json(tab.editReply.mock.calls[0][0]);
+    const rendered = json(tab.update.mock.calls[0][0]);
     expect(rendered).toContain(settingsIds.toggle("spam"));
     expect(rendered).not.toContain(settingsIds.edit("screening"));
   });
@@ -725,7 +744,7 @@ describe("SettingsCommand", () => {
     await panel.run();
     await panel.collect(tab.interaction);
 
-    expect(json(tab.editReply.mock.calls[0][0])).not.toContain(
+    expect(json(tab.update.mock.calls[0][0])).not.toContain(
       settingsIds.edit("screening"),
     );
   });
@@ -768,7 +787,7 @@ describe("SettingsCommand", () => {
     await panel.run();
     await expect(panel.collect(button.interaction)).resolves.toBeUndefined();
 
-    expect(button.editReply).not.toHaveBeenCalled();
+    expect(button.update).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -777,12 +796,14 @@ describe("SettingsCommand", () => {
       }),
       expect.any(String),
     );
-    expect(button.followUp).toHaveBeenCalledTimes(1);
-    const followUp = button.followUp.mock.calls[0][0];
-    expect(followUp.flags).toBe(
+    // Nothing acknowledged the click yet, so the error is the reply.
+    expect(button.followUp).not.toHaveBeenCalled();
+    expect(button.reply).toHaveBeenCalledTimes(1);
+    const errorReply = button.reply.mock.calls[0][0] as Payload;
+    expect(errorReply.flags).toBe(
       MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     );
-    expect(json(followUp)).toContain("Something went wrong");
+    expect(json(errorReply)).toContain("Something went wrong");
   });
 
   test("a failed apply during an edit is logged, not rethrown", async () => {
@@ -792,7 +813,7 @@ describe("SettingsCommand", () => {
     });
     const panel = startPanel(command);
     const edit = createButton(panel, settingsIds.edit("modlog"));
-    const { submission, editReply, followUp } = createSubmission([
+    const { submission, update, followUp, reply } = createSubmission([
       channelSelect("channel", [CH.mod]),
     ]);
     submitWith(edit, submission);
@@ -800,12 +821,15 @@ describe("SettingsCommand", () => {
     await panel.run();
     await expect(panel.collect(edit.interaction)).resolves.toBeUndefined();
 
-    expect(editReply).not.toHaveBeenCalled();
-    expect(followUp).toHaveBeenCalledTimes(1);
-    expect(followUp.mock.calls[0][0].flags).toBe(
+    expect(update).not.toHaveBeenCalled();
+    expect(followUp).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0][0].flags).toBe(
       MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     );
+    // The modal acknowledged the Edit click; only the submit reports the error.
     expect(edit.followUp).not.toHaveBeenCalled();
+    expect(edit.reply).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -816,15 +840,15 @@ describe("SettingsCommand", () => {
     );
   });
 
-  test("a failed error follow-up is logged at warn", async () => {
+  test("a failed error reply is logged at warn", async () => {
     const { command, apply, logger } = createCommand(port);
     apply.mockImplementation(async () => {
       throw new Error("db down");
     });
     const panel = startPanel(command);
     const button = createButton(panel, settingsIds.toggle("scam"));
-    button.followUp.mockImplementation(async () => {
-      throw new Error("Unknown Webhook");
+    button.reply.mockImplementation(async () => {
+      throw new Error("Unknown Interaction");
     });
 
     await panel.run();
@@ -887,7 +911,7 @@ describe("SettingsCommand", () => {
 
     expect(apply).toHaveBeenCalledTimes(1);
     expect(second.deferUpdate).toHaveBeenCalledTimes(1);
-    expect(second.editReply).not.toHaveBeenCalled();
-    expectDeferredThenEdited(first.deferUpdate, first.editReply);
+    expect(second.update).not.toHaveBeenCalled();
+    expectUpdatedDirectly(first);
   });
 });

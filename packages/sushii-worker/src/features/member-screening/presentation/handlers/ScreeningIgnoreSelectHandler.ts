@@ -84,6 +84,7 @@ export class ScreeningIgnoreSelectHandler extends SelectMenuHandler {
     );
 
     if (changed.length === 0) {
+      // defer: ack-only, nothing changed so there is nothing new to render
       await interaction.deferUpdate();
       return;
     }

@@ -413,7 +413,7 @@ export class RoleMenuCommand extends SlashCommandHandler {
       }
 
       if (confirmation.customId !== `confirm_delete_menu:${name}`) {
-        // Unexpected custom ID — acknowledge silently
+        // defer: ack-only, an unexpected custom ID has nothing to render
         await confirmation.deferUpdate();
         return;
       }

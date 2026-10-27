@@ -2,9 +2,23 @@
 
 ## Initial Response (Required within 3 seconds)
 - **`reply()`** - First response to any interaction (slash command, button, modal submit, etc.)
-- **`deferReply()`** - Use when processing takes >3 seconds, shows "thinking..." indicator
-- **`update()`** - (Button/Select/Modal submit from message) Updates the message containing the component
-- **`deferUpdate()`** - (Button/Select/Modal submit from message) Acknowledge without visible change; use when processing takes >3 seconds and you want to edit the component's message afterward via `editReply()`
+- **`update()`** - (Button/Select/Modal submit from message) Updates the message containing the component. **The default for component and modal-submit responses.**
+- **`deferReply()`** / **`deferUpdate()`** - Acknowledge now, respond later via `editReply()`. **Only for genuinely long-running work** (see below).
+
+## When to defer
+
+Default to responding directly with `reply()` / `update()`. Discord shows the clicked button in a loading state until that response arrives, so the user sees the click land. `deferUpdate()` acknowledges with no visible change, and `deferUpdate()` + `editReply()` is two API calls instead of one, so the click feels dead until the edit lands.
+
+Database CRUD is never a reason to defer: reading config, a handful of writes, then re-rendering finishes well inside 3 seconds. Defer only when the work can genuinely take longer:
+- external HTTP or AI calls, image generation or processing
+- fetching many members, messages or guilds from Discord
+- bulk Discord actions (mass role changes, pruning, many channel edits)
+
+`deferUpdate()` as a terminal ack with no later edit is allowed when there's nothing to render; say so in the comment: `// defer: ack-only, <why nothing to render>`.
+
+Every `deferReply()` / `deferUpdate()` needs a `// defer: <why this is slow, or "ack-only, <why nothing to render>">` comment on the line above it. `scripts/check-defer.ts` enforces this in the pre-commit hook and CI.
+
+`update()` on a Components V2 message must still pass `flags: MessageFlags.IsComponentsV2`.
 
 ## Follow-up Messages
 - **`followUp()`** - Send additional messages after initial response
@@ -33,23 +47,20 @@ await buttonInteraction.showModal(modal);
 // 2. Await the modal submit inside the button handler
 const submit = await buttonInteraction.awaitModalSubmit({ time: 5 * 60 * 1000, filter: ... });
 
-// 3. Defer immediately before any async work (modal submit token expires in 3s)
-await submit.deferUpdate();
-
-// 4. Do async work...
-
-// 5. Edit the original message (the one the button was on)
-await submit.editReply({ content: "Done!" });
+// 3. Save (DB CRUD) and respond directly on the message the button was on
+await saveSettings(parsed);
+await submit.update({ content: "Saved!" });
 ```
 
 > Note: `submit.isFromMessage()` must be true (i.e. modal was opened from a button/select on a message, not from a slash command). Use `submit.reply()` for modals opened from slash commands.
 
-### Long Processing with Defer
+### Long-running work with defer
 ```ts
-// 1. Defer immediately
+// 1. Acknowledge
+// defer: generates an image via an external API (can exceed 3s)
 await interaction.deferReply();
 
-// 2. Do work...
+// 2. Do the slow work...
 
 // 3. Send actual response
 await interaction.editReply({ content: "Done!" });
@@ -105,12 +116,8 @@ Using unique modal custom IDs is the correct fix. `setValue("")` on a `TextInput
 
 > ⚠️ These are observations from production issues, not confirmed against Discord API docs.
 
-### `update()` may fail on Components V2 messages (10062)
+### `update()` and Components V2 messages (10062), unverified
 
-In `ScheduleConfigNewButtonHandler`, calling `submit.update()` (type 7 UPDATE_MESSAGE) from a modal submit returned `DiscordAPIError[10062]: Unknown interaction`, even though the modal was submitted well within the 3-second window.
+`ScheduleConfigNewButtonHandler` once got `DiscordAPIError[10062]: Unknown interaction` from `submit.update()` on a modal submit whose message was sent with `MessageFlags.IsComponentsV2`, well within 3 seconds. `deferUpdate()` + `editReply()` avoided it there. The cause was never confirmed (the CV2 flag, the `flags` field in the update body, or something else).
 
-The button was on a message sent with `MessageFlags.IsComponentsV2`. A similar handler (`ModLogReasonButtonHandler`) uses `interaction.update()` successfully, but its button is on a regular embed message (no `IsComponentsV2`).
-
-**Workaround used**: `deferUpdate()` + `editReply()` (PATCH webhook endpoint) instead of `update()` (POST interaction callback). This resolved the issue.
-
-**Unconfirmed**: Whether `IsComponentsV2` specifically causes this, or whether passing `flags: MessageFlags.IsComponentsV2` in the `update()` body is what Discord rejects, or some other cause entirely.
+It is not a general rule: modal-submit `update()` on Components V2 messages works in `AltNicknameButtonHandler`, `TagEditInteractionHandler` and `ModViewSession`. It is not a reason to defer by default. Use `update()`, and only fall back to `deferUpdate()` + `editReply()` for a path where `update()` has actually been seen to fail. Note the reason in the `// defer:` comment.

@@ -72,7 +72,7 @@ export class UncaseCommand extends SlashCommandHandler {
       "Starting case deletion",
     );
 
-    // Defer reply for potentially long-running operations
+    // defer: deletes the range's mod log messages and reason DMs, one Discord call each
     await interaction.deferReply();
 
     const deletionResult = await this.caseDeletionService.deleteCaseRange(

@@ -138,8 +138,6 @@ export class MemberScreeningCommand extends SlashCommandHandler {
 
     const sub = interaction.options.getSubcommand(true);
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
     switch (sub) {
       case "configure":
         await this.handleConfigure(interaction);
@@ -234,6 +232,9 @@ export class MemberScreeningCommand extends SlashCommandHandler {
   private async handleStatus(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
+    // defer: fetches the name of every flagged guild over REST
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     const since = dayjs().utc().subtract(STATUS_WINDOW_DAYS, "day").toDate();
     const [flagged, rows, stats] = await Promise.all([
       this.flagRepo.listGuilds("member_screening"),
@@ -280,13 +281,13 @@ export class MemberScreeningCommand extends SlashCommandHandler {
     interaction: ChatInputCommandInteraction,
     content: string,
   ): Promise<void> {
-    await interaction.editReply({
+    await interaction.reply({
       components: [
         new ContainerBuilder().addTextDisplayComponents(
           new TextDisplayBuilder().setContent(content),
         ),
       ],
-      flags: MessageFlags.IsComponentsV2,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
     });
   }

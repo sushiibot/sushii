@@ -57,6 +57,7 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
     const { action, channelId } = matchResult.params as { action: string; channelId?: string };
 
     if (action === "cancel") {
+      // defer: ack-only, so deleteReply() can remove the ephemeral prompt without drawing content first
       await interaction.deferUpdate();
       await interaction.deleteReply();
       return;
@@ -66,6 +67,7 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
       await this.handleConfirm(interaction, channelId);
     } else {
       this.logger.warn({ action, channelId, customId: interaction.customId }, "Unrecognized delete button action or missing channelId");
+      // defer: ack-only, so deleteReply() can remove the ephemeral prompt without drawing content first
       await interaction.deferUpdate();
       await interaction.deleteReply();
     }
@@ -79,12 +81,10 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
     // Fetch details before deleting so we have them for the public confirmation message.
     const schedule = await this.scheduleChannelService.getByChannel(guildId, channelId);
 
-    await interaction.deferUpdate();
-
     const result = await this.scheduleChannelService.remove(guildId, channelId);
 
     if (result.err) {
-      await interaction.editReply(makeContainer(`${emojis.fail} ${result.val}`, Color.Error));
+      await interaction.update(makeContainer(`${emojis.fail} ${result.val}`, Color.Error));
       return;
     }
 
@@ -93,7 +93,7 @@ export class ScheduleConfigDeleteButtonHandler extends ButtonHandler {
       ? `${emojis.success} **Deleted** **${schedule.displayTitle}** (was posting to <#${channelIdStr}>)`
       : `${emojis.success} **Schedule deleted.**`;
 
-    await interaction.editReply(makeContainer(ephemeralLine, Color.Success));
+    await interaction.update(makeContainer(ephemeralLine, Color.Success));
 
     // Send a non-ephemeral message to the channel for visibility.
     if (!interaction.channel?.isTextBased() || interaction.channel.isDMBased()) {

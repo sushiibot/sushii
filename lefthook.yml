@@ -10,6 +10,11 @@ pre-commit:
         if git diff --cached --name-only | grep -qE "^(packages/sushii-worker/src/|docs/content/docs/|docs/scripts/check-sources\.ts)"; then
           cd docs && bun run check:sources
         fi
+    check-defer:
+      run: |
+        if git diff --cached --name-only | grep -qE "^packages/sushii-worker/(src/|scripts/check-defer)"; then
+          cd packages/sushii-worker && bun scripts/check-defer.ts
+        fi
     check-emoji-types:
       run: |
         if git diff --cached --name-only | grep -qE "^packages/sushii-worker/src/features/bot-emojis/domain/BotEmojiName\.ts"; then

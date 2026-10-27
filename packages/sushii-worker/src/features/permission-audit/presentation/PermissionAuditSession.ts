@@ -48,6 +48,9 @@ export class PermissionAuditSession {
   private result: AuditResult;
   private pages: AuditPages;
   private pendingChange: PlannedChange | null = null;
+  /** Re-shown to a repeat Confirm click, whose earlier response may not have reached the user. */
+  private lastFixResult: ReturnType<typeof createFixResult> | null = null;
+  private applying = false;
   private returnPage = 0;
   /** Set after a change: the report is rebuilt when the user goes back to it. */
   private needsRefresh = false;
@@ -160,6 +163,7 @@ export class PermissionAuditSession {
       case PERMISSION_AUDIT_CUSTOM_IDS.cancel:
       case PERMISSION_AUDIT_CUSTOM_IDS.back:
         this.pendingChange = null;
+        this.lastFixResult = null;
         await this.returnToReport(i);
         return;
     }
@@ -191,6 +195,7 @@ export class PermissionAuditSession {
 
     this.returnPage = this.paginator?.getState().currentPage ?? 0;
     this.pendingChange = change;
+    this.lastFixResult = null;
 
     const authorized = this.changeService.authorize(i.guild, i.member, change);
     await i.update(
@@ -207,12 +212,18 @@ export class PermissionAuditSession {
     const change = this.pendingChange;
     this.pendingChange = null;
 
-    await i.deferUpdate();
     if (!change) {
+      if (this.applying) {
+        // defer: ack-only, the first click is still applying and renders the result itself
+        await i.deferUpdate();
+        return;
+      }
+      await i.update(this.lastFixResult ?? (await this.renderReport(false)));
       return;
     }
 
     let outcome: FixOutcome;
+    this.applying = true;
     try {
       const applied = await this.changeService.apply(i.guild, i.member, change);
       outcome = applied.ok
@@ -227,12 +238,15 @@ export class PermissionAuditSession {
         ok: false,
         message: `Discord rejected the change: ${err instanceof Error ? err.message : String(err)}`,
       };
+    } finally {
+      this.applying = false;
     }
 
     // Shown before refreshing: the gateway may not have updated the cache yet,
     // and a refresh failure must not hide that the change went through.
     this.needsRefresh ||= outcome.ok;
-    await i.editReply(createFixResult(change, this.result.snapshot, outcome));
+    this.lastFixResult = createFixResult(change, this.result.snapshot, outcome);
+    await i.update(this.lastFixResult);
   }
 
   private async returnToReport(i: ButtonInteraction<"cached">): Promise<void> {
@@ -241,6 +255,7 @@ export class PermissionAuditSession {
       return;
     }
 
+    // defer: regenerating the audit fetches guild members from Discord
     await i.deferUpdate();
     this.result = await this.auditService.generate(i.guild);
     this.pages = buildAuditPages(this.result, i.guildId);
@@ -263,6 +278,7 @@ export class PermissionAuditSession {
     tab: AuditViewTab,
     page: number,
   ): Promise<void> {
+    this.lastFixResult = null;
     this.activeTab = tab;
     this.paginator = tab === "overview" ? null : this.createPaginator(i, tab);
 
