@@ -57,7 +57,7 @@ describe("Ban Command Integration", () => {
             interaction: {
               deferReply: true,
               editReply: true,
-              embedContains: ["Ban Successful"],
+              embedContains: ["Banned"],
             },
           },
         },

@@ -333,7 +333,7 @@ export class ModLogMessageService {
       id: moderationCase.userId,
       username: moderationCase.userTag || user?.tag || moderationCase.userId,
       avatarURL:
-        user?.displayAvatarURL() ?? defaultAvatarURL(moderationCase.userId),
+        user?.displayAvatarURL?.() ?? defaultAvatarURL(moderationCase.userId),
     };
   }
 }

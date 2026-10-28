@@ -150,12 +150,14 @@ export async function runModerationTest(
             ? component.toJSON()
             : component;
 
+        // Text displays (type 10) can sit inside sections, so walk the tree.
+        const collectText = (nodes: any[]): string[] =>
+          nodes.flatMap((c: any) => [
+            ...(c?.type === 10 && c.content ? [c.content as string] : []),
+            ...(Array.isArray(c?.components) ? collectText(c.components) : []),
+          ]);
         if (componentData?.components) {
-          // TextDisplayBuilder has type 10 in the actual response
-          const textComponents = componentData.components.filter(
-            (c: any) => c.type === 10 && c.content,
-          );
-          contentToCheck = textComponents.map((c: any) => c.content).join("\n");
+          contentToCheck = collectText(componentData.components).join("\n");
         }
       }
 
