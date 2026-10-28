@@ -166,3 +166,13 @@ test("a broken Discord card does not block other services", async () => {
   expect(await publisher.deliver([card, { ...card, id: "other" }])).toBe(false);
   expect(seen).toEqual([card.id, "other"]);
 });
+
+test("automatic target cards never render approval buttons", () => {
+  const payload = releaseCard({
+    ...card,
+    environmentId: "release:production",
+    phase: "deploying",
+  });
+  expect(JSON.stringify(payload)).not.toContain("Review & approve");
+  expect(JSON.stringify(payload)).not.toContain("/deploy-approval/review/");
+});

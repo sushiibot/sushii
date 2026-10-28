@@ -2,7 +2,9 @@ export interface Target {
   repository: string;
   repositoryId: number;
   environment: string;
-  environmentId: number;
+  environmentId: number | string;
+  mode?: "approved" | "automatic";
+  sourceEvents?: string[];
   workflow: string;
   branch: string;
   channelId: string;
@@ -41,7 +43,7 @@ export interface Candidate {
   repository: string;
   repositoryId: number;
   environment: string;
-  environmentId: number;
+  environmentId: number | string;
   runId: number;
   runAttempt: number;
   sha: string;

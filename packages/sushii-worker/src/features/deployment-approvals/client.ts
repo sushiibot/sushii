@@ -8,7 +8,10 @@ export const candidateSchema = z.object({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
   repositoryId: z.number().int().positive(),
   environment: z.string().min(1).max(100),
-  environmentId: z.number().int().positive(),
+  environmentId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^release:[a-z0-9][a-z0-9-]*$/),
+  ]),
   runId: z.number().int().positive(),
   runAttempt: z.number().int().positive(),
   sha: z.string().regex(/^[a-f0-9]{40}$/),

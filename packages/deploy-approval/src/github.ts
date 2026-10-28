@@ -127,6 +127,8 @@ export class GitHub {
   }
 
   async pending(target: Target, runId: number, token: string) {
+    if (target.mode === "automatic" || typeof target.environmentId !== "number")
+      throw new ExpectedError("release_not_approvable");
     const prefix = "/repos/" + target.repository;
     const run = await this.request(prefix + "/actions/runs/" + runId, token);
     if (

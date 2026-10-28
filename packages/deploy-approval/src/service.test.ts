@@ -596,3 +596,93 @@ test("deployed baseline survives restart and updates pending comparisons without
   expect(f.store.deployed(1, 2)).toBe(next);
   expect(f.store.deployed(1, 99)).toBeUndefined();
 });
+
+describe("automatic release notifications", () => {
+  function automatic() {
+    const f = fixture();
+    const service = new ApprovalService(
+      {
+        ...config,
+        targets: [
+          {
+            ...target,
+            mode: "automatic",
+            environmentId: "release:production",
+            sourceEvents: ["push", "workflow_dispatch"],
+          },
+        ],
+      },
+      f.store,
+      f.service.github,
+    );
+    const payload = () => ({
+      ...f.payload(),
+      sha: f.run.head_sha,
+      context: `release/production/${f.run.id}/${f.run.run_attempt}`,
+    });
+    const status = (state: string) => ({
+      context: payload().context,
+      creator: { id: 99 },
+      state,
+      description:
+        state === "success"
+          ? "deployed sha256:" + "b".repeat(64)
+          : "Waiting for authenticated deployment receipt",
+    });
+    return { ...f, service, payload, status };
+  }
+  test("trusted automatic receipt creates and completes one card without an approval gate", async () => {
+    const f = automatic();
+    f.statuses.push(f.status("pending"));
+    await f.service.event("status", f.payload());
+    const card = f.store.cards()[0];
+    expect(card.phase).toBe("deploying");
+    expect(card.environmentId).toBe("release:production");
+    await expect(
+      f.service.review(
+        config.ownerDiscordId,
+        card.id,
+        card.revision,
+        "approved",
+      ),
+    ).rejects.toThrow("release_changed");
+    f.statuses.unshift(f.status("success"));
+    await f.service.event("status", f.payload());
+    expect(f.store.cards()).toHaveLength(1);
+    expect(f.store.card(card.id)?.phase).toBe("succeeded");
+    expect(f.store.deployed(1, "release:production")).toBe(f.run.head_sha);
+    f.statuses.unshift(f.status("pending"));
+    await f.service.event("status", f.payload());
+    expect(f.store.card(card.id)?.phase).toBe("succeeded");
+  });
+  test("success-first delivery works for allowed manual asset runs and isolates attempts", async () => {
+    const f = automatic();
+    f.run.event = "workflow_dispatch";
+    f.run.run_attempt = 2;
+    f.statuses.push(f.status("success"));
+    await f.service.event("status", f.payload());
+    expect(f.store.cards()[0]?.phase).toBe("succeeded");
+    f.run.run_attempt = 3;
+    f.statuses.unshift(f.status("pending"));
+    await f.service.event("status", f.payload());
+    expect(f.store.cards()).toHaveLength(2);
+    expect(f.store.cards()[1].runAttempt).toBe(3);
+  });
+  test("untrusted actors, contexts, workflow and fork identity cannot create cards", async () => {
+    const f = automatic();
+    f.statuses.push({ ...f.status("success"), creator: { id: 123 } });
+    await f.service.event("status", f.payload());
+    expect(f.store.cards()).toHaveLength(0);
+    f.statuses.unshift(f.status("success"));
+    await f.service.event("status", {
+      ...f.payload(),
+      context: "release/other/10/1",
+    });
+    f.run.path = ".github/workflows/untrusted.yml";
+    await f.service.event("status", f.payload());
+    f.run.path = target.workflow;
+    f.run.head_repository.id = 123;
+    await f.service.event("status", f.payload());
+    expect(f.store.cards()).toHaveLength(0);
+  });
+});

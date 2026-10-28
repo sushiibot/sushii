@@ -58,8 +58,18 @@ if (mode === "relay") {
         !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(t.repository) ||
         !Number.isSafeInteger(t.repositoryId) ||
         t.repositoryId <= 0 ||
-        !Number.isSafeInteger(t.environmentId) ||
-        t.environmentId <= 0 ||
+        (t.mode === "automatic"
+          ? t.environmentId !== "release:" + t.releaseTarget
+          : typeof t.environmentId !== "number" ||
+            !Number.isSafeInteger(t.environmentId) ||
+            t.environmentId <= 0) ||
+        (t.mode !== undefined && !["approved", "automatic"].includes(t.mode)) ||
+        (t.sourceEvents !== undefined &&
+          (!Array.isArray(t.sourceEvents) ||
+            !t.sourceEvents.length ||
+            t.sourceEvents.some(
+              (event) => !["push", "workflow_dispatch"].includes(event),
+            ))) ||
         !/^[a-z0-9][a-z0-9-]*$/.test(t.releaseTarget) ||
         !Number.isSafeInteger(t.statusActorId) ||
         t.statusActorId <= 0 ||

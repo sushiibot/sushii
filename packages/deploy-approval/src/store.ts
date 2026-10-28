@@ -52,7 +52,10 @@ export class Store {
     this.save(next);
     return next;
   }
-  deployed(repositoryId: number, environmentId: number): string | undefined {
+  deployed(
+    repositoryId: number,
+    environmentId: number | string,
+  ): string | undefined {
     const row = this.db
       .query("SELECT sha FROM deployments WHERE target=?")
       .get(repositoryId + ":" + environmentId) as { sha: string } | null;
@@ -60,7 +63,7 @@ export class Store {
   }
   recordDeployment(
     repositoryId: number,
-    environmentId: number,
+    environmentId: number | string,
     sha: string,
     run: number,
   ) {
@@ -90,6 +93,7 @@ export class Store {
       Candidate,
       "id" | "revision" | "phase" | "detail" | "createdAt"
     >,
+    phase: "pending" | "deploying" = "pending",
   ): Candidate | undefined {
     return this.db.transaction(() => {
       const target = incoming.repositoryId + ":" + incoming.environmentId;
@@ -98,11 +102,15 @@ export class Store {
           c.repositoryId === incoming.repositoryId &&
           c.environmentId === incoming.environmentId,
       );
-      if (rows.some((c) => c.runId > incoming.runId)) return undefined;
-      const same = rows.find((c) => c.runId === incoming.runId);
+      if (phase === "pending" && rows.some((c) => c.runId > incoming.runId))
+        return undefined;
+      const same = rows.find(
+        (c) =>
+          c.runId === incoming.runId && c.runAttempt === incoming.runAttempt,
+      );
       if (same) return same; // Deliveries never reopen a decided or cancelled candidate.
       const pending = [...rows].reverse().find((c) => c.phase === "pending");
-      if (pending)
+      if (pending && phase === "pending")
         return this.update(pending, {
           ...incoming,
           detail: "Waiting for production approval",
@@ -112,8 +120,11 @@ export class Store {
         id: randomUUID(),
         revision: 1,
         createdAt: Date.now(),
-        phase: "pending",
-        detail: "Waiting for production approval",
+        phase,
+        detail:
+          phase === "pending"
+            ? "Waiting for production approval"
+            : "Deployment in progress",
       };
       this.db
         .query(

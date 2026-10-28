@@ -369,6 +369,32 @@ export class ApprovalService {
     }
   }
 
+  private async releaseStatus(
+    target: Target,
+    sha: string,
+    context: string,
+    token: string,
+  ): Promise<any> {
+    for (let page = 1; page <= 10; page++) {
+      const statuses = await this.github.request(
+        "/repos/" +
+          target.repository +
+          "/commits/" +
+          sha +
+          "/statuses?per_page=100&page=" +
+          page,
+        token,
+      );
+      const status = statuses.find(
+        (s: any) =>
+          s.context === context && s.creator?.id === target.statusActorId,
+      );
+      if (status) return status;
+      if (statuses.length < 100) return undefined;
+    }
+    throw new Error("Status pagination limit reached");
+  }
+
   async event(event: string, payload: any) {
     if (event === "github_app_authorization" && payload.action === "revoked") {
       const id = this.config.ownerDiscordId;
@@ -411,7 +437,7 @@ export class ApprovalService {
     if (event === "deployment_review" && payload.action === "requested") {
       const runId = reviewRunId;
       for (const target of targets.filter(
-        (t) => t.environment === payload.environment,
+        (t) => t.mode !== "automatic" && t.environment === payload.environment,
       )) {
         try {
           const { run } = await this.github.pending(target, runId, token);
@@ -444,6 +470,77 @@ export class ApprovalService {
           )
             throw err;
         }
+      }
+    }
+    // A trusted importer status announces a real release, including automatic
+    // targets and approval events missed while the integration was unavailable.
+    if (event === "status" && /^[a-f0-9]{40}$/.test(payload.sha)) {
+      for (const target of targets) {
+        const match =
+          /^release\/([a-z0-9-]+)\/([1-9][0-9]*)\/([1-9][0-9]*)$/.exec(
+            payload.context ?? "",
+          );
+        if (!match || match[1] !== target.releaseTarget) continue;
+        const runId = Number(match[2]),
+          attempt = Number(match[3]);
+        if (!Number.isSafeInteger(runId) || !Number.isSafeInteger(attempt))
+          continue;
+        const status = await this.releaseStatus(
+          target,
+          payload.sha,
+          payload.context,
+          token,
+        );
+        if (
+          !status ||
+          !["pending", "success", "failure", "error"].includes(status.state)
+        )
+          continue;
+        if (
+          status.state === "success" &&
+          !/^deployed sha256:[a-f0-9]{64}$/.test(status.description)
+        )
+          continue;
+        const run = await this.github.request(
+          "/repos/" + target.repository + "/actions/runs/" + runId,
+          token,
+        );
+        if (
+          run.id !== runId ||
+          run.repository?.id !== target.repositoryId ||
+          run.head_repository?.id !== target.repositoryId ||
+          run.head_sha !== payload.sha ||
+          run.head_branch !== target.branch ||
+          run.path !== target.workflow ||
+          run.run_attempt !== attempt ||
+          !(target.sourceEvents ?? ["push"]).includes(run.event)
+        )
+          continue;
+        this.store.candidate(
+          {
+            repository: target.repository,
+            repositoryId: target.repositoryId,
+            environment: target.environment,
+            environmentId: target.environmentId,
+            runId,
+            runAttempt: attempt,
+            sha: run.head_sha,
+            previousSha: this.store.deployed(
+              target.repositoryId,
+              target.environmentId,
+            ),
+            label: target.label,
+            channelId: target.channelId,
+            runUrl:
+              "https://github.com/" +
+              target.repository +
+              "/actions/runs/" +
+              runId +
+              "/attempts/" +
+              attempt,
+          },
+          "deploying",
+        );
       }
     }
     const cards = this.store
@@ -521,7 +618,14 @@ export class ApprovalService {
                 t.environmentId === c.environmentId,
             ) &&
             (c.sha === payload.sha || c.runId === reviewRunId) &&
-            ["approved", "deciding", "deploying"].includes(c.phase),
+            [
+              "pending",
+              "approved",
+              "deciding",
+              "deploying",
+              "failed",
+              "cancelled",
+            ].includes(c.phase),
         )) {
         const target = this.target(card);
         const expected =
@@ -531,24 +635,12 @@ export class ApprovalService {
           card.runId +
           "/" +
           card.runAttempt;
-        let status: any;
-        for (let page = 1; page <= 10; page++) {
-          const statuses = await this.github.request(
-            "/repos/" +
-              card.repository +
-              "/commits/" +
-              card.sha +
-              "/statuses?per_page=100&page=" +
-              page,
-            token,
-          );
-          status = statuses.find(
-            (s: any) =>
-              s.context === expected && s.creator?.id === target.statusActorId,
-          );
-          if (status || statuses.length < 100) break;
-          if (page === 10) throw new Error("Status pagination limit reached");
-        }
+        const status = await this.releaseStatus(
+          target,
+          card.sha,
+          expected,
+          token,
+        );
         if (!status) continue;
         if (
           status.state === "success" &&
@@ -571,7 +663,10 @@ export class ApprovalService {
             phase: "failed",
             detail: "Deployment failed. Inspect the workflow.",
           });
-        else if (status.state === "pending")
+        else if (
+          status.state === "pending" &&
+          !["failed", "cancelled"].includes(card.phase)
+        )
           this.store.update(card, {
             phase: "deploying",
             detail: "Deployment in progress",
