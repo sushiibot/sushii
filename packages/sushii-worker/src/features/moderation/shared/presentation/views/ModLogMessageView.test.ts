@@ -137,6 +137,18 @@ function buttons(
 const liveDm: DMResult = { channelId: DM_CHANNEL, messageId: DM_MESSAGE };
 
 describe("buildModLogMessage", () => {
+  test("the timestamp is a footer under the buttons", () => {
+    const container = render(makeCase({ reason: "Raid" }));
+    const last = container.components.at(-1);
+    const beforeLast = container.components.at(-2);
+
+    expect(last).toMatchObject({
+      type: ComponentType.TextDisplay,
+      content: `-# <t:${ACTION_UNIX}:f>`,
+    });
+    expect(beforeLast?.type).toBe(ComponentType.ActionRow);
+  });
+
   test("native ban without a reason offers Set reason only", () => {
     const container = render(makeCase());
 

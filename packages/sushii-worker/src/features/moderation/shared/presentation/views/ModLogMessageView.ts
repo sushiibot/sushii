@@ -451,10 +451,9 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   }
 
   const dmLine = dmStatusLine(input);
-  const footerText = [
-    ...(dmLine ? [`-# ${dmLine}`] : []),
-    `-# <t:${unix(moderationCase.actionTime)}:f>`,
-  ].join("\n");
+  const dmText = dmLine ? `-# ${dmLine}` : null;
+  // Timestamps render as a full-size pill even in small text, so it sits under the buttons like a footer.
+  const timestampText = `-# <t:${unix(moderationCase.actionTime)}:f>`;
 
   // Only worth showing when someone other than the moderator wrote the reason.
   const reasonSetNote =
@@ -479,7 +478,8 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   const fixedLength =
     header.length +
     (factsText?.length ?? 0) +
-    footerText.length +
+    (dmText?.length ?? 0) +
+    timestampText.length +
     (confirm?.prompt.data.content?.length ?? 0) +
     reasonHeading.length +
     reasonSetNote.length;
@@ -524,9 +524,11 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     );
   }
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(footerText),
-  );
+  if (dmText) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(dmText),
+    );
+  }
 
   container.addSeparatorComponents(
     new SeparatorBuilder()
@@ -541,6 +543,10 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   } else {
     container.addActionRowComponents(buildButtonRow(input));
   }
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(timestampText),
+  );
 
   return {
     components: [container],
