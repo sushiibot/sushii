@@ -718,6 +718,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         emojis,
         reasonNotes: this.editNotes(submission, parsed, result, emojis),
         dmOverride: this.dmOutcome(parsed, result, emojis),
+        dmReasonUpdated: result.dmUpdates.some((u) => u.outcome === "updated"),
         savePrompt:
           !parsed.template &&
           !parsed.saveAsTemplate &&

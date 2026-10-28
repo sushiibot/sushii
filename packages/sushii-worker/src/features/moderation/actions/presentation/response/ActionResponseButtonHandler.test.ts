@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { APIContainerComponent, ButtonInteraction } from "discord.js";
-import { DiscordjsError, DiscordjsErrorCodes } from "discord.js";
+import { ComponentType, DiscordjsError, DiscordjsErrorCodes } from "discord.js";
 import pino from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -20,6 +20,7 @@ import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import { UNRESOLVED_TEMPLATE_MESSAGE } from "../components/reasonFormSubmit";
 import {
+  ACTION_RESPONSE_IDS,
   EXPIRED_LINE,
   buildActionResultMessage,
   expireActionResponse,
@@ -99,6 +100,28 @@ type Options = { components: { toJSON(): unknown }[] } & Record<
 function rendered(mockFn: ReturnType<typeof mock>, call = 0): string {
   const [options] = mockFn.mock.calls[call] as [Options];
   return JSON.stringify(options.components.map((c) => c.toJSON()));
+}
+
+/** A rendered component by id, at any depth. */
+function renderedById(
+  mockFn: ReturnType<typeof mock>,
+  id: number,
+  call = 0,
+): { type: number; content?: string; accessory?: unknown } | null {
+  let found = null;
+  const visit = (node: unknown): void => {
+    const c = node as {
+      id?: number;
+      type: number;
+      components?: unknown[];
+    };
+    if (c.id === id) {
+      found = c;
+    }
+    (c.components ?? []).forEach(visit);
+  };
+  (JSON.parse(rendered(mockFn, call)) as unknown[]).forEach(visit);
+  return found;
 }
 
 function makeFields(values: { text?: string; options?: string[] }) {
@@ -301,6 +324,9 @@ describe("ActionResponseButtonHandler", () => {
       "Buttons expired after 15 minutes",
     );
     expect(rendered(button.update)).not.toContain("modAction/");
+    expect(renderedById(button.update, ACTION_RESPONSE_IDS.reason)?.type).toBe(
+      ComponentType.TextDisplay,
+    );
     expect(JSON.stringify(button.followUp.mock.calls[0])).toContain(
       "These buttons expired",
     );
@@ -388,6 +414,9 @@ describe("ActionResponseButtonHandler", () => {
       expect(json).toContain(
         "DM not updated: the user still sees the original reason",
       );
+      expect(
+        renderedById(submission.update, ACTION_RESPONSE_IDS.dm)?.content,
+      ).toBe("**DM sent** · what they received:\n> Spamming invite links");
     });
 
     test("a save prompt that appears after the edit is counted as shown", async () => {
@@ -429,6 +458,9 @@ describe("ActionResponseButtonHandler", () => {
       expect(rendered(submission.update)).toContain(
         "DM updated with the new reason",
       );
+      expect(
+        renderedById(submission.update, ACTION_RESPONSE_IDS.dm)?.content,
+      ).toBe("**DM sent** · what they received:\n> Raid");
     });
 
     test("several cases defer, update per run and never touch cases in between", async () => {
@@ -505,6 +537,17 @@ describe("ActionResponseButtonHandler", () => {
       const json = rendered(button.update);
       expect(json).toContain("modAction/dm/deleteConfirm/4822");
       expect(json).toContain("modAction/dm/cancel/4822");
+      expect(json).not.toContain("modAction/dm/delete/4822");
+      expect(
+        renderedById(button.update, ACTION_RESPONSE_IDS.dmSection),
+      ).toBeNull();
+      expect(
+        renderedById(button.update, ACTION_RESPONSE_IDS.dm)?.content,
+      ).toStartWith("**DM sent**");
+      expect(
+        renderedById(button.update, ACTION_RESPONSE_IDS.reasonSection)
+          ?.accessory,
+      ).toMatchObject({ custom_id: "modAction/reason/edit/4822" });
       expect(deleteDms).not.toHaveBeenCalled();
       expectButtonMetric();
     });
@@ -531,7 +574,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(deleteDms).toHaveBeenCalledWith(GUILD, ["4822"], MOD);
       expect(button.deferUpdate).not.toHaveBeenCalled();
       const json = rendered(button.update);
-      expect(json).toContain("DM deleted by");
+      expect(json).toContain("**DM deleted** by");
       expect(json).toContain("mod log updated");
       expect(json).not.toContain("modAction/dm/delete/");
       expectButtonMetric(["delete_dm", "ok"]);
@@ -663,7 +706,7 @@ describe("ActionResponseButtonHandler", () => {
     );
 
     const json = rendered(submission.update);
-    expect(json).toContain("DM deleted by");
+    expect(json).toContain("**DM deleted** by");
     expect(json).not.toContain("still sees the original reason");
   });
 

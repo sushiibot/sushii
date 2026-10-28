@@ -23,6 +23,10 @@ import type { Result } from "ts-results";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { TemplateRef } from "@/features/moderation/reason-templates/domain/ReasonExpander";
+import {
+  guildDmText,
+  guildDmTextSetting,
+} from "@/features/moderation/shared/application/DMNotificationService";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type {
   DMFailureReason,
@@ -57,10 +61,8 @@ import {
 
 export const MODERATION_ACTION_EMOJIS = [
   ...ActionTypeBotEmojis,
-  "reason",
   "success",
   "fail",
-  "additional_message",
   "message",
   "duration",
   "attachment",
@@ -75,9 +77,10 @@ export type ModerationActionEmojis = EmojiMap<typeof MODERATION_ACTION_EMOJIS>;
 
 /**
  * Stable component ids. A button click rebuilds the response from reloaded
- * cases but copies `header` and `details` from the clicked message, since
- * failed-target errors, the typed duration and the configured DM text aren't
- * stored anywhere.
+ * cases but copies `header`, `details` and the DM quote from the clicked
+ * message, since failed-target errors, the typed duration and what the DM
+ * held aren't stored anywhere. Text displays keep their id whether they sit
+ * in a section or, once its button is gone, at the top level.
  */
 export const ACTION_RESPONSE_IDS = {
   header: 2001,
@@ -87,6 +90,9 @@ export const ACTION_RESPONSE_IDS = {
   dm: 2005,
   prompt: 2006,
   footer: 2007,
+  reasonSection: 2008,
+  dmSection: 2009,
+  dmFooter: 2010,
 } as const;
 
 export const RESPONSE_WINDOW_MS = 15 * 60 * 1000;
@@ -100,11 +106,16 @@ export const EXPIRED_CLICK_MESSAGE =
 const TOO_MANY_CASES_LINE =
   "-# These cases are too spread out for buttons. Change them from the mod log entries or with `/reason`.";
 
+const DM_RECEIVED = "what they received:";
+const DM_SETTINGS_LINE =
+  "-# Extra DM text is set in `/settings` → Moderation → DMs sent to members";
+
 /** Discord's cap on text across all text displays in one message. */
 const MESSAGE_TEXT_MAX_LENGTH = 4000;
 const HEADER_MAX_LENGTH = 1800;
 const TARGET_ERROR_MAX_LENGTH = 120;
-const DETAILS_DM_TEXT_MAX_LENGTH = 500;
+const DM_TEXT_MAX_LENGTH = 500;
+const DM_PREVIEW_LENGTH = 60;
 const ATTACHMENTS_MAX_LENGTH = 400;
 
 export function isResponseExpired(
@@ -267,70 +278,21 @@ function buildHeader(
     .setContent(`${head}${lines.join("\n")}\n${by}`);
 }
 
-function configuredDmText(
-  actionType: ActionType,
-  guildConfig: GuildConfig,
-): string | null {
-  const settings = guildConfig.moderationSettings;
-  switch (actionType) {
-    case ActionType.Warn:
-      return settings.warnDmText;
-    case ActionType.Timeout:
-    case ActionType.TimeoutAdjust:
-      return settings.timeoutDmText;
-    case ActionType.Ban:
-    case ActionType.TempBan:
-    case ActionType.Softban:
-      return settings.banDmText;
-    default:
-      return null;
-  }
-}
-
 function buildDetails(
   input: ActionResultInput,
-  cases: ModerationCase[],
   now: Date,
 ): TextDisplayBuilder | null {
   const { action, emojis } = input;
-  const lines: string[] = [];
-
-  if (action.isTemporalAction()) {
-    const end = dayjs(now).add(action.duration.value);
-    lines.push(
-      `-# ${withEmoji(emojis.duration, `${escapeMarkdown(action.duration.originalString)} · ends <t:${unix(end)}:f>`)}`,
-    );
-  }
-
-  const dmText = configuredDmText(input.actionType, input.guildConfig);
-  if (dmText && cases.some((c) => c.dmAttempted)) {
-    lines.push(
-      `-# ${withEmoji(emojis.additional_message, "Additional DM text, from `/settings`:")}`,
-      quoteLines(dmText, DETAILS_DM_TEXT_MAX_LENGTH),
-    );
-  }
-
-  const attachments = cases[0]?.attachments.filter(Boolean) ?? [];
-  if (attachments.length > 0) {
-    const links = truncateText(
-      attachments
-        .map(
-          (url) =>
-            `[${escapeMarkdown(getCleanFilename(url) || "file")}](${url})`,
-        )
-        .join(", "),
-      ATTACHMENTS_MAX_LENGTH,
-    );
-    lines.push(`-# ${withEmoji(emojis.attachment, links)}`);
-  }
-
-  if (lines.length === 0) {
+  if (!action.isTemporalAction()) {
     return null;
   }
 
+  const end = dayjs(now).add(action.duration.value);
   return new TextDisplayBuilder()
     .setId(ACTION_RESPONSE_IDS.details)
-    .setContent(lines.join("\n"));
+    .setContent(
+      `-# ${withEmoji(emojis.duration, `${escapeMarkdown(action.duration.originalString)} · ends <t:${unix(end)}:f>`)}`,
+    );
 }
 
 const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
@@ -393,95 +355,10 @@ function deletedBy(cases: ModerationCase[]): string {
   return [by ? ` by <@${by}>` : "", at ? ` <t:${unix(at)}:R>` : ""].join("");
 }
 
-/** The DM line from the stored DM fields, or null for actions that never DM. */
-export function describeDmStatus(
-  cases: ModerationCase[],
-  emojis: Pick<ModerationActionEmojis, "message" | "fail" | "warning">,
-): string | null {
-  const dmCases = cases.filter((c) => actionTypeSupportsDM(c.actionType));
-  if (dmCases.length === 0) {
-    return null;
-  }
-
-  const states = dmCases.map(dmState);
-  const count = (kind: DmState["kind"]): number =>
-    states.filter((s) => s.kind === kind).length;
-  const live = count("live");
-  const deleted = count("deleted");
-  const failed = states.filter((s) => s.kind === "failed");
-  const notSent = states.filter((s) => s.kind === "not_sent");
-  const failReason = sameValue(failed.map((s) => s.reason));
-  const notSentWhy = sameValue(notSent.map((s) => s.why));
-  const total = dmCases.length;
-  const noReason = !dmCases[0].reason;
-
-  if (total === 1) {
-    const [state] = states;
-    switch (state.kind) {
-      case "live":
-        return withEmoji(
-          emojis.message,
-          noReason ? "DM sent without a reason" : "DM sent",
-        );
-      case "deleted":
-        return withEmoji(emojis.message, `DM deleted${deletedBy(dmCases)}`);
-      case "failed":
-        return withEmoji(
-          emojis.fail,
-          `DM failed: ${DM_FAILURE_TEXT[state.reason]}`,
-        );
-      case "not_sent":
-        return withEmoji(
-          emojis.message,
-          state.why ? `DM not sent (${state.why})` : "DM not sent",
-        );
-    }
-  }
-
-  if (live === total) {
-    return withEmoji(emojis.message, `DM sent to ${total} users`);
-  }
-  if (deleted === total) {
-    return withEmoji(
-      emojis.message,
-      `${total} DMs deleted${deletedBy(dmCases)}`,
-    );
-  }
-  if (failed.length === total) {
-    const why = failReason ? `: ${DM_FAILURE_TEXT[failReason]}` : "";
-    return withEmoji(emojis.fail, `DMs failed for all ${total} users${why}`);
-  }
-  if (notSent.length === total) {
-    return withEmoji(
-      emojis.message,
-      notSentWhy ? `DMs not sent (${notSentWhy})` : "DMs not sent",
-    );
-  }
-
-  const parts = [`DM sent to ${live} of ${total} users`];
-  if (deleted > 0) {
-    parts.push(`${deleted} deleted${deletedBy(dmCases)}`);
-  }
-  if (failed.length > 0) {
-    parts.push(
-      `${failed.length} failed${failReason ? ` (${DM_FAILURE_TEXT[failReason]})` : ""}`,
-    );
-  }
-  if (notSent.length > 0) {
-    parts.push(
-      `${notSent.length} not sent${notSentWhy ? ` (${notSentWhy})` : ""}`,
-    );
-  }
-  return withEmoji(
-    failed.length > 0 ? emojis.warning : emojis.message,
-    parts.join(" · "),
-  );
-}
-
-/** "Used template `!spam`", or the no-shortcut variant. */
+/** "Template `!spam`", or the no-shortcut variant. */
 export function templateNote(template: TemplateRef): string {
   return template.shortcut
-    ? `Used template \`!${template.shortcut}\``
+    ? `Template \`!${template.shortcut}\``
     : "Used a template (no shortcut)";
 }
 
@@ -504,26 +381,105 @@ export function editedNote(userId: string, at: Date, suffix = ""): string {
   return `Edited by <@${userId}> <t:${unix(at)}:R>${suffix}`;
 }
 
-function reasonHeading(
-  cases: ModerationCase[],
-  emojis: ModerationActionEmojis,
-): string {
-  const label = cases[0]?.actionType === ActionType.Note ? "Note" : "Reason";
-  return `**${withEmoji(emojis.reason, label)}**\n`;
+function isNote(cases: ModerationCase[]): boolean {
+  return cases[0]?.actionType === ActionType.Note;
 }
 
 /** The reason block as rendered for these cases, before truncation. */
-function reasonContent(
-  cases: ModerationCase[],
-  emojis: ModerationActionEmojis,
-  maxLength: number,
-): string {
-  const heading = reasonHeading(cases, emojis);
+function reasonContent(cases: ModerationCase[], maxLength: number): string {
+  const heading = `**${isNote(cases) ? "Note" : "Reason"}**\n`;
   const reason = cases[0]?.reason?.value;
   const body = reason
     ? truncateText(reason, Math.max(1, maxLength - heading.length))
     : "-# No reason given";
   return heading + body;
+}
+
+/** Everything after the heading line, which older responses rendered with an emoji. */
+function reasonBody(content: string): string {
+  return content.slice(content.indexOf("\n") + 1);
+}
+
+function attachmentsLine(
+  cases: ModerationCase[],
+  emojis: ModerationActionEmojis,
+): string | null {
+  const attachments = cases[0]?.attachments.filter(Boolean) ?? [];
+  if (attachments.length === 0) {
+    return null;
+  }
+  const links = truncateText(
+    attachments
+      .map(
+        (url) => `[${escapeMarkdown(getCleanFilename(url) || "file")}](${url})`,
+      )
+      .join(", "),
+    ATTACHMENTS_MAX_LENGTH,
+  );
+  return withEmoji(emojis.attachment, links);
+}
+
+function notesContent(
+  notes: readonly string[],
+  attachments: string | null,
+): string | null {
+  const lines = [...notes];
+  if (attachments) {
+    lines[0] = lines.length > 0 ? `${lines[0]} · ${attachments}` : attachments;
+  }
+  return lines.length > 0 ? lines.map((l) => `-# ${l}`).join("\n") : null;
+}
+
+/** The notes of a posted notes line, without the attachments, which come from the case. */
+function parseNotes(content: string, attachments: string | null): string[] {
+  return content.split("\n").flatMap((line) => {
+    let note = line.replace(/^-# /, "");
+    if (attachments) {
+      if (note === attachments) {
+        return [];
+      }
+      if (note.endsWith(` · ${attachments}`)) {
+        note = note.slice(0, -` · ${attachments}`.length);
+      }
+    }
+    return [note];
+  });
+}
+
+/** What the DM recipients received, as rendered in the DM section. */
+interface DmContent {
+  /** Quoted first line of the reason, or null when the DM had no reason. */
+  reasonLine: string | null;
+  /** The quoted extra DM text from `/settings`. */
+  configured: string | null;
+}
+
+function dmReasonLine(cases: ModerationCase[]): string | null {
+  const reason = cases[0]?.reason?.value;
+  if (!reason) {
+    return null;
+  }
+  const firstLine = reason.split("\n").find((l) => l.trim()) ?? "";
+  const cut =
+    firstLine.trim() !== reason.trim() && firstLine.length <= DM_PREVIEW_LENGTH
+      ? `${firstLine}${ELLIPSIS}`
+      : truncateText(firstLine, DM_PREVIEW_LENGTH);
+  return `> ${escapeMarkdown(cut, {
+    heading: true,
+    bulletedList: true,
+    numberedList: true,
+    maskedLink: true,
+  })}`;
+}
+
+function dmContentFor(
+  cases: ModerationCase[],
+  configured: string | null,
+): DmContent {
+  return {
+    reasonLine: dmReasonLine(cases),
+    configured: configured ? quoteLines(configured, DM_TEXT_MAX_LENGTH) : null,
+  };
 }
 
 export type ResponseMode = "buttons" | "confirmDeleteDm" | "expired";
@@ -533,12 +489,18 @@ export interface ResponseBodyInput {
   cases: ModerationCase[];
   emojis: ModerationActionEmojis;
   reasonNotes: readonly string[];
-  /** Replaces the DM line computed from the cases, e.g. right after an edit. */
+  /** A status line under a sent DM, e.g. right after an edit. */
   dmOverride?: string | null;
-  /** Appended to the computed DM line, e.g. " · mod log updated". */
+  /** Appended to the DM status, e.g. " · mod log updated". */
   dmSuffix?: string;
+  /** The DMs were edited to the cases' current reason. */
+  dmReasonUpdated?: boolean;
   savePrompt: boolean;
   mode: ResponseMode;
+}
+
+interface AssembleInput extends ResponseBodyInput {
+  dm: DmContent;
 }
 
 function button(
@@ -558,10 +520,6 @@ function button(
   return builder;
 }
 
-function liveDmCount(cases: ModerationCase[]): number {
-  return cases.filter(hasLiveDm).length;
-}
-
 function separator(): APIComponentInContainer {
   return new SeparatorBuilder()
     .setDivider(true)
@@ -571,6 +529,24 @@ function separator(): APIComponentInContainer {
 
 function text(id: number, content: string): APITextDisplayComponent {
   return new TextDisplayBuilder().setId(id).setContent(content).toJSON();
+}
+
+/** A section with the button, or its text displays on their own when there's no button. */
+function sectionOrTexts(
+  id: number,
+  texts: APITextDisplayComponent[],
+  accessory: ButtonBuilder | null,
+): APIComponentInContainer[] {
+  if (!accessory) {
+    return texts;
+  }
+  return [
+    new SectionBuilder()
+      .setId(id)
+      .addTextDisplayComponents(texts.map((t) => new TextDisplayBuilder(t)))
+      .setButtonAccessory(accessory)
+      .toJSON(),
+  ];
 }
 
 function textLength(components: readonly unknown[]): number {
@@ -595,22 +571,128 @@ function textLength(components: readonly unknown[]): number {
   return length;
 }
 
-function buildTail(input: ResponseBodyInput): APIComponentInContainer[] {
+interface DmPart {
+  /** Text displays, in order: the DM line, the extra DM text and the small footer. */
+  texts: APITextDisplayComponent[];
+  /** Delete DM applies. */
+  live: number;
+}
+
+/** The DM part from the stored DM fields, or null for actions that never DM. */
+function buildDmPart(input: AssembleInput): DmPart | null {
+  const { cases } = input;
+  const dmCases = cases.filter((c) => actionTypeSupportsDM(c.actionType));
+  if (dmCases.length === 0) {
+    return null;
+  }
+
+  const states = dmCases.map(dmState);
+  const total = dmCases.length;
+  const live = states.filter((s) => s.kind === "live").length;
+  const deleted = states.filter((s) => s.kind === "deleted").length;
+  const failed = states.filter((s) => s.kind === "failed");
+  const notSent = states.filter((s) => s.kind === "not_sent");
+  const failReason = sameValue(failed.map((s) => s.reason));
+  const notSentWhy = sameValue(notSent.map((s) => s.why));
+  const suffix = input.dmSuffix ?? "";
+  const override = input.dmOverride ?? null;
+
+  if (live > 0) {
+    const to = total > 1 ? ` to ${live} of ${total}` : "";
+    const { reasonLine, configured } = input.dm;
+    const line = [
+      reasonLine
+        ? `**DM sent**${to} · ${DM_RECEIVED}\n${reasonLine}`
+        : `**DM sent**${to} · no reason was included`,
+      configured,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const others: string[] = [];
+    if (deleted > 0) {
+      others.push(`${deleted} deleted${deletedBy(dmCases)}`);
+    }
+    if (notSent.length > 0) {
+      others.push(`${notSent.length} not sent`);
+    }
+    const status = [override, others.join(" · "), suffix.replace(/^ · /, "")]
+      .filter(Boolean)
+      .join(" · ");
+    const hint = guildDmTextSetting(dmCases[0].actionType)
+      ? DM_SETTINGS_LINE
+      : null;
+    const footer = [status ? `-# ${status}` : null, hint]
+      .filter(Boolean)
+      .join("\n");
+
+    const texts = [text(ACTION_RESPONSE_IDS.dm, line)];
+    if (footer) {
+      texts.push(text(ACTION_RESPONSE_IDS.dmFooter, footer));
+    }
+    return { texts, live };
+  }
+
+  let line: string;
+  if (total === 1) {
+    const [state] = states;
+    if (state.kind === "failed") {
+      line = `**DM failed** · ${DM_FAILURE_TEXT[state.reason]}`;
+    } else if (state.kind === "not_sent" && state.why) {
+      line = `**DM not sent** · ${state.why}`;
+    } else if (state.kind === "not_sent") {
+      line = "**DM not sent**";
+    } else {
+      line = `**DM deleted**${deletedBy(dmCases)}`;
+    }
+  } else if (deleted === total) {
+    line = `**${total} DMs deleted**${deletedBy(dmCases)}`;
+  } else if (failed.length === total) {
+    line = `**DMs failed** for all ${total}${failReason ? ` · ${DM_FAILURE_TEXT[failReason]}` : ""}`;
+  } else if (notSent.length === total) {
+    line = notSentWhy ? `**DMs not sent** · ${notSentWhy}` : "**DMs not sent**";
+  } else {
+    const parts: string[] = [];
+    if (deleted > 0) {
+      parts.push(`${deleted} deleted${deletedBy(dmCases)}`);
+    }
+    if (failed.length > 0) {
+      parts.push(`${failed.length} failed`);
+    }
+    if (notSent.length > 0) {
+      parts.push(`${notSent.length} not sent`);
+    }
+    line = `**${deleted > 0 ? "No DMs left" : "No DMs sent"}** · ${parts.join(" · ")}`;
+  }
+
+  const content = override
+    ? `${line}${suffix}\n-# ${override}`
+    : `${line}${suffix}`;
+  return { texts: [text(ACTION_RESPONSE_IDS.dm, content)], live: 0 };
+}
+
+function savePromptLine(emojis: ModerationActionEmojis): string {
+  return `-# ${withEmoji(emojis.tip, "This reason has been used 3 or more times in this server. Save it as a template to reuse it from autocomplete and reason forms.")}`;
+}
+
+function buildTail(
+  input: AssembleInput,
+  encoded: string | null,
+  live: number,
+  showPrompt: boolean,
+): APIComponentInContainer[] {
   const { cases, emojis, mode } = input;
-  const tail: APIComponentInContainer[] = [separator()];
-
-  const encoded = encodeCaseIds(cases.map((c) => c.caseId));
   if (!encoded) {
-    tail.push(text(ACTION_RESPONSE_IDS.footer, TOO_MANY_CASES_LINE));
-    return tail;
+    return [separator(), text(ACTION_RESPONSE_IDS.footer, TOO_MANY_CASES_LINE)];
   }
-
   if (mode === "expired") {
-    tail.push(text(ACTION_RESPONSE_IDS.footer, EXPIRED_LINE));
-    return tail;
+    return [separator(), text(ACTION_RESPONSE_IDS.footer, EXPIRED_LINE)];
   }
 
-  const live = liveDmCount(cases);
+  const prompt = showPrompt
+    ? [text(ACTION_RESPONSE_IDS.prompt, savePromptLine(emojis))]
+    : [];
+
   if (mode === "confirmDeleteDm" && live > 0) {
     const liveCases = cases.filter(hasLiveDm);
     const confirm = buildDeleteDmConfirm({
@@ -618,56 +700,31 @@ function buildTail(input: ResponseBodyInput): APIComponentInContainer[] {
       confirmCustomId: buildResponseButtonId("dmDeleteConfirm", encoded),
       cancelCustomId: buildResponseButtonId("dmCancel", encoded),
     });
-    tail.push(
+    return [
+      separator(),
+      ...prompt,
       confirm.prompt.setId(ACTION_RESPONSE_IDS.footer).toJSON(),
       confirm.row.toJSON(),
-    );
-    return tail;
+    ];
   }
 
-  const hasReason = !!cases[0]?.reason;
-  const noun = cases[0]?.actionType === ActionType.Note ? "note" : "reason";
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    hasReason
-      ? button(
-          `Edit ${noun}`,
-          buildResponseButtonId("edit", encoded),
+  if (!showPrompt) {
+    return [];
+  }
+  return [
+    separator(),
+    ...prompt,
+    new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(
+        button(
+          "Save as template",
+          buildResponseButtonId("save", encoded),
           ButtonStyle.Secondary,
-          emojis.message_edit,
-        )
-      : button(
-          `Add ${noun}`,
-          buildResponseButtonId("edit", encoded),
-          ButtonStyle.Primary,
-          emojis.message_edit,
+          emojis.save,
         ),
-  );
-  if (live > 0) {
-    row.addComponents(
-      button(
-        live > 1 ? `Delete ${live} DMs` : "Delete DM",
-        buildResponseButtonId("dmDelete", encoded),
-        ButtonStyle.Secondary,
-        emojis.trash,
-      ),
-    );
-  }
-  if (input.savePrompt && hasReason) {
-    row.addComponents(
-      button(
-        "Save as template",
-        buildResponseButtonId("save", encoded),
-        ButtonStyle.Secondary,
-        emojis.save,
-      ),
-    );
-  }
-  tail.push(row.toJSON());
-  return tail;
-}
-
-function savePromptLine(emojis: ModerationActionEmojis): string {
-  return `-# ${withEmoji(emojis.tip, "This reason has been used 3 or more times in this server. Save it as a template to reuse it from autocomplete and reason forms.")}`;
+      )
+      .toJSON(),
+  ];
 }
 
 /**
@@ -678,45 +735,86 @@ function assemble(
   accentColor: number | undefined,
   header: APIComponentInContainer,
   details: APIComponentInContainer | null,
-  body: ResponseBodyInput,
+  body: AssembleInput,
 ): ContainerBuilder {
-  const { cases, emojis } = body;
-  const notes = body.reasonNotes.length
-    ? text(
-        ACTION_RESPONSE_IDS.reasonNotes,
-        body.reasonNotes.map((n) => `-# ${n}`).join("\n"),
-      )
+  const { cases, emojis, mode } = body;
+  const encoded = encodeCaseIds(cases.map((c) => c.caseId));
+  const buttonsLive = !!encoded && mode !== "expired";
+
+  const notesText = notesContent(
+    body.reasonNotes,
+    attachmentsLine(cases, emojis),
+  );
+  const notes = notesText
+    ? text(ACTION_RESPONSE_IDS.reasonNotes, notesText)
     : null;
 
-  const computedDm = describeDmStatus(cases, emojis);
-  const dmLine =
-    body.dmOverride ?? (computedDm ? computedDm + (body.dmSuffix ?? "") : null);
-  const dm = dmLine ? text(ACTION_RESPONSE_IDS.dm, `-# ${dmLine}`) : null;
+  const dm = buildDmPart(body);
+  const live = dm?.live ?? 0;
+  const deleteDm =
+    encoded && mode === "buttons" && live > 0
+      ? button(
+          live > 1 ? `Delete ${live} DMs` : "Delete DM",
+          buildResponseButtonId("dmDelete", encoded),
+          ButtonStyle.Secondary,
+          emojis.trash,
+        )
+      : null;
+  const dmComponents = dm
+    ? [
+        separator(),
+        ...sectionOrTexts(ACTION_RESPONSE_IDS.dmSection, dm.texts, deleteDm),
+      ]
+    : [];
 
   // Kept while confirming Delete DM, so Cancel can restore Save as template.
-  const showPrompt =
-    body.savePrompt && body.mode !== "expired" && !!cases[0]?.reason;
-  const prompt = showPrompt
-    ? text(ACTION_RESPONSE_IDS.prompt, savePromptLine(emojis))
-    : null;
-  const tail = buildTail({ ...body, savePrompt: showPrompt });
+  const showPrompt = body.savePrompt && buttonsLive && !!cases[0]?.reason;
+  const tail = buildTail(body, encoded, live, showPrompt);
 
-  const fixed = [header, notes, details, dm, prompt, ...tail].filter(
+  const fixed = [header, details, notes, ...dmComponents, ...tail].filter(
     (c): c is APIComponentInContainer => c !== null,
   );
+  // Expiry and the Delete DM confirm swap the tail without re-cutting the reason.
+  const swaps = buttonsLive
+    ? [
+        textLength([text(ACTION_RESPONSE_IDS.footer, EXPIRED_LINE)]),
+        live > 0
+          ? textLength(
+              buildTail(
+                { ...body, mode: "confirmDeleteDm" },
+                encoded,
+                live,
+                showPrompt,
+              ),
+            )
+          : 0,
+      ]
+    : [];
+  const reserve = Math.max(0, ...swaps.map((n) => n - textLength(tail)));
   const reason = text(
     ACTION_RESPONSE_IDS.reason,
-    reasonContent(cases, emojis, MESSAGE_TEXT_MAX_LENGTH - textLength(fixed)),
+    reasonContent(cases, MESSAGE_TEXT_MAX_LENGTH - textLength(fixed) - reserve),
   );
+
+  const hasReason = !!cases[0]?.reason;
+  const noun = isNote(cases) ? "note" : "reason";
+  const edit =
+    encoded && buttonsLive
+      ? button(
+          hasReason ? `Edit ${noun}` : `Add ${noun}`,
+          buildResponseButtonId("edit", encoded),
+          hasReason ? ButtonStyle.Secondary : ButtonStyle.Primary,
+          emojis.message_edit,
+        )
+      : null;
+  const reasonTexts = notes ? [reason, notes] : [reason];
 
   const components = [
     header,
-    separator(),
-    reason,
-    notes,
     details,
-    dm,
-    prompt,
+    separator(),
+    ...sectionOrTexts(ACTION_RESPONSE_IDS.reasonSection, reasonTexts, edit),
+    ...dmComponents,
     ...tail,
   ].filter((c): c is APIComponentInContainer => c !== null);
 
@@ -791,12 +889,13 @@ export function buildActionResultMessage(
     );
   }
 
-  const details = buildDetails(input, cases, now);
+  const details = buildDetails(input, now);
   return message(
     assemble(accent, header.toJSON(), details?.toJSON() ?? null, {
       cases,
       emojis: input.emojis,
       reasonNotes: input.reasonNotes ?? [],
+      dm: dmContentFor(cases, guildDmText(input.actionType, input.guildConfig)),
       savePrompt:
         (input.savePrompt ?? false) && input.actionType !== ActionType.Note,
       mode: "buttons",
@@ -821,10 +920,23 @@ function findById(
   return container?.components.find((c) => c.id === id) ?? null;
 }
 
-function textOf(component: APIComponentInContainer | null): string | null {
-  return component?.type === ComponentType.TextDisplay
-    ? component.content
-    : null;
+/** A text display by id, at the top level or inside a section. */
+function findTextById(
+  container: APIContainerComponent | null,
+  id: number,
+): string | null {
+  for (const component of container?.components ?? []) {
+    if (component.type === ComponentType.TextDisplay && component.id === id) {
+      return component.content;
+    }
+    if (component.type === ComponentType.Section) {
+      const nested = component.components.find((c) => c.id === id);
+      if (nested) {
+        return nested.content;
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -862,20 +974,30 @@ function copyPreserved(
 
 const OWN_IDS = new Set<number>(Object.values(ACTION_RESPONSE_IDS));
 
+function copyText(component: APITextDisplayComponent): APITextDisplayComponent {
+  return OWN_IDS.has(component.id ?? 0)
+    ? text(component.id ?? 0, component.content)
+    : new TextDisplayBuilder().setContent(component.content).toJSON();
+}
+
 /** Copies a posted component of the shapes this view renders, dropping Discord-assigned ids. */
 function copyKnown(
   component: APIComponentInContainer,
-): APIComponentInContainer | null {
+): APIComponentInContainer[] {
   if (component.type === ComponentType.Separator) {
-    return separator();
+    return [separator()];
+  }
+  if (component.type === ComponentType.TextDisplay) {
+    return [copyText(component)];
   }
   if (
-    component.type === ComponentType.TextDisplay &&
-    !OWN_IDS.has(component.id ?? 0)
+    component.type === ComponentType.Section &&
+    component.accessory.type === ComponentType.Button
   ) {
-    return new TextDisplayBuilder().setContent(component.content).toJSON();
+    return component.components.map(copyText);
   }
-  return component.id ? copyPreserved(component, component.id) : null;
+  const copy = component.id ? copyPreserved(component, component.id) : null;
+  return copy ? [copy] : [];
 }
 
 function fallbackHeader(
@@ -893,6 +1015,58 @@ function fallbackHeader(
   );
 }
 
+const DURATION_LINE = /· ends <t:\d+:f>$/;
+
+/**
+ * The posted duration line. Responses from before the DM section also showed
+ * the extra DM text and attachments here, which now render elsewhere.
+ */
+function postedDetails(component: APIComponentInContainer | null): {
+  details: APIComponentInContainer | null;
+  legacyDmText: string | null;
+} {
+  const content = textOf(component);
+  if (content === null) {
+    return { details: null, legacyDmText: null };
+  }
+  const lines = content.split("\n");
+  const duration = lines.filter((l) => DURATION_LINE.test(l));
+  const quoted = lines.filter((l) => l.startsWith("> "));
+  return {
+    details: duration.length
+      ? text(ACTION_RESPONSE_IDS.details, duration.join("\n"))
+      : null,
+    legacyDmText: quoted.length ? quoted.join("\n") : null,
+  };
+}
+
+function textOf(component: APIComponentInContainer | null): string | null {
+  return component?.type === ComponentType.TextDisplay
+    ? component.content
+    : null;
+}
+
+/** What the DM held when the response was posted; the cases only know the current reason. */
+function postedDmContent(
+  container: APIContainerComponent | null,
+  cases: ModerationCase[],
+  legacyDmText: string | null,
+): DmContent {
+  const line = findTextById(container, ACTION_RESPONSE_IDS.dm);
+  if (line?.startsWith("**DM sent**")) {
+    // The reason preview is always one line, so the rest is the extra DM text.
+    const [heading, ...rest] = line.split("\n");
+    const reasonLine = heading.endsWith(DM_RECEIVED)
+      ? (rest.shift() ?? null)
+      : null;
+    return {
+      reasonLine,
+      configured: rest.length > 0 ? rest.join("\n") : null,
+    };
+  }
+  return { reasonLine: dmReasonLine(cases), configured: legacyDmText };
+}
+
 /** Whether the posted response offers Save as template, including while confirming Delete DM. */
 export function hasSavePrompt(
   components: readonly APIMessageTopLevelComponent[],
@@ -903,10 +1077,10 @@ export function hasSavePrompt(
 }
 
 /**
- * Rebuilds a posted response from reloaded cases. The header and details come
- * from the posted message. Without new reasonNotes, the old notes stay while
- * the reason is unchanged; a reason changed elsewhere gets an "Edited by" note
- * from the case instead.
+ * Rebuilds a posted response from reloaded cases. The header, details and
+ * what the DM held come from the posted message. Without new reasonNotes, the
+ * old notes stay while the reason is unchanged; a reason changed elsewhere
+ * gets an "Edited by" note from the case instead.
  */
 export function rebuildActionResponse(
   posted: readonly APIMessageTopLevelComponent[],
@@ -916,36 +1090,33 @@ export function rebuildActionResponse(
 ): ActionResponseMessage {
   const container = findContainer(posted);
   const postedHeader = findById(container, ACTION_RESPONSE_IDS.header);
-  const postedDetails = findById(container, ACTION_RESPONSE_IDS.details);
   const header =
     (postedHeader && copyPreserved(postedHeader, ACTION_RESPONSE_IDS.header)) ??
     fallbackHeader(body.cases, body.emojis);
-  const details = postedDetails
-    ? copyPreserved(postedDetails, ACTION_RESPONSE_IDS.details)
-    : null;
+  const { details, legacyDmText } = postedDetails(
+    findById(container, ACTION_RESPONSE_IDS.details),
+  );
 
   let reasonNotes = body.reasonNotes;
   if (!reasonNotes) {
-    const postedReason = textOf(
-      findById(container, ACTION_RESPONSE_IDS.reason),
+    const postedReason = findTextById(container, ACTION_RESPONSE_IDS.reason);
+    const postedNotes = findTextById(
+      container,
+      ACTION_RESPONSE_IDS.reasonNotes,
     );
-    const postedNotes = textOf(
-      findById(container, ACTION_RESPONSE_IDS.reasonNotes),
+    const fresh = reasonBody(
+      reasonContent(body.cases, Number.MAX_SAFE_INTEGER),
     );
-    const fresh = reasonContent(
-      body.cases,
-      body.emojis,
-      Number.MAX_SAFE_INTEGER,
-    );
+    const old = postedReason === null ? null : reasonBody(postedReason);
     // A reason cut to fit can only be compared by its uncut start.
     const unchanged =
-      postedReason !== null &&
-      (postedReason === fresh ||
-        (postedReason.endsWith(ELLIPSIS) &&
-          fresh.startsWith(postedReason.slice(0, -ELLIPSIS.length).trimEnd())));
+      old !== null &&
+      (old === fresh ||
+        (old.endsWith(ELLIPSIS) &&
+          fresh.startsWith(old.slice(0, -ELLIPSIS.length).trimEnd())));
     if (unchanged) {
       reasonNotes = postedNotes
-        ? postedNotes.split("\n").map((line) => line.replace(/^-# /, ""))
+        ? parseNotes(postedNotes, attachmentsLine(body.cases, body.emojis))
         : [];
     } else {
       const first = body.cases[0];
@@ -956,10 +1127,16 @@ export function rebuildActionResponse(
     }
   }
 
+  const dm = postedDmContent(container, body.cases, legacyDmText);
+  if (body.dmReasonUpdated) {
+    dm.reasonLine = dmReasonLine(body.cases);
+  }
+
   return message(
     assemble(container?.accent_color ?? undefined, header, details, {
       ...body,
       reasonNotes,
+      dm,
     }),
   );
 }
@@ -977,7 +1154,10 @@ export function expireActionResponse(
   }
 
   const hasButtons = container.components.some(
-    (c) => c.type === ComponentType.ActionRow,
+    (c) =>
+      c.type === ComponentType.ActionRow ||
+      (c.type === ComponentType.Section &&
+        c.accessory.type === ComponentType.Button),
   );
   if (!hasButtons) {
     return null;
@@ -991,9 +1171,11 @@ export function expireActionResponse(
     ) {
       return [];
     }
-    const copy = copyKnown(c);
-    return copy ? [copy] : [];
+    return copyKnown(c);
   });
+  if (kept.at(-1)?.type !== ComponentType.Separator) {
+    kept.push(separator());
+  }
 
   return message(
     new ContainerBuilder({

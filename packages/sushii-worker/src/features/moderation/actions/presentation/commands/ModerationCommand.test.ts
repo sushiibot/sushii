@@ -145,7 +145,7 @@ describe("ModerationCommand reason expansion", () => {
     expect(ctx.recordUse).toHaveBeenCalledWith(GUILD, "3");
     expect(ctx.shouldPromptSave).not.toHaveBeenCalled();
     expect(JSON.stringify(ctx.interaction.editReply.mock.calls[0])).toContain(
-      "Used template `!spam`",
+      "Template `!spam`",
     );
     expect(ctx.scheduleExpiry).toHaveBeenCalledTimes(1);
     expect(ctx.metrics.recordReasonResolved.mock.calls).toEqual([

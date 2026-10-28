@@ -24,6 +24,41 @@ import {
 } from "../domain/value-objects/ActionType";
 import type { Reason } from "../domain/value-objects/Reason";
 
+type DmTextSetting =
+  | "warnDmText"
+  | "timeoutDmText"
+  | "banDmText"
+  | "kickDmText";
+
+/** The `/settings` field holding the extra DM text for an action, or null when it has none. */
+export function guildDmTextSetting(action: ActionType): DmTextSetting | null {
+  switch (action) {
+    case ActionType.Warn:
+      return "warnDmText";
+    // An adjusted timeout's DM is a timeout DM.
+    case ActionType.Timeout:
+    case ActionType.TimeoutAdjust:
+      return "timeoutDmText";
+    case ActionType.Ban:
+    case ActionType.TempBan:
+    case ActionType.Softban:
+      return "banDmText";
+    case ActionType.Kick:
+      return "kickDmText";
+    default:
+      return null;
+  }
+}
+
+/** The extra DM text from `/settings` that a DM for this action carries. */
+export function guildDmText(
+  action: ActionType,
+  guildConfig: GuildConfig,
+): string | null {
+  const setting = guildDmTextSetting(action);
+  return setting ? guildConfig.moderationSettings[setting] : null;
+}
+
 /**
  * Application service for building and sending DM notifications for moderation actions.
  * Handles the business logic for when and how to send moderation DMs.
@@ -352,27 +387,11 @@ export class DMNotificationService {
     }
   }
 
-  /**
-   * Gets custom DM text from guild configuration.
-   */
   private getGuildCustomDMText(
     action: ActionType,
     guildConfig: GuildConfig,
   ): string | null {
-    switch (action) {
-      case ActionType.Timeout:
-        return guildConfig.moderationSettings.timeoutDmText;
-      case ActionType.Warn:
-        return guildConfig.moderationSettings.warnDmText;
-      case ActionType.Ban:
-      case ActionType.TempBan:
-      case ActionType.Softban:
-        return guildConfig.moderationSettings.banDmText;
-      case ActionType.Kick:
-        return guildConfig.moderationSettings.kickDmText;
-      default:
-        return null;
-    }
+    return guildDmText(action, guildConfig);
   }
 }
 
