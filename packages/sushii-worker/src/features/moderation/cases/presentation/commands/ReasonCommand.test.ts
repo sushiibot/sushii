@@ -70,6 +70,7 @@ describe("ReasonCommand", () => {
   let updateReasons: ReturnType<typeof mock>;
   let resolve: ReturnType<typeof mock>;
   let recordUse: ReturnType<typeof mock>;
+  let recordReasonResolved: ReturnType<typeof mock>;
   let command: ReasonCommand;
 
   beforeEach(() => {
@@ -85,10 +86,12 @@ describe("ReasonCommand", () => {
       unresolved: null,
     }));
     recordUse = mock(async () => undefined);
+    recordReasonResolved = mock();
     command = new ReasonCommand(
       { checkExistingReasons, updateReasons } as unknown as ReasonUpdateService,
       { resolve, recordUse },
       pino({ level: "silent" }),
+      { recordReasonResolved },
     );
   });
 
@@ -124,6 +127,9 @@ describe("ReasonCommand", () => {
       updateDm: true,
     });
     expect(recordUse).toHaveBeenCalledWith(GUILD, "11");
+    expect(recordReasonResolved.mock.calls).toEqual([
+      ["reason_cmd", "shortcut"],
+    ]);
     const [{ embeds }] = interaction.editReply.mock.calls[0] as unknown as [
       { embeds: EmbedBuilder[] },
     ];
@@ -174,6 +180,9 @@ describe("ReasonCommand", () => {
     await run(interaction);
 
     expect(updateReasons).not.toHaveBeenCalled();
+    expect(recordReasonResolved.mock.calls).toEqual([
+      ["reason_cmd", "too_long"],
+    ]);
     expect(JSON.stringify(interaction.reply.mock.calls[0])).toContain(
       "after expanding `!spam`; the limit is 3,000. Shorten the extra text by 42 characters.",
     );

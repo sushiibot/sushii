@@ -463,4 +463,50 @@ describe("parseReasonFields", () => {
       max: REASON_MAX_LENGTH,
     });
   });
+
+  test("records the source with the surface when tracked", async () => {
+    const recordReasonResolved = mock();
+    const tracking = {
+      metrics: { recordReasonResolved },
+      surface: "edit" as const,
+    };
+
+    await parseReasonFields(
+      makeFields({ template: ["last"], text: "" }),
+      formData,
+      service,
+      GUILD_ID,
+      tracking,
+    );
+    await parseReasonFields(
+      makeFields({ template: ["template:1"], text: "also" }),
+      formData,
+      service,
+      GUILD_ID,
+      tracking,
+    );
+    await parseReasonFields(
+      makeFields({
+        template: ["template:1"],
+        text: "x".repeat(REASON_MAX_LENGTH),
+      }),
+      formData,
+      service,
+      GUILD_ID,
+      tracking,
+    );
+    await parseReasonFields(
+      makeFields({ template: [], text: "  " }),
+      formData,
+      service,
+      GUILD_ID,
+      tracking,
+    );
+
+    expect(recordReasonResolved.mock.calls).toEqual([
+      ["edit", "recent"],
+      ["edit", "template"],
+      ["edit", "too_long"],
+    ]);
+  });
 });

@@ -38,6 +38,11 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import {
+  NOOP_MODERATION_METRICS,
+  reasonSource,
+} from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import type { DMChoice } from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import { dmChoiceFromString } from "@/features/moderation/shared/domain/value-objects/DMChoice";
@@ -120,6 +125,10 @@ export class ModerationCommand extends SlashCommandHandler {
     private readonly reasonTemplateService: ModerationCommandTemplates,
     private readonly logger: Logger,
     private readonly scheduleExpiry: ResponseExpiryScheduler = scheduleResponseExpiry,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordReasonResolved" | "recordSavePrompt"
+    > = NOOP_MODERATION_METRICS,
   ) {
     super();
 
@@ -368,6 +377,18 @@ export class ModerationCommand extends SlashCommandHandler {
       this.emojiRepository.getEmojis(MODERATION_ACTION_EMOJIS),
     ]);
 
+    if (expansion) {
+      const source = reasonSource({
+        surface: "command",
+        expanded: expansion,
+        tooLong: expansion.text.length > REASON_MAX_LENGTH,
+        hasText: !!expansion.text,
+      });
+      if (source) {
+        this.metrics.recordReasonResolved("command", source);
+      }
+    }
+
     if (expansion?.unresolved) {
       await interaction.reply(
         buildReasonFormError(UNRESOLVED_TEMPLATE_MESSAGE, emojis),
@@ -469,6 +490,10 @@ export class ModerationCommand extends SlashCommandHandler {
     }
 
     await interaction.editReply(message);
+
+    if (savePrompt) {
+      this.metrics.recordSavePrompt("shown");
+    }
 
     if (cases.length > 0) {
       this.scheduleExpiry(interaction, this.logger);

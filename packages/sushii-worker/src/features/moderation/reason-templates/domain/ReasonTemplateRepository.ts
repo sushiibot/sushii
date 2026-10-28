@@ -55,4 +55,7 @@ export interface ReasonTemplateRepository {
   delete(guildId: string, id: string): Promise<boolean>;
 
   recordUse(guildId: string, id: string): Promise<void>;
+
+  /** Across every guild. */
+  countStats(): Promise<{ guilds: number; total: number }>;
 }

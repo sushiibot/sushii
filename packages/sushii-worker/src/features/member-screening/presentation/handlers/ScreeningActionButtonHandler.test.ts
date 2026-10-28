@@ -179,6 +179,7 @@ function makeFormDeps() {
         fail: "",
       })),
     },
+    metrics: { recordReasonResolved: mock() },
     logger: pino({ level: "silent" }),
   };
 }

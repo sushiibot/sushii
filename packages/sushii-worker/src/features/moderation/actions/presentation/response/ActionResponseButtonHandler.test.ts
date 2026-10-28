@@ -203,6 +203,11 @@ describe("ActionResponseButtonHandler", () => {
   let create: ReturnType<typeof mock>;
   let recordUse: ReturnType<typeof mock>;
   let shouldPromptSave: ReturnType<typeof mock>;
+  let metrics: {
+    recordReasonResolved: ReturnType<typeof mock>;
+    recordSavePrompt: ReturnType<typeof mock>;
+    recordActionResponseButton: ReturnType<typeof mock>;
+  };
   let handler: ActionResponseButtonHandler;
   let now: number;
 
@@ -238,6 +243,11 @@ describe("ActionResponseButtonHandler", () => {
     create = mock(async () => Ok({ id: "16", shortcut: null, content: "x" }));
     recordUse = mock(async () => undefined);
     shouldPromptSave = mock(async () => false);
+    metrics = {
+      recordReasonResolved: mock(),
+      recordSavePrompt: mock(),
+      recordActionResponseButton: mock(),
+    };
 
     handler = new ActionResponseButtonHandler({
       modLogRepository: { findByIds },
@@ -253,10 +263,15 @@ describe("ActionResponseButtonHandler", () => {
       emojiRepository: {
         getEmojis: mock(async () => makeAllEmojis()),
       } as never,
+      metrics,
       logger: pino({ level: "silent" }),
       now: () => now,
     });
   });
+
+  function expectButtonMetric(...calls: [string, string][]) {
+    expect(metrics.recordActionResponseButton.mock.calls).toEqual(calls);
+  }
 
   async function click(button: ReturnType<typeof makeButton>) {
     await handler.handleInteraction(button as unknown as ButtonInteraction);
@@ -273,6 +288,7 @@ describe("ActionResponseButtonHandler", () => {
     expect(button.reply).toHaveBeenCalledTimes(1);
     expect(findByIds).not.toHaveBeenCalled();
     expect(button.showModal).not.toHaveBeenCalled();
+    expectButtonMetric(["edit_reason", "denied"]);
   });
 
   test("after 15 minutes strips the buttons and tells the clicker", async () => {
@@ -289,6 +305,7 @@ describe("ActionResponseButtonHandler", () => {
       "These buttons expired",
     );
     expect(findByIds).not.toHaveBeenCalled();
+    expectButtonMetric(["edit_reason", "expired"]);
   });
 
   describe("Edit reason", () => {
@@ -337,6 +354,10 @@ describe("ActionResponseButtonHandler", () => {
       resolve.mockImplementation(async () => expand("y".repeat(3001)));
       const { submission } = await submit({ text: "!long" });
       expect(updateReasons).not.toHaveBeenCalled();
+      expect(metrics.recordReasonResolved).toHaveBeenCalledWith(
+        "edit",
+        "too_long",
+      );
       expect(JSON.stringify(submission.reply.mock.calls[0])).toContain(
         "Nothing was done",
       );
@@ -344,6 +365,12 @@ describe("ActionResponseButtonHandler", () => {
 
     test("updates without touching the DM", async () => {
       const { submission } = await submit({ text: "Raid" });
+
+      expect(metrics.recordReasonResolved).toHaveBeenCalledWith(
+        "edit",
+        "typed",
+      );
+      expectButtonMetric(["edit_reason", "ok"]);
 
       expect(updateReasons).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -361,6 +388,26 @@ describe("ActionResponseButtonHandler", () => {
       expect(json).toContain(
         "DM not updated: the user still sees the original reason",
       );
+    });
+
+    test("a save prompt that appears after the edit is counted as shown", async () => {
+      shouldPromptSave.mockImplementation(async () => true);
+      const { submission } = await submit({ text: "Raid" });
+
+      expect(rendered(submission.update)).toContain("modAction/save/");
+      expect(metrics.recordSavePrompt.mock.calls).toEqual([["shown"]]);
+    });
+
+    test("a save prompt the response already had isn't counted again", async () => {
+      shouldPromptSave.mockImplementation(async () => true);
+      const message = postedMessage([makeCase()], true);
+      const submission = makeSubmission(message, { text: "Raid" });
+      await click(
+        makeButton("modAction/reason/edit/4822", message, { submission }),
+      );
+
+      expect(rendered(submission.update)).toContain("modAction/save/");
+      expect(metrics.recordSavePrompt).not.toHaveBeenCalled();
     });
 
     test("updates the DM when ticked", async () => {
@@ -459,6 +506,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(json).toContain("modAction/dm/deleteConfirm/4822");
       expect(json).toContain("modAction/dm/cancel/4822");
       expect(deleteDms).not.toHaveBeenCalled();
+      expectButtonMetric();
     });
 
     test("Cancel restores the buttons", async () => {
@@ -469,6 +517,7 @@ describe("ActionResponseButtonHandler", () => {
       const json = rendered(button.update);
       expect(json).toContain("modAction/dm/delete/4822");
       expect(json).not.toContain("deleteConfirm");
+      expectButtonMetric(["delete_dm", "dismissed"]);
     });
 
     test("confirm deletes, then shows who deleted it", async () => {
@@ -485,6 +534,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(json).toContain("DM deleted by");
       expect(json).toContain("mod log updated");
       expect(json).not.toContain("modAction/dm/delete/");
+      expectButtonMetric(["delete_dm", "ok"]);
     });
 
     test("several DMs defer and keep errors away from the router", async () => {
@@ -505,6 +555,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(button.deferUpdate).toHaveBeenCalledTimes(1);
       expect(button.editReply).not.toHaveBeenCalled();
       expect(button.followUp).toHaveBeenCalledTimes(1);
+      expectButtonMetric(["delete_dm", "failed"]);
     });
   });
 
@@ -536,6 +587,8 @@ describe("ActionResponseButtonHandler", () => {
       expect(JSON.stringify(submit.followUp.mock.calls[0])).toContain(
         "Template saved",
       );
+      expect(metrics.recordSavePrompt).toHaveBeenCalledWith("clicked");
+      expectButtonMetric(["save_template", "ok"]);
     });
 
     test("a dismissed form answers nothing", async () => {
@@ -546,6 +599,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(button.reply).not.toHaveBeenCalled();
       expect(button.update).not.toHaveBeenCalled();
       expect(button.followUp).not.toHaveBeenCalled();
+      expectButtonMetric(["save_template", "dismissed"]);
     });
   });
 

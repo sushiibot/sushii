@@ -58,9 +58,17 @@ function makeService() {
   );
   const update = mock(() => Promise.resolve(Ok(template()) as never));
   const remove = mock(() => Promise.resolve(true));
-  Object.assign(service, { list, get, create, update, delete: remove });
+  const hasRoomFor = mock(() => Promise.resolve(true));
+  Object.assign(service, {
+    list,
+    get,
+    create,
+    update,
+    delete: remove,
+    hasRoomFor,
+  });
 
-  return { service, list, get, create, update, remove };
+  return { service, list, get, create, update, remove, hasRoomFor };
 }
 
 const emojiRepository = {
@@ -160,11 +168,15 @@ describe("ReasonTemplatesPanelButtonHandler", () => {
     await handler(service).handleInteraction(button.interaction);
 
     expect(button.showModal).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith(GUILD_ID, {
-      shortcut: "spam",
-      content: "Spamming in channels.",
-      createdBy: USER_ID,
-    });
+    expect(create).toHaveBeenCalledWith(
+      GUILD_ID,
+      {
+        shortcut: "spam",
+        content: "Spamming in channels.",
+        createdBy: USER_ID,
+      },
+      "panel",
+    );
     expect(list).toHaveBeenLastCalledWith(GUILD_ID, Number.MAX_SAFE_INTEGER);
     expect(modal.update).toHaveBeenCalledTimes(1);
     expect(modal.reply).not.toHaveBeenCalled();

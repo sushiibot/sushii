@@ -3,6 +3,8 @@ import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import type { ModerationCase } from "../domain/entities/ModerationCase";
+import type { ModerationMetrics } from "../domain/metrics/ModerationMetrics";
+import { NOOP_MODERATION_METRICS } from "../domain/metrics/ModerationMetrics";
 import type { ModLogRepository } from "../domain/repositories/ModLogRepository";
 import type { DMNotificationService } from "./DMNotificationService";
 import type {
@@ -63,6 +65,10 @@ export class CaseDmDeletionService {
       "loadEntry" | "refreshEntry"
     >,
     private readonly logger: Logger,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordModLogEdit"
+    > = NOOP_MODERATION_METRICS,
   ) {}
 
   async deleteDms(
@@ -147,6 +153,7 @@ export class CaseDmDeletionService {
       if (!alreadyGone) {
         // Per-case isolation: one failed delete shouldn't stop the others.
         this.logger.warn({ err, ...context }, "Failed to delete moderation DM");
+        this.metrics.recordModLogEdit("dm_delete", "failed");
         return "failed";
       }
     }
@@ -158,6 +165,7 @@ export class CaseDmDeletionService {
       deletedAt,
     );
 
+    this.metrics.recordModLogEdit("dm_delete", "ok");
     this.logger.info(context, "Deleted moderation DM");
     return "deleted";
   }

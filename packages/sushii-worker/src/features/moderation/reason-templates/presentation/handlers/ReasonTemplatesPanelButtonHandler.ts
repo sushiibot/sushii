@@ -149,7 +149,11 @@ export class ReasonTemplatesPanelButtonHandler extends ButtonHandler {
       templateId,
     );
     const deleted = template
-      ? await this.reasonTemplateService.delete(interaction.guildId, templateId)
+      ? await this.reasonTemplateService.delete(
+          interaction.guildId,
+          templateId,
+          "panel",
+        )
       : false;
 
     this.logger.info(
@@ -174,11 +178,12 @@ export class ReasonTemplatesPanelButtonHandler extends ButtonHandler {
     interaction: ButtonInteraction<"cached">,
     emojis: ReasonTemplatesEmojis,
   ): Promise<void> {
-    const { total } = await this.reasonTemplateService.list(
-      interaction.guildId,
-      1,
-    );
-    if (total >= REASON_TEMPLATE_LIMIT) {
+    if (
+      !(await this.reasonTemplateService.hasRoomFor(
+        interaction.guildId,
+        "panel",
+      ))
+    ) {
       await interaction.reply(
         buildReasonTemplateErrorMessage(
           { code: "limit_reached", limit: REASON_TEMPLATE_LIMIT },
@@ -199,6 +204,7 @@ export class ReasonTemplatesPanelButtonHandler extends ButtonHandler {
     const created = await this.reasonTemplateService.create(
       interaction.guildId,
       { ...readTemplateFields(submit.fields), createdBy: submit.user.id },
+      "panel",
     );
     if (created.err) {
       await submit.reply(buildReasonTemplateErrorMessage(created.val, emojis));
@@ -244,6 +250,7 @@ export class ReasonTemplatesPanelButtonHandler extends ButtonHandler {
       interaction.guildId,
       templateId,
       readTemplateFields(submit.fields),
+      "panel",
     );
     if (
       updated.err &&

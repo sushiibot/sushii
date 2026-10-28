@@ -53,6 +53,7 @@ describe("CaseDmDeletionService", () => {
   let deleteModerationDM: ReturnType<typeof mock>;
   let loadEntry: ReturnType<typeof mock>;
   let refreshEntry: ReturnType<typeof mock>;
+  let recordModLogEdit: ReturnType<typeof mock>;
   let service: CaseDmDeletionService;
 
   beforeEach(() => {
@@ -65,12 +66,14 @@ describe("CaseDmDeletionService", () => {
       missing: null,
     }));
     refreshEntry = mock(async () => "updated");
+    recordModLogEdit = mock();
     service = new CaseDmDeletionService(
       {} as Client,
       { findByIds, markDmDeleted },
       { deleteModerationDM },
       { loadEntry, refreshEntry } as never,
       pino({ level: "silent" }),
+      { recordModLogEdit },
     );
   });
 
@@ -170,6 +173,10 @@ describe("CaseDmDeletionService", () => {
     const outcomes = await service.deleteDms(GUILD, ["1", "2"], MOD);
 
     expect(outcomes.map((o) => o.result)).toEqual(["failed", "deleted"]);
+    expect(recordModLogEdit.mock.calls).toEqual([
+      ["dm_delete", "failed"],
+      ["dm_delete", "ok"],
+    ]);
     expect(outcomes[0]?.moderationCase?.dmDeleted).toBe(false);
     expect(markDmDeleted).toHaveBeenCalledTimes(1);
     expect(markDmDeleted).toHaveBeenCalledWith(

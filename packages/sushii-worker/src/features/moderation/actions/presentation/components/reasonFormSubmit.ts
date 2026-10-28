@@ -24,6 +24,7 @@ import {
   TEMPLATE_SAVED_EMOJIS,
   buildTemplateSavedMessage,
 } from "@/features/moderation/reason-templates/presentation/templateSavedMessage";
+import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import {
   type ParsedReasonFields,
   REASON_FIELD_EMOJIS,
@@ -144,11 +145,15 @@ export async function completeReasonForm(
     return;
   }
 
-  const created = await deps.reasonTemplateService.create(guildId, {
-    content: parsed.text,
-    shortcut: null,
-    createdBy: userId,
-  });
+  const created = await deps.reasonTemplateService.create(
+    guildId,
+    {
+      content: parsed.text,
+      shortcut: null,
+      createdBy: userId,
+    },
+    "checkbox",
+  );
 
   if (created.ok) {
     await interaction.followUp(
@@ -324,6 +329,7 @@ export interface ActionReasonFormDeps {
     "getFormData" | "resolve" | "recordUse" | "create"
   >;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
+  metrics: Pick<ModerationMetrics, "recordReasonResolved">;
   logger: Logger;
 }
 
@@ -416,6 +422,7 @@ export async function runActionReasonForm(
     formData,
     deps.reasonTemplateService,
     submission.guildId,
+    { metrics: deps.metrics, surface: "form" },
   );
   if (parsed.err) {
     const retryCustomId = options.storeRetry(

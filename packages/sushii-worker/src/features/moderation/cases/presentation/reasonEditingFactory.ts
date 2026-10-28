@@ -25,6 +25,7 @@ export function createReasonEditingHandlers(
       services.reasonUpdateService,
       services.reasonTemplateService,
       logger.child({ commandHandler: "reason" }),
+      services.moderationMetrics,
     ),
   ];
 
@@ -36,6 +37,7 @@ export function createReasonEditingHandlers(
       services.modLogMessageService,
       services.emojiRepository,
       logger.child({ buttonHandler: "modLogReason" }),
+      services.moderationMetrics,
     ),
     new ModLogDeleteDMButtonHandler(
       services.modLogRepository,
@@ -48,6 +50,7 @@ export function createReasonEditingHandlers(
       {
         reasonTemplateService: services.reasonTemplateService,
         emojiRepository: services.emojiRepository,
+        metrics: services.moderationMetrics,
         logger: logger.child({ module: "automodAlertReasonForm" }),
       },
       logger.child({ buttonHandler: "automodAlertAction" }),

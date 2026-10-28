@@ -103,11 +103,15 @@ describe("completeReasonForm", () => {
       emojis,
     });
 
-    expect(d.reasonTemplateService.create).toHaveBeenCalledWith(GUILD, {
-      content: "Arguing with mods.",
-      shortcut: null,
-      createdBy: MOD,
-    });
+    expect(d.reasonTemplateService.create).toHaveBeenCalledWith(
+      GUILD,
+      {
+        content: "Arguing with mods.",
+        shortcut: null,
+        createdBy: MOD,
+      },
+      "checkbox",
+    );
     const [message] = followUp.mock.calls[0] as unknown as [
       { flags: number; components: { toJSON(): unknown }[] },
     ];

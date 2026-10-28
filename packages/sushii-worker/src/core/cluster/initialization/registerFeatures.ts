@@ -373,6 +373,7 @@ export function registerFeatures(
     flagRepository: featureFlagRepository,
     deploymentService,
     moderationService: moderationFeature.services.moderationService,
+    moderationMetrics: moderationFeature.services.moderationMetrics,
     openRouterApiKey: secrets.OPENROUTER_API_KEY,
     ownerUserId: config.deployment.ownerUserId,
   });

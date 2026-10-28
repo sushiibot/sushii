@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -254,5 +254,13 @@ export class DrizzleReasonTemplateRepository
         lastUsedAt: new Date(),
       })
       .where(and(eq(table.guildId, BigInt(guildId)), eq(table.id, templateId)));
+  }
+
+  async countStats(): Promise<{ guilds: number; total: number }> {
+    const [row] = await this.db
+      .select({ guilds: countDistinct(table.guildId), total: count() })
+      .from(table);
+
+    return { guilds: row?.guilds ?? 0, total: row?.total ?? 0 };
   }
 }

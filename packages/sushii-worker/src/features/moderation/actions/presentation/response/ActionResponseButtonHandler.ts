@@ -26,6 +26,11 @@ import { showSaveTemplateModal } from "@/features/moderation/reason-templates/pr
 import type { CaseDmDeletionService } from "@/features/moderation/shared/application/CaseDmDeletionService";
 import type { ModLogRefreshOutcome } from "@/features/moderation/shared/application/ModLogMessageService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type {
+  ActionResponseButtonKind,
+  ActionResponseButtonOutcome,
+  ModerationMetrics,
+} from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
@@ -96,9 +101,25 @@ export interface ActionResponseDeps {
     "getFormData" | "resolve" | "recordUse" | "create" | "shouldPromptSave"
   >;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
+  metrics: Pick<
+    ModerationMetrics,
+    "recordReasonResolved" | "recordSavePrompt" | "recordActionResponseButton"
+  >;
   logger: Logger;
   now?: () => number;
 }
+
+/** null: not counted, e.g. a Delete DM click that only opens the confirm step. */
+type ClickOutcome = ActionResponseButtonOutcome | null;
+
+const METRIC_BUTTON: Record<ResponseButton["kind"], ActionResponseButtonKind> =
+  {
+    edit: "edit_reason",
+    dmDelete: "delete_dm",
+    dmCancel: "delete_dm",
+    dmDeleteConfirm: "delete_dm",
+    save: "save_template",
+  };
 
 function ephemeral(text: string, accent: number): InteractionReplyOptions {
   return {
@@ -205,7 +226,9 @@ export class ActionResponseButtonHandler extends ButtonHandler {
 
     const retryToken = retryIds.parse(interaction.customId);
     if (retryToken) {
-      await this.retryEdit(interaction, retryToken);
+      await this.recordClick("retry", () =>
+        this.retryEdit(interaction, retryToken),
+      );
       return;
     }
 
@@ -216,6 +239,36 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       });
     }
 
+    if (button.kind === "save") {
+      this.deps.metrics.recordSavePrompt("clicked");
+    }
+
+    await this.recordClick(METRIC_BUTTON[button.kind], () =>
+      this.handleButton(interaction, button),
+    );
+  }
+
+  private async recordClick(
+    button: ActionResponseButtonKind,
+    run: () => Promise<ClickOutcome>,
+  ): Promise<void> {
+    let outcome: ClickOutcome;
+    try {
+      outcome = await run();
+    } catch (err) {
+      this.deps.metrics.recordActionResponseButton(button, "failed");
+      throw err;
+    }
+
+    if (outcome) {
+      this.deps.metrics.recordActionResponseButton(button, outcome);
+    }
+  }
+
+  private async handleButton(
+    interaction: ButtonInteraction<"cached">,
+    button: ResponseButton,
+  ): Promise<ClickOutcome> {
     if (
       !(await requireMemberPermission(
         interaction,
@@ -223,28 +276,28 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         ANY_MOD_PERMISSION.name,
       ))
     ) {
-      return;
+      return "denied";
     }
 
     if (this.isExpired(interaction)) {
       await this.replyExpired(interaction);
-      return;
+      return "expired";
     }
 
     switch (button.kind) {
       case "edit":
-        await this.editReason(interaction, button.caseIds, interaction.message);
-        return;
+        return this.editReason(
+          interaction,
+          button.caseIds,
+          interaction.message,
+        );
       case "dmDelete":
       case "dmCancel":
-        await this.showDmButtons(interaction, button);
-        return;
+        return this.showDmButtons(interaction, button);
       case "dmDeleteConfirm":
-        await this.deleteDms(interaction, button);
-        return;
+        return this.deleteDms(interaction, button);
       case "save":
-        await this.saveTemplate(interaction, button);
-        return;
+        return this.saveTemplate(interaction, button);
     }
   }
 
@@ -252,7 +305,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
   private async retryEdit(
     interaction: ButtonInteraction<"cached">,
     token: string,
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     if (
       !(await requireMemberPermission(
         interaction,
@@ -260,13 +313,13 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         ANY_MOD_PERMISSION.name,
       ))
     ) {
-      return;
+      return "denied";
     }
 
     const retry = this.retries.claim(token, interaction.user.id);
     if (retry === "expired" || retry === "wrong_user") {
       await interaction.reply(retryRefusedReply(retry));
-      return;
+      return retry === "expired" ? "expired" : "denied";
     }
 
     if (this.isExpiredMessage(retry.response)) {
@@ -274,10 +327,10 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       await interaction.reply(
         ephemeral(EXPIRED_CLICK_MESSAGE, Color.DiscordGrey),
       );
-      return;
+      return "expired";
     }
 
-    await this.editReason(interaction, retry.caseIds, retry.response, {
+    return this.editReason(interaction, retry.caseIds, retry.response, {
       token,
       values: retry.values,
     });
@@ -369,17 +422,18 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     });
   }
 
+  /** Counted only when it ends the Delete DM flow; the confirm step counts otherwise. */
   private async showDmButtons(
     interaction: ButtonInteraction<"cached">,
     button: ResponseButton,
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     const [cases, emojis] = await Promise.all([
       this.loadCases(interaction.guildId, button.caseIds),
       this.getEmojis(),
     ]);
     if (cases.length === 0) {
       await this.replyCasesGone(interaction);
-      return;
+      return button.kind === "dmCancel" ? "dismissed" : "ok";
     }
 
     const confirming = button.kind === "dmDelete" && cases.some(hasLiveDm);
@@ -392,18 +446,25 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       }),
     );
 
-    if (button.kind === "dmDelete" && !confirming) {
-      await this.notePrivately(
-        interaction,
-        ephemeral("There's no DM left to delete.", Color.DiscordGrey),
-      );
+    if (button.kind === "dmCancel") {
+      return "dismissed";
     }
+
+    if (confirming) {
+      return null;
+    }
+
+    await this.notePrivately(
+      interaction,
+      ephemeral("There's no DM left to delete.", Color.DiscordGrey),
+    );
+    return "ok";
   }
 
   private async deleteDms(
     interaction: ButtonInteraction<"cached">,
     button: ResponseButton,
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     const many = button.caseIds.length > 1;
     if (many) {
       // defer: edits the mod log entry and DM of N cases
@@ -431,7 +492,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         } else {
           await this.replyCasesGone(interaction);
         }
-        return;
+        return "ok";
       }
 
       const deleted = outcomes.filter((o) => o.result === "deleted");
@@ -470,11 +531,13 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         },
         "Deleted mod action response DMs",
       );
+      return "ok";
     } catch (err) {
       if (!many) {
         throw err;
       }
       await this.reportAfterDefer(interaction, err, "Couldn't delete the DMs.");
+      return "failed";
     }
   }
 
@@ -483,7 +546,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     requestedCaseIds: readonly string[],
     response: ResponseMessage,
     retry?: { token: string; values: FieldValues },
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     // Small indexed reads: a modal has to be the first response, so no defer.
     const [cases, formData, emojis] = await Promise.all([
       this.loadCases(interaction.guildId, requestedCaseIds),
@@ -492,7 +555,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     ]);
     if (cases.length === 0) {
       await this.replyCasesGone(interaction);
-      return;
+      return "ok";
     }
 
     const caseIds = cases.map((c) => c.caseId);
@@ -544,14 +607,14 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         { caseIds, userId: interaction.user.id },
         "Mod action response reason form timed out",
       );
-      return;
+      return "dismissed";
     }
 
     if (!submission.inCachedGuild()) {
       throw new Error("Not a guild interaction");
     }
 
-    await this.submitReason(submission, {
+    return this.submitReason(submission, {
       caseIds,
       formData,
       emojis,
@@ -571,13 +634,14 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       /** Set when the form was reopened from a Try again button. */
       retryToken: string | null;
     },
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     const { caseIds, formData, emojis, retryToken } = context;
     const parsedResult = await parseReasonFields(
       submission.fields,
       formData,
       this.deps.reasonTemplateService,
       submission.guildId,
+      { metrics: this.deps.metrics, surface: "edit" },
     );
     if (parsedResult.err) {
       const token = this.retries.put(submission.user.id, {
@@ -592,7 +656,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
           retryIds.build(token),
         ),
       );
-      return;
+      return "ok";
     }
 
     const parsed = parsedResult.val;
@@ -600,7 +664,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       await submission.reply(
         buildReasonFormError(UNRESOLVED_TEMPLATE_MESSAGE, emojis),
       );
-      return;
+      return "ok";
     }
 
     if (!parsed.text) {
@@ -610,7 +674,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
           Color.DiscordGrey,
         ),
       );
-      return;
+      return "ok";
     }
 
     if (retryToken) {
@@ -641,7 +705,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         } else {
           await submission.reply(gone);
         }
-        return;
+        return "ok";
       }
 
       // The submit carries the response as it is now, unlike the click.
@@ -663,6 +727,9 @@ export class ActionResponseButtonHandler extends ButtonHandler {
             parsed.text,
           )),
       });
+      const promptAdded =
+        hasSavePrompt(message.components.map((c) => c.toJSON())) &&
+        !hasSavePrompt(postedOf(current));
 
       if (!onResponse) {
         await this.refreshFromRetry(submission, context.response, message);
@@ -670,6 +737,10 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         await submission.editReply(message);
       } else {
         await submission.update(message);
+      }
+
+      if (promptAdded) {
+        this.deps.metrics.recordSavePrompt("shown");
       }
     } catch (err) {
       if (!deferred) {
@@ -680,7 +751,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         err,
         "Couldn't finish updating the reason. Check the mod log entries.",
       );
-      return;
+      return "failed";
     }
 
     // The reason is saved from here on, so nothing below may fail the interaction.
@@ -731,6 +802,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       },
       "Updated reason from mod action response",
     );
+    return "ok";
   }
 
   /** One call per run of consecutive cases, so cases between them are never touched. */
@@ -848,18 +920,18 @@ export class ActionResponseButtonHandler extends ButtonHandler {
   private async saveTemplate(
     interaction: ButtonInteraction<"cached">,
     button: ResponseButton,
-  ): Promise<void> {
+  ): Promise<ClickOutcome> {
     const cases = await this.loadCases(interaction.guildId, button.caseIds);
     const reason = cases[0]?.reason?.value;
     if (!reason) {
       await interaction.reply(
         ephemeral("There's no reason to save as a template.", Color.Error),
       );
-      return;
+      return "ok";
     }
 
     // Every outcome other than Ok has already been answered, or must not be.
-    await showSaveTemplateModal(
+    const saved = await showSaveTemplateModal(
       interaction,
       {
         prefillContent: reason,
@@ -881,6 +953,19 @@ export class ActionResponseButtonHandler extends ButtonHandler {
         emojiRepository: this.deps.emojiRepository,
       },
     );
+    if (saved.ok) {
+      return "ok";
+    }
+
+    // Template validation and conflicts are answered outcomes, so they count as ok.
+    switch (saved.val.code) {
+      case "dismissed":
+        return "dismissed";
+      case "no_permission":
+        return "denied";
+      default:
+        return "ok";
+    }
   }
 
   // The reason is already saved here, so a failed refresh is only a note.

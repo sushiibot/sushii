@@ -43,6 +43,10 @@ function setup(options: {
   const recordUse = mock(async () => undefined);
   const shouldPromptSave = mock(async () => false);
   const scheduleExpiry = mock(() => undefined);
+  const metrics = {
+    recordReasonResolved: mock(),
+    recordSavePrompt: mock(),
+  };
 
   const command = new ModerationCommand(
     COMMAND_CONFIGS[options.configKey ?? "BAN"],
@@ -55,6 +59,7 @@ function setup(options: {
     { resolve, recordUse, shouldPromptSave },
     pino({ level: "silent" }),
     scheduleExpiry,
+    metrics,
   );
 
   const interaction = {
@@ -82,6 +87,7 @@ function setup(options: {
     recordUse,
     shouldPromptSave,
     scheduleExpiry,
+    metrics,
   };
 }
 
@@ -100,6 +106,9 @@ describe("ModerationCommand reason expansion", () => {
     );
     expect(ctx.interaction.deferReply).not.toHaveBeenCalled();
     expect(ctx.executeAction).not.toHaveBeenCalled();
+    expect(ctx.metrics.recordReasonResolved.mock.calls).toEqual([
+      ["command", "refused"],
+    ]);
   });
 
   test("too long after expanding refuses with the overflow", async () => {
@@ -139,6 +148,10 @@ describe("ModerationCommand reason expansion", () => {
       "Used template `!spam`",
     );
     expect(ctx.scheduleExpiry).toHaveBeenCalledTimes(1);
+    expect(ctx.metrics.recordReasonResolved.mock.calls).toEqual([
+      ["command", "shortcut"],
+    ]);
+    expect(ctx.metrics.recordSavePrompt).not.toHaveBeenCalled();
   });
 
   test("failed bookkeeping after the action never hides the response", async () => {
@@ -196,6 +209,23 @@ describe("ModerationCommand reason expansion", () => {
     await ctx.run();
 
     expect(ctx.shouldPromptSave).toHaveBeenCalledWith(GUILD, "Raid");
+    expect(ctx.metrics.recordReasonResolved.mock.calls).toEqual([
+      ["command", "typed"],
+    ]);
+  });
+
+  test("a shown save prompt is counted once", async () => {
+    const ctx = setup({
+      strings: { users: TARGET, reason: "Raid" },
+      expansion: expand("Raid"),
+    });
+    ctx.shouldPromptSave.mockImplementation(async () => true);
+    await ctx.run();
+
+    expect(JSON.stringify(ctx.interaction.editReply.mock.calls[0])).toContain(
+      "modAction/save/",
+    );
+    expect(ctx.metrics.recordSavePrompt.mock.calls).toEqual([["shown"]]);
   });
 
   test("notes are never expanded", async () => {
@@ -217,6 +247,7 @@ describe("ModerationCommand reason expansion", () => {
     ];
     expect(action.reason.value).toBe("!spam");
     expect(ctx.shouldPromptSave).not.toHaveBeenCalled();
+    expect(ctx.metrics.recordReasonResolved).not.toHaveBeenCalled();
   });
 
   test("template use is recorded even when the reply edit fails", async () => {

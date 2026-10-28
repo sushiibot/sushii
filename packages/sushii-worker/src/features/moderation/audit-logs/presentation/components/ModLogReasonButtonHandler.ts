@@ -27,6 +27,8 @@ import type {
   ReasonTemplateService,
 } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ModLogMessageService } from "@/features/moderation/shared/application/ModLogMessageService";
+import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import { NOOP_MODERATION_METRICS } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { parseReasonFields } from "@/features/moderation/shared/presentation/reasonFields";
 import { hasLiveDm } from "@/features/moderation/shared/presentation/views/ModLogMessageView";
@@ -92,6 +94,10 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
     >,
     private readonly emojiRepository: Pick<BotEmojiRepository, "getEmojis">,
     private readonly logger: Logger,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordReasonResolved"
+    > = NOOP_MODERATION_METRICS,
   ) {
     super();
   }
@@ -219,6 +225,7 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       formData,
       this.reasonTemplateService,
       submission.guildId,
+      { metrics: this.metrics, surface: "edit" },
     );
     if (parsedResult.err) {
       const token = this.retries.put(submission.user.id, {

@@ -27,6 +27,8 @@ import {
 } from "@/features/moderation/reason-templates/domain/ReasonExpander";
 import { truncateText } from "@/utils/truncateText";
 
+import type { ReasonTracking } from "../domain/metrics/ModerationMetrics";
+import { reasonSource } from "../domain/metrics/ModerationMetrics";
 import { REASON_MAX_LENGTH } from "../domain/value-objects/Reason";
 
 export const UNRESOLVED_TEMPLATE_MESSAGE =
@@ -287,14 +289,18 @@ export function buildCurrentReasonDisplay(
 function selectedTemplate(
   pick: string | undefined,
   formData: ReasonFormData,
-): { text: string; template: TemplateRef | null } | null {
+): {
+  text: string;
+  template: TemplateRef | null;
+  kind: "template" | "recent";
+} | null {
   if (!pick) {
     return null;
   }
 
   if (pick === REASON_SELECT_VALUES.last) {
     return formData.last
-      ? { text: formData.last.reason, template: null }
+      ? { text: formData.last.reason, template: null, kind: "recent" }
       : null;
   }
 
@@ -303,7 +309,11 @@ function selectedTemplate(
     const template = formData.templates.find((t) => t.id === id);
 
     return template
-      ? { text: template.content, template: toTemplateRef(template) }
+      ? {
+          text: template.content,
+          template: toTemplateRef(template),
+          kind: "template",
+        }
       : null;
   }
 
@@ -319,6 +329,7 @@ export async function parseReasonFields(
   formData: ReasonFormData,
   service: Pick<ReasonTemplateService, "resolve">,
   guildId: string,
+  tracking?: ReasonTracking,
 ): Promise<Result<ParsedReasonFields, ReasonFieldsTooLong>> {
   const has = (id: string): boolean => fields.fields.has(id);
 
@@ -335,7 +346,22 @@ export async function parseReasonFields(
   const expanded = typed ? await service.resolve(guildId, typed) : null;
 
   const text = joinReason(picked?.text ?? "", expanded?.text ?? "");
-  if (text.length > REASON_MAX_LENGTH && !expanded?.unresolved) {
+  const tooLong = text.length > REASON_MAX_LENGTH && !expanded?.unresolved;
+
+  if (tracking) {
+    const source = reasonSource({
+      surface: tracking.surface,
+      expanded,
+      picked: picked?.kind ?? null,
+      tooLong,
+      hasText: !!text,
+    });
+    if (source) {
+      tracking.metrics.recordReasonResolved(tracking.surface, source);
+    }
+  }
+
+  if (tooLong) {
     return Err({
       code: "too_long",
       length: text.length,

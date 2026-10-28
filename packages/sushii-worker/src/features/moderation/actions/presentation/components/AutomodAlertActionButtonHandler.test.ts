@@ -141,6 +141,7 @@ describe("AutomodAlertActionButtonHandler", () => {
   let formDeps: {
     reasonTemplateService: Record<string, ReturnType<typeof mock>>;
     emojiRepository: { getEmojis: ReturnType<typeof mock> };
+    metrics: { recordReasonResolved: ReturnType<typeof mock> };
     logger: pino.Logger;
   };
   let handler: AutomodAlertActionButtonHandler;
@@ -172,6 +173,7 @@ describe("AutomodAlertActionButtonHandler", () => {
           fail: "",
         })),
       },
+      metrics: { recordReasonResolved: mock() },
       logger: pino({ level: "silent" }),
     };
     handler = new AutomodAlertActionButtonHandler(
@@ -210,6 +212,9 @@ describe("AutomodAlertActionButtonHandler", () => {
       GUILD,
       "11",
     );
+    expect(formDeps.metrics.recordReasonResolved.mock.calls).toEqual([
+      ["form", "template"],
+    ]);
     const [payload] = submission.editReply.mock.calls[0] as unknown as [
       { components: { components: { content?: string }[] }[]; flags: number },
     ];

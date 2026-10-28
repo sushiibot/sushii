@@ -108,6 +108,7 @@ function setup(
 ) {
   const patch = mock(async () => undefined);
   const markDmDeleted = mock(async () => undefined);
+  const recordModLogEdit = mock();
   const users = new Map([
     [
       EXECUTOR,
@@ -160,12 +161,14 @@ function setup(
   return {
     patch,
     markDmDeleted,
+    recordModLogEdit,
     service: new ModLogMessageService(
       client,
       guildConfigRepository,
       emojiRepository,
       { markDmDeleted },
       pino({ level: "silent" }),
+      { recordModLogEdit },
     ),
   };
 }
@@ -177,11 +180,12 @@ function text(message: ModLogMessage): string {
 describe("ModLogMessageService.refresh", () => {
   test("edits a components v2 entry, keeping its facts block", async () => {
     const posted = v2Message("-# Timeout would have ended <t:1:R>");
-    const { service, patch } = setup({ posted });
+    const { service, patch, recordModLogEdit } = setup({ posted });
 
     expect(
       await service.refresh(makeCase({ actionType: ActionType.TimeoutRemove })),
     ).toBe("updated");
+    expect(recordModLogEdit.mock.calls).toEqual([["v2", "ok"]]);
 
     expect(patch).not.toHaveBeenCalled();
     const [payload] = posted.edit.mock.calls[0] as unknown as [ModLogMessage];
@@ -194,7 +198,7 @@ describe("ModLogMessageService.refresh", () => {
       { name: "Timeout Duration", value: "1 hour\nExpiring <t:5:R>" },
       { name: "Previous Timeout", value: "Would have expired <t:3:R>" },
     ]);
-    const { service, patch } = setup({ posted });
+    const { service, patch, recordModLogEdit } = setup({ posted });
 
     expect(
       await service.refresh(
@@ -204,6 +208,7 @@ describe("ModLogMessageService.refresh", () => {
         }),
       ),
     ).toBe("updated");
+    expect(recordModLogEdit.mock.calls).toEqual([["legacy_conversion", "ok"]]);
 
     expect(posted.edit).not.toHaveBeenCalled();
     const [route, { body }] = patch.mock.calls[0] as unknown as [
@@ -250,30 +255,32 @@ describe("ModLogMessageService.refresh", () => {
   });
 
   test("a pending case has no message yet", async () => {
-    const { service } = setup();
+    const { service, recordModLogEdit } = setup();
 
     expect(
       await service.refresh(makeCase({ msgId: null, pending: true })),
     ).toBe("pending");
     expect(await service.refresh(makeCase({ msgId: null }))).toBe("no_message");
+    expect(recordModLogEdit).not.toHaveBeenCalled();
   });
 
   test("no mod log channel", async () => {
-    const { service } = setup({ modLogChannel: null });
+    const { service, recordModLogEdit } = setup({ modLogChannel: null });
 
     expect(await service.refresh(makeCase())).toBe("not_configured");
+    expect(recordModLogEdit).not.toHaveBeenCalled();
   });
 
   test("a message that can't be fetched or edited is returned, not thrown", async () => {
-    expect(
-      await setup({ fetchError: new Error("Unknown Message") }).service.refresh(
-        makeCase(),
-      ),
-    ).toBe("failed");
+    const unfetched = setup({ fetchError: new Error("Unknown Message") });
+    expect(await unfetched.service.refresh(makeCase())).toBe("failed");
+    expect(unfetched.recordModLogEdit).not.toHaveBeenCalled();
 
     const posted = v2Message(null);
     posted.edit.mockRejectedValueOnce(new Error("Missing Access"));
-    expect(await setup({ posted }).service.refresh(makeCase())).toBe("failed");
+    const unedited = setup({ posted });
+    expect(await unedited.service.refresh(makeCase())).toBe("failed");
+    expect(unedited.recordModLogEdit.mock.calls).toEqual([["v2", "failed"]]);
   });
 });
 
@@ -304,7 +311,7 @@ describe("ModLogMessageService.render", () => {
 
 describe("ModLogMessageService.updateFromInteraction", () => {
   test("a failed legacy conversion is returned, never thrown, after the ack", async () => {
-    const { service, patch } = setup();
+    const { service, patch, recordModLogEdit } = setup();
     patch.mockRejectedValueOnce(new Error("Invalid Form Body"));
     const interaction = {
       message: legacyMessage([], "Reason DM sent", true) as unknown as Message,
@@ -319,6 +326,9 @@ describe("ModLogMessageService.updateFromInteraction", () => {
     );
 
     expect(outcome).toBe("failed");
+    expect(recordModLogEdit.mock.calls).toEqual([
+      ["legacy_conversion", "failed"],
+    ]);
     expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
     expect(interaction.editReply).not.toHaveBeenCalled();
     expect(interaction.update).not.toHaveBeenCalled();
@@ -332,7 +342,7 @@ describe("ModLogMessageService.updateFromInteraction", () => {
   });
 
   test("a components v2 entry is updated through the interaction", async () => {
-    const { service, patch } = setup();
+    const { service, patch, recordModLogEdit } = setup();
     const interaction = {
       message: v2Message(null),
       update: mock(async () => undefined),
@@ -347,6 +357,25 @@ describe("ModLogMessageService.updateFromInteraction", () => {
     expect(interaction.update).toHaveBeenCalledWith(message);
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
+    expect(recordModLogEdit.mock.calls).toEqual([["v2", "ok"]]);
+  });
+
+  test("a failed interaction update is counted and rethrown", async () => {
+    const { service, recordModLogEdit } = setup();
+    const interaction = {
+      message: v2Message(null),
+      update: mock(async () => {
+        throw new Error("Unknown interaction");
+      }),
+      deferUpdate: mock(async () => undefined),
+    };
+
+    const message = await service.render(makeCase());
+
+    await expect(
+      service.updateFromInteraction(interaction as never, message),
+    ).rejects.toThrow("Unknown interaction");
+    expect(recordModLogEdit.mock.calls).toEqual([["v2", "failed"]]);
   });
 
   test("a legacy entry is acknowledged, then converted over REST", async () => {

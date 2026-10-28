@@ -57,6 +57,7 @@ describe("ReasonTemplateService", () => {
       ),
       delete: mock(() => Promise.resolve(true)),
       recordUse: mock(() => Promise.resolve()),
+      countStats: mock(() => Promise.resolve({ guilds: 0, total: 0 })),
     };
     modLogReasons = {
       findLastReason: mock(() => Promise.resolve(null)),
@@ -69,11 +70,15 @@ describe("ReasonTemplateService", () => {
 
   describe("create", () => {
     test("trims content, normalizes shortcut and stores the content key", async () => {
-      const result = await service.create(GUILD_ID, {
-        content: "  Spamming   In chat ",
-        shortcut: " !Spam ",
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "  Spamming   In chat ",
+          shortcut: " !Spam ",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.ok).toBe(true);
       expect(repository.create).toHaveBeenCalledWith({
@@ -86,11 +91,15 @@ describe("ReasonTemplateService", () => {
     });
 
     test("empty shortcut string means no shortcut", async () => {
-      await service.create(GUILD_ID, {
-        content: "Text",
-        shortcut: "  ",
-        createdBy: USER_ID,
-      });
+      await service.create(
+        GUILD_ID,
+        {
+          content: "Text",
+          shortcut: "  ",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({ shortcut: null }),
@@ -98,21 +107,29 @@ describe("ReasonTemplateService", () => {
     });
 
     test("validation order: empty before everything", async () => {
-      const result = await service.create(GUILD_ID, {
-        content: "   ",
-        shortcut: "!!bad",
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "   ",
+          shortcut: "!!bad",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({ code: "empty" });
     });
 
     test("validation order: too_long before invalid_shortcut", async () => {
-      const result = await service.create(GUILD_ID, {
-        content: "x".repeat(REASON_MAX_LENGTH + 5),
-        shortcut: "!!bad",
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "x".repeat(REASON_MAX_LENGTH + 5),
+          shortcut: "!!bad",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({
         code: "too_long",
@@ -126,11 +143,15 @@ describe("ReasonTemplateService", () => {
         Promise.resolve(REASON_TEMPLATE_LIMIT),
       );
 
-      const result = await service.create(GUILD_ID, {
-        content: "Text",
-        shortcut: "has space",
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "Text",
+          shortcut: "has space",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({
         code: "invalid_shortcut",
@@ -144,11 +165,15 @@ describe("ReasonTemplateService", () => {
         Promise.resolve(REASON_TEMPLATE_LIMIT),
       );
 
-      const result = await service.create(GUILD_ID, {
-        content: "Text",
-        shortcut: null,
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "Text",
+          shortcut: null,
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({
         code: "limit_reached",
@@ -164,11 +189,15 @@ describe("ReasonTemplateService", () => {
       );
       repository.findByShortcut = mock(() => Promise.resolve(owner));
 
-      const result = await service.create(GUILD_ID, {
-        content: "Text",
-        shortcut: "spam",
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "Text",
+          shortcut: "spam",
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({
         code: "shortcut_taken",
@@ -185,11 +214,15 @@ describe("ReasonTemplateService", () => {
       );
       repository.findByContentKey = mock(() => Promise.resolve(existing));
 
-      const result = await service.create(GUILD_ID, {
-        content: "Spamming in chat.",
-        shortcut: null,
-        createdBy: USER_ID,
-      });
+      const result = await service.create(
+        GUILD_ID,
+        {
+          content: "Spamming in chat.",
+          shortcut: null,
+          createdBy: USER_ID,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({ code: "duplicate", existing });
       expect(repository.findByContentKey).toHaveBeenCalledWith(
@@ -201,10 +234,15 @@ describe("ReasonTemplateService", () => {
 
   describe("update", () => {
     test("passes normalized input to the repository", async () => {
-      const result = await service.update(GUILD_ID, "3", {
-        content: "New text",
-        shortcut: "!New",
-      });
+      const result = await service.update(
+        GUILD_ID,
+        "3",
+        {
+          content: "New text",
+          shortcut: "!New",
+        },
+        "panel",
+      );
 
       expect(result.ok).toBe(true);
       expect(repository.update).toHaveBeenCalledWith(GUILD_ID, "3", {
@@ -219,10 +257,15 @@ describe("ReasonTemplateService", () => {
         Promise.resolve(REASON_TEMPLATE_LIMIT),
       );
 
-      const result = await service.update(GUILD_ID, "3", {
-        content: "New text",
-        shortcut: null,
-      });
+      const result = await service.update(
+        GUILD_ID,
+        "3",
+        {
+          content: "New text",
+          shortcut: null,
+        },
+        "panel",
+      );
 
       expect(result.ok).toBe(true);
     });
@@ -232,19 +275,29 @@ describe("ReasonTemplateService", () => {
         Promise.resolve(Err("not_found" as const)),
       );
 
-      const result = await service.update(GUILD_ID, "3", {
-        content: "New text",
-        shortcut: null,
-      });
+      const result = await service.update(
+        GUILD_ID,
+        "3",
+        {
+          content: "New text",
+          shortcut: null,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({ code: "not_found" });
     });
 
     test("validates before touching the repository", async () => {
-      const result = await service.update(GUILD_ID, "3", {
-        content: "",
-        shortcut: null,
-      });
+      const result = await service.update(
+        GUILD_ID,
+        "3",
+        {
+          content: "",
+          shortcut: null,
+        },
+        "panel",
+      );
 
       expect(result.val).toEqual({ code: "empty" });
       expect(repository.update).not.toHaveBeenCalled();
@@ -411,6 +464,100 @@ describe("ReasonTemplateService", () => {
     test("false for an empty reason", async () => {
       expect(await service.shouldPromptSave(GUILD_ID, null)).toBe(false);
       expect(modLogReasons.countByNormalizedReason).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("change metrics", () => {
+    let recordTemplateChange: ReturnType<typeof mock>;
+
+    beforeEach(() => {
+      recordTemplateChange = mock();
+      service = new ReasonTemplateService(repository, modLogReasons, {
+        recordTemplateChange,
+      });
+    });
+
+    test("records an ok create with its origin", async () => {
+      await service.create(
+        GUILD_ID,
+        { content: "Spam", shortcut: null, createdBy: USER_ID },
+        "checkbox",
+      );
+
+      expect(recordTemplateChange).toHaveBeenCalledWith(
+        "create",
+        "checkbox",
+        "ok",
+      );
+    });
+
+    test("maps error codes to outcomes", async () => {
+      repository.countByGuild = mock(() =>
+        Promise.resolve(REASON_TEMPLATE_LIMIT),
+      );
+      await service.create(
+        GUILD_ID,
+        { content: "Spam", shortcut: null, createdBy: USER_ID },
+        "save_prompt",
+      );
+      await service.update(
+        GUILD_ID,
+        "3",
+        { content: "", shortcut: null },
+        "panel",
+      );
+      repository.update = mock(() =>
+        Promise.resolve(Err("shortcut_taken" as const)),
+      );
+      await service.update(
+        GUILD_ID,
+        "3",
+        { content: "Spam", shortcut: "spam" },
+        "panel",
+      );
+
+      expect(recordTemplateChange).toHaveBeenNthCalledWith(
+        1,
+        "create",
+        "save_prompt",
+        "limit",
+      );
+      expect(recordTemplateChange).toHaveBeenNthCalledWith(
+        2,
+        "update",
+        "panel",
+        "invalid",
+      );
+      expect(recordTemplateChange).toHaveBeenNthCalledWith(
+        3,
+        "update",
+        "panel",
+        "conflict",
+      );
+    });
+
+    test("hasRoomFor records a refusal at the limit as a create", async () => {
+      expect(await service.hasRoomFor(GUILD_ID, "panel")).toBe(true);
+      expect(recordTemplateChange).not.toHaveBeenCalled();
+
+      repository.countByGuild = mock(() =>
+        Promise.resolve(REASON_TEMPLATE_LIMIT),
+      );
+      expect(await service.hasRoomFor(GUILD_ID, "panel")).toBe(false);
+      expect(recordTemplateChange.mock.calls).toEqual([
+        ["create", "panel", "limit"],
+      ]);
+    });
+
+    test("records a delete of a missing template as not_found", async () => {
+      repository.delete = mock(() => Promise.resolve(false));
+
+      expect(await service.delete(GUILD_ID, "3", "panel")).toBe(false);
+      expect(recordTemplateChange).toHaveBeenCalledWith(
+        "delete",
+        "panel",
+        "not_found",
+      );
     });
   });
 });

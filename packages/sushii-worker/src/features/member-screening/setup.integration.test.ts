@@ -6,6 +6,7 @@ import pino from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DrizzleFeatureFlagRepository } from "@/features/feature-flags/infrastructure/DrizzleFeatureFlagRepository";
+import { NOOP_MODERATION_METRICS } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import type * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
 
@@ -40,6 +41,7 @@ describe("setupMemberScreeningFeature", () => {
       flagRepository: new DrizzleFeatureFlagRepository(db, logger),
       deploymentService,
       moderationService,
+      moderationMetrics: NOOP_MODERATION_METRICS,
       openRouterApiKey,
     });
   }
@@ -165,6 +167,7 @@ describe("setupMemberScreeningFeature", () => {
       flagRepository: new DrizzleFeatureFlagRepository(failingDb, logger),
       deploymentService,
       moderationService,
+      moderationMetrics: NOOP_MODERATION_METRICS,
       openRouterApiKey: "test-key",
     });
 

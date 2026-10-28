@@ -85,10 +85,14 @@ export async function showSaveTemplateModal(
     return Err({ code: "no_permission" });
   }
 
-  const created = await deps.reasonTemplateService.create(submit.guildId, {
-    ...readTemplateFields(submit.fields),
-    createdBy: submit.user.id,
-  });
+  const created = await deps.reasonTemplateService.create(
+    submit.guildId,
+    {
+      ...readTemplateFields(submit.fields),
+      createdBy: submit.user.id,
+    },
+    "save_prompt",
+  );
   if (created.err) {
     await submit.reply(buildReasonTemplateErrorMessage(created.val, emojis));
     return created;

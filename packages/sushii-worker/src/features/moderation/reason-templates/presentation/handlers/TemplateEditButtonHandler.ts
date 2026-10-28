@@ -86,6 +86,7 @@ export class TemplateEditButtonHandler extends ButtonHandler {
       interaction.guildId,
       templateId,
       readTemplateFields(submit.fields),
+      "checkbox",
     );
     if (updated.err) {
       await submit.reply(buildReasonTemplateErrorMessage(updated.val, emojis));

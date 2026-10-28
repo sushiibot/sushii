@@ -14,6 +14,8 @@ import type {
   ModLogRefreshOutcome,
 } from "../../shared/application/ModLogMessageService";
 import type { ModerationCase } from "../../shared/domain/entities/ModerationCase";
+import type { ModerationMetrics } from "../../shared/domain/metrics/ModerationMetrics";
+import { NOOP_MODERATION_METRICS } from "../../shared/domain/metrics/ModerationMetrics";
 import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import { CaseRange } from "../../shared/domain/value-objects/CaseRange";
 
@@ -72,6 +74,10 @@ export class ReasonUpdateService {
       "loadEntry" | "refreshEntry"
     >,
     private readonly logger: Logger,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordModLogEdit"
+    > = NOOP_MODERATION_METRICS,
   ) {}
 
   async checkExistingReasons(
@@ -189,16 +195,20 @@ export class ReasonUpdateService {
         const unverified =
           !!modCase.msgId &&
           (entry?.missing === "not_configured" || entry?.missing === "failed");
-        result.dmUpdates.push({
-          caseId: modCase.caseId,
-          outcome: unverified
-            ? "skipped_unverified"
-            : await this.dmNotificationService.editCaseDM(
-                this.client,
-                modCase,
-                guildConfig,
-              ),
-        });
+        const dmOutcome = unverified
+          ? "skipped_unverified"
+          : await this.dmNotificationService.editCaseDM(
+              this.client,
+              modCase,
+              guildConfig,
+            );
+        if (dmOutcome === "updated" || dmOutcome === "failed") {
+          this.metrics.recordModLogEdit(
+            "dm_edit",
+            dmOutcome === "updated" ? "ok" : "failed",
+          );
+        }
+        result.dmUpdates.push({ caseId: modCase.caseId, outcome: dmOutcome });
       }
 
       const outcome = entry

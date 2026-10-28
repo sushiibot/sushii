@@ -9,6 +9,7 @@ import type {
 import type { ModerationServices } from "../../setup";
 import { ModerationCommand } from "./commands/ModerationCommand";
 import { ActionResponseButtonHandler } from "./response/ActionResponseButtonHandler";
+import { scheduleResponseExpiry } from "./response/responseExpiry";
 
 export function createActionResponseHandlers(
   services: ModerationServices,
@@ -27,6 +28,8 @@ export function createActionResponseHandlers(
         services.emojiRepository,
         services.reasonTemplateService,
         logger.child({ commandHandler: config.name }),
+        scheduleResponseExpiry,
+        services.moderationMetrics,
       ),
   );
 
@@ -37,6 +40,7 @@ export function createActionResponseHandlers(
       caseDmDeletionService: services.caseDmDeletionService,
       reasonTemplateService: services.reasonTemplateService,
       emojiRepository: services.emojiRepository,
+      metrics: services.moderationMetrics,
       logger: logger.child({ buttonHandler: "actionResponse" }),
     }),
   ];

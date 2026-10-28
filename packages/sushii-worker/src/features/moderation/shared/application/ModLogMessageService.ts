@@ -12,6 +12,8 @@ import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositori
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModerationCase } from "../domain/entities/ModerationCase";
+import type { ModerationMetrics } from "../domain/metrics/ModerationMetrics";
+import { NOOP_MODERATION_METRICS } from "../domain/metrics/ModerationMetrics";
 import type { ModLogRepository } from "../domain/repositories/ModLogRepository";
 import {
   MOD_LOG_EMOJIS,
@@ -85,6 +87,10 @@ export class ModLogMessageService {
     private readonly emojiRepository: BotEmojiRepository,
     private readonly modLogRepository: Pick<ModLogRepository, "markDmDeleted">,
     private readonly logger: Logger,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordModLogEdit"
+    > = NOOP_MODERATION_METRICS,
   ) {}
 
   async render(
@@ -210,18 +216,20 @@ export class ModLogMessageService {
     moderationCase: ModerationCase,
     options: Omit<ModLogRenderOptions, "currentMessage"> = {},
   ): Promise<ModLogRefreshOutcome> {
+    // A deleted or inaccessible entry isn't an edit failure.
     if (!entry.message) {
       return entry.missing ?? "no_message";
     }
 
     const message = entry.message;
+    const kind = isLegacyEntry(message) ? "legacy_conversion" : "v2";
     const rendered = await this.render(moderationCase, {
       ...options,
       currentMessage: message,
     });
 
     try {
-      if (isLegacyEntry(message)) {
+      if (kind === "legacy_conversion") {
         await this.convertLegacyEntry(
           message.channelId,
           message.id,
@@ -231,8 +239,10 @@ export class ModLogMessageService {
       } else {
         await message.edit(rendered);
       }
+      this.metrics.recordModLogEdit(kind, "ok");
       return "updated";
     } catch (err) {
+      this.metrics.recordModLogEdit(kind, "failed");
       this.logger.warn(
         {
           err,
@@ -269,7 +279,13 @@ export class ModLogMessageService {
   ): Promise<"updated" | "failed"> {
     const posted = interaction.message;
     if (!isLegacyEntry(posted)) {
-      await interaction.update(message);
+      try {
+        await interaction.update(message);
+      } catch (err) {
+        this.metrics.recordModLogEdit("v2", "failed");
+        throw err;
+      }
+      this.metrics.recordModLogEdit("v2", "ok");
       return "updated";
     }
 
@@ -282,8 +298,10 @@ export class ModLogMessageService {
         posted.flags.bitfield,
         message,
       );
+      this.metrics.recordModLogEdit("legacy_conversion", "ok");
       return "updated";
     } catch (err) {
+      this.metrics.recordModLogEdit("legacy_conversion", "failed");
       this.logger.warn(
         { err, messageId: posted.id, channelId: posted.channelId },
         "Failed to convert legacy mod log entry",

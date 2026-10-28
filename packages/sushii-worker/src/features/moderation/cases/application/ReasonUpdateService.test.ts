@@ -21,6 +21,7 @@ describe("ReasonUpdateService", () => {
   let editCaseDM: ReturnType<typeof mock>;
   let refresh: ReturnType<typeof mock>;
   let loadEntry: ReturnType<typeof mock>;
+  let recordModLogEdit: ReturnType<typeof mock>;
 
   beforeEach(() => {
     mockModLogRepository = {
@@ -104,6 +105,7 @@ describe("ReasonUpdateService", () => {
       missing: null,
     }));
 
+    recordModLogEdit = mock();
     service = new ReasonUpdateService(
       mockModLogRepository,
       mockGuildConfigRepository,
@@ -111,6 +113,7 @@ describe("ReasonUpdateService", () => {
       { editCaseDM } as never,
       { loadEntry, refreshEntry: refresh } as never,
       testLogger,
+      { recordModLogEdit },
     );
   });
 
@@ -309,6 +312,10 @@ describe("ReasonUpdateService", () => {
         { caseId: "3", outcome: "failed" },
       ]);
       expect(editCaseDM).toHaveBeenCalledTimes(3);
+      expect(recordModLogEdit.mock.calls).toEqual([
+        ["dm_edit", "ok"],
+        ["dm_edit", "failed"],
+      ]);
     });
 
     test("without updateDm the DMs are left alone", async () => {

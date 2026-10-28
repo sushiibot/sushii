@@ -238,4 +238,14 @@ describe("DrizzleReasonTemplateRepository (Integration)", () => {
     expect(found?.useCount).toBe(2);
     expect(found?.lastUsedAt).toBeInstanceOf(Date);
   });
+
+  test("countStats counts distinct guilds and every row", async () => {
+    expect(await repo.countStats()).toEqual({ guilds: 0, total: 0 });
+
+    await repo.create(input());
+    await repo.create(input({ shortcut: "ads", content: "Advertising." }));
+    await repo.create(input({ guildId: OTHER_GUILD_ID }));
+
+    expect(await repo.countStats()).toEqual({ guilds: 2, total: 3 });
+  });
 });

@@ -11,6 +11,11 @@ import type { Logger } from "pino";
 
 import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import {
+  NOOP_MODERATION_METRICS,
+  reasonSource,
+} from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import { REASON_MAX_LENGTH } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { UNRESOLVED_TEMPLATE_MESSAGE } from "@/features/moderation/shared/presentation/reasonFields";
 import customIds from "@/interactions/customIds";
@@ -66,6 +71,10 @@ export class ReasonCommand extends SlashCommandHandler {
       "resolve" | "recordUse"
     >,
     private readonly logger: Logger,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordReasonResolved"
+    > = NOOP_MODERATION_METRICS,
   ) {
     super();
   }
@@ -83,6 +92,17 @@ export class ReasonCommand extends SlashCommandHandler {
       interaction.guildId,
       input,
     );
+    const reason = expanded?.text ?? input.trim();
+    const source = reasonSource({
+      surface: "reason_cmd",
+      expanded,
+      tooLong: reason.length > REASON_MAX_LENGTH,
+      hasText: !!reason,
+    });
+    if (source) {
+      this.metrics.recordReasonResolved("reason_cmd", source);
+    }
+
     if (expanded?.unresolved) {
       await interactionReplyErrorPlainMessage(
         interaction,
@@ -92,7 +112,6 @@ export class ReasonCommand extends SlashCommandHandler {
       return;
     }
 
-    const reason = expanded?.text ?? input.trim();
     if (reason.length > REASON_MAX_LENGTH) {
       await interactionReplyErrorPlainMessage(
         interaction,

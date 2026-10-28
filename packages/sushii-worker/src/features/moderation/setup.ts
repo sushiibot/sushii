@@ -85,6 +85,8 @@ import {
   DrizzleModLogRepository,
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
+import { OtelModerationMetrics } from "./shared/infrastructure/metrics/OtelModerationMetrics";
+import { ReasonTemplateStatsGauge } from "./shared/infrastructure/metrics/ReasonTemplateStatsGauge";
 
 interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -120,10 +122,18 @@ export function createModerationServices({
     logger.child({ module: "modLogRepository" }),
   );
 
+  // Built here, after the OTel SDK registers; an earlier meter stays a no-op.
+  const moderationMetrics = new OtelModerationMetrics();
+
   const reasonTemplateRepository = new DrizzleReasonTemplateRepository(db);
   const reasonTemplateService = new ReasonTemplateService(
     reasonTemplateRepository,
     modLogRepository,
+    moderationMetrics,
+  );
+  const reasonTemplateStatsGauge = new ReasonTemplateStatsGauge(
+    reasonTemplateRepository,
+    logger.child({ module: "reasonTemplateStatsGauge" }),
   );
 
   const guildConfigRepository = new DrizzleGuildConfigRepository(
@@ -151,6 +161,7 @@ export function createModerationServices({
     emojiRepository,
     modLogRepository,
     logger.child({ module: "modLogMessageService" }),
+    moderationMetrics,
   );
 
   const caseDmDeletionService = new CaseDmDeletionService(
@@ -159,6 +170,7 @@ export function createModerationServices({
     dmNotificationService,
     modLogMessageService,
     logger.child({ module: "caseDmDeletionService" }),
+    moderationMetrics,
   );
 
   const modLogService = new DiscordModLogService(
@@ -251,6 +263,7 @@ export function createModerationServices({
     dmNotificationService,
     modLogMessageService,
     logger.child({ module: "reasonUpdateService" }),
+    moderationMetrics,
   );
 
   const caseRangeAutocompleteService = new CaseRangeAutocompleteService(
@@ -303,6 +316,8 @@ export function createModerationServices({
     caseDmDeletionService,
     reasonTemplateRepository,
     reasonTemplateService,
+    moderationMetrics,
+    reasonTemplateStatsGauge,
 
     // Audit log services
     auditLogService,

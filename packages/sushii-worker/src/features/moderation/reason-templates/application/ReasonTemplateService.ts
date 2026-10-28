@@ -2,6 +2,15 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type {
+  ModerationMetrics,
+  TemplateChangeAction,
+  TemplateChangeOrigin,
+} from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import {
+  NOOP_MODERATION_METRICS,
+  templateChangeOutcome,
+} from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import type {
   ModLogCaseOperations,
   ModLogReasonQueries,
   RecentReason,
@@ -70,6 +79,10 @@ export class ReasonTemplateService {
     private readonly repository: ReasonTemplateRepository,
     private readonly modLogReasons: ModLogReasonQueries &
       Pick<ModLogCaseOperations, "findByIds">,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordTemplateChange"
+    > = NOOP_MODERATION_METRICS,
   ) {}
 
   async list(
@@ -103,6 +116,72 @@ export class ReasonTemplateService {
   async create(
     guildId: string,
     input: ReasonTemplateInput & { createdBy: string },
+    origin: TemplateChangeOrigin,
+  ): Promise<Result<ReasonTemplate, ReasonTemplateError>> {
+    return this.recorded(
+      "create",
+      origin,
+      await this.createTemplate(guildId, input),
+    );
+  }
+
+  /** A refusal here counts as a create at the limit, since create is never reached. */
+  async hasRoomFor(
+    guildId: string,
+    origin: TemplateChangeOrigin,
+  ): Promise<boolean> {
+    const total = await this.repository.countByGuild(guildId);
+    if (total < REASON_TEMPLATE_LIMIT) {
+      return true;
+    }
+
+    this.metrics.recordTemplateChange("create", origin, "limit");
+    return false;
+  }
+
+  async update(
+    guildId: string,
+    id: string,
+    input: ReasonTemplateInput,
+    origin: TemplateChangeOrigin,
+  ): Promise<Result<ReasonTemplate, ReasonTemplateError>> {
+    return this.recorded(
+      "update",
+      origin,
+      await this.updateTemplate(guildId, id, input),
+    );
+  }
+
+  async delete(
+    guildId: string,
+    id: string,
+    origin: TemplateChangeOrigin,
+  ): Promise<boolean> {
+    const deleted = await this.repository.delete(guildId, id);
+    this.metrics.recordTemplateChange(
+      "delete",
+      origin,
+      deleted ? "ok" : "not_found",
+    );
+    return deleted;
+  }
+
+  private recorded<T>(
+    action: TemplateChangeAction,
+    origin: TemplateChangeOrigin,
+    result: Result<T, ReasonTemplateError>,
+  ): Result<T, ReasonTemplateError> {
+    this.metrics.recordTemplateChange(
+      action,
+      origin,
+      result.ok ? "ok" : templateChangeOutcome(result.val.code),
+    );
+    return result;
+  }
+
+  private async createTemplate(
+    guildId: string,
+    input: ReasonTemplateInput & { createdBy: string },
   ): Promise<Result<ReasonTemplate, ReasonTemplateError>> {
     const validated = this.validate(input);
     if (validated.err) {
@@ -128,7 +207,7 @@ export class ReasonTemplateService {
     return created;
   }
 
-  async update(
+  private async updateTemplate(
     guildId: string,
     id: string,
     input: ReasonTemplateInput,
@@ -150,10 +229,6 @@ export class ReasonTemplateService {
     }
 
     return updated;
-  }
-
-  delete(guildId: string, id: string): Promise<boolean> {
-    return this.repository.delete(guildId, id);
   }
 
   /** Expands typed reason input. Doesn't record template use. */

@@ -9,6 +9,7 @@ import type { ModerationService } from "@/features/moderation/actions/applicatio
 import type { ActionReasonFormDeps } from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
 import { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import { DrizzleReasonTemplateRepository } from "@/features/moderation/reason-templates/infrastructure/DrizzleReasonTemplateRepository";
+import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import { DrizzleModLogRepository } from "@/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { SelectMenuHandler } from "@/shared/presentation/handlers";
@@ -45,6 +46,7 @@ export interface MemberScreeningFeatureOptions {
   flagRepository: FeatureFlagRepository;
   deploymentService: DeploymentService;
   moderationService: Pick<ModerationService, "executeAction">;
+  moderationMetrics: ModerationMetrics;
   openRouterApiKey?: string;
   ownerUserId?: string;
 }
@@ -69,6 +71,7 @@ export interface MemberScreeningFeature
 function createReasonFormDeps(
   db: NodePgDatabase<typeof schema>,
   logger: Logger,
+  moderationMetrics: ModerationMetrics,
 ): ActionReasonFormDeps {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -79,8 +82,10 @@ function createReasonFormDeps(
     reasonTemplateService: new ReasonTemplateService(
       new DrizzleReasonTemplateRepository(db),
       modLogRepository,
+      moderationMetrics,
     ),
     emojiRepository: new DrizzleBotEmojiRepository(db),
+    metrics: moderationMetrics,
     logger: logger.child({ component: "ScreeningReasonForm" }),
   };
 }
@@ -100,6 +105,7 @@ export function setupMemberScreeningFeature({
   flagRepository,
   deploymentService,
   moderationService,
+  moderationMetrics,
   openRouterApiKey,
   ownerUserId,
 }: MemberScreeningFeatureOptions): MemberScreeningFeature {
@@ -183,7 +189,7 @@ export function setupMemberScreeningFeature({
         renderer,
         service,
         metrics,
-        createReasonFormDeps(db, logger),
+        createReasonFormDeps(db, logger, moderationMetrics),
         logger.child({ buttonHandler: "screening-action" }),
       ),
     ],
