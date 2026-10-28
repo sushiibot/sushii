@@ -22,8 +22,8 @@ import {
 export type ReasonChoice = ApplicationCommandOptionChoiceData<string>;
 
 export const MAX_CHOICES = 25;
-/** Recent reasons keep a few slots on an empty field so they aren't crowded out by templates. */
-const EMPTY_FIELD_RECENT_SLOTS = 5;
+/** Only the newest few recent reasons are offered; older ones are noise next to templates. */
+export const SHOWN_RECENT_LIMIT = 3;
 const SHORTCUT_WITH_EXTRA = /^!\S+\s+([\s\S]*)$/;
 export const TIP_NAME =
   "Tip: make templates in /reason-templates, then type !shortcut";
@@ -88,11 +88,11 @@ function emptyFieldChoices(
   templates: readonly TemplateLike[],
   recents: RecentReasonEntry[],
 ): ReasonChoice[] {
-  const recentSlots = Math.min(recents.length, EMPTY_FIELD_RECENT_SLOTS);
+  const shown = recents.slice(0, SHOWN_RECENT_LIMIT);
 
   return [
-    ...templates.slice(0, MAX_CHOICES - recentSlots).map(templateChoice),
-    ...recents.map(recentChoice),
+    ...templates.slice(0, MAX_CHOICES - shown.length).map(templateChoice),
+    ...shown.map(recentChoice),
   ];
 }
 
@@ -155,9 +155,9 @@ function filterChoices(
       (t.shortcut?.includes(needle) ?? false) ||
       normalizeReason(t.content).includes(needle),
   );
-  const matchingRecents = recents.filter((r) =>
-    normalizeReason(r.reason).includes(needle),
-  );
+  const matchingRecents = recents
+    .filter((r) => normalizeReason(r.reason).includes(needle))
+    .slice(0, SHOWN_RECENT_LIMIT);
 
   return [
     ...matchingTemplates.map(templateChoice),

@@ -6,7 +6,12 @@ import type {
 } from "../../domain/ReasonExpander";
 import { expandReason, joinReason } from "../../domain/ReasonExpander";
 import type { ReasonChoice } from "./reasonChoices";
-import { MAX_CHOICES, TIP_NAME, buildReasonChoices } from "./reasonChoices";
+import {
+  MAX_CHOICES,
+  SHOWN_RECENT_LIMIT,
+  TIP_NAME,
+  buildReasonChoices,
+} from "./reasonChoices";
 
 const SPAM: TemplateLike = {
   id: "11",
@@ -68,6 +73,24 @@ function manyTemplates(n: number): TemplateLike[] {
 }
 
 describe("buildReasonChoices", () => {
+  test("offers only the newest few recent reasons", () => {
+    const manyRecents = Array.from({ length: 8 }, (_, i) => ({
+      caseId: String(5000 - i),
+      reason: `Raid account number ${i}`,
+    }));
+    const recentNames = (typed: string) =>
+      buildReasonChoices(typed, { templates: TEMPLATES, recents: manyRecents })
+        .map((c) => c.name)
+        .filter((n) => n.startsWith("Recent · "));
+
+    expect(recentNames("")).toEqual([
+      "Recent · Raid account number 0",
+      "Recent · Raid account number 1",
+      "Recent · Raid account number 2",
+    ]);
+    expect(recentNames("raid account")).toHaveLength(SHOWN_RECENT_LIMIT);
+  });
+
   test("empty field lists templates then recents, with no tip", () => {
     const choices = buildReasonChoices("", sources);
 
