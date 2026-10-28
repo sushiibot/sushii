@@ -147,13 +147,15 @@ describe("buildModLogMessage", () => {
       media: { url: "https://cdn.discordapp.com/embed/avatars/4.png" },
     });
     expect(section.components[0]?.content).toBe(
-      `### ${emojis.ban} Banned · Case #4822\n<@${TARGET}> spambot · \`${TARGET}\`\n-# by <@${EXECUTOR}> · <t:${ACTION_UNIX}:f>`,
+      `### ${emojis.ban} Banned · Case #4822\n**User:** <@${TARGET}>\n-# spambot · \`${TARGET}\`\n**Moderator:** <@${EXECUTOR}>`,
     );
 
     expect(allText(container)).toContain(
       "-# No reason yet. Set one so the case history explains this action.",
     );
-    expect(allText(container)).toContain(`-# ${emojis.message} No DM sent`);
+    expect(allText(container)).toContain(
+      `-# ${emojis.message} No DM sent\n-# <t:${ACTION_UNIX}:f>`,
+    );
 
     expect(buttons(container)).toEqual([
       {
@@ -180,7 +182,7 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      `**${emojis.reason} Reason**\nSpamming in channels (rule 3).`,
+      "**Reason**\nSpamming in channels (rule 3).",
     );
     expect(allText(container)).toContain(
       `-# ${emojis.trash} Deleted messages from the previous hour`,
@@ -275,19 +277,29 @@ describe("buildModLogMessage", () => {
       makeCase({ reason: "Raid", reasonSetBy: SETTER, reasonSetAt: at }),
     );
 
-    expect(allText(container)).toContain(`by <@${EXECUTOR}>`);
+    expect(allText(container)).toContain(`**Moderator:** <@${EXECUTOR}>`);
     expect(allText(container)).toContain(
-      `Raid\n-# Reason set by <@${SETTER}> <t:${at.getTime() / 1000}:R>`,
+      `Raid\n-# Set by <@${SETTER}> <t:${at.getTime() / 1000}:R>`,
     );
+  });
+
+  test("a reason set by the moderator who acted has no extra note", () => {
+    const at = new Date("2026-10-27T11:59:40.000Z");
+    const container = render(
+      makeCase({ reason: "Raid", reasonSetBy: EXECUTOR, reasonSetAt: at }),
+    );
+
+    expect(allText(container)).not.toContain("Set by");
   });
 
   test("missing executor falls back to the given id", () => {
     const container = render(makeCase({ executorId: null }), {
       fallbackExecutorId: "1",
     });
-    expect(allText(container)).toContain("-# by <@1> ·");
+    expect(allText(container)).toContain("**Moderator:** <@1>");
 
     const noFallback = render(makeCase({ executorId: null }));
+    expect(allText(noFallback)).not.toContain("**Moderator:**");
     expect(allText(noFallback)).toContain(`\n-# <t:${ACTION_UNIX}:f>`);
   });
 
@@ -489,11 +501,11 @@ describe("buildLegacyConversionBody", () => {
 });
 
 describe("preserved facts", () => {
-  test("the executor's tag follows the mention", () => {
+  test("the executor's tag sits under the mention", () => {
     const container = render(makeCase(), { executorTag: "tzuyu_*" });
 
     expect(allText(container)).toContain(
-      `-# by <@${EXECUTOR}> (tzuyu\\_\\*) ·`,
+      `**Moderator:** <@${EXECUTOR}>\n-# tzuyu\\_\\*`,
     );
   });
 

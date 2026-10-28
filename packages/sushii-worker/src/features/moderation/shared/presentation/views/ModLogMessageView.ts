@@ -43,7 +43,6 @@ import {
 
 export const MOD_LOG_EMOJIS = [
   ...ActionTypeBotEmojis,
-  "reason",
   "message",
   "fail",
   "duration",
@@ -422,13 +421,21 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     `${ACTION_TITLES[type] ?? formatActionTypeAsSentence(type)} · Case #${moderationCase.caseId}`,
   );
   const executorId = moderationCase.executorId ?? input.fallbackExecutorId;
-  const executorName = input.executorTag
-    ? ` (${escapeMarkdown(input.executorTag)})`
-    : "";
-  const byline = executorId
-    ? `-# by <@${executorId}>${executorName} · <t:${unix(moderationCase.actionTime)}:f>`
-    : `-# <t:${unix(moderationCase.actionTime)}:f>`;
-  const header = `### ${title}\n<@${target.id}> ${escapeMarkdown(target.username)} · \`${target.id}\`\n${byline}`;
+  // The tag keeps former mods identifiable when the mention can't resolve.
+  const moderatorLines = executorId
+    ? [
+        `**Moderator:** <@${executorId}>`,
+        ...(input.executorTag
+          ? [`-# ${escapeMarkdown(input.executorTag)}`]
+          : []),
+      ]
+    : [];
+  const header = [
+    `### ${title}`,
+    `**User:** <@${target.id}>`,
+    `-# ${escapeMarkdown(target.username)} · \`${target.id}\``,
+    ...moderatorLines,
+  ].join("\n");
 
   const { media, links } = splitAttachments(moderationCase.attachments);
   let factsText: string | null;
@@ -444,13 +451,19 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   }
 
   const dmLine = dmStatusLine(input);
-  const dmText = dmLine ? `-# ${dmLine}` : null;
+  const footerText = [
+    ...(dmLine ? [`-# ${dmLine}`] : []),
+    `-# <t:${unix(moderationCase.actionTime)}:f>`,
+  ].join("\n");
 
+  // Only worth showing when someone other than the moderator wrote the reason.
   const reasonSetNote =
-    moderationCase.reasonSetBy && moderationCase.reasonSetAt
-      ? `\n-# Reason set by <@${moderationCase.reasonSetBy}> <t:${unix(moderationCase.reasonSetAt)}:R>`
+    moderationCase.reasonSetBy &&
+    moderationCase.reasonSetAt &&
+    moderationCase.reasonSetBy !== executorId
+      ? `\n-# Set by <@${moderationCase.reasonSetBy}> <t:${unix(moderationCase.reasonSetAt)}:R>`
       : "";
-  const reasonHeading = `**${withEmoji(emojis.reason, "Reason")}**\n`;
+  const reasonHeading = "**Reason**\n";
 
   const confirm = input.confirmDeleteDm
     ? buildDeleteDmConfirm({
@@ -466,7 +479,7 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   const fixedLength =
     header.length +
     (factsText?.length ?? 0) +
-    (dmText?.length ?? 0) +
+    footerText.length +
     (confirm?.prompt.data.content?.length ?? 0) +
     reasonHeading.length +
     reasonSetNote.length;
@@ -503,12 +516,6 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
       ),
     );
 
-  if (dmText) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(dmText),
-    );
-  }
-
   if (media.length > 0) {
     container.addMediaGalleryComponents(
       new MediaGalleryBuilder().addItems(
@@ -516,6 +523,10 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
       ),
     );
   }
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(footerText),
+  );
 
   container.addSeparatorComponents(
     new SeparatorBuilder()
