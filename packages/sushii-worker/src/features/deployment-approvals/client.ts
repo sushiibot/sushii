@@ -12,6 +12,10 @@ export const candidateSchema = z.object({
   runId: z.number().int().positive(),
   runAttempt: z.number().int().positive(),
   sha: z.string().regex(/^[a-f0-9]{40}$/),
+  previousSha: z
+    .string()
+    .regex(/^[a-f0-9]{40}$/)
+    .optional(),
   label: z.string().max(100),
   channelId: z.string().regex(/^[0-9]{17,20}$/),
   runUrl: z.url(),

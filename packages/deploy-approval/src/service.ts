@@ -7,7 +7,7 @@ import {
   type Candidate,
   type Config,
   type Target,
-  type TokenSet,
+  type LinkedAccount,
 } from "./types";
 
 export class ApprovalService {
@@ -21,6 +21,15 @@ export class ApprovalService {
     readonly github = new GitHub(config),
   ) {
     this.cipher = new TokenCipher(config.encryptionKey);
+    for (const target of config.targets) {
+      if (target.initialDeployedSha)
+        store.recordDeployment(
+          target.repositoryId,
+          target.environmentId,
+          target.initialDeployedSha,
+          0,
+        );
+    }
     for (const card of store.cards().filter((c) => c.phase === "deciding")) {
       store.update(card, {
         detail:
@@ -57,7 +66,7 @@ export class ApprovalService {
     const id = this.config.ownerDiscordId;
     const stored = this.store.secret(id);
     if (!stored) throw new ExpectedError("github_link_required", 403);
-    let tokens = this.cipher.decrypt<TokenSet>(stored, id);
+    let tokens = this.cipher.decrypt<LinkedAccount>(stored, id);
     if (tokens.expiresAt < Date.now() + 60000) {
       if (
         !tokens.refresh_token ||
@@ -65,16 +74,22 @@ export class ApprovalService {
         tokens.refreshExpiresAt <= Date.now()
       )
         throw new ExpectedError("github_link_required", 403);
-      tokens = await this.github.oauth({
-        grant_type: "refresh_token",
-        refresh_token: tokens.refresh_token,
-      });
+      tokens = {
+        ...(await this.github.oauth({
+          grant_type: "refresh_token",
+          refresh_token: tokens.refresh_token,
+        })),
+        githubUserId: tokens.githubUserId,
+      };
       if (this.store.secret(id) !== stored)
         throw new ExpectedError("github_link_required", 403);
       this.store.putSecret(id, this.cipher.encrypt(tokens, id));
     }
     const user = await this.github.request("/user", tokens.access_token);
-    if (user.id !== this.config.ownerGitHubId)
+    if (
+      !Number.isSafeInteger(tokens.githubUserId) ||
+      user.id !== tokens.githubUserId
+    )
       throw new ExpectedError("github_identity_mismatch", 403);
     return tokens.access_token;
   }
@@ -150,9 +165,12 @@ export class ApprovalService {
       code_verifier: data.verifier,
     });
     const user = await this.github.request("/user", tokens.access_token);
-    if (user.id !== this.config.ownerGitHubId)
-      throw new ExpectedError("github_identity_mismatch", 403);
-    this.store.putSecret(data.actor, this.cipher.encrypt(tokens, data.actor));
+    if (!Number.isSafeInteger(user.id) || user.id <= 0)
+      throw new ExpectedError("github_link_failed", 403);
+    this.store.putSecret(
+      data.actor,
+      this.cipher.encrypt({ ...tokens, githubUserId: user.id }, data.actor),
+    );
   }
 
   async review(actor: unknown, id: string, revision: number, decision: string) {
@@ -352,14 +370,15 @@ export class ApprovalService {
   }
 
   async event(event: string, payload: any) {
-    if (
-      event === "github_app_authorization" &&
-      payload.action === "revoked" &&
-      payload.sender?.id === this.config.ownerGitHubId
-    ) {
-      this.store.db
-        .query("DELETE FROM secrets WHERE id=?")
-        .run(this.config.ownerDiscordId);
+    if (event === "github_app_authorization" && payload.action === "revoked") {
+      const id = this.config.ownerDiscordId;
+      const stored = this.store.secret(id);
+      if (
+        stored &&
+        this.cipher.decrypt<LinkedAccount>(stored, id).githubUserId ===
+          payload.sender?.id
+      )
+        this.store.db.query("DELETE FROM secrets WHERE id=?").run(id);
       return;
     }
     if (payload.installation?.id !== this.config.installationId) return;
@@ -404,6 +423,10 @@ export class ApprovalService {
             runId,
             runAttempt: run.run_attempt,
             sha: run.head_sha,
+            previousSha: this.store.deployed(
+              target.repositoryId,
+              target.environmentId,
+            ),
             label: target.label,
             channelId: target.channelId,
             runUrl:
@@ -530,12 +553,20 @@ export class ApprovalService {
         if (
           status.state === "success" &&
           /^deployed sha256:[a-f0-9]{64}$/.test(status.description)
-        )
-          this.store.update(card, {
-            phase: "succeeded",
-            detail: status.description,
-          });
-        else if (["failure", "error"].includes(status.state))
+        ) {
+          this.store.db.transaction(() => {
+            this.store.update(card, {
+              phase: "succeeded",
+              detail: status.description,
+            });
+            this.store.recordDeployment(
+              card.repositoryId,
+              card.environmentId,
+              card.sha,
+              card.runId,
+            );
+          })();
+        } else if (["failure", "error"].includes(status.state))
           this.store.update(card, {
             phase: "failed",
             detail: "Deployment failed. Inspect the workflow.",

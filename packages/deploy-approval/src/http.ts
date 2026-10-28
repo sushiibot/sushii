@@ -115,11 +115,23 @@ export function backendHandler(service: ApprovalService) {
           start(controller) {
             const encoder = new TextEncoder();
             let closed = false;
+            let initial = true;
             const emit = () => {
               if (closed) return;
+              // Refresh pending cards after a bot update, even if an older renderer acknowledged them.
+              const cards = new Map(
+                service.store.changed().map((card) => [card.id, card]),
+              );
+              if (initial) {
+                for (const card of service.store
+                  .cards()
+                  .filter((card) => card.phase === "pending"))
+                  cards.set(card.id, card);
+                initial = false;
+              }
               controller.enqueue(
                 encoder.encode(
-                  "data: " + JSON.stringify(service.store.changed()) + "\n\n",
+                  "data: " + JSON.stringify([...cards.values()]) + "\n\n",
                 ),
               );
             };

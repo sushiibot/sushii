@@ -7,12 +7,12 @@ export interface Target {
   branch: string;
   channelId: string;
   label: string;
+  initialDeployedSha?: string;
   releaseTarget: string;
   statusActorId: number;
 }
 export interface Config {
   ownerDiscordId: string;
-  ownerGitHubId: number;
   clientId: string;
   clientSecret: string;
   appId: number;
@@ -45,6 +45,7 @@ export interface Candidate {
   runId: number;
   runAttempt: number;
   sha: string;
+  previousSha?: string;
   label: string;
   channelId: string;
   runUrl: string;
@@ -67,3 +68,5 @@ export class ExpectedError extends Error {
     super(code);
   }
 }
+
+export type LinkedAccount = TokenSet & { githubUserId: number };

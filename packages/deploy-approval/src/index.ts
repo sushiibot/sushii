@@ -66,6 +66,8 @@ if (mode === "relay") {
         typeof t.environment !== "string" ||
         !t.environment ||
         !/^[0-9]{17,20}$/.test(t.channelId) ||
+        (t.initialDeployedSha !== undefined &&
+          !/^[a-f0-9]{40}$/.test(t.initialDeployedSha)) ||
         !/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(t.workflow) ||
         typeof t.branch !== "string" ||
         !t.branch ||
@@ -92,7 +94,6 @@ if (mode === "relay") {
     throw new Error("Expected fixed HTTPS OAuth callback URL");
   const config: Config = {
     ownerDiscordId: required("OWNER_DISCORD_ID"),
-    ownerGitHubId: positive("OWNER_GITHUB_ID"),
     clientId: required("GITHUB_CLIENT_ID"),
     clientSecret: required("GITHUB_CLIENT_SECRET"),
     appId: positive("GITHUB_APP_ID"),

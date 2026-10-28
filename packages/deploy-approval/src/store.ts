@@ -17,6 +17,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS oauth(state TEXT PRIMARY KEY, value TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS confirmations(id TEXT PRIMARY KEY, card TEXT NOT NULL, revision INTEGER NOT NULL,
         actor TEXT NOT NULL, decision TEXT NOT NULL, expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS deployments(target TEXT PRIMARY KEY, sha TEXT NOT NULL, run INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS lease(id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL, expires INTEGER NOT NULL);
     `);
   }
@@ -50,6 +51,39 @@ export class Store {
     const next = { ...current, ...patch, revision: current.revision + 1 };
     this.save(next);
     return next;
+  }
+  deployed(repositoryId: number, environmentId: number): string | undefined {
+    const row = this.db
+      .query("SELECT sha FROM deployments WHERE target=?")
+      .get(repositoryId + ":" + environmentId) as { sha: string } | null;
+    return row?.sha;
+  }
+  recordDeployment(
+    repositoryId: number,
+    environmentId: number,
+    sha: string,
+    run: number,
+  ) {
+    if (!/^[a-f0-9]{40}$/.test(sha) || !Number.isSafeInteger(run) || run < 0)
+      throw new Error("Invalid deployment baseline");
+    this.db.transaction(() => {
+      const result = this.db
+        .query(
+          `INSERT INTO deployments(target,sha,run) VALUES(?,?,?)
+        ON CONFLICT(target) DO UPDATE SET sha=excluded.sha,run=excluded.run
+        WHERE excluded.run > deployments.run`,
+        )
+        .run(repositoryId + ":" + environmentId, sha, run);
+      if (!result.changes) return;
+      for (const card of this.cards().filter(
+        (c) =>
+          c.repositoryId === repositoryId &&
+          c.environmentId === environmentId &&
+          c.phase === "pending" &&
+          c.previousSha !== sha,
+      ))
+        this.update(card, { previousSha: sha });
+    })();
   }
   candidate(
     incoming: Omit<

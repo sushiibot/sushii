@@ -30,7 +30,6 @@ const target: Target = {
 };
 const config: Config = {
   ownerDiscordId: "222222222222222222",
-  ownerGitHubId: 3,
   clientId: "client",
   clientSecret: "secret",
   appId: 4,
@@ -103,6 +102,7 @@ function fixture() {
     config.ownerDiscordId,
     service.cipher.encrypt(
       {
+        githubUserId: 3,
         access_token: "user-token",
         refresh_token: "refresh",
         expiresAt: Date.now() + 3600000,
@@ -248,6 +248,7 @@ describe("approval binding and message lifecycle", () => {
     });
     await f.service.event("status", { ...f.payload(), sha: card.sha });
     expect(f.store.card(card.id)?.phase).toBe("succeeded");
+    expect(f.store.deployed(1, 2)).toBe(card.sha);
   });
   test("workflow success or another actor's receipt never claims host success", async () => {
     const f = fixture();
@@ -266,6 +267,7 @@ describe("approval binding and message lifecycle", () => {
       action: "completed",
     });
     expect(f.store.card(card.id)?.phase).toBe("approved");
+    expect(f.store.deployed(1, 2)).toBeUndefined();
   });
   test("message identity survives replacement racing with acknowledgement", async () => {
     const f = fixture();
@@ -285,7 +287,7 @@ describe("OAuth and exposed boundaries", () => {
     expect(cipher.decrypt(encrypted, "owner")).toEqual({ token: "secret" });
     expect(() => cipher.decrypt(encrypted, "other")).toThrow();
   });
-  test("OAuth uses PKCE, browser binding, exact GitHub identity and single-use state", async () => {
+  test("OAuth uses PKCE, browser binding and single-use state", async () => {
     const f = fixture();
     const link = new URL(f.service.link(config.ownerDiscordId));
     const { url, browser } = f.service.start(link.searchParams.get("ticket")!);
@@ -510,6 +512,9 @@ test("persisted inbox continues beyond eight failures", async () => {
 test("SSE cancellation releases the consumer lease without double-closing", async () => {
   const f = fixture();
   const id = "00000000-0000-4000-8000-000000000001";
+  const card = await pending(f);
+  f.store.ack(card.id, card.revision, "333333333333333333");
+  expect(f.store.changed()).toHaveLength(0);
   const response = await backendHandler(f.service)(
     new Request("http://private/internal/events?client=" + id, {
       headers: { authorization: "Bearer " + config.botToken },
@@ -517,8 +522,77 @@ test("SSE cancellation releases the consumer lease without double-closing", asyn
   );
   expect(response.status).toBe(200);
   const reader = response.body!.getReader();
-  await reader.read();
+  const first = new TextDecoder().decode((await reader.read()).value);
+  expect(first).toContain(card.id); // A new renderer refreshes even acknowledged pending cards.
   await reader.cancel();
   expect(f.service.listeners.size).toBe(0);
   expect(f.store.claim("different-consumer")).toBe(true);
+});
+
+test("OAuth links the selected GitHub account and revocation follows that account", async () => {
+  const f = fixture();
+  const request = f.service.github.request.bind(f.service.github);
+  f.service.github.request = async (path, ...args) =>
+    path === "/user" ? { id: 4021761 } : request(path, ...args);
+  const start = f.service.start(
+    new URL(f.service.link(config.ownerDiscordId)).searchParams.get("ticket")!,
+  );
+  await f.service.callback(
+    new URL(start.url).searchParams.get("state")!,
+    "code",
+    start.browser,
+  );
+  const account = f.service.cipher.decrypt<any>(
+    f.store.secret(config.ownerDiscordId)!,
+    config.ownerDiscordId,
+  );
+  expect(account.githubUserId).toBe(4021761);
+  await expect(f.service.userToken()).resolves.toBe("user-token");
+  await f.service.event("github_app_authorization", {
+    action: "revoked",
+    sender: { id: 3 },
+  });
+  expect(f.store.secret(config.ownerDiscordId)).toBeDefined();
+  // Refresh keeps the linked identity instead of reverting to a configured account.
+  account.expiresAt = 0;
+  f.store.putSecret(
+    config.ownerDiscordId,
+    f.service.cipher.encrypt(account, config.ownerDiscordId),
+  );
+  await expect(f.service.userToken()).resolves.toBe("user-token");
+  expect(
+    f.service.cipher.decrypt<any>(
+      f.store.secret(config.ownerDiscordId)!,
+      config.ownerDiscordId,
+    ).githubUserId,
+  ).toBe(4021761);
+  await f.service.event("github_app_authorization", {
+    action: "revoked",
+    sender: { id: 4021761 },
+  });
+  expect(f.store.secret(config.ownerDiscordId)).toBeUndefined();
+});
+
+test("deployed baseline survives restart and updates pending comparisons without regressing", async () => {
+  const f = fixture();
+  const old = "b".repeat(40),
+    next = "c".repeat(40);
+  f.store.recordDeployment(1, 2, old, 0);
+  await f.service.event("deployment_review", f.payload());
+  let card = f.store.cards()[0];
+  expect(card.previousSha).toBe(old);
+  const revision = card.revision;
+  f.store.recordDeployment(1, 2, next, 9);
+  card = f.store.cards()[0];
+  expect(card.previousSha).toBe(next);
+  expect(card.revision).toBeGreaterThan(revision);
+  new ApprovalService(
+    { ...config, targets: [{ ...target, initialDeployedSha: old }] },
+    f.store,
+    f.service.github,
+  );
+  f.store.recordDeployment(1, 2, old, 0); // Bootstrap on restart is not a rollback.
+  f.store.recordDeployment(1, 2, old, 8); // Late older receipt cannot regress it.
+  expect(f.store.deployed(1, 2)).toBe(next);
+  expect(f.store.deployed(1, 99)).toBeUndefined();
 });

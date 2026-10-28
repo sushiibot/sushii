@@ -30,6 +30,21 @@ const card: Candidate = {
 };
 
 describe("deployment approval UI", () => {
+  test("release and confirmation link the deployed source to the candidate", () => {
+    const previousSha = "b".repeat(40);
+    const candidate = { ...card, previousSha };
+    const compare =
+      "https://github.com/owner/app/compare/" + previousSha + "..." + card.sha;
+    expect(JSON.stringify(releaseCard(candidate))).toContain(compare);
+    expect(
+      JSON.stringify(confirmationCard(candidate, "x".repeat(43), "approved")),
+    ).toContain(compare);
+    expect(JSON.stringify(releaseCard(card))).toContain(
+      "Previous deployed commit is not recorded.",
+    );
+    expect(JSON.stringify(releaseCard(card))).not.toContain("/compare/");
+  });
+
   test("links derive from verified identifiers and messages suppress mentions", () => {
     const payload = releaseCard(card);
     expect(payload.allowed_mentions).toEqual({ parse: [] });

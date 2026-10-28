@@ -74,3 +74,19 @@ backend instances against separate databases.
 - [GitHub App user tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)
 - [Review pending deployments](https://docs.github.com/en/rest/actions/workflow-runs#review-pending-deployments-for-a-workflow-run)
 - [Validate webhook signatures](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
+
+## Linked account and release comparisons
+
+The owner may link any GitHub account through the browser-bound OAuth flow.
+The returned numeric GitHub identity is encrypted with its tokens under the Discord
+owner ID. Refresh and revocation use that stored identity. GitHub still decides
+whether the linked user may review each environment; linking grants no reviewer role.
+
+Cards compare the last observed deployed source with the candidate source. At migration,
+`initialDeployedSha` in a target may seed a full commit SHA verified from its running
+production image. This is a one-time bootstrap, not a desired version pin. It never
+overwrites stored deployment history on restart. Later exact trusted host receipts
+advance the stored baseline per repository/environment and refresh pending cards.
+Older receipts cannot regress it. Approved cards retain the comparison they showed.
+If no baseline is recorded, cards say so rather than using the previous CI run.
+Operator rollbacks outside this release protocol require reconciling the stored baseline.

@@ -15,6 +15,22 @@ export function runUrl(card: Candidate): string {
     "https://github.com/" + card.repository + "/actions/runs/" + card.runId
   );
 }
+export function comparisonText(card: Candidate): string {
+  if (!card.previousSha) return "Previous deployed commit is not recorded.";
+  return (
+    "Changes: [`" +
+    card.previousSha.slice(0, 7) +
+    " → " +
+    card.sha.slice(0, 7) +
+    "`](https://github.com/" +
+    card.repository +
+    "/compare/" +
+    card.previousSha +
+    "..." +
+    card.sha +
+    ")"
+  );
+}
 export function releaseCard(card: Candidate) {
   const pending = card.phase === "pending";
   const container = new ContainerBuilder()
@@ -38,6 +54,8 @@ export function releaseCard(card: Candidate) {
           "/commit/" +
           card.sha +
           ")\n" +
+          comparisonText(card) +
+          "\n" +
           escapeMarkdown(card.detail),
       ),
     );
@@ -115,6 +133,8 @@ export function confirmationCard(
           "](" +
           runUrl(card) +
           ")\n" +
+          comparisonText(card) +
+          "\n\n" +
           "This confirmation expires in two minutes. A replacement release requires a new review.",
       ),
     )
