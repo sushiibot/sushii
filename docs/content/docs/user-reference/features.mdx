@@ -37,7 +37,7 @@ from sushii's commands or Discord's own tools.
 See the [Moderation Guide](/docs/guides/moderation_guide) for the full
 workflow.
 
-{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_METADATA @15fd6b20, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#"Max messages to delete. (2-100)" @303fa4df, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#PruneOption @62159a07, packages/sushii-worker/src/features/moderation/management/presentation/commands/SlowmodeCommand.ts#SlowmodeCommand.command @23f6308e, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @b8ac1fbc, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/LookupCommand.ts#LookupCommand @be1ce142 */}
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_METADATA @15fd6b20, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#"Max messages to delete. (2-100)" @303fa4df, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#PruneOption @62159a07, packages/sushii-worker/src/features/moderation/management/presentation/commands/SlowmodeCommand.ts#SlowmodeCommand.command @23f6308e, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/LookupCommand.ts#LookupCommand @be1ce142, packages/sushii-worker/src/features/moderation/reason-templates/presentation/commands/ReasonTemplatesCommand.ts#ReasonTemplatesCommand @d920a251 */}
 
 | Command | What it does |
 |---|---|
@@ -53,6 +53,7 @@ workflow.
 | `/prune` | Bulk delete messages, with optional filters |
 | `/slowmode` | Set slowmode on a channel |
 | `/reason` | Edit the reason on an existing case |
+| `/reason-templates` | Save reusable reasons and `!shortcuts` for every mod in the server |
 | `/uncase` | Remove a case from a user's history |
 | `/note` | Add a private moderator note to a user |
 | `/history` | View a user's full moderation history |

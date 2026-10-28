@@ -23,10 +23,22 @@ import type {
   DMResult,
 } from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
-import type { ModLogRepository } from "../../domain/repositories/ModLogRepository";
+import type {
+  LastReason,
+  ModLogRepository,
+  RecentReason,
+} from "../../domain/repositories/ModLogRepository";
 import type { ActionType } from "../../domain/value-objects/ActionType";
 import { actionTypeFromString } from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";
+import { normalizeReason } from "../../domain/value-objects/normalizeReason";
+
+// Bounds the scan behind findRecentDistinctReasons to the newest reasons.
+const RECENT_REASON_SCAN_LIMIT = 200;
+// Bounds countByNormalizedReason to the guild's newest cases.
+const REASON_COUNT_SCAN_LIMIT = 500;
+
+const hasReason = sql`${modLogsInAppPublic.reason} ~ '[^[:space:]]'`;
 
 export class DrizzleModLogRepository implements ModLogRepository {
   constructor(
@@ -117,6 +129,15 @@ export class DrizzleModLogRepository implements ModLogRepository {
             moderationCase.deleteMessageSeconds !== null
               ? BigInt(moderationCase.deleteMessageSeconds)
               : null,
+          dmDeleted: moderationCase.dmDeleted,
+          reasonSetBy: moderationCase.reasonSetBy
+            ? BigInt(moderationCase.reasonSetBy)
+            : null,
+          reasonSetAt: moderationCase.reasonSetAt,
+          dmDeletedBy: moderationCase.dmDeletedBy
+            ? BigInt(moderationCase.dmDeletedBy)
+            : null,
+          dmDeletedAt: moderationCase.dmDeletedAt,
         })
         .returning();
 
@@ -370,6 +391,15 @@ export class DrizzleModLogRepository implements ModLogRepository {
           moderationCase.deleteMessageSeconds !== null
             ? BigInt(moderationCase.deleteMessageSeconds)
             : null,
+        dmDeleted: moderationCase.dmDeleted,
+        reasonSetBy: moderationCase.reasonSetBy
+          ? BigInt(moderationCase.reasonSetBy)
+          : null,
+        reasonSetAt: moderationCase.reasonSetAt,
+        dmDeletedBy: moderationCase.dmDeletedBy
+          ? BigInt(moderationCase.dmDeletedBy)
+          : null,
+        dmDeletedAt: moderationCase.dmDeletedAt,
       })
       .where(
         and(
@@ -479,7 +509,7 @@ export class DrizzleModLogRepository implements ModLogRepository {
 
   async updateReasonBulk(
     guildId: string,
-    executorId: string,
+    setById: string,
     startCaseId: number,
     endCaseId: number,
     reason: string,
@@ -504,7 +534,8 @@ export class DrizzleModLogRepository implements ModLogRepository {
       .update(modLogsInAppPublic)
       .set({
         reason,
-        executorId: BigInt(executorId),
+        reasonSetBy: BigInt(setById),
+        reasonSetAt: new Date(),
       })
       .where(and(...conditions))
       .returning();
@@ -608,6 +639,11 @@ export class DrizzleModLogRepository implements ModLogRepository {
       row.deleteMessageSeconds !== null
         ? Number(row.deleteMessageSeconds)
         : null,
+      row.dmDeleted,
+      row.reasonSetBy?.toString() ?? null,
+      row.reasonSetAt,
+      row.dmDeletedBy?.toString() ?? null,
+      row.dmDeletedAt,
     );
   }
 
@@ -623,5 +659,141 @@ export class DrizzleModLogRepository implements ModLogRepository {
       )
       .limit(1);
     return result.length > 0;
+  }
+
+  async findByIds(
+    guildId: string,
+    caseIds: string[],
+  ): Promise<ModerationCase[]> {
+    const numericIds = caseIds.filter((caseId) => /^\d{1,18}$/.test(caseId));
+    if (numericIds.length === 0) {
+      return [];
+    }
+
+    const results = await this.db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          inArray(
+            modLogsInAppPublic.caseId,
+            numericIds.map((caseId) => BigInt(caseId)),
+          ),
+        ),
+      )
+      .orderBy(asc(modLogsInAppPublic.caseId));
+
+    return results.map((row) => this.mapRowToModerationCase(row));
+  }
+
+  async markDmDeleted(
+    guildId: string,
+    caseId: string,
+    deletedBy: string | null,
+    deletedAt: Date | null,
+  ): Promise<void> {
+    await this.db
+      .update(modLogsInAppPublic)
+      .set({
+        dmDeleted: true,
+        dmDeletedBy: deletedBy ? BigInt(deletedBy) : null,
+        dmDeletedAt: deletedAt,
+      })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.caseId, BigInt(caseId)),
+        ),
+      );
+  }
+
+  async findLastReason(guildId: string): Promise<LastReason | null> {
+    const [row] = await this.db
+      .select({
+        caseId: modLogsInAppPublic.caseId,
+        reason: modLogsInAppPublic.reason,
+        executorId: modLogsInAppPublic.executorId,
+        actionTime: modLogsInAppPublic.actionTime,
+      })
+      .from(modLogsInAppPublic)
+      .where(and(eq(modLogsInAppPublic.guildId, BigInt(guildId)), hasReason))
+      .orderBy(
+        desc(modLogsInAppPublic.actionTime),
+        desc(modLogsInAppPublic.caseId),
+      )
+      .limit(1);
+
+    if (!row?.reason) {
+      return null;
+    }
+
+    return {
+      caseId: row.caseId.toString(),
+      reason: row.reason,
+      executorId: row.executorId?.toString() ?? null,
+      actionTime: row.actionTime,
+    };
+  }
+
+  async findRecentDistinctReasons(
+    guildId: string,
+    limit: number,
+  ): Promise<RecentReason[]> {
+    const rows = await this.db
+      .select({
+        caseId: modLogsInAppPublic.caseId,
+        reason: modLogsInAppPublic.reason,
+      })
+      .from(modLogsInAppPublic)
+      .where(and(eq(modLogsInAppPublic.guildId, BigInt(guildId)), hasReason))
+      .orderBy(
+        desc(modLogsInAppPublic.actionTime),
+        desc(modLogsInAppPublic.caseId),
+      )
+      .limit(RECENT_REASON_SCAN_LIMIT);
+
+    const seen = new Set<string>();
+    const recents: RecentReason[] = [];
+    for (const row of rows) {
+      if (!row.reason) {
+        continue;
+      }
+
+      const key = normalizeReason(row.reason);
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      recents.push({ caseId: row.caseId.toString(), reason: row.reason });
+      if (recents.length >= limit) {
+        break;
+      }
+    }
+
+    return recents;
+  }
+
+  async countByNormalizedReason(
+    guildId: string,
+    normalizedReason: string,
+    cap: number,
+  ): Promise<number> {
+    // Collapse before btrim (which only strips spaces) to match normalizeReason.
+    const result = await this.db.execute<{ count: number }>(sql`
+      SELECT count(*)::int AS count FROM (
+        SELECT 1 FROM (
+          SELECT reason FROM app_public.mod_logs
+          WHERE guild_id = ${BigInt(guildId)}
+          ORDER BY action_time DESC
+          LIMIT ${REASON_COUNT_SCAN_LIMIT}
+        ) recent
+        WHERE lower(btrim(regexp_replace(recent.reason, '[[:space:]]+', ' ', 'g'))) = ${normalizedReason}
+        LIMIT ${cap}
+      ) matching
+    `);
+
+    return result.rows[0]?.count ?? 0;
   }
 }

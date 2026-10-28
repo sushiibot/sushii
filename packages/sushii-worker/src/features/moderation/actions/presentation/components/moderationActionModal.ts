@@ -1,6 +1,5 @@
 import type { ModalSubmitFields } from "discord.js";
 import {
-  ActionRowBuilder,
   ContainerBuilder,
   DiscordjsErrorCodes,
   DiscordjsTypeError,
@@ -9,18 +8,20 @@ import {
   ModalBuilder,
   StringSelectMenuBuilder,
   TextDisplayBuilder,
-  TextInputBuilder,
-  TextInputStyle,
 } from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { ReasonFormData } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
 import {
-  REASON_MAX_LENGTH,
-  Reason,
-} from "@/features/moderation/shared/domain/value-objects/Reason";
+  type ReasonFieldEmojis,
+  buildReasonTextInput,
+  buildSaveTemplateCheckbox,
+  buildTemplateSelect,
+} from "@/features/moderation/shared/presentation/reasonFields";
 import Color from "@/utils/colors";
+import { truncateText } from "@/utils/truncateText";
 
 export type ModerationModalAction =
   | "warn"
@@ -36,18 +37,19 @@ export type ModerationModalFields = Pick<
   "getTextInputValue" | "getStringSelectValues"
 >;
 
-export const REASON_CUSTOM_ID = "reason";
 export const DELETE_SECONDS_CUSTOM_ID = "delete_seconds";
 export const DURATION_CUSTOM_ID = "duration";
 
-const MODAL_TITLES: Record<ModerationModalAction, string> = {
-  warn: "Warn User",
-  kick: "Kick User",
-  ban: "Ban User",
-  softban: "Softban User",
-  unban: "Unban User",
-  timeout: "Timeout User",
-  untimeout: "Remove Timeout",
+const TITLE_MAX_LENGTH = 45;
+
+const TITLE_VERBS: Record<ModerationModalAction, string> = {
+  warn: "Warn",
+  kick: "Kick",
+  ban: "Ban",
+  softban: "Softban",
+  unban: "Unban",
+  timeout: "Timeout",
+  untimeout: "Remove timeout for",
 };
 
 const BAN_DELETE_OPTIONS = [
@@ -91,75 +93,98 @@ export function buildModerationErrorReply(message: string): {
   };
 }
 
-function buildReasonRow(): ActionRowBuilder<TextInputBuilder> {
-  return new ActionRowBuilder<TextInputBuilder>().addComponents(
-    new TextInputBuilder()
-      .setCustomId(REASON_CUSTOM_ID)
-      .setLabel("Reason")
-      .setStyle(TextInputStyle.Paragraph)
-      .setMaxLength(REASON_MAX_LENGTH)
-      .setRequired(false),
-  );
+export interface ModerationActionModalOptions {
+  actionType: ModerationModalAction;
+  customId: string;
+  /** The target's display name, cut to fit the title. */
+  targetName: string;
+  formData: ReasonFormData;
+  emojis: ReasonFieldEmojis;
+  /** Display name of whoever gave the last reason, for "Same as last reason". */
+  lastExecutorName?: string | null;
 }
 
-export function buildModerationActionModal(
+export function buildModerationActionTitle(
   actionType: ModerationModalAction,
-  customId: string,
-): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(customId)
-    .setTitle(MODAL_TITLES[actionType]);
+  targetName: string,
+): string {
+  const verb = TITLE_VERBS[actionType];
+  const name = truncateText(
+    targetName.trim() || "user",
+    TITLE_MAX_LENGTH - verb.length - 1,
+  );
+  return `${verb} ${name}`;
+}
 
+function buildActionField(
+  actionType: ModerationModalAction,
+): LabelBuilder | null {
   if (actionType === "timeout") {
-    modal.addLabelComponents(
-      new LabelBuilder()
-        .setLabel("Duration")
-        .setStringSelectMenuComponent(
-          new StringSelectMenuBuilder()
-            .setCustomId(DURATION_CUSTOM_ID)
-            .setRequired(true)
-            .addOptions(TIMEOUT_DURATION_OPTIONS),
-        ),
-    );
+    return new LabelBuilder()
+      .setLabel("Duration")
+      .setStringSelectMenuComponent(
+        new StringSelectMenuBuilder()
+          .setCustomId(DURATION_CUSTOM_ID)
+          .setRequired(true)
+          .addOptions(TIMEOUT_DURATION_OPTIONS),
+      );
   }
-
-  modal.addComponents(buildReasonRow());
 
   if (actionType === "ban" || actionType === "softban") {
+    return new LabelBuilder()
+      .setLabel("Delete message history")
+      .setStringSelectMenuComponent(
+        new StringSelectMenuBuilder()
+          .setCustomId(DELETE_SECONDS_CUSTOM_ID)
+          .setPlaceholder("Previous hour")
+          .addOptions(
+            actionType === "ban" ? BAN_DELETE_OPTIONS : SOFTBAN_DELETE_OPTIONS,
+          ),
+      );
+  }
+
+  return null;
+}
+
+/** Action fields first, then Template, Reason and Save as template. */
+export function buildModerationActionModal(
+  options: ModerationActionModalOptions,
+): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(options.customId)
+    .setTitle(
+      buildModerationActionTitle(options.actionType, options.targetName),
+    );
+
+  const actionField = buildActionField(options.actionType);
+  if (actionField) {
+    modal.addLabelComponents(actionField);
+  }
+
+  // A select needs at least one option, so it's left out when there's nothing to pick.
+  const templateSelect = buildTemplateSelect(
+    options.formData,
+    options.emojis,
+    options.lastExecutorName ?? null,
+  );
+  if (templateSelect) {
     modal.addLabelComponents(
-      new LabelBuilder()
-        .setLabel("Delete message history")
-        .setStringSelectMenuComponent(
-          new StringSelectMenuBuilder()
-            .setCustomId(DELETE_SECONDS_CUSTOM_ID)
-            .setPlaceholder("Previous hour")
-            .addOptions(
-              actionType === "ban"
-                ? BAN_DELETE_OPTIONS
-                : SOFTBAN_DELETE_OPTIONS,
-            ),
-        ),
+      templateSelect,
+      buildReasonTextInput({
+        description:
+          "Added after the template if you picked one. Start with !shortcut to use a template.",
+      }),
+    );
+  } else {
+    modal.addLabelComponents(
+      buildReasonTextInput({
+        label: "Reason",
+        description: "Reason templates you create show up here as a list.",
+      }),
     );
   }
 
-  return modal;
-}
-
-/** Err holds a user-facing message. */
-export function parseModalReason(
-  fields: ModerationModalFields,
-): Result<Reason | null, string> {
-  const reasonText = fields.getTextInputValue(REASON_CUSTOM_ID).trim();
-  if (!reasonText) {
-    return Ok(null);
-  }
-
-  const reasonResult = Reason.create(reasonText);
-  if (reasonResult.err) {
-    return Err(`Invalid reason: ${reasonResult.val}`);
-  }
-
-  return reasonResult;
+  return modal.addLabelComponents(buildSaveTemplateCheckbox());
 }
 
 /** 0 when the select wasn't submitted. */

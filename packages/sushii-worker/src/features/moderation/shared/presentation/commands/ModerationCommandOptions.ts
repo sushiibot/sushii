@@ -22,8 +22,11 @@ export function addReasonOption(
 ) {
   return option
     .setName(OPTION_NAMES.REASON)
-    .setDescription("Reason for this action.")
+    .setDescription(
+      "Reason for this action. Pick a template or type !shortcut.",
+    )
     .setMaxLength(REASON_MAX_LENGTH)
+    .setAutocomplete(true)
     .setRequired(required);
 }
 

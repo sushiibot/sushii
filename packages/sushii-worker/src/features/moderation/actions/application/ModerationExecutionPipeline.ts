@@ -10,6 +10,7 @@ import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
+import type { ModLogMessageService } from "../../shared/application/ModLogMessageService";
 import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
 import {
@@ -93,6 +94,10 @@ export class ModerationExecutionPipeline {
     private readonly logger: Logger,
     private readonly softbanSuppressionSet: SoftbanSuppressionSet,
     private readonly permissionUsageRecorder: PermissionUsageRecorder,
+    private readonly modLogMessageService: Pick<
+      ModLogMessageService,
+      "refresh"
+    >,
   ) {}
 
   /**
@@ -397,6 +402,7 @@ export class ModerationExecutionPipeline {
       updatedCase.dmIntended,
       updatedCase.dmFailureReason,
     );
+    await this.refreshPostedEntry(updatedCase.guildId, updatedCase.caseId);
 
     return updatedCase;
   }
@@ -514,8 +520,30 @@ export class ModerationExecutionPipeline {
       updatedCase.dmIntended,
       updatedCase.dmFailureReason,
     );
+    await this.refreshPostedEntry(updatedCase.guildId, updatedCase.caseId);
 
     return updatedCase;
+  }
+
+  /**
+   * The audit log post can land before the DM result is saved; re-render the
+   * entry from the current row if it's already posted.
+   */
+  private async refreshPostedEntry(
+    guildId: string,
+    caseId: string,
+  ): Promise<void> {
+    try {
+      const current = await this.modLogRepository.findById(guildId, caseId);
+      if (current?.msgId) {
+        await this.modLogMessageService.refresh(current);
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId, caseId },
+        "Failed to refresh mod log entry after the DM result",
+      );
+    }
   }
 
   /**

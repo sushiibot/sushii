@@ -1,4 +1,5 @@
 import type {
+  ApplicationCommandOptionChoiceData,
   AutocompleteFocusedOption,
   AutocompleteInteraction,
 } from "discord.js";
@@ -7,11 +8,18 @@ import type { Logger } from "pino";
 import type { CaseRangeAutocompleteService } from "@/features/moderation/cases/application/CaseRangeAutocompleteService";
 import { AutocompleteHandler } from "@/shared/presentation/handlers";
 
+export type ReasonChoicesProvider = (
+  guildId: string,
+  input: string,
+) => Promise<ApplicationCommandOptionChoiceData<string>[]>;
+
+/** /reason and /uncase: `case` gets case ranges, /reason's `reason` gets templates. */
 export class ReasonAutocomplete extends AutocompleteHandler {
   fullCommandNamePath = ["reason", "uncase"];
 
   constructor(
     private readonly caseRangeAutocompleteService: CaseRangeAutocompleteService,
+    private readonly reasonChoices: ReasonChoicesProvider,
     private readonly logger: Logger,
   ) {
     super();
@@ -29,11 +37,28 @@ export class ReasonAutocomplete extends AutocompleteHandler {
       throw new Error("Option type must be a string.");
     }
 
+    switch (option.name) {
+      case "case":
+        await this.respondWithCases(interaction, option.value);
+        return;
+      case "reason":
+        await interaction.respond(
+          await this.reasonChoices(interaction.guildId, option.value),
+        );
+        return;
+      default:
+        await interaction.respond([]);
+    }
+  }
+
+  private async respondWithCases(
+    interaction: AutocompleteInteraction<"cached">,
+    query: string,
+  ): Promise<void> {
     this.logger.debug(
       {
         guildId: interaction.guildId,
-        query: option.value || "(empty)",
-        optionName: option.name,
+        query: query || "(empty)",
       },
       "Processing case autocomplete",
     );
@@ -42,16 +67,16 @@ export class ReasonAutocomplete extends AutocompleteHandler {
       const choices =
         await this.caseRangeAutocompleteService.getAutocompleteSuggestions({
           guildId: interaction.guildId,
-          query: option.value || "",
+          query: query || "",
         });
 
       await interaction.respond(choices);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         {
-          error,
+          err,
           guildId: interaction.guildId,
-          query: option.value,
+          query,
         },
         "Failed to process autocomplete",
       );

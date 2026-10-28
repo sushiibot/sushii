@@ -1,33 +1,43 @@
 import type { ButtonInteraction } from "discord.js";
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ComponentType,
-  EmbedBuilder,
-  MessageFlags,
-} from "discord.js";
+import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
+import type { CaseDmDeletionService } from "@/features/moderation/shared/application/CaseDmDeletionService";
+import type {
+  ModLogMessageService,
+  ModLogRenderOptions,
+} from "@/features/moderation/shared/application/ModLogMessageService";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
-import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
-import customIds from "@/interactions/customIds";
+import { hasLiveDm } from "@/features/moderation/shared/presentation/views/ModLogMessageView";
+import {
+  matchModLogDmButtonId,
+  parseModLogDmButtonId,
+} from "@/features/moderation/shared/presentation/views/modLogCustomIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import {
   ANY_MOD_PERMISSION,
   requireMemberPermission,
 } from "@/shared/presentation/requireMemberPermission";
-import Color from "@/utils/colors";
 
 /**
- * Button handler for deleting DM messages sent to users for moderation cases.
- * Uses awaitMessageComponent for confirmation with a 2-minute timeout.
+ * Delete DM on a mod log entry. The first click swaps the entry's buttons for
+ * an in-place Delete DM / Cancel confirmation. Also handles the legacy Delete
+ * reason DM button on old embed entries.
  */
 export class ModLogDeleteDMButtonHandler extends ButtonHandler {
-  customIDMatch = customIds.modLogDeleteReasonDM.match;
+  customIDMatch = matchModLogDmButtonId;
 
   constructor(
-    private readonly modLogRepository: ModLogRepository,
+    private readonly modLogRepository: Pick<ModLogRepository, "findById">,
+    private readonly caseDmDeletionService: Pick<
+      CaseDmDeletionService,
+      "deleteDms"
+    >,
+    private readonly modLogMessageService: Pick<
+      ModLogMessageService,
+      "render" | "syncLegacyDeletedDm" | "updateFromInteraction"
+    >,
     private readonly logger: Logger,
   ) {
     super();
@@ -38,16 +48,12 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
       throw new Error("Not a guild interaction");
     }
 
-    const customIDMatch = customIds.modLogDeleteReasonDM.match(
-      interaction.customId,
-    );
-    if (!customIDMatch) {
-      throw new Error(
-        `No match for mod log delete reason DM button with custom Id: ${interaction.customId}`,
-      );
+    const button = parseModLogDmButtonId(interaction.customId);
+    if (!button) {
+      throw new Error("No mod log delete DM match", {
+        cause: { customId: interaction.customId },
+      });
     }
-
-    const { caseId, channelId, messageId } = customIDMatch.params;
 
     if (
       !(await requireMemberPermission(
@@ -59,186 +65,133 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
       return;
     }
 
-    // Show confirmation dialog
-    const confirmationEmbed = new EmbedBuilder()
-      .setTitle("Are you sure?")
-      .setDescription(
-        "This will delete the DM sent to the user containing the reason.",
-      )
-      .setColor(Color.Warning);
-
-    const confirmationCancelButton = new ButtonBuilder()
-      .setCustomId("cancel")
-      .setLabel("Cancel")
-      .setStyle(ButtonStyle.Secondary);
-
-    const confirmationYesButton = new ButtonBuilder()
-      .setCustomId("yes")
-      .setLabel("Yes")
-      .setStyle(ButtonStyle.Danger);
-
-    const confirmationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      confirmationCancelButton,
-      confirmationYesButton,
-    );
-
-    const confirmReplyMsg = await interaction.reply({
-      embeds: [confirmationEmbed],
-      components: [confirmationRow],
-      flags: MessageFlags.Ephemeral,
-      // Required to await button interaction
-      withResponse: true,
-    });
-
-    if (!confirmReplyMsg.resource?.message) {
-      throw new Error(
-        "Failed to get confirmation message for mod log delete DM button",
-      );
-    }
-
-    // Await confirmation with 2 minute timeout
-    let confirmButtonInteraction;
-    try {
-      confirmButtonInteraction =
-        await confirmReplyMsg.resource.message.awaitMessageComponent({
-          filter: (i) => i.user.id === interaction.user.id,
-          time: 120_000, // 2 minutes
-          componentType: ComponentType.Button,
-        });
-
-      this.logger.debug(
-        {
-          caseId,
-          userId: confirmButtonInteraction.user.id,
-          guildId: confirmButtonInteraction.guildId,
-          customId: confirmButtonInteraction.customId,
-        },
-        "Received button for mod log delete DM button",
-      );
-
-      if (confirmButtonInteraction.customId === "cancel") {
-        // Just delete the confirmation message
-        // NOTE: We delete the initial button reply, not the confirmation interaction
-        await interaction.deleteReply();
-        return;
-      }
-    } catch {
-      // Timed out
-      await interaction.deleteReply();
+    if (button.action === "deleteConfirm") {
+      await this.confirmDelete(interaction, button.caseId);
       return;
     }
 
-    // Proceed with DM deletion
-    await this.deleteDMAndUpdateMessage(
+    const found = await this.modLogRepository.findById(
+      interaction.guildId,
+      button.caseId,
+    );
+    if (!found) {
+      await this.replyCaseNotFound(interaction, button.caseId);
+      return;
+    }
+
+    const moderationCase = await this.modLogMessageService.syncLegacyDeletedDm(
+      found,
+      interaction.message,
+    );
+
+    const hasDmRecord =
+      !!moderationCase.dmResult?.channelId &&
+      !!moderationCase.dmResult.messageId;
+    if (button.action === "delete" && !hasDmRecord) {
+      await interaction.reply({
+        content: "There's no DM on record for this case.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const confirming = button.action === "delete" && hasLiveDm(moderationCase);
+    await this.updateEntry(
       interaction,
-      confirmButtonInteraction,
-      caseId,
-      channelId,
-      messageId,
+      moderationCase,
+      { confirmDeleteDm: confirming },
+      confirming
+        ? "Couldn't show the confirmation on this mod log entry. Try again in a moment."
+        : "Couldn't update this mod log entry.",
     );
   }
 
-  private async deleteDMAndUpdateMessage(
-    originalInteraction: ButtonInteraction,
-    confirmationInteraction: ButtonInteraction,
+  private async confirmDelete(
+    interaction: ButtonInteraction<"cached">,
     caseId: string,
-    channelId: string,
-    messageId: string,
   ): Promise<void> {
-    if (!confirmationInteraction.inCachedGuild()) {
-      throw new Error("Not a guild interaction");
-    }
-
-    // Fetch and validate the DM channel
-    const dmChannel =
-      await confirmationInteraction.client.channels.fetch(channelId);
-    if (!dmChannel || !dmChannel.isDMBased() || !dmChannel.isTextBased()) {
-      const embed = new EmbedBuilder()
-        .setTitle("Failed to delete DM")
-        .setDescription("Hmm... couldn't find the channel.")
-        .setColor(Color.Error);
-
-      await confirmationInteraction.update({
-        embeds: [embed.toJSON()],
-      });
-
+    const [outcome] = await this.caseDmDeletionService.deleteDms(
+      interaction.guildId,
+      [caseId],
+      interaction.user.id,
+      { skipModLogRefreshFor: [caseId] },
+    );
+    if (!outcome?.moderationCase) {
+      await this.replyCaseNotFound(interaction, caseId);
       return;
     }
 
-    // Try to delete the DM
-    try {
-      await dmChannel.messages.delete(messageId);
-    } catch (err) {
-      this.logger.warn(
-        {
-          err,
-          channelId,
-          messageId,
-          caseId,
-          interactionId: confirmationInteraction.id,
-        },
-        "Failed to delete DM message",
-      );
-
-      // Ignore just continue and mark as deleted, since it might just already
-      // be deleted... if it's already deleted then there isn't point telling
-      // the user it failed
-    }
-
-    // Fetch the moderation case to rebuild components
-    const moderationCase = await this.modLogRepository.findById(
-      confirmationInteraction.guildId,
-      caseId,
+    await this.updateEntry(
+      interaction,
+      outcome.moderationCase,
+      {},
+      outcome.result === "deleted"
+        ? "Deleted the DM, but this mod log entry couldn't be updated."
+        : "Couldn't update this mod log entry.",
     );
 
-    if (!moderationCase) {
-      // Case was deleted meanwhile; the DM is gone so just confirm that
-      this.logger.warn(
-        {
-          caseId,
-          interactionId: confirmationInteraction.id,
-        },
-        "Mod case not found after DM deletion",
+    if (outcome.result === "failed") {
+      await this.notePrivately(
+        interaction,
+        "Couldn't delete the DM. Discord refused the request; try again in a moment.",
       );
-
-      const embed = new EmbedBuilder()
-        .setTitle("Deleted DM")
-        .setDescription("Deleted the DM message")
-        .setColor(Color.Success);
-
-      await confirmationInteraction.editReply({
-        embeds: [embed],
-      });
-
-      return;
     }
-
-    // Build updated components showing DM as deleted
-    const modLogComponents = new ModLogComponentBuilder(
-      moderationCase.actionType,
-      moderationCase,
-      true, // dmDeleted = true
-    );
-    const components = modLogComponents.build();
-
-    // Update the original mod log message
-    await originalInteraction.editReply({
-      message: originalInteraction.message,
-      embeds: originalInteraction.message.embeds,
-      components,
-    });
-
-    await originalInteraction.deleteReply();
 
     this.logger.info(
       {
         caseId,
-        guildId: confirmationInteraction.guildId,
-        executorId: confirmationInteraction.user.id,
-        channelId,
-        messageId,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        result: outcome.result,
       },
-      "Deleted DM message via button interaction",
+      "Handled mod log Delete DM confirmation",
     );
+  }
+
+  private async updateEntry(
+    interaction: ButtonInteraction<"cached">,
+    moderationCase: ModerationCase,
+    options: ModLogRenderOptions,
+    failureNote: string,
+  ): Promise<void> {
+    const message = await this.modLogMessageService.render(moderationCase, {
+      ...options,
+      currentMessage: interaction.message,
+    });
+    const updated = await this.modLogMessageService.updateFromInteraction(
+      interaction,
+      message,
+    );
+    if (updated === "failed") {
+      await this.notePrivately(interaction, failureNote);
+    }
+  }
+
+  /**
+   * Best effort. After a legacy entry's deferUpdate, an error reaching the
+   * router would edit '@original', which is the mod log entry itself.
+   */
+  private async notePrivately(
+    interaction: ButtonInteraction<"cached">,
+    content: string,
+  ): Promise<void> {
+    try {
+      await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+    } catch (err) {
+      this.logger.warn(
+        { err, messageId: interaction.message.id },
+        "Failed to send mod log Delete DM note",
+      );
+    }
+  }
+
+  private async replyCaseNotFound(
+    interaction: ButtonInteraction<"cached">,
+    caseId: string,
+  ): Promise<void> {
+    await interaction.reply({
+      content: `Case #${caseId} was not found. It may have been deleted.`,
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }

@@ -11,14 +11,20 @@ import {
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
+import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import {
   MODERATION_ACTION_EMOJIS,
+  type ModerationActionEmojis,
   buildActionResultMessage,
+  templateNote,
+  unknownShortcutNote,
 } from "@/features/moderation/actions/presentation/views/ModerationActionView";
+import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
+import type { ExpandResult } from "@/features/moderation/reason-templates/domain/ReasonExpander";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
@@ -31,11 +37,15 @@ import {
   UnbanAction,
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import type { DMChoice } from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import { dmChoiceFromString } from "@/features/moderation/shared/domain/value-objects/DMChoice";
 import { Duration } from "@/features/moderation/shared/domain/value-objects/Duration";
-import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  REASON_MAX_LENGTH,
+  Reason,
+} from "@/features/moderation/shared/domain/value-objects/Reason";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
 import {
   getErrorMessage,
@@ -47,6 +57,14 @@ import { SlashCommandHandler } from "@/shared/presentation/handlers";
 
 import type { ModerationService } from "../../application/ModerationService";
 import type { TargetResolutionService } from "../../application/TargetResolutionService";
+import {
+  UNRESOLVED_TEMPLATE_MESSAGE,
+  buildReasonFormError,
+} from "../components/reasonFormSubmit";
+import {
+  type ResponseExpiryScheduler,
+  scheduleResponseExpiry,
+} from "../response/responseExpiry";
 
 export interface ModerationCommandConfig {
   actionType: ActionType;
@@ -57,6 +75,27 @@ export interface ModerationCommandConfig {
     builder: SlashCommandBuilder,
   ) => SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   requiresReason?: boolean;
+}
+
+export type ModerationCommandTemplates = Pick<
+  ReasonTemplateService,
+  "resolve" | "recordUse" | "shouldPromptSave"
+>;
+
+const number = new Intl.NumberFormat("en-US");
+
+/** Expanded reason text that's too long; the action is refused. */
+export function expandedTooLongMessage(
+  length: number,
+  template: ExpandResult["template"],
+): string {
+  let what = "expanding the recent reason";
+  if (template?.shortcut) {
+    what = `expanding \`!${template.shortcut}\``;
+  } else if (template) {
+    what = "expanding the template";
+  }
+  return `**Nothing was done.** The reason is ${number.format(length)} characters after ${what}; the limit is ${number.format(REASON_MAX_LENGTH)}. Shorten the extra text by ${number.format(length - REASON_MAX_LENGTH)} characters.`;
 }
 
 interface ParsedOptions {
@@ -78,6 +117,9 @@ export class ModerationCommand extends SlashCommandHandler {
     private readonly targetResolutionService: TargetResolutionService,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly emojiRepository: BotEmojiRepository,
+    private readonly reasonTemplateService: ModerationCommandTemplates,
+    private readonly logger: Logger,
+    private readonly scheduleExpiry: ResponseExpiryScheduler = scheduleResponseExpiry,
   ) {
     super();
 
@@ -93,8 +135,9 @@ export class ModerationCommand extends SlashCommandHandler {
 
   private parseAllOptions(
     interaction: ChatInputCommandInteraction,
+    reasonText: string | null,
   ): Result<ParsedOptions, string> {
-    const reasonResult = this.parseReason(interaction);
+    const reasonResult = Reason.create(reasonText);
     if (!reasonResult.ok) {
       return reasonResult;
     }
@@ -115,15 +158,23 @@ export class ModerationCommand extends SlashCommandHandler {
     });
   }
 
-  private parseReason(
-    interaction: ChatInputCommandInteraction,
-  ): Result<Reason | null, string> {
-    // For note commands, check the "note" option, otherwise check "reason"
-    const reasonString =
-      this.config.actionType === ActionType.Note
-        ? interaction.options.getString(OPTION_NAMES.NOTE)
-        : interaction.options.getString(OPTION_NAMES.REASON);
-    return Reason.create(reasonString);
+  /** Notes keep the typed text; reasons expand templates and !shortcuts. */
+  private async resolveReason(
+    interaction: ChatInputCommandInteraction<"cached">,
+  ): Promise<{ text: string | null; expansion: ExpandResult | null }> {
+    if (this.config.actionType === ActionType.Note) {
+      return {
+        text: interaction.options.getString(OPTION_NAMES.NOTE),
+        expansion: null,
+      };
+    }
+
+    const raw = interaction.options.getString(OPTION_NAMES.REASON);
+    const expansion = await this.reasonTemplateService.resolve(
+      interaction.guildId,
+      raw,
+    );
+    return { text: expansion ? expansion.text : raw, expansion };
   }
 
   private parseDmChoice(interaction: ChatInputCommandInteraction): DMChoice {
@@ -312,7 +363,29 @@ export class ModerationCommand extends SlashCommandHandler {
       throw new Error("Not in cached guild");
     }
 
-    const optionsResult = this.parseAllOptions(interaction);
+    const [{ text: reasonText, expansion }, emojis] = await Promise.all([
+      this.resolveReason(interaction),
+      this.emojiRepository.getEmojis(MODERATION_ACTION_EMOJIS),
+    ]);
+
+    if (expansion?.unresolved) {
+      await interaction.reply(
+        buildReasonFormError(UNRESOLVED_TEMPLATE_MESSAGE, emojis),
+      );
+      return;
+    }
+
+    if (expansion && expansion.text.length > REASON_MAX_LENGTH) {
+      await interaction.reply(
+        buildReasonFormError(
+          expandedTooLongMessage(expansion.text.length, expansion.template),
+          emojis,
+        ),
+      );
+      return;
+    }
+
+    const optionsResult = this.parseAllOptions(interaction, reasonText);
     if (!optionsResult.ok) {
       await interaction.reply(getErrorMessage("Error", optionsResult.val));
       return;
@@ -371,20 +444,83 @@ export class ModerationCommand extends SlashCommandHandler {
       action.guildId,
     );
 
-    const emojis = await this.emojiRepository.getEmojis(
-      MODERATION_ACTION_EMOJIS,
-    );
+    const cases = executeResults.flatMap((r) => (r.ok ? [r.val] : []));
+    const template = expansion?.template ?? null;
+    const savePrompt =
+      cases.length > 0 &&
+      !template &&
+      this.config.actionType !== ActionType.Note &&
+      (await this.promptSave(action.guildId, options.reason?.value ?? null));
 
-    const message = buildActionResultMessage(
-      this.config.actionType,
-      interaction.user,
+    const message = buildActionResultMessage({
+      actionType: this.config.actionType,
+      executor: interaction.user,
       targets,
-      executeResults,
-      guildConfig || GuildConfig.createDefault(action.guildId),
+      results: executeResults,
+      guildConfig: guildConfig || GuildConfig.createDefault(action.guildId),
       action,
       emojis,
-    );
+      reasonNotes: this.reasonNotes(expansion, cases, emojis),
+      savePrompt,
+    });
+
+    if (template && cases.length > 0) {
+      await this.recordTemplateUse(action.guildId, template.id);
+    }
 
     await interaction.editReply(message);
+
+    if (cases.length > 0) {
+      this.scheduleExpiry(interaction, this.logger);
+    }
+  }
+
+  // The action already happened, so these never fail the deferred reply; the
+  // router would overwrite it with an error box.
+  private async promptSave(
+    guildId: string,
+    reason: string | null,
+  ): Promise<boolean> {
+    try {
+      return await this.reasonTemplateService.shouldPromptSave(guildId, reason);
+    } catch (err) {
+      this.logger.warn({ err, guildId }, "Failed to check the save prompt");
+      return false;
+    }
+  }
+
+  private async recordTemplateUse(
+    guildId: string,
+    templateId: string,
+  ): Promise<void> {
+    try {
+      await this.reasonTemplateService.recordUse(guildId, templateId);
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId, templateId },
+        "Failed to record template use",
+      );
+    }
+  }
+
+  private reasonNotes(
+    expansion: ExpandResult | null,
+    cases: ModerationCase[],
+    emojis: ModerationActionEmojis,
+  ): string[] {
+    const notes: string[] = [];
+    if (expansion?.template) {
+      notes.push(templateNote(expansion.template));
+    }
+    if (expansion?.unknownShortcut) {
+      notes.push(
+        unknownShortcutNote(
+          expansion.unknownShortcut,
+          emojis,
+          cases.some((c) => c.dmSuccess),
+        ),
+      );
+    }
+    return notes;
   }
 }

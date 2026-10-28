@@ -3,12 +3,11 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import type { ModLogMessageService } from "../../application/ModLogMessageService";
 import type { ModerationCase } from "../../domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../domain/entities/ModerationTarget";
-import { ModLogComponentBuilder } from "../../domain/services/ModLogComponentBuilder";
 import type { ModLogService } from "../../domain/services/ModLogService";
 import { ActionType } from "../../domain/value-objects/ActionType";
 
@@ -20,6 +19,7 @@ export class DiscordModLogService implements ModLogService {
   constructor(
     private readonly client: Client,
     private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly modLogMessageService: ModLogMessageService,
     private readonly logger: Logger,
   ) {}
 
@@ -50,28 +50,9 @@ export class DiscordModLogService implements ModLogService {
         return Err("Mod log not enabled or channel not configured");
       }
 
-      // Build the mod log embed and components
-      const embed = await buildModLogEmbed(
-        this.client,
-        actionType,
-        target.user,
-        {
-          case_id: moderationCase.caseId,
-          executor_id: moderationCase.executorId,
-          reason: moderationCase.reason?.value || null,
-          attachments: moderationCase.attachments || [],
-          timeout_duration: moderationCase.timeoutDuration,
-          action_time: moderationCase.actionTime,
-          delete_message_seconds: moderationCase.deleteMessageSeconds,
-        },
-      );
-
-      // Build message components
-      const componentBuilder = new ModLogComponentBuilder(
-        actionType,
-        moderationCase,
-      );
-      const components = componentBuilder.build();
+      const message = await this.modLogMessageService.render(moderationCase, {
+        targetUser: target.user,
+      });
 
       // Fetch and send to mod log channel
       const guild = this.client.guilds.cache.get(guildId);
@@ -86,10 +67,7 @@ export class DiscordModLogService implements ModLogService {
         return Err("Mod log channel not found or not text-based");
       }
 
-      const sentMessage = await modLogChannel.send({
-        embeds: [embed],
-        components,
-      });
+      const sentMessage = await modLogChannel.send(message);
 
       this.logger.info(
         {

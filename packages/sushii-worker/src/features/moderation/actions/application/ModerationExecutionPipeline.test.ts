@@ -163,6 +163,7 @@ describe("ModerationExecutionPipeline", () => {
   let mockGuildConfigRepository: GuildConfigRepository;
   let mockClient: Client;
   let mockPermissionUsageRecorder: PermissionUsageRecorder;
+  let mockModLogMessageService: { refresh: ReturnType<typeof mock> };
 
   beforeEach(() => {
     // Create fresh mocks for each test
@@ -213,6 +214,11 @@ describe("ModerationExecutionPipeline", () => {
       updateMessageId: mock(() => Promise.resolve()),
       updateDMInfo: mock(() => Promise.resolve()),
       hasAnyForGuild: mock(() => Promise.resolve(false)),
+      findByIds: mock(() => Promise.resolve([])),
+      markDmDeleted: mock(() => Promise.resolve()),
+      findLastReason: mock(() => Promise.resolve(null)),
+      findRecentDistinctReasons: mock(() => Promise.resolve([])),
+      countByNormalizedReason: mock(() => Promise.resolve(0)),
     };
 
     mockTempBanRepository = {
@@ -263,6 +269,8 @@ describe("ModerationExecutionPipeline", () => {
       recordSushiiAction: mock(() => Promise.resolve()),
     } as unknown as PermissionUsageRecorder;
 
+    mockModLogMessageService = { refresh: mock(async () => "updated") };
+
     pipeline = new ModerationExecutionPipeline(
       mockDb,
       mockModLogRepository,
@@ -275,6 +283,7 @@ describe("ModerationExecutionPipeline", () => {
       testLogger,
       new SoftbanSuppressionSet(),
       mockPermissionUsageRecorder,
+      mockModLogMessageService,
     );
   });
 
@@ -449,6 +458,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new BanAction(
@@ -502,6 +512,85 @@ describe("ModerationExecutionPipeline", () => {
         expect(result.val.dmResult?.messageId).toBe("message-id");
         expect(result.val.dmResult?.channelId).toBe("dm-channel-id");
       }
+    });
+
+    test("re-renders an entry the audit log already posted once the DM result is saved", async () => {
+      mockDMPolicyService.shouldSendDM = mock(() =>
+        Promise.resolve({
+          should: true,
+          source: "guild_default" as DMIntentSource,
+        }),
+      );
+      const posted = { msgId: "1029384756102938499" } as ModerationCase;
+      mockModLogRepository.findById = mock(() => Promise.resolve(posted));
+
+      const result = await pipeline.execute(
+        new BanAction(
+          mockGuildId,
+          createMockUser(),
+          null,
+          createMockReason(),
+          "unspecified",
+        ),
+        ActionType.Ban,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(mockModLogMessageService.refresh).toHaveBeenCalledWith(posted);
+    });
+
+    test("a failed re-render doesn't fail the action", async () => {
+      mockDMPolicyService.shouldSendDM = mock(() =>
+        Promise.resolve({
+          should: true,
+          source: "guild_default" as DMIntentSource,
+        }),
+      );
+      mockModLogRepository.findById = mock(() =>
+        Promise.resolve({ msgId: "1" } as ModerationCase),
+      );
+      mockModLogMessageService.refresh.mockRejectedValueOnce(new Error("boom"));
+
+      const result = await pipeline.execute(
+        new BanAction(
+          mockGuildId,
+          createMockUser(),
+          null,
+          createMockReason(),
+          "unspecified",
+        ),
+        ActionType.Ban,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(result.ok).toBe(true);
+    });
+
+    test("no posted entry yet: nothing to re-render", async () => {
+      mockDMPolicyService.shouldSendDM = mock(() =>
+        Promise.resolve({
+          should: true,
+          source: "guild_default" as DMIntentSource,
+        }),
+      );
+
+      await pipeline.execute(
+        new BanAction(
+          mockGuildId,
+          createMockUser(),
+          null,
+          createMockReason(),
+          "unspecified",
+        ),
+        ActionType.Ban,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      expect(mockModLogMessageService.refresh).not.toHaveBeenCalled();
     });
 
     test("should skip DM when policy denies", async () => {
@@ -677,6 +766,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new SoftbanAction(
@@ -739,6 +829,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new BanAction(
@@ -793,6 +884,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new BanAction(
@@ -975,6 +1067,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new BanAction(
@@ -1034,6 +1127,7 @@ describe("ModerationExecutionPipeline", () => {
         testLogger,
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
+        mockModLogMessageService,
       );
 
       const action = new BanAction(

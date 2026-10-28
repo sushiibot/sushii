@@ -1,4 +1,4 @@
-import type { Client, Guild, User } from "discord.js";
+import type { Client, Guild, MessageEditOptions, User } from "discord.js";
 import {
   DiscordAPIError,
   EmbedBuilder,
@@ -9,12 +9,15 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type dayjs from "@/shared/domain/dayjs";
+import dayjs from "@/shared/domain/dayjs";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 import toTimestamp from "@/utils/toTimestamp";
 
-import type { DMFailureReason } from "../domain/entities/ModerationCase";
+import type {
+  DMFailureReason,
+  ModerationCase,
+} from "../domain/entities/ModerationCase";
 import {
   ActionType,
   actionTypeSupportsDM,
@@ -190,6 +193,98 @@ export class DMNotificationService {
     }
   }
 
+  /**
+   * Rebuilds the DM a case sent, with the case's current reason. Matches
+   * sendModerationDM; the guild's DM text is read again from its config.
+   */
+  buildCaseDMEmbed(
+    guild: Guild,
+    moderationCase: ModerationCase,
+    guildConfig: GuildConfig,
+  ): EmbedBuilder {
+    const seconds = moderationCase.timeoutDuration;
+    const isTemporal =
+      moderationCase.actionType === ActionType.Timeout ||
+      moderationCase.actionType === ActionType.TimeoutAdjust ||
+      moderationCase.actionType === ActionType.TempBan;
+    const durationEnd =
+      isTemporal && seconds != null && seconds > 0
+        ? dayjs(moderationCase.actionTime).add(seconds, "seconds")
+        : null;
+
+    // The original DM for an adjusted timeout was sent as a timeout.
+    const action =
+      moderationCase.actionType === ActionType.TimeoutAdjust
+        ? ActionType.Timeout
+        : moderationCase.actionType;
+
+    return this.buildDMEmbed(
+      guild,
+      action,
+      true,
+      moderationCase.reason,
+      durationEnd,
+      this.getGuildCustomDMText(action, guildConfig),
+    );
+  }
+
+  /**
+   * Edits a DM the bot sent. The user may have deleted it, blocked the bot or
+   * left every mutual server, so failures are expected and logged, not thrown.
+   */
+  async editModerationDM(
+    client: Client,
+    channelId: string,
+    messageId: string,
+    payload: MessageEditOptions,
+  ): Promise<DMEditOutcome> {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (!channel?.isDMBased() || !channel.isTextBased()) {
+        this.logger.warn(
+          { channelId, messageId },
+          "Moderation DM channel is missing or not a DM",
+        );
+        return "failed";
+      }
+
+      await channel.messages.edit(messageId, payload);
+      return "updated";
+    } catch (err) {
+      this.logger.warn(
+        { err, channelId, messageId },
+        "Failed to edit moderation DM",
+      );
+      return "failed";
+    }
+  }
+
+  /** Edits the case's DM to show its current reason. */
+  async editCaseDM(
+    client: Client,
+    moderationCase: ModerationCase,
+    guildConfig: GuildConfig,
+  ): Promise<DMEditOutcome> {
+    const channelId = moderationCase.dmResult?.channelId;
+    const messageId = moderationCase.dmResult?.messageId;
+    if (moderationCase.dmDeleted || !channelId || !messageId) {
+      return "no_dm";
+    }
+
+    const guild = client.guilds.cache.get(moderationCase.guildId);
+    if (!guild) {
+      this.logger.warn(
+        { guildId: moderationCase.guildId, caseId: moderationCase.caseId },
+        "Guild not cached, can't rebuild the moderation DM",
+      );
+      return "failed";
+    }
+
+    return this.editModerationDM(client, channelId, messageId, {
+      embeds: [this.buildCaseDMEmbed(guild, moderationCase, guildConfig)],
+    });
+  }
+
   async deleteModerationDM(
     client: Client,
     dmChannelId: string,
@@ -290,3 +385,10 @@ export interface DMSentResult {
   error: string | null;
   failureReason: DMFailureReason | null;
 }
+
+/**
+ * - `updated`: the DM now shows the case's current reason
+ * - `no_dm`: there's no DM to edit (never sent, failed or deleted)
+ * - `failed`: Discord refused or the DM is gone; logged at warn
+ */
+export type DMEditOutcome = "updated" | "no_dm" | "failed";

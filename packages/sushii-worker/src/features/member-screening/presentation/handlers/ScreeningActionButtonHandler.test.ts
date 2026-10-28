@@ -19,6 +19,7 @@ import pino from "pino";
 import { Err, Ok } from "ts-results";
 
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
+import type { ActionReasonFormDeps } from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
 import {
   BanAction,
   type ModerationAction,
@@ -91,11 +92,30 @@ function makeRepo() {
 }
 
 function makeModal(
-  opts: { reason?: string; duration?: string; deleteSeconds?: string } = {},
+  opts: {
+    reason?: string;
+    duration?: string;
+    deleteSeconds?: string;
+    template?: string;
+    save?: boolean;
+  } = {},
 ) {
+  const submitted = new Map<string, unknown>([
+    ["reason", { customId: "reason", value: opts.reason ?? "" }],
+    ["save_as_template", { customId: "save_as_template", value: !!opts.save }],
+  ]);
+  if (opts.template) {
+    submitted.set("reason_template", {
+      customId: "reason_template",
+      values: [opts.template],
+    });
+  }
   return {
     fields: {
+      fields: submitted,
       getTextInputValue: () => opts.reason ?? "",
+      getCheckbox: () => !!opts.save,
+      getCheckboxGroup: () => [],
       getStringSelectValues: (id: string) => {
         if (id === "duration") {
           return [opts.duration ?? "1h"];
@@ -103,14 +123,67 @@ function makeModal(
         if (id === "delete_seconds" && opts.deleteSeconds) {
           return [opts.deleteSeconds];
         }
+        if (id === "reason_template" && opts.template) {
+          return [opts.template];
+        }
         throw new Error(`missing ${id}`);
       },
     },
+    guildId: GUILD,
+    user: { id: MOD },
+    inCachedGuild: () => true,
+    reply: mock(async () => undefined),
     deferUpdate: mock(async () => undefined),
+    deleteReply: mock(async () => undefined),
     followUp: mock(async () => undefined),
     editReply: mock(async () => undefined),
   };
 }
+
+const TEMPLATE = {
+  id: "11",
+  guildId: GUILD,
+  shortcut: "spam",
+  content: "Spamming in channels (rule 3).",
+  contentKey: "k",
+  createdBy: MOD,
+  createdAt: NOW,
+  updatedAt: null,
+  useCount: 3,
+  lastUsedAt: null,
+};
+
+function makeFormDeps() {
+  return {
+    reasonTemplateService: {
+      getFormData: mock(async () => ({ last: null, templates: [TEMPLATE] })),
+      resolve: mock(async (_guildId: string, input: string | null) =>
+        input
+          ? {
+              text: input,
+              template: null,
+              unknownShortcut: null,
+              source: "none" as const,
+              unresolved: null,
+            }
+          : null,
+      ),
+      recordUse: mock(async () => undefined),
+      create: mock(async () => Ok(TEMPLATE)),
+    },
+    emojiRepository: {
+      getEmojis: mock(async () => ({
+        history: "",
+        success: "",
+        message_edit: "",
+        fail: "",
+      })),
+    },
+    logger: pino({ level: "silent" }),
+  };
+}
+
+const postEdit = mock(async () => undefined);
 
 function makeInteraction(
   actionType: string,
@@ -123,6 +196,7 @@ function makeInteraction(
     id: INTERACTION_ID,
     customId: `/screening/action/${actionType}/${VERDICT_ID}`,
     guildId: GUILD,
+    channelId: "1029384756102938400",
     user: { id: MOD },
     member: { id: MOD },
     message: { id: POST },
@@ -133,13 +207,23 @@ function makeInteraction(
     awaitModalSubmit: mock(async () => modal),
     guild: {
       members: {
+        cache: new Map([[USER, { displayName: "spambot" }]]),
         fetch: mock(
           async (): Promise<unknown> => ({ id: USER, user: targetUser }),
         ),
       },
     },
     client: {
-      users: { fetch: mock(async (): Promise<unknown> => targetUser) },
+      users: {
+        cache: new Map(),
+        fetch: mock(async (): Promise<unknown> => targetUser),
+      },
+      channels: {
+        fetch: mock(async () => ({
+          isTextBased: () => true,
+          messages: { edit: postEdit },
+        })),
+      },
     },
     modal,
   };
@@ -156,6 +240,7 @@ describe("ScreeningActionButtonHandler", () => {
   let executeAction: ReturnType<typeof mock>;
   let postRefresher: { refreshPosts: ReturnType<typeof mock> };
   let handler: ScreeningActionButtonHandler;
+  let formDeps: ReturnType<typeof makeFormDeps>;
 
   beforeEach(() => {
     setSystemTime(NOW);
@@ -165,12 +250,15 @@ describe("ScreeningActionButtonHandler", () => {
     metrics = { recordCheck: mock(), recordOutcome: mock() };
     executeAction = mock(async () => [Ok({ caseId: "12" })]);
     postRefresher = { refreshPosts: mock(async () => undefined) };
+    formDeps = makeFormDeps();
+    postEdit.mockClear();
     handler = new ScreeningActionButtonHandler(
       { executeAction } as unknown as Pick<ModerationService, "executeAction">,
       repo as unknown as ScreeningVerdictRepository,
       renderer,
       postRefresher,
       metrics as ScreeningMetrics,
+      formDeps as unknown as ActionReasonFormDeps,
       pino({ level: "silent" }),
     );
   });
@@ -243,13 +331,14 @@ describe("ScreeningActionButtonHandler", () => {
 
     await run(interaction);
 
-    const modalId = `/screening/action/ban/${VERDICT_ID}#${INTERACTION_ID}`;
+    const modalId = `reasonForm/${INTERACTION_ID}`;
     const modal = (
       interaction.showModal.mock.calls[0] as unknown as [
-        { toJSON(): { custom_id: string } },
+        { custom_id: string; title: string },
       ]
     )[0];
-    expect(modal.toJSON().custom_id).toBe(modalId);
+    expect(modal.custom_id).toBe(modalId);
+    expect(modal.title).toBe("Ban spambot");
     const { filter } = (
       interaction.awaitModalSubmit.mock.calls[0] as unknown as [
         { filter: (i: unknown) => boolean },
@@ -262,6 +351,9 @@ describe("ScreeningActionButtonHandler", () => {
         customId: `/screening/action/ban/${VERDICT_ID}`,
       }),
     ).toBe(false);
+    expect(formDeps.reasonTemplateService.getFormData).toHaveBeenCalledWith(
+      GUILD,
+    );
 
     const { action, target } = executed();
     expect(action).toBeInstanceOf(BanAction);
@@ -386,15 +478,116 @@ describe("ScreeningActionButtonHandler", () => {
     expect(executeAction).not.toHaveBeenCalled();
   });
 
-  test("an invalid reason stops before the action", async () => {
+  test("too long after adding the template: nothing done, Try again reopens prefilled", async () => {
     const interaction = makeInteraction("ban", {
-      modal: makeModal({ reason: "x".repeat(3001) }),
+      modal: makeModal({
+        reason: "x".repeat(2990),
+        template: "template:11",
+        deleteSeconds: "86400",
+      }),
     });
 
     await run(interaction);
 
-    expect(interaction.modal.followUp).toHaveBeenCalledTimes(1);
     expect(executeAction).not.toHaveBeenCalled();
+    expect(interaction.modal.deferUpdate).not.toHaveBeenCalled();
+    const reply = (
+      interaction.modal.reply.mock.calls[0] as unknown as [
+        {
+          flags: number;
+          components: { toJSON(): { components: Record<string, unknown>[] } }[];
+        },
+      ]
+    )[0];
+    expect(reply.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
+    const [text, row] = reply.components[0]?.toJSON().components ?? [];
+    expect(text?.content).toContain("**Nothing was done.**");
+    expect(text?.content).toContain("Shorten the details by 21 characters.");
+    const retryButton = (
+      row?.components as { custom_id: string; label: string }[]
+    )[0];
+    expect(retryButton.label).toBe("Try again");
+    expect(handler.customIDMatch(retryButton.custom_id)).not.toBe(false);
+
+    // Try again from the ephemeral error: same flow, form prefilled, post edited over REST.
+    const retryModal = makeModal({ reason: "short", deleteSeconds: "86400" });
+    const retry = makeInteraction("ban", { modal: retryModal });
+    retry.customId = retryButton.custom_id;
+    retry.id = "1558174981962080001";
+    await run(retry);
+
+    const prefilled = (
+      retry.showModal.mock.calls[0] as unknown as [
+        { components: { component: Record<string, unknown> }[] },
+      ]
+    )[0];
+    const byId = Object.fromEntries(
+      prefilled.components.map((c) => [c.component.custom_id, c.component]),
+    );
+    expect(byId.reason).toMatchObject({ value: "x".repeat(2990) });
+    expect(
+      (byId.reason_template?.options as { value: string; default?: boolean }[])
+        .filter((o) => o.default)
+        .map((o) => o.value),
+    ).toEqual(["template:11"]);
+
+    expect(executed().action.reason?.value).toBe("short");
+    expect(postEdit).toHaveBeenCalledWith(POST, {
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    });
+    expect(retryModal.deleteReply).toHaveBeenCalledTimes(1);
+    expect(retryModal.editReply).not.toHaveBeenCalled();
+
+    // The input is dropped once used.
+    const again = makeInteraction("ban");
+    again.customId = retryButton.custom_id;
+    await run(again);
+    expect(again.showModal).not.toHaveBeenCalled();
+    expect(again.reply).toHaveBeenCalledTimes(1);
+  });
+
+  test("an unresolved template pick refuses the action", async () => {
+    formDeps.reasonTemplateService.resolve.mockResolvedValueOnce({
+      text: "!spam · Spamming…",
+      template: null,
+      unknownShortcut: null,
+      source: "none",
+      unresolved: { kind: "stale_label", input: "!spam · Spamming…" },
+    } as never);
+    const interaction = makeInteraction("ban", {
+      modal: makeModal({ reason: "!spam · Spamming…" }),
+    });
+
+    await run(interaction);
+
+    expect(executeAction).not.toHaveBeenCalled();
+    expect(JSON.stringify(interaction.modal.reply.mock.calls[0])).toContain(
+      "old or edited template pick",
+    );
+  });
+
+  test("a picked template is expanded, recorded and can be saved", async () => {
+    formDeps.reasonTemplateService.create.mockResolvedValueOnce(
+      Err({ code: "duplicate", existing: TEMPLATE }) as never,
+    );
+    const interaction = makeInteraction("ban", {
+      modal: makeModal({ template: "template:11", reason: "", save: true }),
+    });
+
+    await run(interaction);
+
+    expect(executed().action.reason?.value).toBe(TEMPLATE.content);
+    expect(formDeps.reasonTemplateService.recordUse).toHaveBeenCalledWith(
+      GUILD,
+      "11",
+    );
+    // A duplicate never blocks the action; it becomes a private note.
+    expect(interaction.modal.editReply).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(interaction.modal.followUp.mock.calls)).toContain(
+      "already the template `!spam`",
+    );
   });
 
   test("throws when the post has no verdict to render", async () => {

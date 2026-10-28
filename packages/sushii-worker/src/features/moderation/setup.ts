@@ -13,7 +13,6 @@ import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
-import type { SlashCommandHandler } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
@@ -24,8 +23,7 @@ import {
   ModerationService,
   TargetResolutionService,
 } from "./actions/application";
-import { ModerationCommand } from "./actions/presentation";
-import { AutomodAlertActionButtonHandler } from "./actions/presentation/components/AutomodAlertActionButtonHandler";
+import { createActionResponseHandlers } from "./actions/presentation/actionResponseFactory";
 import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
 import { AuditLogEventHandler } from "./audit-logs";
 // Audit logs sub-feature
@@ -34,11 +32,6 @@ import {
   ModLogPostingService,
   NativeTimeoutDMService,
 } from "./audit-logs/application";
-// Button handlers
-import {
-  ModLogDeleteDMButtonHandler,
-  ModLogReasonButtonHandler,
-} from "./audit-logs/presentation/components";
 // Cases sub-feature
 import {
   CaseDeletionService,
@@ -53,9 +46,9 @@ import {
   HistoryCommand,
   LookupCommand,
   NamesCommand,
-  ReasonCommand,
   UncaseCommand,
 } from "./cases/presentation";
+import { createReasonEditingHandlers } from "./cases/presentation/reasonEditingFactory";
 // Tasks
 import { TempbanTask } from "./infrastructure/tasks/TempbanTask";
 // Management sub-feature
@@ -75,8 +68,14 @@ import {
   createModViewDependencies,
   setupModViewFeature,
 } from "./mod-view/setup";
+// Reason templates sub-feature
+import { ReasonTemplateService } from "./reason-templates/application/ReasonTemplateService";
+import { DrizzleReasonTemplateRepository } from "./reason-templates/infrastructure/DrizzleReasonTemplateRepository";
+import { createReasonTemplateHandlers } from "./reason-templates/presentation/factory";
 // Shared components
 import { DMNotificationService } from "./shared/application";
+import { CaseDmDeletionService } from "./shared/application/CaseDmDeletionService";
+import { ModLogMessageService } from "./shared/application/ModLogMessageService";
 import { SoftbanSuppressionSet } from "./shared/application/SoftbanSuppressionSet";
 // Shared components
 import { TimeoutDetectionService } from "./shared/domain/services/TimeoutDetectionService";
@@ -86,7 +85,6 @@ import {
   DrizzleModLogRepository,
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
-import { COMMAND_CONFIGS, ReasonAutocomplete } from "./shared/presentation";
 
 interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -122,6 +120,12 @@ export function createModerationServices({
     logger.child({ module: "modLogRepository" }),
   );
 
+  const reasonTemplateRepository = new DrizzleReasonTemplateRepository(db);
+  const reasonTemplateService = new ReasonTemplateService(
+    reasonTemplateRepository,
+    modLogRepository,
+  );
+
   const guildConfigRepository = new DrizzleGuildConfigRepository(
     db,
     logger.child({ module: "guildConfigRepository" }),
@@ -141,9 +145,26 @@ export function createModerationServices({
 
   const permissionService = new DiscordPermissionValidationService();
   const timeoutDetectionService = new TimeoutDetectionService();
+  const modLogMessageService = new ModLogMessageService(
+    client,
+    guildConfigRepository,
+    emojiRepository,
+    modLogRepository,
+    logger.child({ module: "modLogMessageService" }),
+  );
+
+  const caseDmDeletionService = new CaseDmDeletionService(
+    client,
+    modLogRepository,
+    dmNotificationService,
+    modLogMessageService,
+    logger.child({ module: "caseDmDeletionService" }),
+  );
+
   const modLogService = new DiscordModLogService(
     client,
     guildConfigRepository,
+    modLogMessageService,
     logger.child({ module: "modLogService" }),
   );
 
@@ -160,6 +181,7 @@ export function createModerationServices({
     logger.child({ module: "moderationExecutionPipeline" }),
     softbanSuppressionSet,
     permissionUsageRecorder,
+    modLogMessageService,
   );
 
   const moderationService = new ModerationService(
@@ -226,6 +248,8 @@ export function createModerationServices({
     modLogRepository,
     guildConfigRepository,
     client,
+    dmNotificationService,
+    modLogMessageService,
     logger.child({ module: "reasonUpdateService" }),
   );
 
@@ -241,6 +265,7 @@ export function createModerationServices({
   );
 
   const modLogPostingService = new ModLogPostingService(
+    modLogMessageService,
     logger.child({ module: "modLogPostingService" }),
   );
 
@@ -253,6 +278,7 @@ export function createModerationServices({
     spamAlertUpdateService,
     logger.child({ module: "auditLogService" }),
     softbanSuppressionSet,
+    modLogMessageService,
   );
 
   return {
@@ -273,6 +299,10 @@ export function createModerationServices({
     caseDeletionService,
     reasonUpdateService,
     caseRangeAutocompleteService,
+    modLogMessageService,
+    caseDmDeletionService,
+    reasonTemplateRepository,
+    reasonTemplateService,
 
     // Audit log services
     auditLogService,
@@ -285,39 +315,28 @@ export function createModerationServices({
   };
 }
 
+export type ModerationServices = ReturnType<typeof createModerationServices>;
+
 export function createModerationCommands(
-  services: ReturnType<typeof createModerationServices>,
+  services: ModerationServices,
   logger: Logger,
   modViewDependencies: ModViewDependencies,
 ) {
   const {
     moderationService,
-    targetResolutionService,
     tempBanListService,
     slowmodeService,
     pruneMessageService,
     caseDeletionService,
-    reasonUpdateService,
-    caseRangeAutocompleteService,
-    guildConfigRepository,
-    emojiRepository,
     permissionUsageRecorder,
   } = services;
 
-  // Iterate over all COMMAND_CONFIGS and build commands
-  const commands: SlashCommandHandler[] = Object.values(COMMAND_CONFIGS).map(
-    (config) => {
-      return new ModerationCommand(
-        config,
-        moderationService,
-        targetResolutionService,
-        guildConfigRepository,
-        emojiRepository,
-      );
-    },
-  );
+  const actionResponse = createActionResponseHandlers(services, logger);
+  const reasonEditing = createReasonEditingHandlers(services, logger);
+  const reasonTemplates = createReasonTemplateHandlers(services, logger);
 
-  commands.push(
+  const commands = [
+    ...actionResponse.commands,
     new LookupCommand(
       modViewDependencies,
       logger.child({ commandHandler: "lookup" }),
@@ -345,42 +364,26 @@ export function createModerationCommands(
       caseDeletionService,
       logger.child({ commandHandler: "uncase" }),
     ),
-    new ReasonCommand(
-      reasonUpdateService,
-      logger.child({ commandHandler: "reason" }),
-    ),
+    ...reasonEditing.commands,
     new NamesCommand(
       modViewDependencies,
       logger.child({ commandHandler: "names" }),
     ),
-  );
-
-  const autocompletes = [
-    new ReasonAutocomplete(
-      caseRangeAutocompleteService,
-      logger.child({ autocompleteHandler: "reason" }),
-    ),
+    ...reasonTemplates.commands,
   ];
+
+  const autocompletes = [...reasonTemplates.autocompletes];
 
   const contextMenuHandlers: ContextMenuHandler[] = [];
 
   const buttonHandlers = [
-    new ModLogReasonButtonHandler(
-      services.modLogRepository,
-      logger.child({ buttonHandler: "modLogReason" }),
-    ),
-    new ModLogDeleteDMButtonHandler(
-      services.modLogRepository,
-      logger.child({ buttonHandler: "modLogDeleteDM" }),
-    ),
-    new AutomodAlertActionButtonHandler(
-      moderationService,
-      logger.child({ buttonHandler: "automodAlertAction" }),
-    ),
+    ...reasonEditing.buttonHandlers,
     new AutomodAlertRemoveTimeoutButtonHandler(
       moderationService,
       logger.child({ buttonHandler: "automodAlertRemoveTimeout" }),
     ),
+    ...actionResponse.buttonHandlers,
+    ...reasonTemplates.buttonHandlers,
   ];
 
   return {
@@ -392,7 +395,7 @@ export function createModerationCommands(
 }
 
 export function createModerationEventHandlers(
-  services: ReturnType<typeof createModerationServices>,
+  services: ModerationServices,
   logger: Logger,
 ) {
   const { auditLogService } = services;
@@ -408,7 +411,7 @@ export function createModerationEventHandlers(
 }
 
 export function createModerationTasks(
-  services: ReturnType<typeof createModerationServices>,
+  services: ModerationServices,
   client: Client,
   deploymentService: DeploymentService,
 ) {

@@ -33,7 +33,7 @@ reason, sushii copies it into the case.
 Every action creates a **case** with a sequential number (e.g. "case #42"),
 posted to your mod log channel.
 
-{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @b8ac1fbc, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/domain/services/ModLogComponentBuilder.ts#"Set reason" @5ae171df */}
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildButtonRow @f94cd890, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#hasLiveDm @81d8fe11 */}
 
 ```
 /history user:@member
@@ -43,7 +43,8 @@ posted to your mod log channel.
 ```
 
 - `/history` — full moderation history for a member
-- `/reason` — edit a reason after the fact; if a case has no reason yet, you can also click **Set reason** on its mod log entry
+- `/reason` — edit a reason after the fact. Turn on `update_dm` to also update the DM the member got
+- Mod log entries have **Set reason** (no reason yet) or **Edit reason**, for any action type, plus **Delete DM** while the member's DM still exists. Delete DM asks you to confirm on the entry itself. Older entries get these buttons the first time they're edited
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
 
@@ -53,6 +54,47 @@ posted to your mod log channel.
   `/uncase` cannot be undone. Use it only to remove cases that were created in
   error, not to clean up a member's history before a ban appeal.
 </Callout>
+
+## Reason templates
+
+{/* source: packages/sushii-worker/src/features/moderation/reason-templates/presentation/commands/ReasonTemplatesCommand.ts#ReasonTemplatesCommand @d920a251, packages/sushii-worker/src/features/moderation/reason-templates/application/ReasonTemplateService.ts#REASON_TEMPLATE_LIMIT @f255be0a, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addReasonOption @c25e8355, packages/sushii-worker/src/features/moderation/reason-templates/presentation/autocomplete/reasonChoices.ts#buildReasonChoices @e20f5503, packages/sushii-worker/src/features/moderation/reason-templates/domain/ReasonExpander.ts#expandReason @cca102c4 */}
+
+Save reasons you use often as templates. Every mod in the server can use them.
+
+- `/reason-templates` lists them, most used first. Add, edit or delete them
+  there. A server can have up to 100.
+- The `reason` option on `/ban`, `/warn`, `/timeout` and the other action
+  commands suggests templates and recent reasons as you type.
+- Give a template a shortcut such as `spam`, then start a reason with `!spam`.
+  Anything after the shortcut is added to the end: `!spam also in #general`.
+- A case keeps the full text. Editing or deleting a template later doesn't
+  change past cases.
+- If you mistype a shortcut, the reason is saved as you typed it, with a
+  warning. Use **Edit reason** to fix it.
+
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/reasonFields.ts#buildTemplateSelect @ed69be90, packages/sushii-worker/src/features/moderation/shared/presentation/reasonFields.ts#buildSaveTemplateCheckbox @9a6735fa */}
+
+Reason forms have a **Template** dropdown. These are the mod log's **Set
+reason** form and the action buttons on AutoMod alerts and member screening.
+The first option repeats the last reason any mod used, which helps when several
+mods handle a raid. Text you type is added after the template. Tick **Save as
+template** to save the result.
+
+### After an action
+
+{/* source: packages/sushii-worker/src/features/moderation/actions/presentation/views/ModerationActionView.ts#RESPONSE_WINDOW_MS @b28a2bc1, packages/sushii-worker/src/features/moderation/actions/presentation/views/ModerationActionView.ts#buildTail @a831399d, packages/sushii-worker/src/features/moderation/reason-templates/application/ReasonTemplateService.ts#SAVE_PROMPT_THRESHOLD @98a9a053 */}
+
+The reply to `/ban`, `/warn` and the other action commands has buttons for 15
+minutes:
+
+- **Edit reason** (or **Add reason**) changes the reason on every case from
+  that action and updates the mod log. Tick **Also update the DM** to change
+  the DM the member got.
+- **Delete DM** removes the DM the member got. The case and its reason stay.
+- **Save as template** appears once the same reason has been used 3 or more
+  times and isn't a template yet.
+
+After 15 minutes, change a case from its mod log entry or with `/reason`.
 
 ## When to use native Discord vs. sushii commands
 
@@ -79,7 +121,7 @@ Otherwise, Discord's built-in tools work fine.
 /untimeout users:@member reason:Resolved
 ```
 
-{/* source: packages/sushii-worker/src/features/moderation/actions/application/DMPolicyService.ts#DMPolicyService.shouldSendDM @5b16f90a, packages/sushii-worker/src/features/moderation/shared/domain/services/ModLogComponentBuilder.ts#"Reason DM failed" @b9262561 */}
+{/* source: packages/sushii-worker/src/features/moderation/actions/application/DMPolicyService.ts#DMPolicyService.shouldSendDM @5b16f90a, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#dmStatusLine @d557526e */}
 
 `/warn` always DMs the member — if the DM fails because they have DMs
 closed, it's noted in the mod log.

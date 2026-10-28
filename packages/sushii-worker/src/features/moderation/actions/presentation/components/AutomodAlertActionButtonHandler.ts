@@ -1,5 +1,9 @@
 import type { APIContainerComponent, APIMessage } from "discord-api-types/v10";
-import type { ButtonInteraction } from "discord.js";
+import type {
+  ButtonInteraction,
+  Message,
+  ModalSubmitInteraction,
+} from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -20,16 +24,24 @@ import {
   WarnAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
+import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import { requireMemberPermission } from "@/shared/presentation/requireMemberPermission";
 
 import {
-  buildModerationActionModal,
   buildModerationErrorReply,
   parseModalDeleteSeconds,
-  parseModalReason,
 } from "./moderationActionModal";
+import {
+  type ActionReasonFormDeps,
+  type FieldValues,
+  ReasonFormRetryStore,
+  buildRetryMatcher,
+  completeReasonForm,
+  retryRefusedReply,
+  runActionReasonForm,
+} from "./reasonFormSubmit";
 
 // Mirrors the default permissions of the equivalent slash commands.
 const REQUIRED_PERMISSIONS = {
@@ -95,11 +107,37 @@ function buildContextualActionRow(
   }
 }
 
+type AutomodAlertActionType = keyof typeof REQUIRED_PERMISSIONS;
+
+interface AlertContext {
+  actionType: AutomodAlertActionType;
+  userId: string;
+  channelId: string;
+  messageId: string;
+}
+
+const retryIds = buildRetryMatcher("automodAlert/retry");
+
 export class AutomodAlertActionButtonHandler extends ButtonHandler {
-  customIDMatch = customIds.automodAlertAction.match;
+  customIDMatch = (customId: string) => {
+    const token = retryIds.parse(customId);
+    if (token) {
+      return { path: customId, index: 0, params: { token } };
+    }
+    return customIds.automodAlertAction.match(customId);
+  };
+
+  private readonly retries = new ReasonFormRetryStore<{
+    context: AlertContext;
+    values: FieldValues;
+  }>();
 
   constructor(
-    private readonly moderationService: ModerationService,
+    private readonly moderationService: Pick<
+      ModerationService,
+      "executeAction"
+    >,
+    private readonly formDeps: ActionReasonFormDeps,
     private readonly logger: Logger,
   ) {
     super();
@@ -110,6 +148,21 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       throw new Error("Not a guild interaction");
     }
 
+    const token = retryIds.parse(interaction.customId);
+    if (token) {
+      const retry = this.retries.claim(token, interaction.user.id);
+      if (retry === "expired" || retry === "wrong_user") {
+        await interaction.reply(retryRefusedReply(retry));
+        return;
+      }
+
+      await this.run(interaction, retry.context, {
+        token,
+        values: retry.values,
+      });
+      return;
+    }
+
     const params = customIds.automodAlertAction.matchParams(
       interaction.customId,
     );
@@ -117,7 +170,20 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       throw new Error("No automod alert action match");
     }
 
-    const { actionType, userId } = params;
+    await this.run(interaction, {
+      actionType: params.actionType,
+      userId: params.userId,
+      channelId: interaction.channelId,
+      messageId: interaction.message.id,
+    });
+  }
+
+  private async run(
+    interaction: ButtonInteraction<"cached">,
+    context: AlertContext,
+    retry?: { token: string; values: FieldValues },
+  ): Promise<void> {
+    const { actionType, userId } = context;
 
     const required = REQUIRED_PERMISSIONS[actionType];
     if (
@@ -130,41 +196,40 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       return;
     }
 
-    await interaction.showModal(
-      buildModerationActionModal(actionType, interaction.customId),
-    );
-
-    let modalSubmission;
-    try {
-      modalSubmission = await interaction.awaitModalSubmit({
-        time: 300_000,
-        filter: (i) =>
-          i.user.id === interaction.user.id &&
-          i.customId === interaction.customId,
-      });
-    } catch {
-      this.logger.debug(
-        { userId, actionType, executorId: interaction.user.id },
-        "Automod alert action modal timed out",
-      );
+    const form = await runActionReasonForm(interaction, this.formDeps, {
+      actionType,
+      targetId: userId,
+      prefill: retry?.values,
+      storeRetry: (values) =>
+        retryIds.build(
+          this.retries.put(interaction.user.id, { context, values }),
+        ),
+    });
+    if (!form) {
       return;
     }
+
+    if (retry) {
+      this.retries.delete(retry.token);
+    }
+
+    const { submission, parsed, emojis } = form;
 
     // defer: fetches the member/user, then runs the moderation action (DM, action REST call, mod log)
-    await modalSubmission.deferUpdate();
+    await submission.deferUpdate();
 
-    const reasonResult = parseModalReason(modalSubmission.fields);
-    if (reasonResult.err) {
-      await modalSubmission.followUp(
-        buildModerationErrorReply(reasonResult.val),
+    const reason = parsed.text ? Reason.create(parsed.text) : null;
+    if (reason?.err) {
+      await submission.followUp(
+        buildModerationErrorReply(`Invalid reason: ${reason.val}`),
       );
       return;
     }
-    const reason = reasonResult.val;
+    const reasonValue = reason?.val ?? null;
 
     const deleteMessageSeconds =
       actionType === "ban" || actionType === "softban"
-        ? parseModalDeleteSeconds(modalSubmission.fields)
+        ? parseModalDeleteSeconds(submission.fields)
         : 0;
 
     // Fetch target — member may be null if user left the guild (still valid for ban/unban)
@@ -180,7 +245,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       targetUser =
         member?.user ?? (await interaction.client.users.fetch(userId));
     } catch {
-      await modalSubmission.followUp(
+      await submission.followUp(
         buildModerationErrorReply("Could not find the target user."),
       );
       return;
@@ -197,7 +262,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           guildId,
           executor,
           executorMember,
-          reason,
+          reasonValue,
           "unspecified",
         );
         break;
@@ -206,7 +271,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           guildId,
           executor,
           executorMember,
-          reason,
+          reasonValue,
           "unspecified",
         );
         break;
@@ -215,7 +280,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           guildId,
           executor,
           executorMember,
-          reason,
+          reasonValue,
           "unspecified",
           null,
           undefined,
@@ -227,7 +292,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           guildId,
           executor,
           executorMember,
-          reason,
+          reasonValue,
           "unspecified",
           deleteMessageSeconds,
         );
@@ -237,7 +302,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
           guildId,
           executor,
           executorMember,
-          reason,
+          reasonValue,
           "unspecified",
         );
         break;
@@ -259,7 +324,7 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
         },
         "Automod alert action failed",
       );
-      await modalSubmission.followUp(
+      await submission.followUp(
         buildModerationErrorReply(
           `Action failed: ${result?.val ?? "unknown error"}`,
         ),
@@ -283,19 +348,56 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
     const caseRef = moderationCase.caseId
       ? ` (case #${moderationCase.caseId})`
       : "";
-    const reasonSuffix = reason ? ` · ${reason.value}` : "";
+    const reasonSuffix = reasonValue ? ` · ${reasonValue.value}` : "";
     const actionLine = `-# ${executor.toString()} ${ACTION_VERBS[actionType]} ${targetUser.toString()}${reasonSuffix}${caseRef}`;
 
-    // Rebuild the container: keep existing content, append action result, swap buttons
-    if (!modalSubmission.isFromMessage()) {
+    await completeReasonForm(submission, this.formDeps, {
+      guildId,
+      userId: executor.id,
+      parsed,
+      emojis,
+    });
+
+    try {
+      await this.updateAlert(submission, context, actionLine, Boolean(retry));
+    } catch (err) {
+      // The action already happened; a stale alert is only cosmetic.
+      this.logger.warn(
+        { err, guildId, caseId: moderationCase.caseId },
+        "Failed to update the automod alert after the action",
+      );
+    }
+  }
+
+  /** A Try again form was opened from the ephemeral error, so the alert is edited over REST. */
+  private async updateAlert(
+    submission: ModalSubmitInteraction<"cached">,
+    context: AlertContext,
+    actionLine: string,
+    fromRetry: boolean,
+  ): Promise<void> {
+    let alert: Message | null;
+    if (!fromRetry) {
+      alert = submission.isFromMessage() ? submission.message : null;
+    } else {
+      const channel = await submission.client.channels.fetch(context.channelId);
+      alert = channel?.isTextBased()
+        ? await channel.messages.fetch(context.messageId)
+        : null;
+    }
+    if (!alert) {
       return;
     }
 
-    const rawMessage = modalSubmission.message.toJSON() as APIMessage;
+    // Rebuild the container: keep existing content, append action result, swap buttons
+    const rawMessage = alert.toJSON() as APIMessage;
     const rawContainer = (rawMessage.components ??
       [])[0] as APIContainerComponent;
 
-    const newActionRow = buildContextualActionRow(actionType, userId);
+    const newActionRow = buildContextualActionRow(
+      context.actionType,
+      context.userId,
+    );
 
     const updatedContainer = rebuildModerationActionRow(
       rawContainer,
@@ -303,10 +405,17 @@ export class AutomodAlertActionButtonHandler extends ButtonHandler {
       newActionRow ? newActionRow.toJSON() : null,
     );
 
-    await modalSubmission.editReply({
+    const payload = {
       components: [updatedContainer],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
-    });
+    } as const;
+
+    if (fromRetry) {
+      await alert.edit(payload);
+      await submission.deleteReply();
+    } else {
+      await submission.editReply(payload);
+    }
   }
 }

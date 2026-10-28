@@ -1,14 +1,35 @@
 import type { ButtonInteraction, ModalSubmitInteraction } from "discord.js";
-import { ActionRowBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
-import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
-import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import {
-  REASON_MAX_LENGTH,
-  Reason,
-} from "@/features/moderation/shared/domain/value-objects/Reason";
-import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
+  type FieldValues,
+  REASON_FORM_EMOJIS,
+  type ReasonFormEmojis,
+  ReasonFormRetryStore,
+  UNRESOLVED_TEMPLATE_MESSAGE,
+  buildReasonFormError,
+  buildRetryMatcher,
+  captureModalValues,
+  completeReasonForm,
+  prefillModal,
+  retryRefusedReply,
+  tooLongMessage,
+} from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
+import type { ReasonUpdateService } from "@/features/moderation/cases/application/ReasonUpdateService";
+import {
+  buildReasonEditModal,
+  buildReasonEditTitle,
+} from "@/features/moderation/cases/presentation/views/reasonEditModal";
+import type {
+  ReasonFormData,
+  ReasonTemplateService,
+} from "@/features/moderation/reason-templates/application/ReasonTemplateService";
+import type { ModLogMessageService } from "@/features/moderation/shared/application/ModLogMessageService";
+import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
+import { parseReasonFields } from "@/features/moderation/shared/presentation/reasonFields";
+import { hasLiveDm } from "@/features/moderation/shared/presentation/views/ModLogMessageView";
 import customIds from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import {
@@ -16,15 +37,60 @@ import {
   requireMemberPermission,
 } from "@/shared/presentation/requireMemberPermission";
 
+const MODAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+const retryIds = buildRetryMatcher("modLogReason/retry");
+
+interface RetryEntry {
+  caseId: string;
+  values: FieldValues;
+}
+
+function cachedDisplayName(
+  interaction: ButtonInteraction<"cached">,
+  userId: string | null,
+): string | null {
+  if (!userId) {
+    return null;
+  }
+
+  return (
+    interaction.guild.members.cache.get(userId)?.displayName ??
+    interaction.client.users.cache.get(userId)?.displayName ??
+    null
+  );
+}
+
 /**
- * Button handler for setting reasons on moderation cases.
- * Integrates button interaction with modal submission using awaitModalSubmit.
+ * Set reason / Edit reason on a mod log entry. Opens the shared reason form,
+ * saves through ReasonUpdateService and updates the entry in place.
  */
 export class ModLogReasonButtonHandler extends ButtonHandler {
-  customIDMatch = customIds.modLogReason.match;
+  customIDMatch = (customId: string) => {
+    const token = retryIds.parse(customId);
+    if (token) {
+      return { path: customId, index: 0, params: { token } };
+    }
+    return customIds.modLogReason.match(customId);
+  };
+
+  private readonly retries = new ReasonFormRetryStore<RetryEntry>();
 
   constructor(
-    private readonly modLogRepository: ModLogRepository,
+    private readonly modLogRepository: Pick<ModLogRepository, "findById">,
+    private readonly reasonUpdateService: Pick<
+      ReasonUpdateService,
+      "updateReasons"
+    >,
+    private readonly reasonTemplateService: Pick<
+      ReasonTemplateService,
+      "getFormData" | "resolve" | "recordUse" | "create"
+    >,
+    private readonly modLogMessageService: Pick<
+      ModLogMessageService,
+      "render" | "syncLegacyDeletedDm" | "updateFromInteraction"
+    >,
+    private readonly emojiRepository: Pick<BotEmojiRepository, "getEmojis">,
     private readonly logger: Logger,
   ) {
     super();
@@ -35,13 +101,31 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       throw new Error("Not a guild interaction");
     }
 
-    const customIDMatch = customIds.modLogReason.match(interaction.customId);
-    if (!customIDMatch) {
+    const token = retryIds.parse(interaction.customId);
+    if (token) {
+      const retry = this.retries.claim(token, interaction.user.id);
+      if (retry === "expired" || retry === "wrong_user") {
+        await interaction.reply(retryRefusedReply(retry));
+        return;
+      }
+
+      await this.run(interaction, retry.caseId, { token, ...retry });
+      return;
+    }
+
+    const params = customIds.modLogReason.matchParams(interaction.customId);
+    if (!params) {
       throw new Error("No mod log reason match");
     }
 
-    const { caseId } = customIDMatch.params;
+    await this.run(interaction, params.caseId);
+  }
 
+  private async run(
+    interaction: ButtonInteraction<"cached">,
+    caseId: string,
+    retry?: RetryEntry & { token: string },
+  ): Promise<void> {
     if (
       !(await requireMemberPermission(
         interaction,
@@ -52,170 +136,212 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       return;
     }
 
-    // Create and show the modal
-    const textInput = new TextInputBuilder()
-      .setLabel("Reason")
-      .setRequired(true)
-      .setPlaceholder("Enter a reason. This will be saved in the mod log.")
-      .setStyle(TextInputStyle.Paragraph)
-      .setMaxLength(REASON_MAX_LENGTH)
-      .setCustomId("reason");
+    // Small indexed reads: a modal has to be the first response, so no defer.
+    const [found, formData, emojis] = await Promise.all([
+      this.modLogRepository.findById(interaction.guildId, caseId),
+      this.reasonTemplateService.getFormData(interaction.guildId),
+      this.emojiRepository.getEmojis(REASON_FORM_EMOJIS),
+    ]);
+    if (!found) {
+      await interaction.reply({
+        content: `Case #${caseId} was not found. It may have been deleted.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      textInput,
+    // A Try again click comes from the ephemeral error, not the entry.
+    const moderationCase = retry
+      ? found
+      : await this.modLogMessageService.syncLegacyDeletedDm(
+          found,
+          interaction.message,
+        );
+
+    const targetName =
+      cachedDisplayName(interaction, moderationCase.userId) ??
+      moderationCase.userTag;
+
+    // Unique per click so a collector from a dismissed form can't take a later submit.
+    const modalCustomId = retry
+      ? `modLogReason/form/${interaction.id}`
+      : `${interaction.customId}/n/${interaction.id}`;
+
+    const modal = buildReasonEditModal({
+      customId: modalCustomId,
+      title: buildReasonEditTitle([caseId], targetName),
+      currentReason: moderationCase.reason?.value ?? null,
+      formData,
+      emojis,
+      lastExecutorName: cachedDisplayName(
+        interaction,
+        formData.last?.executorId ?? null,
+      ),
+      dmTo: hasLiveDm(moderationCase) ? targetName : null,
+    }).toJSON();
+
+    await interaction.showModal(
+      retry ? prefillModal(modal, retry.values) : modal,
     );
 
-    // Unique per button click so stale collectors (from dismissed modals) can't
-    // intercept a later submission for the same case by the same user.
-    const modalCustomId = `${interaction.customId}/n/${interaction.id}`;
-
-    const modal = {
-      title: `Case #${caseId}`,
-      custom_id: modalCustomId,
-      components: [row.toJSON()],
-    };
-
-    await interaction.showModal(modal);
-
-    // Await modal submission with 5-minute timeout
-    let modalSubmission: ModalSubmitInteraction;
+    let submission: ModalSubmitInteraction;
     try {
-      modalSubmission = await interaction.awaitModalSubmit({
-        time: 300_000, // 5 minutes
+      submission = await interaction.awaitModalSubmit({
+        time: MODAL_TIMEOUT_MS,
         filter: (i) =>
           i.user.id === interaction.user.id && i.customId === modalCustomId,
       });
     } catch {
-      // Modal timed out or was dismissed - no need to respond
+      // Rejects only when the form times out or is dismissed.
       this.logger.debug(
-        {
-          caseId,
-          userId: interaction.user.id,
-          guildId: interaction.guildId,
-        },
-        "Modal submission timed out",
+        { caseId, userId: interaction.user.id, guildId: interaction.guildId },
+        "Mod log reason form timed out",
       );
       return;
     }
 
-    // Process the modal submission
-    await this.processModalSubmission(modalSubmission, caseId);
+    await this.handleSubmit(submission, caseId, formData, emojis, retry?.token);
   }
 
-  private async processModalSubmission(
-    interaction: ModalSubmitInteraction,
+  private async handleSubmit(
+    submission: ModalSubmitInteraction,
     caseId: string,
+    formData: ReasonFormData,
+    emojis: ReasonFormEmojis,
+    retryToken: string | undefined,
   ): Promise<void> {
-    if (!interaction.inCachedGuild()) {
+    if (!submission.inCachedGuild()) {
       throw new Error("Not a guild interaction");
     }
 
-    // Extract the reason from the modal
-    const reasonText = interaction.fields.getTextInputValue("reason");
-    if (!reasonText) {
-      await interaction.reply({
-        content: "No reason was provided.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    // Validate the reason
-    const reasonResult = Reason.create(reasonText);
-    if (reasonResult.err) {
-      await interaction.reply({
-        content: `Invalid reason: ${reasonResult.val}`,
-        ephemeral: true,
-      });
-      return;
-    }
-
-    const reason = reasonResult.val;
-
-    // Fetch the moderation case
-    const moderationCase = await this.modLogRepository.findById(
-      interaction.guildId,
-      caseId,
+    const parsedResult = await parseReasonFields(
+      submission.fields,
+      formData,
+      this.reasonTemplateService,
+      submission.guildId,
     );
-    if (!moderationCase) {
-      await interaction.reply({
-        content: `Case #${caseId} was not found, it may have been deleted.`,
-        ephemeral: true,
+    if (parsedResult.err) {
+      const token = this.retries.put(submission.user.id, {
+        caseId,
+        values: captureModalValues(submission.fields),
       });
-      return;
-    }
-
-    // Update the case with the new reason and executor
-    const updatedCase = moderationCase.withReason(reason);
-    const updatedCaseWithExecutor = updatedCase.withExecutor(
-      interaction.user.id,
-    );
-
-    // Save the updated case
-    await this.modLogRepository.update(updatedCaseWithExecutor);
-
-    // Fetch the target user for the embed
-    let targetUser;
-    try {
-      targetUser = await interaction.client.users.fetch(moderationCase.userId);
-    } catch (error) {
-      this.logger.error(
-        {
-          err: error,
-          userId: moderationCase.userId,
-          caseId,
-        },
-        "Failed to fetch target user",
+      await submission.reply(
+        buildReasonFormError(
+          tooLongMessage(parsedResult.val),
+          emojis,
+          retryIds.build(token),
+        ),
       );
+      return;
+    }
 
-      await interaction.reply({
-        content: "Failed to fetch the target user.",
-        ephemeral: true,
+    const parsed = parsedResult.val;
+    if (parsed.unresolved) {
+      await submission.reply(
+        buildReasonFormError(UNRESOLVED_TEMPLATE_MESSAGE, emojis),
+      );
+      return;
+    }
+
+    if (!parsed.text) {
+      await submission.reply({
+        content: "Nothing changed: pick a template or type a reason.",
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Rebuild the embed with the updated case
-    const newEmbed = await buildModLogEmbed(
-      interaction.client,
-      updatedCaseWithExecutor.actionType,
-      targetUser,
+    if (retryToken) {
+      this.retries.delete(retryToken);
+    }
+
+    // Opened from the entry itself: update it in place. Otherwise the service edits it over REST.
+    const onEntry =
+      !retryToken && submission.isFromMessage() ? submission : null;
+
+    const updateResult = await this.reasonUpdateService.updateReasons({
+      guildId: submission.guildId,
+      executorId: submission.user.id,
+      caseRangeStr: caseId,
+      reason: parsed.text,
+      onlyEmpty: false,
+      updateDm: parsed.updateDm,
+      skipModLogRefreshFor: onEntry ? [caseId] : [],
+    });
+    if (updateResult.err) {
+      await submission.reply(buildReasonFormError(updateResult.val, emojis));
+      return;
+    }
+
+    const [updatedCase] = updateResult.val.updatedCases;
+    if (!updatedCase) {
+      await submission.reply({
+        content: `Case #${caseId} was not found. It may have been deleted.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (onEntry) {
+      const message = await this.modLogMessageService.render(updatedCase, {
+        currentMessage: onEntry.message,
+      });
+      const updated = await this.modLogMessageService.updateFromInteraction(
+        onEntry,
+        message,
+      );
+      if (updated === "failed") {
+        await submission.followUp({
+          content: "Saved, but this mod log entry couldn't be updated.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    } else if (retryToken && submission.isFromMessage()) {
+      // defer: ack-only, the entry was already edited over REST and the error message is removed
+      await submission.deferUpdate();
+      await submission.deleteReply();
+    } else {
+      await submission.reply({
+        content: `Updated the reason for case #${caseId}.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const dmFailed = updateResult.val.dmUpdates.some(
+      (u) => u.outcome === "failed" || u.outcome === "skipped_unverified",
+    );
+    if (dmFailed) {
+      await submission.followUp({
+        content:
+          "Couldn't update the DM. It may be gone, or sushii couldn't check the mod log entry first.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    await completeReasonForm(
+      submission,
       {
-        case_id: updatedCaseWithExecutor.caseId,
-        executor_id: updatedCaseWithExecutor.executorId,
-        reason: updatedCaseWithExecutor.reason?.value || null,
-        attachments: updatedCaseWithExecutor.attachments,
-        timeout_duration: updatedCaseWithExecutor.timeoutDuration,
-        action_time: updatedCaseWithExecutor.actionTime,
-        delete_message_seconds: updatedCaseWithExecutor.deleteMessageSeconds,
+        reasonTemplateService: this.reasonTemplateService,
+        emojiRepository: this.emojiRepository,
+        logger: this.logger,
+      },
+      {
+        guildId: submission.guildId,
+        userId: submission.user.id,
+        parsed,
+        emojis,
       },
     );
-
-    // Build updated components (should now show DM buttons if applicable and hide reason button)
-    const modLogComponents = new ModLogComponentBuilder(
-      updatedCaseWithExecutor.actionType,
-      updatedCaseWithExecutor,
-    );
-    const components = modLogComponents.build();
-
-    // Update the original message via the modal interaction
-    if (!interaction.isFromMessage()) {
-      throw new Error("Modal should be from a button on a message");
-    }
-
-    await interaction.update({
-      embeds: [newEmbed.toJSON()],
-      components,
-    });
 
     this.logger.info(
       {
         caseId,
-        guildId: interaction.guildId,
-        executorId: interaction.user.id,
-        reason: reasonText,
+        guildId: submission.guildId,
+        userId: submission.user.id,
+        templateId: parsed.template?.id,
+        updateDm: parsed.updateDm,
       },
-      "Updated moderation case reason via button interaction",
+      "Updated case reason from the mod log",
     );
   }
 }

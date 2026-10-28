@@ -129,6 +129,11 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
       { name: "unban", summary: "Unban users" },
       { name: "untimeout", summary: "Remove a timeout" },
       { name: "note", summary: "Add a note to a user's history" },
+      {
+        name: "reason-templates",
+        summary: "Reason templates for autocomplete and !shortcut",
+        keywords: ["templates", "shortcut", "saved reasons"],
+      },
     ],
     apps: ["Mod View", "View Reaction Starters"],
   },

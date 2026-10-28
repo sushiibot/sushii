@@ -9,12 +9,19 @@ import type { Logger } from "pino";
 
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
 import {
-  buildModerationActionModal,
   buildModerationErrorReply,
   parseModalDeleteSeconds,
   parseModalDuration,
-  parseModalReason,
 } from "@/features/moderation/actions/presentation/components/moderationActionModal";
+import {
+  type ActionReasonFormDeps,
+  type FieldValues,
+  ReasonFormRetryStore,
+  buildRetryMatcher,
+  completeReasonForm,
+  retryRefusedReply,
+  runActionReasonForm,
+} from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
 import {
   BanAction,
   type ModerationAction,
@@ -23,6 +30,7 @@ import {
   UnbanAction,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import { ModerationTarget } from "@/features/moderation/shared/domain/entities/ModerationTarget";
+import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import customIds, { type ScreeningActionType } from "@/interactions/customIds";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import { requireMemberPermission } from "@/shared/presentation/requireMemberPermission";
@@ -85,8 +93,28 @@ function isScreeningActionType(value: string): value is ScreeningActionType {
   return Object.hasOwn(ACTIONS, value);
 }
 
+interface ScreeningActionContext {
+  actionType: ScreeningActionType;
+  verdictId: string;
+  channelId: string;
+  postMessageId: string;
+}
+
+const retryIds = buildRetryMatcher("screening/retry");
+
 export class ScreeningActionButtonHandler extends ButtonHandler {
-  customIDMatch = customIds.screeningAction.match;
+  customIDMatch = (customId: string) => {
+    const token = retryIds.parse(customId);
+    if (token) {
+      return { path: customId, index: 0, params: { token } };
+    }
+    return customIds.screeningAction.match(customId);
+  };
+
+  private readonly retries = new ReasonFormRetryStore<{
+    context: ScreeningActionContext;
+    values: FieldValues;
+  }>();
 
   constructor(
     private readonly moderationService: Pick<
@@ -100,6 +128,7 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       "refreshPosts"
     >,
     private readonly metrics: ScreeningMetrics,
+    private readonly formDeps: ActionReasonFormDeps,
     private readonly logger: Logger,
   ) {
     super();
@@ -108,6 +137,21 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
   async handleInteraction(interaction: ButtonInteraction): Promise<void> {
     if (!interaction.inCachedGuild()) {
       throw new Error("Not a guild interaction");
+    }
+
+    const token = retryIds.parse(interaction.customId);
+    if (token) {
+      const retry = this.retries.claim(token, interaction.user.id);
+      if (retry === "expired" || retry === "wrong_user") {
+        await interaction.reply(retryRefusedReply(retry));
+        return;
+      }
+
+      await this.run(interaction, retry.context, {
+        token,
+        values: retry.values,
+      });
+      return;
     }
 
     const params = customIds.screeningAction.matchParams(interaction.customId);
@@ -122,6 +166,21 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       });
     }
 
+    await this.run(interaction, {
+      actionType,
+      verdictId: params.verdictId,
+      channelId: interaction.channelId,
+      postMessageId: interaction.message.id,
+    });
+  }
+
+  private async run(
+    interaction: ButtonInteraction<"cached">,
+    context: ScreeningActionContext,
+    retry?: { token: string; values: FieldValues },
+  ): Promise<void> {
+    const { actionType } = context;
+
     const config = ACTIONS[actionType];
     if (
       !(await requireMemberPermission(
@@ -133,10 +192,10 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       return;
     }
 
-    const verdictId = Number(params.verdictId);
+    const verdictId = Number(context.verdictId);
     if (!Number.isSafeInteger(verdictId) || verdictId <= 0) {
       throw new Error("Invalid screening verdict id", {
-        cause: { verdictId: params.verdictId },
+        cause: { verdictId: context.verdictId },
       });
     }
 
@@ -149,39 +208,36 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       return;
     }
 
-    // Per-click id so a stale collector from an earlier dismissed modal can't take this submit.
-    const modalCustomId = `${interaction.customId}#${interaction.id}`;
-    await interaction.showModal(
-      buildModerationActionModal(actionType, modalCustomId),
-    );
-
-    let modalSubmission;
-    try {
-      modalSubmission = await interaction.awaitModalSubmit({
-        time: 300_000,
-        filter: (i) =>
-          i.user.id === interaction.user.id && i.customId === modalCustomId,
-      });
-    } catch {
-      // Rejects only on the 5-minute timeout.
-      this.logger.debug(
-        { verdictId: verdict.id, actionType, executorId: interaction.user.id },
-        "Screening action modal timed out",
-      );
+    const form = await runActionReasonForm(interaction, this.formDeps, {
+      actionType,
+      targetId: verdict.userId,
+      prefill: retry?.values,
+      storeRetry: (values) =>
+        retryIds.build(
+          this.retries.put(interaction.user.id, { context, values }),
+        ),
+    });
+    if (!form) {
       return;
     }
+
+    if (retry) {
+      this.retries.delete(retry.token);
+    }
+
+    const { submission: modalSubmission, parsed, emojis } = form;
 
     // defer: fetches the member/user, then runs the moderation action (DM, ban/timeout REST call, mod log)
     await modalSubmission.deferUpdate();
 
-    const reasonResult = parseModalReason(modalSubmission.fields);
-    if (reasonResult.err) {
+    const reasonResult = parsed.text ? Reason.create(parsed.text) : null;
+    if (reasonResult?.err) {
       await modalSubmission.followUp(
-        buildModerationErrorReply(reasonResult.val),
+        buildModerationErrorReply(`Invalid reason: ${reasonResult.val}`),
       );
       return;
     }
-    const reason = reasonResult.val;
+    const reason = reasonResult?.val ?? null;
 
     const executor = interaction.user;
     const executorMember = interaction.member;
@@ -288,7 +344,7 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       return;
     }
 
-    const postMessageId = interaction.message.id;
+    const { postMessageId } = context;
     const now = new Date();
     let markedActioned = false;
     let otherPosts: ScreeningVerdict[] = [];
@@ -324,6 +380,13 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       );
     }
 
+    await completeReasonForm(modalSubmission, this.formDeps, {
+      guildId,
+      userId: executor.id,
+      parsed,
+      emojis,
+    });
+
     const container = await this.renderer.renderPost(postMessageId);
     if (!container) {
       throw new Error("Actioned screening post has no verdict", {
@@ -331,11 +394,31 @@ export class ScreeningActionButtonHandler extends ButtonHandler {
       });
     }
 
-    await modalSubmission.editReply({
+    const postPayload = {
       components: [container],
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { parse: [] },
-    });
+    } as const;
+    try {
+      if (retry) {
+        // The Try again form came from the ephemeral error, so the post is edited over REST.
+        const channel = await interaction.client.channels.fetch(
+          context.channelId,
+        );
+        if (channel?.isTextBased()) {
+          await channel.messages.edit(postMessageId, postPayload);
+        }
+        await modalSubmission.deleteReply();
+      } else {
+        await modalSubmission.editReply(postPayload);
+      }
+    } catch (err) {
+      // The action already happened; a stale post is only cosmetic.
+      this.logger.warn(
+        { err, guildId, postMessageId },
+        "Failed to update the screening post after the action",
+      );
+    }
 
     if (otherPosts.length > 0) {
       await this.postRefresher.refreshPosts(otherPosts);

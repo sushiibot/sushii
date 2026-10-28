@@ -9,8 +9,10 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { REASON_MAX_LENGTH } from "@/features/moderation/shared/domain/value-objects/Reason";
+import { UNRESOLVED_TEMPLATE_MESSAGE } from "@/features/moderation/shared/presentation/reasonFields";
 import customIds from "@/interactions/customIds";
 import { interactionReplyErrorPlainMessage } from "@/interactions/responses/error";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -23,6 +25,7 @@ import {
   reasonInvalidRangeView,
   reasonNoCasesView,
   reasonSuccessView,
+  reasonUpdatingView,
   reasonWarningView,
 } from "../views/ReasonView";
 
@@ -43,14 +46,25 @@ export class ReasonCommand extends SlashCommandHandler {
     .addStringOption((o) =>
       o
         .setName("reason")
-        .setDescription("Reason for the mod case.")
+        .setDescription("New reason. Pick a template or type !shortcut.")
         .setMaxLength(REASON_MAX_LENGTH)
+        .setAutocomplete(true)
         .setRequired(true),
+    )
+    .addBooleanOption((o) =>
+      o
+        .setName("update_dm")
+        .setDescription("Also update the DM sent to the user")
+        .setRequired(false),
     )
     .toJSON();
 
   constructor(
     private readonly reasonUpdateService: ReasonUpdateService,
+    private readonly reasonTemplateService: Pick<
+      ReasonTemplateService,
+      "resolve" | "recordUse"
+    >,
     private readonly logger: Logger,
   ) {
     super();
@@ -62,7 +76,38 @@ export class ReasonCommand extends SlashCommandHandler {
     }
 
     const caseRangeStr = interaction.options.getString("case", true);
-    const reason = interaction.options.getString("reason", true);
+    const input = interaction.options.getString("reason", true);
+    const updateDm = interaction.options.getBoolean("update_dm") ?? false;
+
+    const expanded = await this.reasonTemplateService.resolve(
+      interaction.guildId,
+      input,
+    );
+    if (expanded?.unresolved) {
+      await interactionReplyErrorPlainMessage(
+        interaction,
+        UNRESOLVED_TEMPLATE_MESSAGE,
+        true,
+      );
+      return;
+    }
+
+    const reason = expanded?.text ?? input.trim();
+    if (reason.length > REASON_MAX_LENGTH) {
+      await interactionReplyErrorPlainMessage(
+        interaction,
+        tooLongCommandMessage(reason.length, expanded?.template?.shortcut),
+        true,
+      );
+      return;
+    }
+
+    const update: PendingReasonUpdate = {
+      caseRangeStr,
+      reason,
+      updateDm,
+      templateId: expanded?.template?.id ?? null,
+    };
 
     this.logger.debug(
       {
@@ -113,30 +158,20 @@ export class ReasonCommand extends SlashCommandHandler {
 
     // If cases have existing reasons, show confirmation dialog
     if (hasExistingReasons) {
-      await this.handleConfirmationFlow(
-        interaction,
-        cases,
-        caseRangeStr,
-        reason,
-      );
+      await this.handleConfirmationFlow(interaction, cases, update);
       return;
     }
 
     // No confirmation needed, proceed directly
-    await this.executeReasonUpdate(
-      interaction,
-      caseRangeStr,
-      reason,
-      false, // Update all cases, not just empty
-    );
+    await this.executeReasonUpdate(interaction, update, false);
   }
 
   private async handleConfirmationFlow(
     interaction: ChatInputCommandInteraction<"cached">,
     cases: ModerationCase[],
-    caseRangeStr: string,
-    reason: string,
+    update: PendingReasonUpdate,
   ): Promise<void> {
+    const { caseRangeStr, reason } = update;
     const casesWithReason = cases.filter((c) => c.reason !== null);
     const { embed, components } = reasonWarningView(
       casesWithReason,
@@ -155,6 +190,7 @@ export class ReasonCommand extends SlashCommandHandler {
       time: 2 * 60 * 1000, // 2 minutes
     });
 
+    let started = false;
     collector.on("collect", async (buttonInteraction) => {
       // Check if the button was clicked by the same user who ran the command
       if (buttonInteraction.user.id !== interaction.user.id) {
@@ -176,6 +212,15 @@ export class ReasonCommand extends SlashCommandHandler {
 
       const { action } = customIDMatch.params;
 
+      // A second click can land before the buttons disappear.
+      if (started) {
+        await buttonInteraction.reply({
+          content: "These cases are already being updated.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
       if (action === "cancel") {
         await buttonInteraction.update({
           embeds: [reasonCancelledView()],
@@ -186,43 +231,69 @@ export class ReasonCommand extends SlashCommandHandler {
       }
 
       const onlyEmpty = action === "empty";
+      started = true;
 
-      // Execute the reason update
-      const updateResult = await this.reasonUpdateService.updateReasons({
-        guildId: interaction.guildId,
-        executorId: buttonInteraction.user.id,
-        caseRangeStr,
-        reason,
-        onlyEmpty,
-      });
-
-      if (updateResult.err) {
+      try {
         await buttonInteraction.update({
-          embeds: [reasonErrorView(updateResult.val)],
+          embeds: [reasonUpdatingView()],
           components: [],
         });
-        collector.stop();
-        return;
-      }
 
-      const result = updateResult.val;
+        const updateResult = await this.reasonUpdateService.updateReasons({
+          guildId: interaction.guildId,
+          executorId: buttonInteraction.user.id,
+          caseRangeStr,
+          reason,
+          onlyEmpty,
+          updateDm: update.updateDm,
+        });
 
-      if (result.updatedCases.length === 0) {
-        await buttonInteraction.update({
-          embeds: [reasonNoCasesView()],
+        if (updateResult.err) {
+          await buttonInteraction.editReply({
+            embeds: [reasonErrorView(updateResult.val)],
+            components: [],
+          });
+          return;
+        }
+
+        const result = updateResult.val;
+
+        if (result.updatedCases.length === 0) {
+          await buttonInteraction.editReply({
+            embeds: [reasonNoCasesView()],
+            components: [],
+          });
+          return;
+        }
+
+        await this.recordTemplateUse(interaction.guildId, update);
+
+        await buttonInteraction.editReply({
+          embeds: [reasonSuccessView(result, reason, caseRangeStr)],
           components: [],
         });
+      } catch (err) {
+        // Collector listeners never reach the router, so this is the only place it's logged.
+        this.logger.error(
+          { err, guildId: interaction.guildId, caseRangeStr },
+          "Failed to update reasons after confirmation",
+        );
+        await buttonInteraction
+          .editReply({
+            embeds: [
+              reasonErrorView("Something went wrong updating these cases."),
+            ],
+            components: [],
+          })
+          .catch((editErr: unknown) => {
+            this.logger.warn(
+              { err: editErr },
+              "Failed to show reason update error",
+            );
+          });
+      } finally {
         collector.stop();
-        return;
       }
-
-      const successEmbed = reasonSuccessView(result, reason, caseRangeStr);
-      await buttonInteraction.update({
-        embeds: [successEmbed],
-        components: [],
-      });
-
-      collector.stop();
     });
 
     // Handle collector timeout
@@ -243,10 +314,10 @@ export class ReasonCommand extends SlashCommandHandler {
 
   private async executeReasonUpdate(
     interaction: ChatInputCommandInteraction<"cached">,
-    caseRangeStr: string,
-    reason: string,
+    update: PendingReasonUpdate,
     onlyEmpty: boolean,
   ): Promise<void> {
+    const { caseRangeStr, reason } = update;
     // defer: fetches and edits the mod log message of every case in the range
     await interaction.deferReply();
 
@@ -256,6 +327,7 @@ export class ReasonCommand extends SlashCommandHandler {
       caseRangeStr,
       reason,
       onlyEmpty,
+      updateDm: update.updateDm,
     });
 
     if (updateResult.err) {
@@ -274,9 +346,37 @@ export class ReasonCommand extends SlashCommandHandler {
       return;
     }
 
+    await this.recordTemplateUse(interaction.guildId, update);
+
     const successEmbed = reasonSuccessView(result, reason, caseRangeStr);
     await interaction.editReply({
       embeds: [successEmbed],
     });
   }
+
+  private async recordTemplateUse(
+    guildId: string,
+    update: PendingReasonUpdate,
+  ): Promise<void> {
+    if (update.templateId) {
+      await this.reasonTemplateService.recordUse(guildId, update.templateId);
+    }
+  }
+}
+
+interface PendingReasonUpdate {
+  caseRangeStr: string;
+  /** Expanded from any template or !shortcut. */
+  reason: string;
+  updateDm: boolean;
+  templateId: string | null;
+}
+
+function tooLongCommandMessage(
+  length: number,
+  shortcut: string | null | undefined,
+): string {
+  const number = new Intl.NumberFormat("en-US");
+  const source = shortcut ? `expanding \`!${shortcut}\`` : "expanding it";
+  return `**Nothing was done.** The reason is ${number.format(length)} characters after ${source}; the limit is ${number.format(REASON_MAX_LENGTH)}. Shorten the extra text by ${number.format(length - REASON_MAX_LENGTH)} characters.`;
 }

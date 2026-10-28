@@ -4,3 +4,4 @@ export * from "./ChannelSlowmode";
 export * from "./DMChoice";
 export * from "./Duration";
 export * from "./Reason";
+export * from "./normalizeReason";

@@ -3,6 +3,7 @@ import type { FishyResult } from "@/features/social/domain";
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  bigserial,
   boolean,
   check,
   doublePrecision,
@@ -968,6 +969,13 @@ export const modLogsInAppPublic = appPublic.table(
     dmAttempted: boolean("dm_attempted").default(false).notNull(),
     dmNotAttemptedReason: text("dm_not_attempted_reason"),
     dmFailureReason: text("dm_failure_reason"),
+    dmDeleted: boolean("dm_deleted").default(false).notNull(),
+
+    // Who last set the reason after the action, kept apart from executor_id
+    reasonSetBy: bigint("reason_set_by", { mode: "bigint" }),
+    reasonSetAt: timestamp("reason_set_at", { mode: "date" }),
+    dmDeletedBy: bigint("dm_deleted_by", { mode: "bigint" }),
+    dmDeletedAt: timestamp("dm_deleted_at", { mode: "date" }),
   },
   (table) => [
     // Critical index for user history queries (findByUserId)
@@ -1538,5 +1546,36 @@ export const feedbackInAppPublic = appPublic.table(
   },
   (table) => [
     index("feedback_user_id_created_at_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+export const reasonTemplatesInAppPublic = appPublic.table(
+  "reason_templates",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    shortcut: text(),
+    content: text().notNull(),
+    contentKey: text("content_key").notNull(),
+    createdBy: bigint("created_by", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
+    useCount: integer("use_count").default(0).notNull(),
+    lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("reason_templates_guild_id_shortcut_key")
+      .on(table.guildId, table.shortcut)
+      .where(sql`${table.shortcut} IS NOT NULL`),
+    uniqueIndex("reason_templates_guild_id_content_key_key").on(
+      table.guildId,
+      table.contentKey,
+    ),
+    index("reason_templates_guild_id_use_count_idx").on(
+      table.guildId,
+      table.useCount.desc(),
+    ),
   ],
 );

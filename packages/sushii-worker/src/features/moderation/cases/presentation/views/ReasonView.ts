@@ -115,17 +115,30 @@ export function reasonSuccessView(
     ])
     .setColor(Color.Success);
 
+  const dmSummary = summarizeDmUpdates(result);
+  if (dmSummary) {
+    embed.addFields({ name: "DM", value: dmSummary });
+  }
+
+  const modLogOff =
+    errors.length > 0 && errors.every((e) => e.errorType === "not_configured");
+  if (modLogOff) {
+    embed.addFields({
+      name: "Note",
+      value:
+        "Mod logs aren't set up or are turned off, so only the case was updated.",
+    });
+  }
+
   // Add error information if there were issues
-  if (errors.length > 0) {
+  if (errors.length > 0 && !modLogOff) {
     const errorMessages = errors.map((err) => {
       switch (err.errorType) {
-        case "user_fetch":
-          return `Could not fetch user for case ${err.caseId}`;
         case "msg_missing":
           return `Mod log message missing for case ${err.caseId}`;
         case "msg_fetch":
           return `Could not fetch mod log message for case ${err.caseId}`;
-        case "permission":
+        case "not_configured":
           return err.message;
         default:
           return `Unknown error for case ${err.caseId}`;
@@ -146,6 +159,55 @@ the mod log channel.`;
   }
 
   return embed;
+}
+
+function summarizeDmUpdates(result: ReasonUpdateResult): string | null {
+  if (result.dmUpdates.length === 0) {
+    return null;
+  }
+
+  const count = (outcome: string) =>
+    result.dmUpdates.filter((u) => u.outcome === outcome).length;
+  const updated = count("updated");
+  const noDm = count("no_dm");
+  const failed = count("failed");
+  const unverified = count("skipped_unverified");
+
+  const lines: string[] = [];
+  if (updated > 0) {
+    lines.push(
+      updated === 1
+        ? "Updated the DM with the new reason."
+        : `Updated ${updated} DMs with the new reason.`,
+    );
+  }
+  if (noDm > 0) {
+    lines.push(
+      noDm === 1
+        ? "1 case had no DM to update."
+        : `${noDm} cases had no DM to update.`,
+    );
+  }
+  if (failed > 0) {
+    lines.push(
+      `Couldn't update ${failed === 1 ? "1 DM" : `${failed} DMs`}: the user may have deleted it, blocked sushii or left every server with sushii.`,
+    );
+  }
+
+  if (unverified > 0) {
+    lines.push(
+      `Didn't update ${unverified === 1 ? "1 DM" : `${unverified} DMs`}: couldn't check the mod log entry for a deleted DM first.`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function reasonUpdatingView(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("Updating reasons…")
+    .setDescription("Updating the cases, their mod log entries and DMs.")
+    .setColor(Color.Info);
 }
 
 export function reasonCancelledView(): EmbedBuilder {

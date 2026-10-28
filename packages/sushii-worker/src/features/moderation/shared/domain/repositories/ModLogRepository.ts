@@ -131,17 +131,65 @@ export interface ModLogCaseOperations {
   ): Promise<ModerationCase[]>;
 
   /**
-   * Updates reason for multiple cases in a range.
+   * Updates reason for multiple cases in a range and records who set it.
+   * Leaves executor_id untouched.
    */
   updateReasonBulk(
     guildId: string,
-    executorId: string,
+    setById: string,
     startCaseId: number,
     endCaseId: number,
     reason: string,
     onlyEmpty: boolean,
     tx?: NodePgDatabase<typeof schema>,
   ): Promise<ModerationCase[]>;
+
+  findByIds(guildId: string, caseIds: string[]): Promise<ModerationCase[]>;
+
+  /** deletedBy and deletedAt are null when only an old mod log entry recorded the deletion. */
+  markDmDeleted(
+    guildId: string,
+    caseId: string,
+    deletedBy: string | null,
+    deletedAt: Date | null,
+  ): Promise<void>;
+}
+
+export interface LastReason {
+  caseId: string;
+  reason: string;
+  executorId: string | null;
+  actionTime: Date;
+}
+
+export interface RecentReason {
+  caseId: string;
+  reason: string;
+}
+
+/**
+ * Reason lookups backing reason templates, autocomplete and form dropdowns.
+ */
+export interface ModLogReasonQueries {
+  findLastReason(guildId: string): Promise<LastReason | null>;
+
+  /**
+   * Newest first, one entry per normalized reason.
+   */
+  findRecentDistinctReasons(
+    guildId: string,
+    limit: number,
+  ): Promise<RecentReason[]>;
+
+  /**
+   * Counts the guild's newest 500 cases whose normalizeReason() equals
+   * normalizedReason, stopping at cap.
+   */
+  countByNormalizedReason(
+    guildId: string,
+    normalizedReason: string,
+    cap: number,
+  ): Promise<number>;
 }
 
 /**
@@ -203,7 +251,8 @@ export interface ModLogAuditOperations {
  */
 export interface ModLogRepository
   extends ModLogCaseOperations,
-    ModLogAuditOperations {
+    ModLogAuditOperations,
+    ModLogReasonQueries {
   /**
    * Returns true if the user has any moderation record in the given guild.
    * Used to verify a moderation relationship before exposing user history.

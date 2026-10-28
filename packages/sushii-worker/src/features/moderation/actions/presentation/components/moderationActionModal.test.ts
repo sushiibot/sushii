@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { DiscordjsErrorCodes, DiscordjsTypeError } from "discord.js";
 
+import type { ReasonFormData } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
+import type { ReasonTemplate } from "@/features/moderation/reason-templates/domain/ReasonTemplate";
+
 import {
+  type ModerationModalAction,
   type ModerationModalFields,
   buildModerationActionModal,
+  buildModerationActionTitle,
   parseModalDeleteSeconds,
   parseModalDuration,
-  parseModalReason,
 } from "./moderationActionModal";
 
 function fields(
@@ -31,68 +35,80 @@ function fields(
   } as ModerationModalFields;
 }
 
+const EMOJIS = { history: "<:history:1400000000000000200>" };
+
+const TEMPLATE: ReasonTemplate = {
+  id: "11",
+  guildId: "187450744427773963",
+  shortcut: "spam",
+  content: "Spamming in channels (rule 3).",
+  contentKey: "k",
+  createdBy: "150443906511667200",
+  createdAt: new Date("2026-10-01T00:00:00.000Z"),
+  updatedAt: null,
+  useCount: 14,
+  lastUsedAt: null,
+};
+
+const WITH_TEMPLATES: ReasonFormData = {
+  last: {
+    reason: "Raid participant.",
+    executorId: "238381427315195904",
+    actionTime: new Date(),
+  },
+  templates: [TEMPLATE],
+};
+
+const EMPTY: ReasonFormData = { last: null, templates: [] };
+
+function build(
+  actionType: ModerationModalAction,
+  formData: ReasonFormData = WITH_TEMPLATES,
+  targetName = "spambot",
+) {
+  return buildModerationActionModal({
+    actionType,
+    customId: "cid",
+    targetName,
+    formData,
+    emojis: EMOJIS,
+  }).toJSON();
+}
+
+interface LabelJSON {
+  type: number;
+  label: string;
+  component: {
+    type: number;
+    custom_id: string;
+    required?: boolean;
+    options?: { value: string; default?: boolean }[];
+  };
+}
+
+function labels(modal: ReturnType<typeof build>): LabelJSON[] {
+  return modal.components as unknown as LabelJSON[];
+}
+
 describe("buildModerationActionModal", () => {
-  test("timeout has a required duration select before the reason", () => {
-    const modal = buildModerationActionModal("timeout", "cid").toJSON();
+  test("ban: delete history, then Template, Reason and Save as template", () => {
+    const modal = build("ban");
 
-    expect(modal.title).toBe("Timeout User");
+    expect(modal.title).toBe("Ban spambot");
     expect(modal.custom_id).toBe("cid");
-    expect(modal.components).toHaveLength(2);
-    expect(modal.components[0]).toMatchObject({
-      type: 18,
-      label: "Duration",
-      component: { type: 3, custom_id: "duration", required: true },
-    });
-
-    const select = modal.components[0] as {
-      component: { options: { value: string; default?: boolean }[] };
-    };
-    expect(select.component.options.map((o) => o.value)).toEqual([
-      "10m",
-      "1h",
-      "1d",
-      "7d",
+    expect(labels(modal).map((l) => l.component.custom_id)).toEqual([
+      "delete_seconds",
+      "reason_template",
+      "reason",
+      "save_as_template",
     ]);
-    expect(
-      select.component.options.filter((o) => o.default).map((o) => o.value),
-    ).toEqual(["1h"]);
-
-    expect(modal.components[1]).toMatchObject({
-      type: 1,
-      components: [{ type: 4, custom_id: "reason", required: false }],
-    });
-  });
-
-  test("untimeout has only the reason", () => {
-    const modal = buildModerationActionModal("untimeout", "cid").toJSON();
-
-    expect(modal.title).toBe("Remove Timeout");
-    expect(modal.components).toHaveLength(1);
-    expect(modal.components[0]).toMatchObject({
-      type: 1,
-      components: [{ type: 4, custom_id: "reason" }],
-    });
-  });
-
-  test("ban keeps the reason row then the delete history select", () => {
-    const modal = buildModerationActionModal("ban", "cid").toJSON();
-
-    expect(modal.title).toBe("Ban User");
-    expect(modal.components).toHaveLength(2);
-    expect(modal.components[0]).toMatchObject({
-      type: 1,
-      components: [{ type: 4, custom_id: "reason" }],
-    });
-    expect(modal.components[1]).toMatchObject({
-      type: 18,
-      label: "Delete message history",
-      component: { type: 3, custom_id: "delete_seconds" },
-    });
-
-    const select = modal.components[1] as {
-      component: { options: { value: string }[] };
-    };
-    expect(select.component.options.map((o) => o.value)).toEqual([
+    expect(labels(modal).map((l) => l.label)).toEqual([
+      "Delete message history",
+      "Template",
+      "Reason or extra details",
+      "Save as template",
+    ]);
+    expect(labels(modal)[0]?.component.options?.map((o) => o.value)).toEqual([
       "3600",
       "0",
       "43200",
@@ -102,13 +118,79 @@ describe("buildModerationActionModal", () => {
     ]);
   });
 
-  test("softban omits the don't-delete option", () => {
-    const modal = buildModerationActionModal("softban", "cid").toJSON();
-    const select = modal.components[1] as {
-      component: { options: { value: string }[] };
-    };
+  test("timeout: required duration first, defaulting to 1h", () => {
+    const modal = build("timeout");
 
-    expect(select.component.options.map((o) => o.value)).not.toContain("0");
+    expect(modal.title).toBe("Timeout spambot");
+    const [duration] = labels(modal);
+    expect(duration).toMatchObject({
+      type: 18,
+      label: "Duration",
+      component: { type: 3, custom_id: "duration", required: true },
+    });
+    expect(duration?.component.options?.map((o) => o.value)).toEqual([
+      "10m",
+      "1h",
+      "1d",
+      "7d",
+    ]);
+    expect(
+      duration?.component.options?.filter((o) => o.default).map((o) => o.value),
+    ).toEqual(["1h"]);
+    expect(labels(modal).map((l) => l.component.custom_id)).toEqual([
+      "duration",
+      "reason_template",
+      "reason",
+      "save_as_template",
+    ]);
+  });
+
+  test("untimeout has only the reason fields", () => {
+    const modal = build("untimeout");
+
+    expect(modal.title).toBe("Remove timeout for spambot");
+    expect(labels(modal).map((l) => l.component.custom_id)).toEqual([
+      "reason_template",
+      "reason",
+      "save_as_template",
+    ]);
+  });
+
+  test("softban omits the don't-delete option", () => {
+    const [history] = labels(build("softban"));
+
+    expect(history?.component.options?.map((o) => o.value)).not.toContain("0");
+  });
+
+  test("leaves the dropdown out when there's nothing to pick", () => {
+    const modal = build("warn", EMPTY);
+
+    expect(labels(modal).map((l) => l.component.custom_id)).toEqual([
+      "reason",
+      "save_as_template",
+    ]);
+    expect(labels(modal)[0]?.label).toBe("Reason");
+  });
+
+  test("the dropdown starts with Same as last reason, then templates", () => {
+    const [, select] = labels(build("ban"));
+
+    expect(select?.component.options?.map((o) => o.value)).toEqual([
+      "last",
+      "template:11",
+    ]);
+  });
+
+  test("cuts a long name so the title fits 45 characters", () => {
+    for (const action of ["ban", "untimeout"] as const) {
+      const title = build(action, EMPTY, "n".repeat(100)).title;
+      expect(title.length).toBeLessThanOrEqual(45);
+      expect(title).toEndWith("…");
+    }
+  });
+
+  test("a blank name falls back to user", () => {
+    expect(buildModerationActionTitle("kick", "  ")).toBe("Kick user");
   });
 });
 
@@ -169,25 +251,6 @@ describe("parseModalDuration", () => {
     expect(() => parseModalDuration(fields({}, {}))).toThrow(
       "missing duration",
     );
-  });
-});
-
-describe("parseModalReason", () => {
-  test("blank is null", () => {
-    expect(parseModalReason(fields({ reason: "  " }, {})).unwrap()).toBeNull();
-  });
-
-  test("trims the reason", () => {
-    expect(
-      parseModalReason(fields({ reason: " spam " }, {})).unwrap()?.value,
-    ).toBe("spam");
-  });
-
-  test("rejects an overlong reason", () => {
-    const result = parseModalReason(fields({ reason: "x".repeat(3001) }, {}));
-
-    expect(result.err).toBe(true);
-    expect(result.val).toStartWith("Invalid reason:");
   });
 });
 

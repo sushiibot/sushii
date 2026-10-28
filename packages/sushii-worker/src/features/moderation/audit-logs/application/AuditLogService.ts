@@ -18,6 +18,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 
 import { ActionType } from "../../shared";
 import type { DMSentResult } from "../../shared/application/DMNotificationService";
+import type { ModLogMessageService } from "../../shared/application/ModLogMessageService";
 import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
 import { AuditLogEvent } from "../domain/entities";
 import type { ModLogPostingService } from "./ModLogPostingService";
@@ -53,6 +54,10 @@ export class AuditLogService {
     private readonly spamAlertUpdateService: SpamAlertUpdateService,
     private readonly logger: Logger,
     private readonly softbanSuppressionSet: SoftbanSuppressionSet,
+    private readonly modLogMessageService: Pick<
+      ModLogMessageService,
+      "refresh"
+    >,
   ) {}
 
   /**
@@ -148,10 +153,16 @@ export class AuditLogService {
             }
           }
 
-          // Step 3: Post mod log message with updated case
+          // Step 3: Post mod log message with the current row, which may
+          // carry a reason or DM deletion made while the case was pending
+          const latestCase =
+            (await this.modLogRepository.findById(
+              guild.id,
+              processedLog.modLogCase.caseId,
+            )) ?? updatedModLogCase;
           const postResult = await this.modLogPostingService.postModLogMessage(
             processedLog.auditLogEvent,
-            updatedModLogCase,
+            latestCase,
             processedLog.targetUser,
             guild,
             processedLog.guildConfig.modLogChannelId,
@@ -171,6 +182,11 @@ export class AuditLogService {
             processedLog.modLogCase.guildId,
             processedLog.modLogCase.caseId,
             messageId,
+          );
+
+          await this.refreshIfChangedWhilePosting(
+            latestCase,
+            processedLog.auditLogEvent,
           );
 
           return Ok.EMPTY;
@@ -535,6 +551,27 @@ export class AuditLogService {
   }
 
   /**
+   * An edit made between reading the case and storing the message ID found
+   * no message to update, so re-render once if the row moved on.
+   */
+  private async refreshIfChangedWhilePosting(
+    postedCase: ModerationCase,
+    auditLogEvent: AuditLogEvent,
+  ): Promise<void> {
+    const current = await this.modLogRepository.findById(
+      postedCase.guildId,
+      postedCase.caseId,
+    );
+    if (!current || !renderedFieldsChanged(postedCase, current)) {
+      return;
+    }
+
+    await this.modLogMessageService.refresh(current, {
+      timeoutChange: auditLogEvent.timeoutChange,
+    });
+  }
+
+  /**
    * Updates a mod log case with message ID.
    */
   private async updateCaseMessageId(
@@ -597,6 +634,25 @@ export class AuditLogService {
       "Updated mod log case with DM information",
     );
   }
+}
+
+/** Fields the mod log entry shows that another flow can change while it's being posted. */
+function renderedFieldsChanged(
+  posted: ModerationCase,
+  current: ModerationCase,
+): boolean {
+  const postedDm = posted.dmResult;
+  const currentDm = current.dmResult;
+
+  return (
+    posted.reason?.value !== current.reason?.value ||
+    posted.reasonSetBy !== current.reasonSetBy ||
+    posted.dmDeleted !== current.dmDeleted ||
+    postedDm?.channelId !== currentDm?.channelId ||
+    postedDm?.messageId !== currentDm?.messageId ||
+    postedDm?.error !== currentDm?.error ||
+    (postedDm?.failureReason ?? null) !== (currentDm?.failureReason ?? null)
+  );
 }
 
 /**

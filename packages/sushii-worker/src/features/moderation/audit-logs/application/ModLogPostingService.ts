@@ -8,18 +8,20 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { ModLogMessageService } from "@/features/moderation/shared/application/ModLogMessageService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import { ModLogComponentBuilder } from "@/features/moderation/shared/domain/services/ModLogComponentBuilder";
-import buildModLogEmbed from "@/features/moderation/shared/presentation/buildModLogEmbed";
 
 import type { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for posting mod log messages to Discord channels.
- * Handles the orchestration of embed creation and message posting.
+ * Renders the case and posts it to the mod log channel.
  */
 export class ModLogPostingService {
-  constructor(private readonly logger: Logger) {}
+  constructor(
+    private readonly modLogMessageService: ModLogMessageService,
+    private readonly logger: Logger,
+  ) {}
 
   /**
    * Posts a mod log message to the configured guild channel.
@@ -32,33 +34,12 @@ export class ModLogPostingService {
     modLogChannelId: string,
   ): Promise<Result<string, string>> {
     try {
-      // Build the mod log embed
-      // Use modLogCase.actionType (e.g. TempBan) rather than auditLogEvent.actionType
-      // (which Discord always reports as Ban for bans)
-      const embed = await buildModLogEmbed(
-        guild.client,
-        modLogCase.actionType,
+      // modLogCase.actionType (e.g. TempBan), not the audit log's, which
+      // Discord always reports as Ban for bans
+      const message = await this.modLogMessageService.render(modLogCase, {
         targetUser,
-        {
-          case_id: modLogCase.caseId,
-          // Preserve mod case executor ID, otherwise fall back to audit log event
-          executor_id:
-            modLogCase.executorId || auditLogEvent.executorId || null,
-          reason: modLogCase.reason?.value || null,
-          attachments: modLogCase.attachments,
-          timeout_duration: modLogCase.timeoutDuration,
-          action_time: modLogCase.actionTime,
-          delete_message_seconds: modLogCase.deleteMessageSeconds,
-        },
-        auditLogEvent.timeoutChange,
-      );
-
-      // Build message components
-      const modLogComponents = new ModLogComponentBuilder(
-        auditLogEvent.actionType,
-        modLogCase,
-      );
-      const components = modLogComponents.build();
+        timeoutChange: auditLogEvent.timeoutChange,
+      });
 
       // Fetch and validate mod log channel
       const channel = await guild.channels.fetch(modLogChannelId);
@@ -67,10 +48,7 @@ export class ModLogPostingService {
       }
 
       // Send the mod log message
-      const sentMessage = await channel.send({
-        embeds: [embed.toJSON()],
-        components,
-      });
+      const sentMessage = await channel.send(message);
 
       this.logger.info(
         {

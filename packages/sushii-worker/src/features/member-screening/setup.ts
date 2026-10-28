@@ -2,9 +2,14 @@ import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import { DrizzleBotEmojiRepository } from "@/features/bot-emojis/infrastructure";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { ModerationService } from "@/features/moderation/actions/application/ModerationService";
+import type { ActionReasonFormDeps } from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
+import { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
+import { DrizzleReasonTemplateRepository } from "@/features/moderation/reason-templates/infrastructure/DrizzleReasonTemplateRepository";
+import { DrizzleModLogRepository } from "@/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository";
 import type * as schema from "@/infrastructure/database/schema";
 import type { SelectMenuHandler } from "@/shared/presentation/handlers";
 import type {
@@ -55,6 +60,29 @@ interface MemberScreeningServices {
 export interface MemberScreeningFeature
   extends FullFeatureSetupReturn<MemberScreeningServices> {
   selectMenuHandlers: SelectMenuHandler[];
+}
+
+/**
+ * Built from db here because the moderation feature's instances aren't passed
+ * to this feature; the repositories and service are stateless.
+ */
+function createReasonFormDeps(
+  db: NodePgDatabase<typeof schema>,
+  logger: Logger,
+): ActionReasonFormDeps {
+  const modLogRepository = new DrizzleModLogRepository(
+    db,
+    logger.child({ component: "ScreeningModLogRepository" }),
+  );
+
+  return {
+    reasonTemplateService: new ReasonTemplateService(
+      new DrizzleReasonTemplateRepository(db),
+      modLogRepository,
+    ),
+    emojiRepository: new DrizzleBotEmojiRepository(db),
+    logger: logger.child({ component: "ScreeningReasonForm" }),
+  };
 }
 
 // Only reachable from the message and automod handlers, which aren't registered without a key.
@@ -155,6 +183,7 @@ export function setupMemberScreeningFeature({
         renderer,
         service,
         metrics,
+        createReasonFormDeps(db, logger),
         logger.child({ buttonHandler: "screening-action" }),
       ),
     ],
