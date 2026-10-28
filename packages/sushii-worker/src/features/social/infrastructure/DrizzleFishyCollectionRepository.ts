@@ -31,6 +31,7 @@ export class DrizzleFishyCollectionRepository
   constructor(
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly roll: (item: Collectible) => number = rollPayout,
+    private readonly repDraw: () => number = Math.random,
   ) {}
 
   private async lockUsers(
@@ -161,7 +162,7 @@ export class DrizzleFishyCollectionRepository
         { mask: invoker.repDaysMask, anchorDay: invoker.repDaysAnchor },
         now,
       );
-      const amount = rollRepAmount(activity.multiplier);
+      const amount = rollRepAmount(activity.multiplier, this.repDraw());
       await tx
         .update(users)
         .set({

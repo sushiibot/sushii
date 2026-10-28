@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
+import type { RepResult } from "@/features/social/domain";
 import { DrizzleFishyCollectionRepository } from "@/features/social/infrastructure/DrizzleFishyCollectionRepository";
 import * as schema from "@/infrastructure/database/schema";
 import { PostgresTestDatabase } from "@/test/PostgresTestDatabase";
@@ -16,7 +17,11 @@ beforeAll(async () => {
   await fixture.initialize();
   pool = new Pool({ connectionString: fixture.getConnectionString(), max: 10 });
   db = drizzle({ client: pool, schema });
-  repository = new DrizzleFishyCollectionRepository(db, () => 10);
+  repository = new DrizzleFishyCollectionRepository(
+    db,
+    () => 10,
+    () => 0.99,
+  );
 }, 60000);
 afterAll(async () => {
   await pool?.end();
@@ -57,12 +62,23 @@ test("simultaneous catches award once; interaction replay returns the committed 
 });
 
 test("reciprocal first catches and rep cannot deadlock or overwrite balances", async () => {
-  await Promise.all([
+  const [fishy300, fishy400, rep300, rep400] = await Promise.all([
     repository.catchFishy("300", "400", "2000", now),
     repository.catchFishy("400", "300", "2001", now),
     repository.giveRep("300", "400", now),
     repository.giveRep("400", "300", now),
   ]);
+  for (const result of [fishy300, fishy400, rep300, rep400]) {
+    expect(result).not.toBeInstanceOf(Date);
+  }
+  for (const result of [rep300, rep400] as RepResult[]) {
+    expect(result).toMatchObject({
+      amount: 1,
+      isBonus: false,
+      oldAmount: "0",
+      newAmount: "1",
+    });
+  }
   for (const id of [300n, 400n]) {
     const [user] = await db
       .select()
