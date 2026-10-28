@@ -5,6 +5,12 @@ on:
     branches:
       - main
     paths:
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+      - "packages/sushii-worker/tsconfig.json"
+      - "packages/sushii-worker/src/features/feature-flags/domain/FeatureFlag.ts"
+      - "packages/sushii-worker/src/features/member-screening/domain/types.ts"
       - "packages/sushii-mcp/**"
       - "packages/sushii-worker/src/infrastructure/database/schema.ts"
       - "packages/sushii-worker/src/shared/infrastructure/logRedaction.ts"
