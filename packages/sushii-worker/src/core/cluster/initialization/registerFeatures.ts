@@ -12,6 +12,7 @@ import { setupAutomodFeature } from "@/features/automod/setup";
 import { setupBanCacheFeature } from "@/features/ban-cache/setup";
 import { setupBotEmojiFeature } from "@/features/bot-emojis/setup";
 import { createCacheFeature } from "@/features/cache/setup";
+import { setupDeploymentApprovals } from "@/features/deployment-approvals/setup";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { DeploymentEventHandler } from "@/features/deployment/presentation/DeploymentEventHandler";
 import { setupEmojiStatsFeature } from "@/features/emoji-stats/setup";
@@ -473,8 +474,15 @@ export function registerFeatures(
     ...messageVerificationFeature.contextMenuHandlers,
   );
 
+  const deploymentApprovals = setupDeploymentApprovals(
+    client,
+    deploymentService,
+    logger,
+  );
+
   // Button handlers
   interactionRouter.addButtons(
+    ...deploymentApprovals.buttonHandlers,
     ...feedbackFeature.buttonHandlers,
     ...levelingFeature.buttonHandlers,
     ...tagFeature.buttonHandlers,

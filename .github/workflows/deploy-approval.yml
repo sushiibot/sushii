@@ -1,0 +1,37 @@
+name: Deployment approval service
+on:
+  push:
+    branches: [main]
+    paths: [packages/deploy-approval/**, .github/workflows/deploy-approval.yml]
+  pull_request:
+    paths: [packages/deploy-approval/**, .github/workflows/deploy-approval.yml]
+permissions: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+        working-directory: packages/deploy-approval
+      - run: bun run typecheck && bun test
+        working-directory: packages/deploy-approval
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: sushiibot/sushii-workflows/.github/workflows/build-verified.yml@920407c841fedd196fd8edd391ba759daa1e0a08
+    with:
+      image_name: ghcr.io/sushiibot/deploy-approval
+      artifact_name: deploy-approval
+      dockerfile: packages/deploy-approval/Dockerfile

@@ -27,6 +27,7 @@ import {
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { interactionReplyErrorInternal, type ReplyableInteraction } from "@/interactions/responses/error";
 import { config } from "@/shared/infrastructure/config";
+import { scrubUrl } from "@/shared/infrastructure/logRedaction";
 import log from "@/shared/infrastructure/logger";
 import type { InteractionMetrics } from "@/shared/infrastructure/metrics/InteractionMetrics";
 import type {
@@ -783,7 +784,7 @@ export default class InteractionRouter {
       Sentry.captureException(e, {
         tags: {
           type: "modal",
-          custom_id: interaction.customId,
+          custom_id: scrubUrl(interaction.customId),
         },
       });
 
@@ -811,12 +812,12 @@ export default class InteractionRouter {
 
     if (!buttonHandler) {
       // May be handled by an inline awaitMessageComponent collector
-      log.debug("no registered button handler for custom id: %s", interaction.customId);
+      log.debug("no registered button handler for custom id: %s", scrubUrl(interaction.customId));
 
       return;
     }
 
-    log.info("received %s button", interaction.customId);
+    log.info("received %s button", scrubUrl(interaction.customId));
 
     try {
       await buttonHandler.handleInteraction(interaction);
@@ -840,7 +841,7 @@ export default class InteractionRouter {
       Sentry.captureException(err, {
         tags: {
           type: "button",
-          custom_id: interaction.customId,
+          custom_id: scrubUrl(interaction.customId),
           handler: buttonHandler.constructor.name,
         },
       });
@@ -895,7 +896,7 @@ export default class InteractionRouter {
       Sentry.captureException(e, {
         tags: {
           type: "select_menu",
-          custom_id: interaction.customId,
+          custom_id: scrubUrl(interaction.customId),
           handler: selectMenuHandler.constructor.name,
         },
       });
@@ -983,7 +984,7 @@ export default class InteractionRouter {
           case InteractionType.MessageComponent: {
             switch (interaction.componentType) {
               case ComponentType.Button: {
-                span.setAttribute("discord.component.custom_id", interaction.customId);
+                span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
                 await this.handleButtonSubmit(interaction);
                 break;
               }
@@ -992,7 +993,7 @@ export default class InteractionRouter {
               case ComponentType.RoleSelect:
               case ComponentType.MentionableSelect:
               case ComponentType.ChannelSelect: {
-                span.setAttribute("discord.component.custom_id", interaction.customId);
+                span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
                 await this.handleSelectMenuSubmit(interaction);
                 break;
               }
@@ -1002,7 +1003,7 @@ export default class InteractionRouter {
           }
 
           case InteractionType.ModalSubmit: {
-            span.setAttribute("discord.component.custom_id", interaction.customId);
+            span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
             await this.handleModalSubmit(interaction);
             break;
           }

@@ -3,20 +3,19 @@ import pino, { type LoggerOptions } from "pino";
 
 // Case-sensitive auth schemes with token-shaped values, so prose like "basic setup" survives.
 const URL_TOKENS =
-  /(\/(?:webhooks|interactions)\/\d+\/)[^/?\s"]+|([?&](?:key|token|api_key|access_token)=)[^&\s"]+|((?:[Bb]earer)\s+)[A-Za-z0-9._~+/=-]{8,}|(Basic\s+)[A-Za-z0-9+/=]{12,}/g;
+  /(\/(?:webhooks|interactions)\/\d+\/)[^/?\s"]+|([?&](?:key|token|api_key|access_token|code|state|ticket)=)[^&\s"]+|((?:[Bb]earer)\s+)[A-Za-z0-9._~+/=-]{8,}|(Basic\s+)[A-Za-z0-9+/=]{12,}/g;
 
 export function scrubUrl(s: string): string {
-  return s.replace(
-    URL_TOKENS,
-    (_m, path, query, bearer, basic) =>
-      `${path ?? query ?? bearer ?? basic}REDACTED`,
-  );
+  return s
+    .replace(/(\/deploy-approval\/confirm\/)[A-Za-z0-9_-]+/g, "$1REDACTED")
+    .replace(
+      URL_TOKENS,
+      (_m, path, query, bearer, basic) =>
+        `${path ?? query ?? bearer ?? basic}REDACTED`,
+    );
 }
 
-export function scrubSecrets(
-  s: string,
-  known: readonly string[],
-): string {
+export function scrubSecrets(s: string, known: readonly string[]): string {
   return known.reduce((acc, v) => acc.split(v).join("[REDACTED]"), scrubUrl(s));
 }
 

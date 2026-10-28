@@ -1,0 +1,14 @@
+{
+  "name": "@sushiibot/deploy-approval",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --skipLibCheck"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "6.0.3"
+  }
+}

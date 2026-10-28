@@ -8,6 +8,7 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
 
   INTERNAL_API_TOKEN: optional,
+  DEPLOY_APPROVAL_TOKEN: z.string().min(32).optional(),
   NOTIFY_WEBHOOK_URL: optional,
   NOTIFY_WEBHOOK_ERR_URL: optional,
   ACTIVITY_WEBHOOK_URL: optional,
@@ -32,7 +33,10 @@ const WEBHOOK_URL_NAMES = [
 ] as const satisfies readonly SecretName[];
 
 // An auth gate must not silently open because its value rendered empty.
-const REJECT_EMPTY = ["INTERNAL_API_TOKEN"] as const satisfies readonly SecretName[];
+const REJECT_EMPTY = [
+  "INTERNAL_API_TOKEN",
+  "DEPLOY_APPROVAL_TOKEN",
+] as const satisfies readonly SecretName[];
 
 const extraValues = new Set<string>();
 let knownCache: string[] | undefined;

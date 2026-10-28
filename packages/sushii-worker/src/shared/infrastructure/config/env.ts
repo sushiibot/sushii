@@ -10,6 +10,7 @@ const envSchema = z.object({
   DEPLOYMENT_NAME: deploymentNameSchema,
   // Only owner can modify deployment
   OWNER_USER_ID: z.string().optional(),
+  DEPLOY_APPROVAL_URL: z.url().optional(),
   // Comma-separated list of channel IDs that should bypass deployment checks
   DEPLOYMENT_EXEMPT_CHANNEL_IDS: z.string().optional(),
   // Comma-separated list of guild IDs that should bypass lookup command restrictions
