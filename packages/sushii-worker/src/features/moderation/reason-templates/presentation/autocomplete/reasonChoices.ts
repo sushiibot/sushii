@@ -14,7 +14,6 @@ import {
   buildTemplateLabel,
   closestShortcut,
   expandReason,
-  previewText,
   recentChoiceValue,
   templateChoiceValue,
 } from "../../domain/ReasonExpander";
@@ -25,10 +24,6 @@ export const MAX_CHOICES = 25;
 /** Only the newest few recent reasons are offered; older ones are noise next to templates. */
 export const SHOWN_RECENT_LIMIT = 3;
 const SHORTCUT_WITH_EXTRA = /^!\S+\s+([\s\S]*)$/;
-export const TIP_NAME =
-  "Tip: make templates in /reason-templates, then type !shortcut";
-const TOKEN_INPUT = /^(?:template|recent):/;
-const AS_TYPED_FRAME = 'Use "" as typed'.length;
 
 export interface ReasonChoiceSources {
   /** Most used first. */
@@ -46,17 +41,6 @@ function templateChoice(template: TemplateLike): ReasonChoice {
 
 function recentChoice(recent: RecentReasonEntry): ReasonChoice {
   return { name: buildRecentLabel(recent), value: recentChoiceValue(recent) };
-}
-
-function asTypedChoice(typed: string): ReasonChoice {
-  return {
-    name: `Use "${previewText(typed, LABEL_MAX_LENGTH - AS_TYPED_FRAME)}" as typed`,
-    value: typed,
-  };
-}
-
-function tipChoice(typed: string): ReasonChoice {
-  return { name: TIP_NAME, value: typed };
 }
 
 function isValidChoice(choice: ReasonChoice): boolean {
@@ -102,10 +86,6 @@ function unknownShortcutChoices(
   templates: readonly TemplateLike[],
 ): ReasonChoice[] {
   const extra = SHORTCUT_WITH_EXTRA.exec(typed)?.[1]?.trim() ?? "";
-  const warning: ReasonChoice = {
-    name: `No template !${shortcut}, it will be used as typed`,
-    value: typed,
-  };
 
   // Mid-typing "!sp" toward "!spam": offer the shortcuts it could become.
   if (!extra) {
@@ -113,14 +93,11 @@ function unknownShortcutChoices(
       t.shortcut?.startsWith(shortcut),
     );
     if (startsWith.length > 0) {
-      return [
-        ...startsWith.slice(0, MAX_CHOICES - 1).map(templateChoice),
-        warning,
-      ];
+      return startsWith.slice(0, MAX_CHOICES).map(templateChoice);
     }
   }
 
-  const choices = [warning];
+  const choices: ReasonChoice[] = [];
   const shortcuts = templates.flatMap((t) => (t.shortcut ? [t.shortcut] : []));
   const closest = closestShortcut(shortcut, shortcuts);
   const suggestion =
@@ -144,25 +121,20 @@ function unknownShortcutChoices(
   return choices;
 }
 
+/** Typed text only searches templates; recent reasons are offered on an empty field. */
 function filterChoices(
   typed: string,
   templates: readonly TemplateLike[],
-  recents: RecentReasonEntry[],
 ): ReasonChoice[] {
   const needle = normalizeReason(typed.replace(/^!/, ""));
-  const matchingTemplates = templates.filter(
-    (t) =>
-      (t.shortcut?.includes(needle) ?? false) ||
-      normalizeReason(t.content).includes(needle),
-  );
-  const matchingRecents = recents
-    .filter((r) => normalizeReason(r.reason).includes(needle))
-    .slice(0, SHOWN_RECENT_LIMIT);
 
-  return [
-    ...matchingTemplates.map(templateChoice),
-    ...matchingRecents.map(recentChoice),
-  ];
+  return templates
+    .filter(
+      (t) =>
+        (t.shortcut?.includes(needle) ?? false) ||
+        normalizeReason(t.content).includes(needle),
+    )
+    .map(templateChoice);
 }
 
 /**
@@ -210,28 +182,11 @@ export function buildReasonChoices(
     );
   }
 
-  const nothingSaved = templates.length === 0;
-
   if (expanded.unknownShortcut) {
-    return finalize([
-      ...unknownShortcutChoices(typed, expanded.unknownShortcut, templates),
-      ...(nothingSaved ? [tipChoice(typed)] : []),
-    ]);
+    return finalize(
+      unknownShortcutChoices(typed, expanded.unknownShortcut, templates),
+    );
   }
 
-  // A typed token already resolves; echoing it as typed would mislabel it.
-  const trailing = TOKEN_INPUT.test(typed)
-    ? []
-    : [
-        asTypedChoice(typed),
-        ...(nothingSaved ? [tipChoice(typed)] : []),
-      ].filter(isValidChoice);
-
-  return finalize([
-    ...filterChoices(typed, templates, recents).slice(
-      0,
-      MAX_CHOICES - trailing.length,
-    ),
-    ...trailing,
-  ]);
+  return finalize(filterChoices(typed, templates));
 }

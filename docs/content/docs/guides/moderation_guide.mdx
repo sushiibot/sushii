@@ -57,14 +57,15 @@ posted to your mod log channel.
 
 ## Reason templates
 
-{/* source: packages/sushii-worker/src/features/moderation/reason-templates/presentation/commands/ReasonTemplatesCommand.ts#ReasonTemplatesCommand @d920a251, packages/sushii-worker/src/features/moderation/reason-templates/application/ReasonTemplateService.ts#REASON_TEMPLATE_LIMIT @f255be0a, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addReasonOption @c25e8355, packages/sushii-worker/src/features/moderation/reason-templates/presentation/autocomplete/reasonChoices.ts#buildReasonChoices @e20f5503, packages/sushii-worker/src/features/moderation/reason-templates/domain/ReasonExpander.ts#expandReason @cca102c4 */}
+{/* source: packages/sushii-worker/src/features/moderation/reason-templates/presentation/commands/ReasonTemplatesCommand.ts#ReasonTemplatesCommand @d920a251, packages/sushii-worker/src/features/moderation/reason-templates/application/ReasonTemplateService.ts#REASON_TEMPLATE_LIMIT @f255be0a, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addReasonOption @c25e8355, packages/sushii-worker/src/features/moderation/reason-templates/presentation/autocomplete/reasonChoices.ts#buildReasonChoices @0c8b8a30, packages/sushii-worker/src/features/moderation/reason-templates/domain/ReasonExpander.ts#expandReason @cca102c4 */}
 
 Save reasons you use often as templates. Every mod in the server can use them.
 
 - `/reason-templates` lists them, most used first. Add, edit or delete them
   there. A server can have up to 100.
 - The `reason` option on `/ban`, `/warn`, `/timeout` and the other action
-  commands suggests templates and recent reasons as you type.
+  commands lists templates and the last few reasons used when it's empty. Once
+  you type, it only searches templates.
 - Give a template a shortcut such as `spam`, then start a reason with `!spam`.
   Anything after the shortcut is added to the end: `!spam also in #general`.
 - A case keeps the full text. Editing or deleting a template later doesn't

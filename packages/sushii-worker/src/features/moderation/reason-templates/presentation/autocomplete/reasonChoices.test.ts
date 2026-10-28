@@ -9,7 +9,6 @@ import type { ReasonChoice } from "./reasonChoices";
 import {
   MAX_CHOICES,
   SHOWN_RECENT_LIMIT,
-  TIP_NAME,
   buildReasonChoices,
 } from "./reasonChoices";
 
@@ -88,7 +87,13 @@ describe("buildReasonChoices", () => {
       "Recent · Raid account number 1",
       "Recent · Raid account number 2",
     ]);
-    expect(recentNames("raid account")).toHaveLength(SHOWN_RECENT_LIMIT);
+    expect(recentNames("")).toHaveLength(SHOWN_RECENT_LIMIT);
+  });
+
+  test("typing never offers recent reasons", () => {
+    const choices = buildReasonChoices("alt account", sources);
+
+    expect(choices.some((c) => c.name.startsWith("Recent · "))).toBe(false);
   });
 
   test("empty field lists templates then recents, with no tip", () => {
@@ -147,7 +152,7 @@ describe("buildReasonChoices", () => {
     expect(choices.map((c) => c.value)).toEqual(["!nsfw", "recent:3"]);
   });
 
-  test("typing filters shortcut and text, then offers the typed text", () => {
+  test("typing only searches templates", () => {
     const choices = buildReasonChoices("raid", {
       templates: TEMPLATES,
       recents: [
@@ -157,19 +162,18 @@ describe("buildReasonChoices", () => {
 
     expect(choices).toEqual([
       expect.objectContaining({ value: "template:14" }),
-      {
-        name: "Recent · Raid bot, joined in the Oct 26 wave.",
-        value: "recent:4790",
-      },
-      { name: 'Use "raid" as typed', value: "raid" },
     ]);
     expectValid(choices);
+  });
+
+  test("typing that matches no template returns no choices", () => {
+    expect(buildReasonChoices("softban test", sources)).toEqual([]);
   });
 
   test("typing matches shortcuts case-insensitively", () => {
     const values = buildReasonChoices("HARASS", sources).map((c) => c.value);
 
-    expect(values).toEqual(["!harassment", "HARASS"]);
+    expect(values).toEqual(["!harassment"]);
   });
 
   test("known shortcut with extra text previews the expansion, valued as typed", () => {
@@ -193,35 +197,27 @@ describe("buildReasonChoices", () => {
     expect(choices.map((c) => c.value)).toEqual(["!spam"]);
   });
 
-  test("unknown shortcut warns and suggests the closest one", () => {
+  test("unknown shortcut only suggests the closest one", () => {
     const choices = buildReasonChoices("!spma", sources);
 
-    expect(choices[0]).toEqual({
-      name: "No template !spma, it will be used as typed",
-      value: "!spma",
-    });
-    expect(choices[1].name.startsWith("Did you mean !spam · Spamming")).toBe(
+    expect(choices).toHaveLength(1);
+    expect(choices[0].name.startsWith("Did you mean !spam · Spamming")).toBe(
       true,
     );
-    expect(choices[1].value).toBe("!spam");
-    expect(choices).toHaveLength(2);
+    expect(choices[0].value).toBe("!spam");
     expectValid(choices);
   });
 
   test("unknown shortcut with extra text keeps the extra in the suggestion", () => {
     const choices = buildReasonChoices("!spma in #general", sources);
 
-    expect(choices[0].value).toBe("!spma in #general");
-    expect(choices[1].value).toBe("!spam in #general");
+    expect(choices.map((c) => c.value)).toEqual(["!spam in #general"]);
   });
 
   test("partial shortcut lists the shortcuts it could become", () => {
     const choices = buildReasonChoices("!s", sources);
 
-    expect(choices.map((c) => c.value)).toEqual(["!spam", "!scam", "!s"]);
-    expect(choices.at(-1)?.name).toBe(
-      "No template !s, it will be used as typed",
-    );
+    expect(choices.map((c) => c.value)).toEqual(["!spam", "!scam"]);
   });
 
   test("nothing saved and empty field lists recents only", () => {
@@ -234,40 +230,9 @@ describe("buildReasonChoices", () => {
     expect(buildReasonChoices("", empty)).toEqual([]);
   });
 
-  test("nothing saved and typing adds the tip, valued as typed", () => {
-    const choices = buildReasonChoices("spam bot", empty);
-
-    expect(choices).toEqual([
-      { name: 'Use "spam bot" as typed', value: "spam bot" },
-      {
-        name: "Tip: make templates in /reason-templates, then type !shortcut",
-        value: "spam bot",
-      },
-    ]);
-  });
-
-  test("nothing saved and an unknown shortcut adds the tip", () => {
-    const choices = buildReasonChoices("!spam", empty);
-
-    expect(choices.map((c) => c.name)).toEqual([
-      "No template !spam, it will be used as typed",
-      "Tip: make templates in /reason-templates, then type !shortcut",
-    ]);
-  });
-
-  test("typed text over 100 characters gets no echo or tip", () => {
-    const choices = buildReasonChoices("z".repeat(101), empty);
-
-    expect(choices).toEqual([]);
-  });
-
-  test("long typed text is shortened in the echo name only", () => {
-    const typed = "y".repeat(100);
-    const [choice] = buildReasonChoices(typed, empty);
-
-    expect(choice.value).toBe(typed);
-    expect(choice.name.length).toBeLessThanOrEqual(100);
-    expect(choice.name.endsWith('…" as typed')).toBe(true);
+  test("nothing saved and typing returns no choices", () => {
+    expect(buildReasonChoices("spam bot", empty)).toEqual([]);
+    expect(buildReasonChoices("!spam", empty)).toEqual([]);
   });
 
   test("never more than 25 choices while typing", () => {
@@ -277,7 +242,6 @@ describe("buildReasonChoices", () => {
     });
 
     expect(choices).toHaveLength(MAX_CHOICES);
-    expect(choices.at(-1)?.value).toBe("template");
     expectValid(choices);
   });
 
@@ -380,12 +344,9 @@ describe("buildReasonChoices", () => {
 
     test("did you mean is omitted when the extra text wouldn't fit", () => {
       const typed = `!harasment ${"e".repeat(89)}`;
-      const choices = buildReasonChoices(typed, sources);
 
       expect(typed.length).toBe(100);
-      expect(choices.map((c) => c.name)).toEqual([
-        "No template !harasment, it will be used as typed",
-      ]);
+      expect(buildReasonChoices(typed, sources)).toEqual([]);
     });
 
     test("a 95 character extra gets no choice that would cut it", () => {
@@ -396,19 +357,6 @@ describe("buildReasonChoices", () => {
         [],
       );
     });
-
-    test("use as typed", () => {
-      const typed = "posted raid links";
-      const choice = choiceNamed(typed, "Use ");
-
-      expect(textOf(choice.value)).toBe(typed);
-    });
-  });
-
-  test("a typed token gets no as-typed echo", () => {
-    const choices = buildReasonChoices("recent:4821", sources);
-
-    expect(choices.some((c) => c.name.startsWith("Use "))).toBe(false);
   });
 
   test("a typed token for a template without a shortcut lists only it", () => {
@@ -419,13 +367,11 @@ describe("buildReasonChoices", () => {
 
   test("every choice name is still recognized after it's edited", () => {
     const names = [
-      ...["", "raid", "!spma", "!spam also in #general"].flatMap((typed) =>
-        buildReasonChoices(typed, sources).map((c) => c.name),
+      ...["", "raid", "!spma", "!s", "!spam also in #general"].flatMap(
+        (typed) => buildReasonChoices(typed, sources).map((c) => c.name),
       ),
-      ...buildReasonChoices("spam bot", empty).map((c) => c.name),
     ];
 
-    expect(names).toContain(TIP_NAME);
     for (const name of names) {
       const result = expandReason(`${name} more`, sources);
 
