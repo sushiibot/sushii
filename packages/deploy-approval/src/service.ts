@@ -477,6 +477,7 @@ export class ApprovalService {
     // targets and approval events missed while the integration was unavailable.
     if (event === "status" && /^[a-f0-9]{40}$/.test(payload.sha)) {
       for (const target of targets) {
+        if (target.hostWaitJob) continue;
         const match =
           /^release\/([a-z0-9-]+)\/([1-9][0-9]*)\/([1-9][0-9]*)$/.exec(
             payload.context ?? "",
@@ -601,7 +602,73 @@ export class ApprovalService {
           run.head_sha !== card.sha
         )
           continue;
-        // A successful workflow is not itself evidence that the host deployed.
+        const target = this.target(card);
+        if (target.hostWaitJob && run.conclusion === "success") {
+          if (
+            run.id !== card.runId ||
+            run.repository?.id !== target.repositoryId ||
+            run.head_repository?.id !== target.repositoryId ||
+            run.path !== target.workflow ||
+            run.head_branch !== target.branch ||
+            run.event !== "push"
+          )
+            continue;
+          const jobs: any[] = [];
+          for (let page = 1; page <= 10; page++) {
+            const response = await this.github.request(
+              "/repos/" +
+                card.repository +
+                "/actions/runs/" +
+                card.runId +
+                "/attempts/" +
+                card.runAttempt +
+                "/jobs?per_page=100&page=" +
+                page,
+              token,
+            );
+            jobs.push(...response.jobs);
+            if (response.jobs.length < 100) break;
+            if (page === 10) throw new Error("Job pagination limit reached");
+          }
+          const matches = jobs.filter(
+            (job) => job.name === target.hostWaitJob!.name,
+          );
+          const job = matches[0];
+          if (
+            matches.length !== 1 ||
+            job.run_id !== card.runId ||
+            job.head_sha !== card.sha ||
+            job.status !== "completed" ||
+            job.conclusion !== "success" ||
+            !job.steps?.some(
+              (step: any) =>
+                step.name === target.hostWaitJob!.step &&
+                step.status === "completed" &&
+                step.conclusion === "success",
+            )
+          ) {
+            this.store.update(card, {
+              phase: "failed",
+              detail:
+                "Host deployment confirmation is missing. Inspect the workflow.",
+            });
+            continue;
+          }
+          this.store.db.transaction(() => {
+            this.store.update(card, {
+              phase: "succeeded",
+              detail: "Blue/green deployment confirmed by the host-wait job",
+            });
+            this.store.recordDeployment(
+              card.repositoryId,
+              card.environmentId,
+              card.sha,
+              card.runId,
+            );
+          })();
+          continue;
+        }
+        // A successful workflow is not itself evidence that a registry artifact deployed.
         if (run.conclusion !== "success")
           this.store.update(card, {
             phase: run.conclusion === "cancelled" ? "cancelled" : "failed",
@@ -630,6 +697,7 @@ export class ApprovalService {
             ].includes(c.phase),
         )) {
         const target = this.target(card);
+        if (target.hostWaitJob) continue;
         const expected =
           "release/" +
           target.releaseTarget +

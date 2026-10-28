@@ -12,6 +12,7 @@ export interface Target {
   initialDeployedSha?: string;
   releaseTarget: string;
   statusActorId: number;
+  hostWaitJob?: { name: string; step: string };
 }
 export interface Config {
   ownerDiscordId: string;

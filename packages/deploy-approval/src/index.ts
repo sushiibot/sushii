@@ -73,6 +73,12 @@ if (mode === "relay") {
         !/^[a-z0-9][a-z0-9-]*$/.test(t.releaseTarget) ||
         !Number.isSafeInteger(t.statusActorId) ||
         t.statusActorId <= 0 ||
+        (t.hostWaitJob !== undefined &&
+          (t.mode !== "approved" ||
+            typeof t.hostWaitJob.name !== "string" ||
+            !t.hostWaitJob.name ||
+            typeof t.hostWaitJob.step !== "string" ||
+            !t.hostWaitJob.step)) ||
         typeof t.environment !== "string" ||
         !t.environment ||
         !/^[0-9]{17,20}$/.test(t.channelId) ||

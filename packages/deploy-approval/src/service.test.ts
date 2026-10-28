@@ -693,3 +693,56 @@ test("out-of-order release notices never compare against a later deployed commit
   expect(f.store.deployed(1, "release:production", 10)).toBeUndefined();
   expect(f.store.deployed(1, "release:production", 21)).toBe("b".repeat(40));
 });
+
+test("blue/green completion requires the exact host-wait job and successful step", async () => {
+  for (const valid of [false, true]) {
+    const f = fixture();
+    const service = new ApprovalService(
+      {
+        ...config,
+        targets: [
+          {
+            ...target,
+            mode: "approved",
+            hostWaitJob: {
+              name: "Deploy production",
+              step: "Wait for host deploy",
+            },
+          },
+        ],
+      },
+      f.store,
+      f.service.github,
+    );
+    await service.event("deployment_review", f.payload());
+    const original = service.github.request.bind(service.github);
+    service.github.request = async (path, ...args) =>
+      path.includes("/jobs?")
+        ? {
+            jobs: [
+              {
+                name: "Deploy production",
+                run_id: 10,
+                head_sha: f.run.head_sha,
+                status: "completed",
+                conclusion: "success",
+                steps: [
+                  {
+                    name: "Wait for host deploy",
+                    status: "completed",
+                    conclusion: valid ? "success" : "skipped",
+                  },
+                ],
+              },
+            ],
+          }
+        : original(path, ...args);
+    f.run.status = "completed";
+    f.run.conclusion = "success";
+    await service.event("workflow_run", {
+      ...f.payload(),
+      action: "completed",
+    });
+    expect(f.store.cards()[0].phase).toBe(valid ? "succeeded" : "failed");
+  }
+});
