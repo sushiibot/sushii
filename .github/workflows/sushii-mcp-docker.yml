@@ -38,7 +38,7 @@ jobs:
 
       - name: Get short SHA
         id: sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -58,12 +58,14 @@ jobs:
     # sushii-bot deploys mcp on its own (sushii-ansible roles/pull_deploy): this bumps the tag and waits for
     # its status, which is mirrored onto this commit with a Grafana log link.
     permissions:
+      contents: read
+      actions: read
       statuses: write
-    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/release-auto.yml@86493aecc426db554f9f3f220225516c01a9c110 # release preset
     with:
-      service: sushii-bot/sushii-mcp
+      service: ${{ vars.MCP_SERVICE }}
+      host: ${{ vars.MCP_HOST }}
       image_version: ${{ needs.docker-build.outputs.sha_short }}
-      host: sushii-bot
       environment: sushii-mcp
     secrets:
       SUSHII_CI_PRIVATE_KEY: ${{ secrets.SUSHII_CI_PRIVATE_KEY }}

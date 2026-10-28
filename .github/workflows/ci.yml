@@ -113,7 +113,7 @@ jobs:
       - name: Get short SHA
         id: sha
         run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Read asset revision
         id: assets
@@ -146,12 +146,14 @@ jobs:
     # apps deploys staging on its own (sushii-ansible roles/pull_deploy): this bumps the tag and waits for
     # its status, which is mirrored onto this commit with a Grafana log link.
     permissions:
+      contents: read
+      actions: read
       statuses: write
-    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/release-auto.yml@86493aecc426db554f9f3f220225516c01a9c110 # release preset
     with:
-      service: sushii-bot/sushii-bot-staging
+      service: ${{ vars.STAGING_SERVICE }}
+      host: ${{ vars.STAGING_HOST }}
       image_version: ${{ needs.docker-build.outputs.sha_short }}
-      host: apps
       environment: staging
     secrets:
       SUSHII_CI_PRIVATE_KEY: ${{ secrets.SUSHII_CI_PRIVATE_KEY }}
@@ -161,14 +163,17 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # sushii-bot releases production on its own (sushii-ansible roles/pull_deploy, blue/green) once this
     # approved job bumps the tag; it checks the production approval and runs one release at a time, so any
-    # approved run can deploy without waiting for older ones. Approving an older run is a no-op.
+    # approved run can deploy without waiting for older ones. The release preset rejects an older version instead of changing the pin.
     permissions:
+      contents: read
+      actions: read
       statuses: write
-    uses: sushiibot/sushii-workflows/.github/workflows/pull-deploy.yml@5a916701cc2f2d875387aef78c9b8ecc273caec7 # pull-deploy
+    uses: sushiibot/sushii-workflows/.github/workflows/release-auto.yml@86493aecc426db554f9f3f220225516c01a9c110 # release preset
     with:
-      service: sushii-bot/sushii-bot-production
+      service: ${{ vars.PRODUCTION_SERVICE }}
+      host: ${{ vars.PRODUCTION_HOST }}
+      require_approval: true
       image_version: ${{ needs.docker-build.outputs.sha_short }}
-      host: sushii-bot
       environment: production
       timeout_minutes: 40
       job_timeout_minutes: 50
