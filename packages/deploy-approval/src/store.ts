@@ -55,11 +55,17 @@ export class Store {
   deployed(
     repositoryId: number,
     environmentId: number | string,
+    beforeRun?: number,
   ): string | undefined {
     const row = this.db
-      .query("SELECT sha FROM deployments WHERE target=?")
-      .get(repositoryId + ":" + environmentId) as { sha: string } | null;
-    return row?.sha;
+      .query("SELECT sha,run FROM deployments WHERE target=?")
+      .get(repositoryId + ":" + environmentId) as {
+      sha: string;
+      run: number;
+    } | null;
+    return row && (beforeRun === undefined || row.run < beforeRun)
+      ? row.sha
+      : undefined;
   }
   recordDeployment(
     repositoryId: number,

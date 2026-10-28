@@ -686,3 +686,10 @@ describe("automatic release notifications", () => {
     expect(f.store.cards()).toHaveLength(0);
   });
 });
+
+test("out-of-order release notices never compare against a later deployed commit", () => {
+  const f = fixture();
+  f.store.recordDeployment(1, "release:production", "b".repeat(40), 20);
+  expect(f.store.deployed(1, "release:production", 10)).toBeUndefined();
+  expect(f.store.deployed(1, "release:production", 21)).toBe("b".repeat(40));
+});

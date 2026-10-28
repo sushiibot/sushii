@@ -452,6 +452,7 @@ export class ApprovalService {
             previousSha: this.store.deployed(
               target.repositoryId,
               target.environmentId,
+              runId,
             ),
             label: target.label,
             channelId: target.channelId,
@@ -528,6 +529,7 @@ export class ApprovalService {
             previousSha: this.store.deployed(
               target.repositoryId,
               target.environmentId,
+              runId,
             ),
             label: target.label,
             channelId: target.channelId,
