@@ -176,3 +176,20 @@ test("automatic target cards never render approval buttons", () => {
   expect(JSON.stringify(payload)).not.toContain("Review & approve");
   expect(JSON.stringify(payload)).not.toContain("/deploy-approval/review/");
 });
+
+test("pending cards have one approval action; stale cards only link to GitHub", () => {
+  const pending = JSON.stringify(releaseCard(card));
+  expect(pending).toContain("Review & approve");
+  expect(pending).not.toContain('"Reject"');
+  const stale = JSON.stringify(
+    releaseCard({
+      ...card,
+      phase: "stale",
+      detail: "This card is over 24 hours old.",
+    }),
+  );
+  expect(stale).toContain("Stale — review in GitHub");
+  expect(stale).not.toContain("/deploy-approval/review/");
+  expect(stale).toContain('"disabled":true');
+  expect(stale).toContain("Open in GitHub");
+});

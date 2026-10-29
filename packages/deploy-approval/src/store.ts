@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import type { Candidate } from "./types";
+import { cardExpired, type Candidate } from "./types";
 
 export class Store {
   readonly db: Database;
@@ -94,6 +94,18 @@ export class Store {
         this.update(card, { previousSha: sha });
     })();
   }
+  expirePending(now = Date.now()): number {
+    const expired = this.cards().filter(
+      (card) => card.phase === "pending" && cardExpired(card, now),
+    );
+    for (const card of expired)
+      this.update(card, {
+        phase: "stale",
+        detail:
+          "This card is over 24 hours old. Review this run in GitHub; a new release will get a new card.",
+      });
+    return expired.length;
+  }
   candidate(
     incoming: Omit<
       Candidate,
@@ -102,6 +114,7 @@ export class Store {
     phase: "pending" | "deploying" = "pending",
   ): Candidate | undefined {
     return this.db.transaction(() => {
+      this.expirePending();
       const target = incoming.repositoryId + ":" + incoming.environmentId;
       const rows = this.cards().filter(
         (c) =>

@@ -29,6 +29,7 @@ export interface Config {
   targets: Target[];
 }
 export type Phase =
+  | "stale"
   | "pending"
   | "deciding"
   | "approved"
@@ -73,3 +74,11 @@ export class ExpectedError extends Error {
 }
 
 export type LinkedAccount = TokenSet & { githubUserId: number };
+
+export const CARD_LIFETIME_MS = 24 * 60 * 60 * 1000;
+export function cardExpired(
+  card: Pick<Candidate, "createdAt">,
+  now = Date.now(),
+): boolean {
+  return now >= card.createdAt + CARD_LIFETIME_MS;
+}

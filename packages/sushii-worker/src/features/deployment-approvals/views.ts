@@ -72,16 +72,6 @@ export function releaseCard(card: Candidate) {
         )
         .setLabel("Review & approve")
         .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(
-          "/deploy-approval/review/" +
-            card.id +
-            "/" +
-            card.revision +
-            "/rejected",
-        )
-        .setLabel("Reject")
-        .setStyle(ButtonStyle.Danger),
     );
   }
   if (!pending)
@@ -91,7 +81,9 @@ export function releaseCard(card: Candidate) {
         .setLabel(
           card.phase === "deciding"
             ? "Checking approval"
-            : "Release " + card.phase,
+            : card.phase === "stale"
+              ? "Stale — review in GitHub"
+              : "Release " + card.phase,
         )
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(true),

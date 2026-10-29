@@ -746,3 +746,60 @@ test("blue/green completion requires the exact host-wait job and successful step
     expect(f.store.cards()[0].phase).toBe(valid ? "succeeded" : "failed");
   }
 });
+
+describe("pending card expiry", () => {
+  const day = 24 * 60 * 60 * 1000;
+  test("expires idle cards without GitHub polling, and new releases get fresh identities", async () => {
+    const f = fixture();
+    const first = await pending(f);
+    const born = Date.now() - day;
+    f.store.update(first, { createdAt: born });
+    expect(f.store.expirePending(born + day - 1)).toBe(0);
+    await f.service.processInbox();
+    expect(f.store.card(first.id)?.phase).toBe("stale");
+    const count = f.store.cards().length;
+    await f.service.processInbox();
+    expect(f.store.cards()).toHaveLength(count); // Quiet services do not post daily replacements.
+    await f.service.event("deployment_review", f.payload());
+    expect(f.store.cards()).toHaveLength(1); // Redelivery cannot reopen the same stale run.
+    f.run.id = 11;
+    f.run.head_sha = "b".repeat(40);
+    await f.service.event("deployment_review", f.payload());
+    const second = f.store.cards()[1];
+    expect(second.id).not.toBe(first.id);
+    expect(second.phase).toBe("pending");
+    expect(second.messageId).toBeUndefined();
+  });
+  test("a confirmation issued before expiry cannot approve after the deadline", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    const confirmation = await f.service.review(
+      config.ownerDiscordId,
+      card.id,
+      card.revision,
+      "approved",
+    );
+    // Keep its revision unchanged to isolate the age guard from revision invalidation.
+    f.store.save({ ...f.store.card(card.id)!, createdAt: Date.now() - day });
+    await expect(
+      f.service.decide(config.ownerDiscordId, confirmation.confirmation),
+    ).rejects.toThrow("release_changed");
+    expect(f.posts).toHaveLength(0);
+    expect(f.store.card(card.id)?.phase).toBe("stale");
+  });
+  test("GitHub approval still advances a stale card", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    f.store.update(card, { createdAt: Date.now() - day });
+    f.store.expirePending();
+    f.history.push({
+      state: "approved",
+      environments: [{ id: 2, name: "production" }],
+    });
+    await f.service.event("deployment_review", {
+      ...f.payload(),
+      action: "approved",
+    });
+    expect(f.store.card(card.id)?.phase).toBe("approved");
+  });
+});

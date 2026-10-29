@@ -140,7 +140,7 @@ export class DeploymentApprovalPublisher {
         { body: releaseCard(card) },
       );
     }
-    if (!["pending", "deciding"].includes(card.phase)) {
+    if (!["pending", "stale", "deciding"].includes(card.phase)) {
       // Threads created from a message use that message's ID, so creation is recoverable.
       try {
         await this.client.rest.get(Routes.channel(messageId));

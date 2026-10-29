@@ -23,6 +23,7 @@ export const candidateSchema = z.object({
   channelId: z.string().regex(/^[0-9]{17,20}$/),
   runUrl: z.url(),
   phase: z.enum([
+    "stale",
     "pending",
     "deciding",
     "approved",

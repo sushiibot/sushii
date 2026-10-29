@@ -4,6 +4,7 @@ import { digest, randomToken, TokenCipher } from "./security";
 import { Store } from "./store";
 import {
   ExpectedError,
+  cardExpired,
   type Candidate,
   type Config,
   type Target,
@@ -21,6 +22,7 @@ export class ApprovalService {
     readonly github = new GitHub(config),
   ) {
     this.cipher = new TokenCipher(config.encryptionKey);
+    this.store.expirePending();
     for (const target of config.targets) {
       if (target.initialDeployedSha)
         store.recordDeployment(
@@ -175,6 +177,7 @@ export class ApprovalService {
 
   async review(actor: unknown, id: string, revision: number, decision: string) {
     this.owner(actor);
+    if (this.store.expirePending()) this.notify();
     if (!["approved", "rejected"].includes(decision))
       throw new ExpectedError("invalid_decision", 400);
     const card = this.store.card(id);
@@ -214,6 +217,7 @@ export class ApprovalService {
 
   async decide(actor: unknown, confirmation: string) {
     this.owner(actor);
+    if (this.store.expirePending()) this.notify();
     const claim = this.store.db.transaction(() => {
       const entry = this.store.db
         .query(
@@ -256,6 +260,7 @@ export class ApprovalService {
         !latest ||
         latest.phase !== "deciding" ||
         latest.revision !== claim.card.revision ||
+        cardExpired(latest) ||
         this.store
           .cards()
           .some(
@@ -306,17 +311,19 @@ export class ApprovalService {
                   "Approval response uncertain. Check GitHub before taking further action.",
               }
             : {
-                phase: this.store
-                  .cards()
-                  .some(
-                    (c) =>
-                      c.id !== current.id &&
-                      c.repositoryId === current.repositoryId &&
-                      c.environmentId === current.environmentId &&
-                      c.runId > current.runId,
-                  )
-                  ? "cancelled"
-                  : "pending",
+                phase: cardExpired(current)
+                  ? "stale"
+                  : this.store
+                        .cards()
+                        .some(
+                          (c) =>
+                            c.id !== current.id &&
+                            c.repositoryId === current.repositoryId &&
+                            c.environmentId === current.environmentId &&
+                            c.runId > current.runId,
+                        )
+                    ? "cancelled"
+                    : "pending",
                 detail:
                   "Approval was not submitted. Review the latest release.",
               },
@@ -334,6 +341,7 @@ export class ApprovalService {
   }
 
   async processInbox() {
+    if (this.store.expirePending()) this.notify();
     if (this.processing) return;
     this.processing = true;
     try {
@@ -575,7 +583,7 @@ export class ApprovalService {
         if (
           matching.length === 1 &&
           ["approved", "rejected"].includes(matching[0].state) &&
-          ["pending", "deciding"].includes(card.phase)
+          ["pending", "stale", "deciding"].includes(card.phase)
         )
           this.store.update(card, {
             phase: matching[0].state,
@@ -689,6 +697,7 @@ export class ApprovalService {
             (c.sha === payload.sha || c.runId === reviewRunId) &&
             [
               "pending",
+              "stale",
               "approved",
               "deciding",
               "deploying",
