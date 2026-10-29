@@ -33,7 +33,7 @@ reason, sushii copies it into the case.
 Every action creates a **case** with a sequential number (e.g. "case #42"),
 posted to your mod log channel.
 
-{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildButtonRow @f94cd890, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#hasLiveDm @81d8fe11 */}
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildButtonRow @621b07a9, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#hasLiveDm @81d8fe11 */}
 
 ```
 /history user:@member
@@ -44,7 +44,7 @@ posted to your mod log channel.
 
 - `/history` — full moderation history for a member
 - `/reason` — edit a reason after the fact. Turn on `update_dm` to also update the DM the member got
-- Mod log entries have **Set reason** (no reason yet) or **Edit reason**, for any action type, plus **Delete DM** while the member's DM still exists. Delete DM asks you to confirm on the entry itself. Older entries get these buttons the first time they're edited
+- Mod log entries have **Set reason** (no reason yet) or **Edit reason**, for any action type (**Set note** / **Edit note** on notes), plus **Delete DM** while the member's DM still exists. Delete DM asks you to confirm on the entry itself. Older entries get these buttons the first time they're edited
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
 

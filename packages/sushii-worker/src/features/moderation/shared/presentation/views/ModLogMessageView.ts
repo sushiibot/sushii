@@ -379,21 +379,27 @@ export function buildDeleteDmConfirm(options: DeleteDmConfirmOptions): {
   };
 }
 
+/** Notes store their text in the reason field but read as a note everywhere else. */
+function reasonLabel(type: ActionType): "reason" | "note" {
+  return type === ActionType.Note ? "note" : "reason";
+}
+
 function buildButtonRow(
   input: ModLogMessageInput,
 ): ActionRowBuilder<ButtonBuilder> {
   const { moderationCase, emojis } = input;
   const reasonId = buildModLogReasonButtonId(moderationCase.caseId);
+  const label = reasonLabel(moderationCase.actionType);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     moderationCase.reason
       ? button(
-          "Edit reason",
+          `Edit ${label}`,
           reasonId,
           ButtonStyle.Secondary,
           emojis.message_edit,
         )
       : button(
-          "Set reason",
+          `Set ${label}`,
           reasonId,
           ButtonStyle.Primary,
           emojis.message_edit,
@@ -462,7 +468,8 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     moderationCase.reasonSetBy !== executorId
       ? `\n-# Set by <@${moderationCase.reasonSetBy}> <t:${unix(moderationCase.reasonSetAt)}:R>`
       : "";
-  const reasonHeading = "**Reason**\n";
+  const label = reasonLabel(type);
+  const reasonHeading = `**${label === "note" ? "Note" : "Reason"}**\n`;
 
   const confirm = input.confirmDeleteDm
     ? buildDeleteDmConfirm({
@@ -488,7 +495,7 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
         moderationCase.reason.value,
         MESSAGE_TEXT_MAX_LENGTH - fixedLength,
       )
-    : "-# No reason yet. Set one so the case history explains this action.";
+    : `-# No ${label} yet. Set one so the case history explains this action.`;
 
   const container = new ContainerBuilder()
     .setAccentColor(getActionTypeColor(type) ?? Color.Info)

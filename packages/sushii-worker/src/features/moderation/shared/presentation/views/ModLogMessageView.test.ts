@@ -137,6 +137,23 @@ function buttons(
 const liveDm: DMResult = { channelId: DM_CHANNEL, messageId: DM_MESSAGE };
 
 describe("buildModLogMessage", () => {
+  test("notes read as a note, with Edit note", () => {
+    const container = render(
+      makeCase({ actionType: ActionType.Note, reason: "Watch for alts" }),
+    );
+
+    expect(allText(container)).toContain("**Note**\nWatch for alts");
+    expect(allText(container)).not.toContain("**Reason**");
+    expect(buttons(container).map((b) => b.label)).toEqual(["Edit note"]);
+  });
+
+  test("a note without text offers Set note", () => {
+    const container = render(makeCase({ actionType: ActionType.Note }));
+
+    expect(allText(container)).toContain("-# No note yet.");
+    expect(buttons(container).map((b) => b.label)).toEqual(["Set note"]);
+  });
+
   test("the timestamp is a footer under the buttons", () => {
     const container = render(makeCase({ reason: "Raid" }));
     const last = container.components.at(-1);
@@ -275,11 +292,14 @@ describe("buildModLogMessage", () => {
     );
   });
 
-  test("notes and unbans have no DM line but still get Set reason", () => {
-    for (const actionType of [ActionType.Note, ActionType.BanRemove]) {
+  test("notes and unbans have no DM line but still get a set button", () => {
+    for (const [actionType, label] of [
+      [ActionType.Note, "Set note"],
+      [ActionType.BanRemove, "Set reason"],
+    ] as const) {
       const container = render(makeCase({ actionType }));
       expect(allText(container)).not.toContain("DM");
-      expect(buttons(container).map((b) => b.label)).toEqual(["Set reason"]);
+      expect(buttons(container).map((b) => b.label)).toEqual([label]);
     }
   });
 
