@@ -8,8 +8,62 @@ import {
   escapeMarkdown,
 } from "discord.js";
 
+import Color from "@/utils/colors";
+
 import type { Candidate } from "./client";
 
+export const STATUS_EMOJI_NAMES = [
+  "schedule",
+  "gear",
+  "success",
+  "fail",
+  "warning",
+  "disabled",
+] as const;
+export type StatusEmojis = Record<(typeof STATUS_EMOJI_NAMES)[number], string>;
+const statusStyles = {
+  pending: {
+    title: "Awaiting approval",
+    color: Color.Warning,
+    emoji: "schedule",
+  },
+  deciding: { title: "Checking approval", color: Color.Info, emoji: "gear" },
+  approved: { title: "Approved", color: Color.Info, emoji: "success" },
+  deploying: { title: "Deploying", color: Color.Info, emoji: "gear" },
+  succeeded: { title: "Deployed", color: Color.Success, emoji: "success" },
+  failed: { title: "Deployment failed", color: Color.Error, emoji: "fail" },
+  rejected: { title: "Rejected", color: Color.Error, emoji: "fail" },
+  cancelled: {
+    title: "Cancelled",
+    color: Color.DiscordGrey,
+    emoji: "disabled",
+  },
+  stale: { title: "Stale", color: Color.DiscordGrey, emoji: "warning" },
+} as const;
+function statusHeading(card: Candidate, emojis: Partial<StatusEmojis>) {
+  const style = statusStyles[card.phase];
+  return `${emojis[style.emoji] ?? ""} **${style.title}**`.trim();
+}
+export function statusReply(
+  card: Candidate,
+  emojis: Partial<StatusEmojis> = {},
+) {
+  return {
+    content: `${statusHeading(card, emojis)} · ${escapeMarkdown(card.detail)}\n[Deployment workflow](${runUrl(card)}/attempts/${card.runAttempt})`,
+    allowed_mentions: { parse: [] },
+  };
+}
+export function matchesStatusReply(content: string, card: Candidate): boolean {
+  const current =
+    content.includes(`**${statusStyles[card.phase].title}**`) &&
+    content.includes(`](${runUrl(card)}/attempts/${card.runAttempt})`);
+  // Old replies had no attempt identifier; only recover them for the first attempt.
+  const legacy =
+    card.runAttempt === 1 &&
+    content.startsWith(`**${card.phase}** · `) &&
+    content.includes(`](${runUrl(card)})`);
+  return current || legacy;
+}
 export function runUrl(card: Candidate): string {
   return (
     "https://github.com/" + card.repository + "/actions/runs/" + card.runId
@@ -31,12 +85,13 @@ export function comparisonText(card: Candidate): string {
     ")"
   );
 }
-export function releaseCard(card: Candidate) {
+export function releaseCard(
+  card: Candidate,
+  emojis: Partial<StatusEmojis> = {},
+) {
   const pending = card.phase === "pending";
   const container = new ContainerBuilder()
-    .setAccentColor(
-      card.phase === "succeeded" ? 0x57f287 : pending ? 0xfee75c : 0x5865f2,
-    )
+    .setAccentColor(statusStyles[card.phase].color)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         "### " +
@@ -44,9 +99,8 @@ export function releaseCard(card: Candidate) {
           " · " +
           escapeMarkdown(card.environment) +
           "\n" +
-          "**" +
-          escapeMarkdown(card.phase) +
-          "** · [`" +
+          statusHeading(card, emojis) +
+          " · [`" +
           card.sha.slice(0, 7) +
           "`](" +
           "https://github.com/" +

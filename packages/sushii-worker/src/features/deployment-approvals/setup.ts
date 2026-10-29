@@ -1,6 +1,7 @@
 import type { Client } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { config, secrets } from "@/shared/infrastructure/config";
 import { env } from "@/shared/infrastructure/config/env";
@@ -13,6 +14,7 @@ export function setupDeploymentApprovals(
   client: Client,
   deployment: DeploymentService,
   logger: Logger,
+  emojiRepo: BotEmojiRepository,
 ) {
   const url = env.DEPLOY_APPROVAL_URL;
   const token = secrets.DEPLOY_APPROVAL_TOKEN;
@@ -26,6 +28,7 @@ export function setupDeploymentApprovals(
       client,
       deployment,
       logger,
+      emojiRepo,
     );
     process.once("SIGTERM", () => publisher.stop());
     process.once("SIGINT", () => publisher.stop());

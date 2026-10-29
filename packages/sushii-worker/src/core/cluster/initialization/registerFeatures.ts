@@ -479,6 +479,7 @@ export function registerFeatures(
     client,
     deploymentService,
     logger,
+    botEmojiFeature.services.botEmojiRepository,
   );
 
   // Button handlers

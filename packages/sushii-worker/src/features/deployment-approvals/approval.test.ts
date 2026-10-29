@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import type { ButtonInteraction, Client } from "discord.js";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import { scrubUrl } from "@/shared/infrastructure/logRedaction";
 
@@ -10,6 +11,10 @@ import { type Candidate } from "./client";
 import { DeploymentApprovalButtonHandler } from "./handler";
 import { DeploymentApprovalPublisher } from "./publisher";
 import { confirmationCard, releaseCard } from "./views";
+
+const emojiRepo = {
+  getEmojis: async () => ({ success: "<:success:123>", gear: "<:gear:124>" }),
+} as unknown as BotEmojiRepository;
 
 const card: Candidate = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -96,6 +101,7 @@ describe("deployment approval UI", () => {
       client,
       {} as DeploymentService,
       {} as Logger,
+      emojiRepo,
     );
     await publisher.publish(card);
     expect(post).not.toHaveBeenCalled();
@@ -115,7 +121,8 @@ describe("deployment approval UI", () => {
             {
               id: "444444444444444444",
               author: { id: "bot" },
-              content: "https://github.com/owner/app/actions/runs/10",
+              content:
+                "**succeeded** · Done\n[Deployment workflow](https://github.com/owner/app/actions/runs/10)",
             },
           ]
         : { id: "333333333333333333" },
@@ -129,6 +136,7 @@ describe("deployment approval UI", () => {
       client,
       {} as DeploymentService,
       {} as Logger,
+      emojiRepo,
     );
     await publisher.publish({
       ...card,
@@ -157,6 +165,7 @@ test("a broken Discord card does not block other services", async () => {
     {} as Client,
     { isCurrentDeploymentActive: () => true } as DeploymentService,
     { warn: mock(() => undefined) } as unknown as Logger,
+    emojiRepo,
   );
   const seen: string[] = [];
   publisher.publish = async (item) => {
@@ -192,4 +201,71 @@ test("pending cards have one approval action; stale cards only link to GitHub", 
   expect(stale).not.toContain("/deploy-approval/review/");
   expect(stale).toContain('"disabled":true');
   expect(stale).toContain("Open in GitHub");
+});
+
+test("progress and completion keep separate replies across retries and restarts", async () => {
+  const messages: { id: string; author: { id: string }; content: string }[] =
+    [];
+  const ack = mock(async () => ({}));
+  const post = mock(
+    async (_path: string, options: { body: { content: string } }) => {
+      const message = {
+        id: String(444444444444444440n + BigInt(messages.length)),
+        author: { id: "bot" },
+        content: options.body.content,
+      };
+      messages.push(message);
+      return message;
+    },
+  );
+  const patch = mock(async (_path: string, _options: unknown) => ({}));
+  const get = mock(async (path: string) =>
+    path.endsWith("/messages") ? messages : {},
+  );
+  const makePublisher = () =>
+    new DeploymentApprovalPublisher(
+      { post: ack, consumerId: "consumer" } as unknown as ApprovalClient,
+      { rest: { get, post, patch }, user: { id: "bot" } } as unknown as Client,
+      {} as DeploymentService,
+      {} as Logger,
+      emojiRepo,
+    );
+  const deploying = {
+    ...card,
+    messageId: "333333333333333333",
+    phase: "deploying" as const,
+  };
+  await makePublisher().publish(deploying);
+  const complete = {
+    ...deploying,
+    phase: "succeeded" as const,
+    revision: 2,
+    threadMessageId: messages[0].id,
+  };
+  await makePublisher().publish(complete);
+  await makePublisher().publish(complete);
+  expect(post).toHaveBeenCalledTimes(2);
+  expect(messages[0].content).toContain("<:gear:124> **Deploying**");
+  expect(messages[1].content).toContain("<:success:123> **Deployed**");
+  expect(patch.mock.calls.some(([path]) => path.endsWith(messages[0].id))).toBe(
+    false,
+  );
+  await makePublisher().publish({ ...complete, runAttempt: 2 });
+  expect(post).toHaveBeenCalledTimes(3);
+});
+
+test("release states use the shared palette and application emojis", () => {
+  const success = releaseCard(
+    { ...card, phase: "succeeded" },
+    { success: "<:success:123>" },
+  );
+  expect(success.components[0].accent_color).toBe(0xabe9b3);
+  expect(JSON.stringify(success)).toContain("<:success:123> **Deployed**");
+  expect(releaseCard(card).components[0].accent_color).toBe(0xf9e2af);
+  expect(
+    releaseCard({ ...card, phase: "failed" }).components[0].accent_color,
+  ).toBe(0xf28fad);
+  expect(
+    releaseCard({ ...card, phase: "deploying" }).components[0].accent_color,
+  ).toBe(0x96cdfb);
 });

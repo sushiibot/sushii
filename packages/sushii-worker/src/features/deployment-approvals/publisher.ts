@@ -1,18 +1,19 @@
 import { sleep } from "bun";
-import {
-  type APIMessage,
-  type Client,
-  Routes,
-  escapeMarkdown,
-} from "discord.js";
+import { type APIMessage, type Client, Routes } from "discord.js";
 import { createHash } from "node:crypto";
 import type { Logger } from "pino";
 
+import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 
 import type { ApprovalClient } from "./client";
 import { type Candidate } from "./client";
-import { releaseCard, runUrl } from "./views";
+import {
+  STATUS_EMOJI_NAMES,
+  matchesStatusReply,
+  releaseCard,
+  statusReply,
+} from "./views";
 
 function nonce(id: string): string {
   return BigInt(
@@ -32,6 +33,7 @@ export class DeploymentApprovalPublisher {
     private readonly client: Client,
     private readonly deployment: DeploymentService,
     private readonly logger: Logger,
+    private readonly emojiRepo: BotEmojiRepository,
   ) {}
   stop() {
     this.stopped = true;
@@ -94,7 +96,7 @@ export class DeploymentApprovalPublisher {
         (m) =>
           m.author.id === this.client.user?.id &&
           (thread
-            ? m.content.includes(runUrl(card))
+            ? matchesStatusReply(m.content ?? "", card)
             : JSON.stringify(m.components ?? []).includes(card.id)),
       );
       if (found) return found.id;
@@ -111,6 +113,7 @@ export class DeploymentApprovalPublisher {
     );
   }
   async publish(card: Candidate) {
+    const emojis = await this.emojiRepo.getEmojis(STATUS_EMOJI_NAMES);
     const known = this.identities.get(card.id);
     let messageId = card.messageId ?? known?.messageId;
     let threadMessageId = card.threadMessageId ?? known?.threadMessageId;
@@ -120,7 +123,7 @@ export class DeploymentApprovalPublisher {
         Routes.channelMessages(card.channelId),
         {
           body: {
-            ...releaseCard(card),
+            ...releaseCard(card, emojis),
             nonce: nonce("card:" + card.id),
             enforce_nonce: true,
           },
@@ -137,7 +140,7 @@ export class DeploymentApprovalPublisher {
     } else {
       await this.client.rest.patch(
         Routes.channelMessage(card.channelId, messageId),
-        { body: releaseCard(card) },
+        { body: releaseCard(card, emojis) },
       );
     }
     if (!["pending", "stale", "deciding"].includes(card.phase)) {
@@ -161,19 +164,10 @@ export class DeploymentApprovalPublisher {
           },
         });
       }
-      const body = {
-        content:
-          "**" +
-          escapeMarkdown(card.phase) +
-          "** · " +
-          escapeMarkdown(card.detail) +
-          "\n[Deployment workflow](" +
-          runUrl(card) +
-          ")",
-        allowed_mentions: { parse: [] },
-      };
-      if (!threadMessageId)
-        threadMessageId = await this.recover(messageId, card, true);
+      const body = statusReply(card, emojis);
+      // The persisted ID may belong to an earlier phase. Recover this phase explicitly,
+      // including after a restart or a lost acknowledgement, before posting a new reply.
+      threadMessageId = await this.recover(messageId, card, true);
       if (threadMessageId) {
         await this.client.rest.patch(
           Routes.channelMessage(messageId, threadMessageId),
@@ -185,7 +179,9 @@ export class DeploymentApprovalPublisher {
           {
             body: {
               ...body,
-              nonce: nonce("thread:" + card.id),
+              nonce: nonce(
+                "thread:" + card.id + ":" + card.runAttempt + ":" + card.phase,
+              ),
               enforce_nonce: true,
             },
           },
