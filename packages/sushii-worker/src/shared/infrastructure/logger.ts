@@ -12,6 +12,14 @@ const logger = pino({
     level(label) {
       return { level: label };
     },
+    // A context `level` field would overwrite the severity that Loki alerts on.
+    log(object) {
+      if (!("level" in object)) {
+        return object;
+      }
+      const { level, ...rest } = object;
+      return { ...rest, contextLevel: level };
+    },
   },
   mixin() {
     const spanContext = trace.getActiveSpan()?.spanContext();
@@ -28,7 +36,7 @@ const logger = pino({
 
 logger.info(
   {
-    level: logger.level,
+    logLevel: logger.level,
   },
   "Logger initialized",
 );

@@ -36,7 +36,7 @@ export async function applyLevelRoles(
     ...logContext,
     guildId: member.guild.id,
     userId: member.id,
-    level,
+    newLevel: level,
     addRoleIds: toAdd,
     removeRoleIds: toRemove,
   };
