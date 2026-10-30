@@ -14,7 +14,6 @@ const schema = z.object({
   ACTIVITY_WEBHOOK_URL: optional,
   E2E_WEBHOOK_URL: optional,
   FEEDBACK_WEBHOOK_URL: optional,
-  SENTRY_DSN: optional,
   GOOGLE_CALENDAR_API_KEY: optional,
   OPENROUTER_API_KEY: optional,
   SCAM_IMAGE_STORE_ACCESS_KEY_ID: optional,

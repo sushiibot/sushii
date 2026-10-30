@@ -39,5 +39,3 @@ packages/graphql/index.*
 # vercel
 **/.vercel
 
-# Sentry Config File
-.sentryclirc

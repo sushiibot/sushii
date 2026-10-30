@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/bun";
 import type { Child } from "discord-hybrid-sharding";
 import { ClusterManager, HeartbeatManager } from "discord-hybrid-sharding";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -23,13 +22,6 @@ import log from "@/shared/infrastructure/logger";
 Error.stackTraceLimit = 50;
 
 async function main(): Promise<void> {
-  Sentry.init({
-    dsn: secrets.SENTRY_DSN,
-    environment: config.sentry.environment,
-    release: config.build.gitHash,
-    tracesSampleRate: 1.0,
-  });
-
   log.info("Running migrations");
 
   // 1 connection is enough for migrations and ongoing health probes
@@ -149,9 +141,6 @@ async function main(): Promise<void> {
       log.info("stopping deployment service");
       await deploymentService.stop();
 
-      log.info("closing sentry");
-      await Sentry.close(2000);
-
       log.info("closing servers");
       servers.forEach((s) => s.stop());
 
@@ -200,12 +189,8 @@ async function main(): Promise<void> {
   await manager.spawn();
 }
 
-main().catch((e) => {
-  Sentry.captureException(e, {
-    level: "fatal",
-  });
-
-  log.error(e, "fatal error rip");
+main().catch((err) => {
+  log.fatal({ err }, "fatal error in manager");
   log.flush();
 
   process.exit(1);

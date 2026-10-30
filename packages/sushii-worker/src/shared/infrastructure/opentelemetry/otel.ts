@@ -1,4 +1,6 @@
 import { context, metrics, propagation, trace } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
@@ -21,19 +23,9 @@ import {
 import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
-import * as Sentry from "@sentry/bun";
-import {
-  SentryContextManager,
-  validateOpenTelemetrySetup,
-} from "@sentry/node-core";
-import {
-  SentryPropagator,
-  SentrySampler,
-  SentrySpanProcessor,
-} from "@sentry/opentelemetry";
 import type { Logger } from "pino";
 
-import { config, secrets } from "@/shared/infrastructure/config";
+import { config } from "@/shared/infrastructure/config";
 
 // Standard OTel env vars (read via envDetector):
 //   OTEL_EXPORTER_OTLP_ENDPOINT     — HTTP collector (default: http://localhost:4318)
@@ -44,30 +36,8 @@ import { config, secrets } from "@/shared/infrastructure/config";
 // Custom env vars (read manually):
 //   GIT_HASH                        — mapped to service.version
 //   OTEL_METRIC_EXPORT_INTERVAL     — metric flush interval in ms (default 60000)
-//   SENTRY_TRACES_SAMPLE_RATE       — SentrySampler sample rate (default 1.0)
 
 export function initializeOtel(logger: Logger, clusterId: number) {
-  const sentryTracesSampleRate = parseFloat(
-    process.env.SENTRY_TRACES_SAMPLE_RATE ?? "1.0",
-  );
-  const resolvedSampleRate = Number.isNaN(sentryTracesSampleRate) ? 1.0 : sentryTracesSampleRate;
-
-  const sentryClient = Sentry.init({
-    dsn: secrets.SENTRY_DSN,
-    environment: config.sentry.environment,
-    release: config.build.gitHash,
-    skipOpenTelemetrySetup: true,
-    tracesSampleRate: resolvedSampleRate,
-    beforeSendTransaction(event) {
-      // Strip user when no Discord user was explicitly set — prevents server IP
-      // geolocation from leaking onto background transactions (schedule, notifications, etc.)
-      if (event.user && !event.user.id) {
-        delete event.user;
-      }
-      return event;
-    },
-  });
-
   // envDetector reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
   // BasicTracerProvider doesn't auto-read env vars like NodeSDK — use envDetector explicitly.
   // OTEL_SERVICE_NAME should be set — defaults to "sushii-bot". Not hardcoded here since multiple services share this file.
@@ -89,19 +59,15 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   const traceExporter = new OTLPTraceExporter();
   const tracerProvider = new BasicTracerProvider({
     resource,
-    sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
-    spanProcessors: [
-      new SentrySpanProcessor(),
-      new BatchSpanProcessor(traceExporter),
-    ],
+    spanProcessors: [new BatchSpanProcessor(traceExporter)],
   });
 
   trace.setGlobalTracerProvider(tracerProvider);
-  propagation.setGlobalPropagator(new SentryPropagator());
+  propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
-  // AsyncLocalStorage is supported by Bun — required for parent-child span tracking.
-  // SentryContextManager wraps it for Sentry context propagation.
-  const contextManager = new SentryContextManager();
+  // AsyncLocalStorage is supported by Bun — required for parent-child span
+  // tracking and for the trace_id the logger attaches to each line.
+  const contextManager = new AsyncLocalStorageContextManager();
   contextManager.enable();
   context.setGlobalContextManager(contextManager);
 
@@ -110,8 +76,6 @@ export function initializeOtel(logger: Logger, clusterId: number) {
   registerInstrumentations({
     instrumentations: [new UndiciInstrumentation()],
   });
-
-  validateOpenTelemetrySetup();
 
   // ---------------------------------------------------------------------------
   // Metrics

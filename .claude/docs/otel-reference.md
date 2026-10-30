@@ -1,8 +1,8 @@
 # OpenTelemetry Reference
 
-Canonical setup for sushii-* services running on Bun (non-Sentry). Copy from `.claude/templates/otel/` — only change the tracer name in `tracing.ts`.
+Canonical setup for sushii-* services running on Bun. Copy from `.claude/templates/otel/` — only change the tracer name in `tracing.ts`.
 
-> **sushii-worker** is different: uses `BasicTracerProvider` + Sentry integration (`SentrySampler`, `SentrySpanProcessor`, `SentryContextManager`, `SentryPropagator`). See `packages/sushii-worker/src/shared/infrastructure/opentelemetry/otel.ts`.
+> **sushii-worker** follows the same tracer setup and adds a metrics provider with custom histogram views. See `packages/sushii-worker/src/shared/infrastructure/opentelemetry/otel.ts`.
 
 ## Why not NodeSDK / NodeTracerProvider?
 

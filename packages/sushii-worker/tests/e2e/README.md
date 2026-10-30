@@ -233,5 +233,5 @@ When adding new e2e tests:
 
 - Tests run with minimal resource allocation
 - Single shard configuration for simplicity
-- Disabled external services (Sentry, tracing, etc.)
+- Disabled external services (tracing, etc.)
 - Optimized for fast feedback, not production simulation

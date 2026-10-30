@@ -54,7 +54,6 @@ Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, Post
 
 **`sushii-ansible` repo** (deployments and ops):
 - **Docs index**: `docs/README.md`
-- **Sentry Workflow**: `docs/sentry-workflow.md`
 - **Deployment**: `docs/update-sushii-bot.md`
 
 ## Communication Guidelines

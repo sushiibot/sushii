@@ -77,9 +77,9 @@ describe("loadSecrets", () => {
   });
 
   test("an empty optional secret counts as unset, and the result is frozen", () => {
-    const loaded = loadSecrets({ ...REQUIRED, SENTRY_DSN: "" });
+    const loaded = loadSecrets({ ...REQUIRED, OPENROUTER_API_KEY: "" });
 
-    expect(loaded.SENTRY_DSN).toBeUndefined();
+    expect(loaded.OPENROUTER_API_KEY).toBeUndefined();
     expect(Object.isFrozen(loaded)).toBe(true);
   });
 });

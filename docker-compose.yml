@@ -32,9 +32,6 @@ services:
       - DISCORD_API_PROXY_URL=http://discord_api_proxy:8080/api
       - SUSHII_IMAGE_SERVER_URL=http://sushii-image-server:3000
 
-      # Sentry
-      - SENTRY_DSN=$SENTRY_DSN
-
       # Tracing
       - TRACING_EXPORTER_URL=http://jaeger:4318/v1/traces
       - TRACING_SAMPLE_PERCENTAGE=0.01

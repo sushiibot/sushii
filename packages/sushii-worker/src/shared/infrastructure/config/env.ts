@@ -40,9 +40,6 @@ const envSchema = z.object({
   // Alerts
   NOTIFY_WEBHOOK_USERNAME: z.string().optional(),
 
-  // Sentry
-  SENTRY_ENVIRONMENT: z.string().optional(),
-
   // Tracing
   TRACING_EXPORTER_URL: z.string().optional(),
   TRACING_SAMPLE_PERCENTAGE: z

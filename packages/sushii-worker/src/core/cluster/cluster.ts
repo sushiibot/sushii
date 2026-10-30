@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/bun";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import {
   Client,
@@ -121,7 +120,6 @@ async function initializeShardCluster(): Promise<void> {
       features.cleanup();
       await deploymentService.stop();
       await client.destroy();
-      await Sentry.close(2000);
 
       // Force flush metrics before shutdown to ensure they're exported
       log.info("Flushing metrics before shutdown");
@@ -153,10 +151,6 @@ async function initializeShardCluster(): Promise<void> {
 }
 
 initializeShardCluster().catch((err) => {
-  Sentry.captureException(err, {
-    level: "fatal",
-  });
-
-  log.error({ err }, "fatal error in shard");
+  log.fatal({ err }, "fatal error in shard");
   process.exit(1);
 });

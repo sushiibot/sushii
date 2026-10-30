@@ -1,5 +1,4 @@
 import opentelemetry, { SpanStatusCode } from "@opentelemetry/api";
-import * as Sentry from "@sentry/bun";
 import type {
   AnySelectMenuInteraction,
   AutocompleteFocusedOption,
@@ -25,7 +24,10 @@ import {
 } from "discord.js";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { interactionReplyErrorInternal, type ReplyableInteraction } from "@/interactions/responses/error";
+import {
+  type ReplyableInteraction,
+  interactionReplyErrorInternal,
+} from "@/interactions/responses/error";
 import { config } from "@/shared/infrastructure/config";
 import { scrubUrl } from "@/shared/infrastructure/logRedaction";
 import log from "@/shared/infrastructure/logger";
@@ -454,7 +456,6 @@ export default class InteractionRouter {
     try {
       await interactionReplyErrorInternal(interaction, traceId);
     } catch (replyErr) {
-      Sentry.captureException(replyErr);
       log.warn(
         {
           err: replyErr,
@@ -508,8 +509,6 @@ export default class InteractionRouter {
 
       await command.handler(interaction);
     } catch (e) {
-      const invoker = interaction.user;
-
       // Extract validation error details if available
       const validationError = parseValidationError(e);
 
@@ -561,47 +560,17 @@ export default class InteractionRouter {
             (validationError.propertyErrors?.length ?? 0),
         );
       } else {
-        log.error(e, "error running command %s", interaction.commandName);
+        log.error(
+          {
+            err: e,
+            command: getFullCommandName(interaction),
+            guildId: interaction.guildId,
+            userId: interaction.user.id,
+          },
+          "error running command",
+        );
       }
 
-      Sentry.withScope((scope) => {
-        scope.addAttachment({
-          filename: "interaction.json",
-          data: JSON.stringify(interaction, null, 2),
-          contentType: "application/json",
-        });
-
-        scope.addAttachment({
-          filename: "interactionOptions.json",
-          data: JSON.stringify(interaction.options, null, 2),
-          contentType: "application/json",
-        });
-
-        // Add detailed validation error attachment if available
-        if (validationError) {
-          scope.addAttachment({
-            filename: "validationError.json",
-            data: JSON.stringify(validationError, null, 2),
-            contentType: "application/json",
-          });
-        }
-
-        Sentry.captureException(e, {
-          user: {
-            id: invoker.id,
-            username: invoker.username,
-          },
-          tags: {
-            type: "command",
-            command_name: getFullCommandName(interaction),
-          },
-          contexts: {
-            validationError: {
-              value: validationError,
-            },
-          },
-        });
-      });
       await this.safeReplyInternalError(interaction);
 
       // Failure
@@ -678,23 +647,6 @@ export default class InteractionRouter {
       await autocomplete.handler(interaction, focusedOption.option);
       return true;
     } catch (err) {
-      Sentry.captureException(err, {
-        tags: {
-          type: "autocomplete",
-          path: focusedOption.path,
-          handler: autocomplete.constructor.name,
-        },
-        user: {
-          id: interaction.user.id,
-          username: interaction.user.username,
-        },
-        extra: {
-          guildId: interaction.guildId,
-          optionName: focusedOption.option.name,
-          optionValue: focusedOption.option.value,
-        },
-      });
-
       log.error(
         {
           err: err,
@@ -733,13 +685,15 @@ export default class InteractionRouter {
     try {
       await command.handler(interaction);
     } catch (e) {
-      Sentry.captureException(e, {
-        tags: {
-          type: "context_menu",
-          name: interaction.commandName,
+      log.error(
+        {
+          err: e,
+          command: interaction.commandName,
+          guildId: interaction.guildId,
+          userId: interaction.user.id,
         },
-      });
-      log.error(e, "error running command %s", interaction.commandName);
+        "error running context menu command",
+      );
 
       await this.safeReplyInternalError(interaction);
 
@@ -756,7 +710,7 @@ export default class InteractionRouter {
    */
   private async handleModalSubmit(
     interaction: ModalSubmitInteraction,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const modalHandler = this.modalHandlers.find(
       (handler) => handler.customIDMatch(interaction.customId) !== false,
     );
@@ -768,7 +722,7 @@ export default class InteractionRouter {
         interaction.customId,
       );
 
-      return;
+      return true;
     }
 
     log.info("received %s modal submit", interaction.customId);
@@ -776,24 +730,35 @@ export default class InteractionRouter {
     try {
       await modalHandler.handleModalSubmit(interaction);
     } catch (e) {
-      if (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownInteraction) {
-        log.warn({ err: e, interactionId: interaction.id }, "stale interaction token (modal)");
-        return;
+      if (
+        e instanceof DiscordAPIError &&
+        e.code === RESTJSONErrorCodes.UnknownInteraction
+      ) {
+        log.warn(
+          { err: e, interactionId: interaction.id },
+          "stale interaction token (modal)",
+        );
+        return true;
       }
 
-      Sentry.captureException(e, {
-        tags: {
-          type: "modal",
-          custom_id: scrubUrl(interaction.customId),
+      log.error(
+        {
+          err: e,
+          interactionId: interaction.id,
+          customId: scrubUrl(interaction.customId),
+          handler: modalHandler.constructor.name,
+          guildId: interaction.guildId,
+          userId: interaction.user.id,
         },
-      });
-
-      log.error(e, "error handling modal %s", interaction.id);
+        "error handling modal",
+      );
 
       await this.safeReplyInternalError(interaction);
 
-      throw e;
+      return false;
     }
+
+    return true;
   }
 
   /**
@@ -803,7 +768,7 @@ export default class InteractionRouter {
    */
   private async handleButtonSubmit(
     interaction: ButtonInteraction,
-  ): Promise<void> {
+  ): Promise<boolean> {
     // TODO: button / select menu handlers don't really need to be a collection
     // as we are always iterating through all handlers
     const buttonHandler = this.buttonHandlers.find(
@@ -812,9 +777,12 @@ export default class InteractionRouter {
 
     if (!buttonHandler) {
       // May be handled by an inline awaitMessageComponent collector
-      log.debug("no registered button handler for custom id: %s", scrubUrl(interaction.customId));
+      log.debug(
+        "no registered button handler for custom id: %s",
+        scrubUrl(interaction.customId),
+      );
 
-      return;
+      return true;
     }
 
     log.info("received %s button", scrubUrl(interaction.customId));
@@ -835,30 +803,27 @@ export default class InteractionRouter {
           },
           "stale interaction token (button)",
         );
-        return;
+        return true;
       }
-
-      Sentry.captureException(err, {
-        tags: {
-          type: "button",
-          custom_id: scrubUrl(interaction.customId),
-          handler: buttonHandler.constructor.name,
-        },
-      });
 
       log.error(
         {
           err,
           interactionId: interaction.id,
+          customId: scrubUrl(interaction.customId),
           handler: buttonHandler.constructor.name,
+          guildId: interaction.guildId,
+          userId: interaction.user.id,
         },
         "error handling button",
       );
 
       await this.safeReplyInternalError(interaction);
 
-      throw err;
+      return false;
     }
+
+    return true;
   }
 
   /**
@@ -868,7 +833,7 @@ export default class InteractionRouter {
    */
   private async handleSelectMenuSubmit(
     interaction: AnySelectMenuInteraction,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const selectMenuHandler = this.selectMenuHandlers.find(
       (handler) => handler.customIDMatch(interaction.customId) !== false,
     );
@@ -880,7 +845,7 @@ export default class InteractionRouter {
         interaction.customId,
       );
 
-      return;
+      return true;
     }
 
     log.info("received %s select menu", interaction.customId);
@@ -888,24 +853,35 @@ export default class InteractionRouter {
     try {
       await selectMenuHandler.handleInteraction(interaction);
     } catch (e) {
-      if (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownInteraction) {
-        log.warn({ err: e, interactionId: interaction.id }, "stale interaction token (select menu)");
-        return;
+      if (
+        e instanceof DiscordAPIError &&
+        e.code === RESTJSONErrorCodes.UnknownInteraction
+      ) {
+        log.warn(
+          { err: e, interactionId: interaction.id },
+          "stale interaction token (select menu)",
+        );
+        return true;
       }
 
-      Sentry.captureException(e, {
-        tags: {
-          type: "select_menu",
-          custom_id: scrubUrl(interaction.customId),
+      log.error(
+        {
+          err: e,
+          interactionId: interaction.id,
+          customId: scrubUrl(interaction.customId),
           handler: selectMenuHandler.constructor.name,
+          guildId: interaction.guildId,
+          userId: interaction.user.id,
         },
-      });
-      log.error(e, "error handling select menu %s", interaction.id);
+        "error handling select menu",
+      );
 
       await this.safeReplyInternalError(interaction);
 
-      throw e;
+      return false;
     }
+
+    return true;
   }
 
   public async handleAPIInteraction(interaction: Interaction): Promise<void> {
@@ -939,97 +915,118 @@ export default class InteractionRouter {
       );
     }
 
-    await Sentry.withScope(async (scope) => {
-      scope.setUser({
-        id: interaction.user.id,
-        username: interaction.user.username,
-      });
+    await tracer.startActiveSpan(
+      getInteractionSpanName(interaction.type),
+      async (span) => {
+        span.setAttributes({
+          "discord.interaction.id": interaction.id,
+          "discord.interaction.type": interaction.type,
+          "discord.interaction.age_ms": ageMs,
+          "user.id": interaction.user.id,
+          ...(interaction.guildId && { "guild.id": interaction.guildId }),
+        });
 
-    await tracer.startActiveSpan(getInteractionSpanName(interaction.type), async (span) => {
-      span.setAttributes({
-        "discord.interaction.id": interaction.id,
-        "discord.interaction.type": interaction.type,
-        "discord.interaction.age_ms": ageMs,
-        "user.id": interaction.user.id,
-        ...(interaction.guildId && { "guild.id": interaction.guildId }),
-      });
+        try {
+          let success = true;
 
-      try {
-        let success = true;
-
-        switch (interaction.type) {
-          case InteractionType.ApplicationCommand: {
-            switch (interaction.commandType) {
-              case ApplicationCommandType.ChatInput: {
-                span.setAttribute("discord.command.name", interaction.commandName);
-                success = await this.handleSlashCommandInteraction(interaction);
-                break;
+          switch (interaction.type) {
+            case InteractionType.ApplicationCommand: {
+              switch (interaction.commandType) {
+                case ApplicationCommandType.ChatInput: {
+                  span.setAttribute(
+                    "discord.command.name",
+                    interaction.commandName,
+                  );
+                  success =
+                    await this.handleSlashCommandInteraction(interaction);
+                  break;
+                }
+                case ApplicationCommandType.Message:
+                case ApplicationCommandType.User: {
+                  span.setAttribute(
+                    "discord.command.name",
+                    interaction.commandName,
+                  );
+                  success =
+                    await this.handleContextMenuInteraction(interaction);
+                  break;
+                }
               }
-              case ApplicationCommandType.Message:
-              case ApplicationCommandType.User: {
-                span.setAttribute("discord.command.name", interaction.commandName);
-                success = await this.handleContextMenuInteraction(interaction);
-                break;
-              }
+
+              break;
+            }
+            case InteractionType.ApplicationCommandAutocomplete: {
+              span.setAttribute(
+                "discord.command.name",
+                interaction.commandName,
+              );
+              success = await this.handleAutocompleteInteraction(interaction);
+              break;
             }
 
-            break;
-          }
-          case InteractionType.ApplicationCommandAutocomplete: {
-            span.setAttribute("discord.command.name", interaction.commandName);
-            success = await this.handleAutocompleteInteraction(interaction);
-            break;
-          }
+            case InteractionType.MessageComponent: {
+              switch (interaction.componentType) {
+                case ComponentType.Button: {
+                  span.setAttribute(
+                    "discord.component.custom_id",
+                    scrubUrl(interaction.customId),
+                  );
+                  success = await this.handleButtonSubmit(interaction);
+                  break;
+                }
+                case ComponentType.StringSelect:
+                case ComponentType.UserSelect:
+                case ComponentType.RoleSelect:
+                case ComponentType.MentionableSelect:
+                case ComponentType.ChannelSelect: {
+                  span.setAttribute(
+                    "discord.component.custom_id",
+                    scrubUrl(interaction.customId),
+                  );
+                  success = await this.handleSelectMenuSubmit(interaction);
+                  break;
+                }
+              }
 
-          case InteractionType.MessageComponent: {
-            switch (interaction.componentType) {
-              case ComponentType.Button: {
-                span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
-                await this.handleButtonSubmit(interaction);
-                break;
-              }
-              case ComponentType.StringSelect:
-              case ComponentType.UserSelect:
-              case ComponentType.RoleSelect:
-              case ComponentType.MentionableSelect:
-              case ComponentType.ChannelSelect: {
-                span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
-                await this.handleSelectMenuSubmit(interaction);
-                break;
-              }
+              break;
             }
 
-            break;
+            case InteractionType.ModalSubmit: {
+              span.setAttribute(
+                "discord.component.custom_id",
+                scrubUrl(interaction.customId),
+              );
+              success = await this.handleModalSubmit(interaction);
+              break;
+            }
           }
 
-          case InteractionType.ModalSubmit: {
-            span.setAttribute("discord.component.custom_id", scrubUrl(interaction.customId));
-            await this.handleModalSubmit(interaction);
-            break;
+          if (!success) {
+            span.setStatus({ code: SpanStatusCode.ERROR });
           }
-        }
 
-        if (!success) {
+          const status = success ? "success" : "error";
+          this.interactionMetrics.recordInteraction(interaction, status);
+
+          return undefined;
+        } catch (err) {
+          span.recordException(err as Error);
           span.setStatus({ code: SpanStatusCode.ERROR });
+          log.error(
+            {
+              err,
+              interactionId: interaction.id,
+              interactionType: interaction.type,
+              guildId: interaction.guildId,
+              userId: interaction.user.id,
+            },
+            "unhandled error handling interaction",
+          );
+          this.interactionMetrics.recordInteraction(interaction, "error");
+        } finally {
+          span.end();
         }
-
-        const status = success ? "success" : "error";
-        this.interactionMetrics.recordInteraction(interaction, status);
-
-        return undefined;
-      } catch (err) {
-        span.recordException(err as Error);
-        span.setStatus({ code: SpanStatusCode.ERROR });
-        log.error(
-          err,
-          "error handling interaction, should be caught %s",
-          interaction.id,
-        );
-        this.interactionMetrics.recordInteraction(interaction, "error");
-      } finally {
-        span.end();
-      }
-    });
-    }); // Sentry.withScope
+      },
+    );
   }
 }

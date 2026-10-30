@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/bun";
 import { CronJob } from "cron";
 import type { Client } from "discord.js";
 
@@ -35,14 +34,6 @@ export function createNonOverlappingTaskRunner(
 
       await task.onTick();
     } catch (err) {
-      Sentry.captureException(err, {
-        tags: {
-          type: "task",
-          name: task.name,
-          clusterId,
-        },
-      });
-
       logger.error(
         { err, taskName: task.name, clusterId },
         "Error running background task",

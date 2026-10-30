@@ -89,9 +89,6 @@ export class Config {
   readonly deployment: DeploymentConfig;
   readonly features: FeatureFlags;
   readonly build: BuildConfig;
-  readonly sentry: {
-    environment: string;
-  };
   readonly openRouterScamClassifyModel: string;
   readonly scamImageStoreEndpoint?: string;
   readonly scamImageStoreBucket?: string;
@@ -139,13 +136,6 @@ export class Config {
       env.GIT_HASH,
       env.BUILD_DATE ? new Date(env.BUILD_DATE) : undefined,
     );
-    this.sentry = {
-      // Prioritize custom environment variable, then fall back to NODE_ENV
-      environment:
-        env.SENTRY_ENVIRONMENT ??
-        (process.env.NODE_ENV === "production" ? "production" : "development"),
-    };
-
     this.openRouterScamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
     this.scamImageStoreEndpoint = env.SCAM_IMAGE_STORE_ENDPOINT;
     this.scamImageStoreBucket = env.SCAM_IMAGE_STORE_BUCKET;

@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/bun";
 import i18next from "i18next";
 import Backend from "i18next-fs-backend";
 
@@ -29,21 +28,9 @@ export default async function initI18next(): Promise<void> {
   );
 
   i18next.on("missingKey", (lngs, namespace, key, res) => {
-    Sentry.captureException(new Error("missing translation key"), {
-      tags: {
-        languages: lngs.join(","),
-        namespace,
-        key,
-        res,
-      },
-    });
-
     log.warn(
-      "missing translation key: %s:%s:%s: %s",
-      lngs.join(","),
-      namespace,
-      key,
-      res,
+      { languages: lngs.join(","), namespace, key, res },
+      "missing translation key",
     );
   });
 }
