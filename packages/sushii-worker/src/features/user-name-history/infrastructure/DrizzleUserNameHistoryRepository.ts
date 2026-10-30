@@ -11,8 +11,8 @@ import type {
 } from "../domain";
 
 const DEFAULT_LIMIT = 50;
-// Namespace for pg_advisory_xact_lock to avoid collisions with other features
-const LOCK_NAMESPACE = 1001;
+// Hashed with the user ID into one bigint key: snowflakes overflow the int4 two-key form.
+const LOCK_NAMESPACE = "user_name_history";
 
 export class DrizzleUserNameHistoryRepository
   implements UserNameHistoryRepository
@@ -23,7 +23,7 @@ export class DrizzleUserNameHistoryRepository
     return this.db.transaction(async (tx) => {
       // Serialize concurrent writes per user to prevent duplicate entries
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(${LOCK_NAMESPACE}, ${Number(entry.userId)})`,
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${LOCK_NAMESPACE} || ':' || ${entry.userId.toString()}, 0))`,
       );
 
       // Check the most recent entry for this (userId, nameType, guildId)

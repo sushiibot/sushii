@@ -11,8 +11,5 @@ export interface UserNameHistoryRepository {
    */
   insertIfChanged(entry: NewUserNameHistoryEntry): Promise<boolean>;
 
-  findByUserId(
-    userId: bigint,
-    limit?: number,
-  ): Promise<UserNameHistoryEntry[]>;
+  findByUserId(userId: bigint, limit?: number): Promise<UserNameHistoryEntry[]>;
 }
