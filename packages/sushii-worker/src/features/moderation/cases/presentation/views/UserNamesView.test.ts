@@ -1,8 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
+import type { NamesResult } from "@/features/moderation/cases/application/NamesUserService";
 import type { UserNameHistoryEntry } from "@/features/user-name-history";
 
-import { buildNameGroupLines, formatNameValue } from "./UserNamesView";
+import {
+  buildNameGroupLines,
+  formatNameValue,
+  groupNameHistory,
+} from "./UserNamesView";
 
 let nextId = 1;
 
@@ -138,5 +143,53 @@ describe("buildNameGroupLines", () => {
         new RegExp(`^\\*\\*${escapedLabel}\\*\\* · \\d+$`),
       );
     }
+  });
+});
+
+describe("groupNameHistory", () => {
+  const GUILD_ID = "222222222222222222";
+  const MIDDLE = new Date("2024-06-01T00:00:00.000Z");
+
+  function resultWith(history: UserNameHistoryEntry[]): NamesResult {
+    return { history } as NamesResult;
+  }
+
+  it("collapses consecutive repeats to the oldest row of each run", () => {
+    const repeatedOldest = makeEntry("Same", MIDDLE);
+    const history = [
+      makeEntry("Same", NEWEST),
+      repeatedOldest,
+      makeEntry("Other", OLDEST),
+    ];
+
+    const { nicknameEntries } = groupNameHistory(resultWith(history), GUILD_ID);
+
+    expect(nicknameEntries.map((e) => e.value)).toEqual(["Same", "Other"]);
+    expect(nicknameEntries[0]).toBe(repeatedOldest);
+  });
+
+  it("keeps switches back to an earlier name", () => {
+    const history = [
+      makeEntry("A", NEWEST),
+      makeEntry("B", MIDDLE),
+      makeEntry("A", OLDEST),
+    ];
+
+    const { nicknameEntries } = groupNameHistory(resultWith(history), GUILD_ID);
+
+    expect(nicknameEntries.map((e) => e.value)).toEqual(["A", "B", "A"]);
+  });
+
+  it("collapses runs per name type, not across the mixed history", () => {
+    const history = [
+      makeEntry("x", NEWEST, { nameType: "username", guildId: null }),
+      makeEntry("x", MIDDLE),
+      makeEntry("x", OLDEST, { nameType: "username", guildId: null }),
+    ];
+
+    const groups = groupNameHistory(resultWith(history), GUILD_ID);
+
+    expect(groups.usernameEntries).toHaveLength(1);
+    expect(groups.nicknameEntries).toHaveLength(1);
   });
 });

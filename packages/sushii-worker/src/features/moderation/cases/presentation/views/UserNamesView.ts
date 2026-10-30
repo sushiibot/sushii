@@ -13,14 +13,32 @@ export function groupNameHistory(
   guildId: string,
 ): NameHistoryGroups {
   return {
-    usernameEntries: result.history.filter((e) => e.nameType === "username"),
-    globalNameEntries: result.history.filter(
-      (e) => e.nameType === "global_name",
+    usernameEntries: collapseRepeats(
+      result.history.filter((e) => e.nameType === "username"),
     ),
-    nicknameEntries: result.history.filter(
-      (e) => e.nameType === "nickname" && e.guildId?.toString() === guildId,
+    globalNameEntries: collapseRepeats(
+      result.history.filter((e) => e.nameType === "global_name"),
+    ),
+    nicknameEntries: collapseRepeats(
+      result.history.filter(
+        (e) => e.nameType === "nickname" && e.guildId?.toString() === guildId,
+      ),
     ),
   };
+}
+
+/**
+ * Collapses runs of the same value in newest-first entries, keeping the
+ * oldest row of each run since that is when the change happened. Concurrent
+ * writes before per-user locking left such runs in stored history.
+ */
+function collapseRepeats(
+  entries: UserNameHistoryEntry[],
+): UserNameHistoryEntry[] {
+  return entries.filter(
+    (entry, i) =>
+      i + 1 >= entries.length || entries[i + 1].value !== entry.value,
+  );
 }
 
 /**
