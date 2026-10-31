@@ -1,0 +1,1 @@
+DROP TABLE "app_public"."server_name_snapshots" CASCADE;

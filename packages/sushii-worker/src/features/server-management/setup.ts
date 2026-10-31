@@ -6,8 +6,10 @@ import type * as schema from "@/infrastructure/database/schema";
 import type { CommandMentions } from "@/shared/presentation/commandMentions";
 
 import { ServerAppearanceService } from "./application/ServerAppearanceService";
-import { DrizzleServerNameSnapshotRepository } from "./infrastructure/DrizzleServerNameSnapshotRepository";
+import { DrizzleServerNameHistoryRepository } from "./infrastructure/DrizzleServerNameHistoryRepository";
+import { ServerNameAutocomplete } from "./presentation/autocompletes/ServerNameAutocomplete";
 import { ServerCommand } from "./presentation/commands/ServerCommand";
+import { ServerNameHistoryHandler } from "./presentation/events/ServerNameHistoryHandler";
 
 interface SetupParams {
   db: NodePgDatabase<typeof schema>;
@@ -24,7 +26,7 @@ export function setupServerManagementFeature({
 }: SetupParams) {
   const featureLogger = logger.child({ component: "ServerManagement" });
   const appearanceService = new ServerAppearanceService(
-    new DrizzleServerNameSnapshotRepository(db),
+    new DrizzleServerNameHistoryRepository(db),
     featureLogger,
   );
 
@@ -37,5 +39,7 @@ export function setupServerManagementFeature({
         featureLogger,
       ),
     ],
+    autocompletes: [new ServerNameAutocomplete(appearanceService)],
+    eventHandlers: [new ServerNameHistoryHandler(appearanceService)],
   };
 }

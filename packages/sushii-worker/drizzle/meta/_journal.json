@@ -505,6 +505,20 @@
       "when": 1793468541263,
       "tag": "0071_server-name-snapshots",
       "breakpoints": false
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1793469936912,
+      "tag": "0072_drop-server-name-snapshots",
+      "breakpoints": false
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793470060342,
+      "tag": "0073_server-name-history",
+      "breakpoints": false
     }
   ]
 }

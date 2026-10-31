@@ -7,7 +7,6 @@ import { fallbackMention } from "@/shared/presentation/commandMentions";
 import {
   buildServerAppearanceErrorReply,
   buildServerImageChangedMessage,
-  buildServerNameRestoredMessage,
   buildServerRenamedMessage,
   describeServerAppearanceError,
 } from "./ServerAppearanceView";
@@ -106,38 +105,15 @@ describe("buildServerImageChangedMessage", () => {
   });
 });
 
-describe("name messages", () => {
-  const snapshot = {
-    guildId: "111111111111111111",
-    name: "TWICE *Fans*",
-    savedBy: MOD_ID,
-    savedAt: new Date("2026-10-29T00:00:00Z"),
-  };
-
-  test("renamed message escapes names and points to restore-name", () => {
+describe("buildServerRenamedMessage", () => {
+  test("shows both names with markdown escaped", () => {
     const content = text(
-      buildServerRenamedMessage(
-        { previousName: "TWICE *Fans*", snapshot },
-        "TWICE Fans 🎂 Nayeon",
-        MOD_ID,
-        fallbackMention,
-      ).components,
+      buildServerRenamedMessage("TWICE *Fans*", "TWICE Fans 🎂 Nayeon", MOD_ID)
+        .components,
     );
 
     expect(content).toContain("TWICE \\\\*Fans\\\\*");
-    expect(content).toContain("`/server restore-name` changes it back");
-  });
-
-  test("restored message credits who saved the name", () => {
-    const content = text(
-      buildServerNameRestoredMessage(
-        { previousName: "TWICE Fans 🎂 Nayeon", snapshot },
-        MOD_ID,
-      ).components,
-    );
-
-    expect(content).toContain(`by <@${MOD_ID}>`);
-    expect(content).toContain("<t:1793232000:R>");
+    expect(content).toContain("TWICE Fans 🎂 Nayeon");
   });
 });
 
@@ -149,16 +125,56 @@ describe("errors", () => {
     );
   });
 
+  test("too large states the file size, the limit and what to do", () => {
+    const text = describeServerAppearanceError("too_large", {
+      target: "banner",
+      fileSize: 14.2 * 1024 * 1024,
+      mention: fallbackMention,
+    });
+
+    expect(text).toBe(
+      "That image is 14.2 MB, and a server banner can be at most 10.0 MB. Resize it to about 960×540 or save it as a JPG and run `/server banner` again.",
+    );
+  });
+
+  test("too large from Discord under our limit doesn't claim our limit", () => {
+    const text = describeServerAppearanceError("too_large", {
+      target: "icon",
+      fileSize: 9.8 * 1024 * 1024,
+      mention: fallbackMention,
+    });
+
+    expect(text).toBe(
+      "Discord says that image is too large for a server icon. Resize it to about 1024×1024 or save it as a JPG and run `/server icon` again.",
+    );
+  });
+
+  test("every image error ends with a next step", () => {
+    for (const error of [
+      "not_image",
+      "invalid_image",
+      "animated_locked",
+    ] as const) {
+      expect(
+        describeServerAppearanceError(error, {
+          target: "icon",
+          mention: fallbackMention,
+        }),
+      ).toEndWith("and run `/server icon` again.");
+    }
+  });
+
   test("name the boost level for the right image kind", () => {
-    expect(
-      describeServerAppearanceError("animated_locked", "icon", fallbackMention),
-    ).toContain("boost level 1");
-    expect(
-      describeServerAppearanceError(
-        "animated_locked",
-        "banner",
-        fallbackMention,
-      ),
-    ).toContain("boost level 3");
+    const icon = describeServerAppearanceError("animated_locked", {
+      target: "icon",
+      mention: fallbackMention,
+    });
+    const banner = describeServerAppearanceError("animated_locked", {
+      target: "banner",
+      mention: fallbackMention,
+    });
+
+    expect(icon).toContain("boost level 1");
+    expect(banner).toContain("boost level 3");
   });
 });

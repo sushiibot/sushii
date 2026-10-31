@@ -473,6 +473,7 @@ export function registerFeatures(
     ...moderationFeature.autocompletes,
     ...giveawayFeature.autocompletes,
     ...emojiStatsFeature.autocompletes,
+    ...serverManagementFeature.autocompletes,
     ...helpFeature.autocompleteHandlers,
   );
 
@@ -557,6 +558,7 @@ export function registerFeatures(
     ...promptsFeature.eventHandlers,
     ...permissionAuditFeature.eventHandlers,
     ...memberScreeningFeature.eventHandlers,
+    ...serverManagementFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------

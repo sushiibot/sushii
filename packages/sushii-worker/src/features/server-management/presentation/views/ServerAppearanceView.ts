@@ -13,49 +13,70 @@ import {
   TextDisplayBuilder,
   ThumbnailBuilder,
   escapeMarkdown,
-  time,
 } from "discord.js";
 
 import Color from "@/utils/colors";
 
 import type {
   ServerImageChange,
-  ServerNameRestore,
-  ServerRename,
+  ServerImageRejection,
 } from "../../application/ServerAppearanceService";
 import type {
   ServerImageError,
   ServerImageKind,
 } from "../../domain/serverImage";
+import { MAX_SERVER_IMAGE_BYTES } from "../../domain/serverImage";
 
 export type ServerAppearanceError =
   | ServerImageError
-  | "invalid_image"
-  | "nothing_saved"
+  | ServerImageRejection
   | "bot_missing_permission";
+
+export interface ServerAppearanceErrorContext {
+  target: ServerImageKind | "name";
+  /** Uploaded file size in bytes, when known. */
+  fileSize?: number;
+  mention: (path: string) => string;
+}
+
+const RECOMMENDED_SIZE: Record<ServerImageKind, string> = {
+  icon: "1024×1024",
+  banner: "960×540",
+};
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export function describeServerAppearanceError(
   error: ServerAppearanceError,
-  kind: ServerImageKind | "name",
-  mention: (path: string) => string,
+  { target, fileSize, mention }: ServerAppearanceErrorContext,
 ): string {
+  const retry =
+    target === "name" ? "" : ` and run ${mention(`server ${target}`)} again`;
+  const kind = target === "name" ? "icon" : target;
+
   switch (error) {
     case "not_image":
-      return "That file isn't an image. Upload a PNG, JPG, GIF or WebP.";
-    case "too_large":
-      return "That image is over 10 MB. Upload a smaller file.";
+      return `That file isn't an image. Upload a PNG, JPG, GIF or WebP${retry}.`;
+    case "too_large": {
+      const fix = `Resize it to about ${RECOMMENDED_SIZE[kind]} or save it as a JPG${retry}.`;
+      if (fileSize !== undefined && fileSize > MAX_SERVER_IMAGE_BYTES) {
+        return `That image is ${formatMegabytes(fileSize)}, and a server ${kind} can be at most ${formatMegabytes(MAX_SERVER_IMAGE_BYTES)}. ${fix}`;
+      }
+
+      return `Discord says that image is too large for a server ${kind}. ${fix}`;
+    }
     case "banner_locked":
       return "This server can't have a banner yet. Server banners unlock at boost level 2.";
     case "animated_locked":
       return kind === "banner"
-        ? "Animated banners need boost level 3. Upload a PNG or JPG instead."
-        : "Animated icons need boost level 1. Upload a PNG or JPG instead.";
+        ? `Animated banners unlock at boost level 3. Upload a still PNG or JPG${retry}.`
+        : `Animated icons unlock at boost level 1. Upload a still PNG or JPG${retry}.`;
     case "invalid_image":
-      return "Discord couldn't use that image. Try a different file.";
-    case "nothing_saved":
-      return `There's no saved server name to restore. One is saved the first time the server is renamed with ${mention("server name")}.`;
+      return `Discord couldn't read that image. It may be damaged or in an unsupported format. Save it as a PNG or JPG${retry}.`;
     case "bot_missing_permission":
-      return `sushii needs the **Manage Server** permission to change the server ${kind}.`;
+      return `sushii needs the **Manage Server** permission to change the server ${target}. Ask an admin to give sushii's role Manage Server.`;
   }
 }
 
@@ -177,54 +198,18 @@ function addBannerRow(
 }
 
 export function buildServerRenamedMessage(
-  rename: ServerRename,
+  previousName: string,
   newName: string,
   executorId: string,
-  mention: (path: string) => string,
 ): InteractionReplyOptions {
-  const container = new ContainerBuilder()
-    .setAccentColor(Color.Success)
-    .addTextDisplayComponents(
-      heading("Server renamed", executorId),
-      new TextDisplayBuilder().setContent(
-        `**Before:** ${escapeMarkdown(rename.previousName)}\n**After:** ${escapeMarkdown(newName)}`,
-      ),
-    );
-
-  if (rename.snapshot) {
-    container
-      .addSeparatorComponents(new SeparatorBuilder())
-      .addTextDisplayComponents(
-        hint(
-          `${mention("server restore-name")} changes it back to **${escapeMarkdown(rename.snapshot.name)}**.`,
-        ),
-      );
-  }
-
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
-}
-
-export function buildServerNameRestoredMessage(
-  restore: ServerNameRestore,
-  executorId: string,
-): InteractionReplyOptions {
-  const { snapshot } = restore;
-
   return {
     components: [
       new ContainerBuilder()
         .setAccentColor(Color.Success)
         .addTextDisplayComponents(
-          heading("Server name restored", executorId),
+          heading("Server renamed", executorId),
           new TextDisplayBuilder().setContent(
-            `**Before:** ${escapeMarkdown(restore.previousName)}\n**After:** ${escapeMarkdown(snapshot.name)}`,
-          ),
-          hint(
-            `Saved ${time(snapshot.savedAt, "R")} by <@${snapshot.savedBy}>`,
+            `**Before:** ${escapeMarkdown(previousName)}\n**After:** ${escapeMarkdown(newName)}`,
           ),
         ),
     ],

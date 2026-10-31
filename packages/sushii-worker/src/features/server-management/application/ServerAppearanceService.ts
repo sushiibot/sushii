@@ -4,14 +4,12 @@ import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
-import type {
-  ServerNameSnapshot,
-  ServerNameSnapshotRepository,
-} from "../domain/ServerNameSnapshot";
+import type { ServerNameHistoryRepository } from "../domain/ServerNameHistory";
 import type { ServerImageKind } from "../domain/serverImage";
 import { MAX_SERVER_IMAGE_BYTES } from "../domain/serverImage";
 
 const PREVIOUS_IMAGE_FETCH_TIMEOUT_MS = 10_000;
+const NAME_SUGGESTION_LIMIT = 25;
 
 export interface Executor {
   id: string;
@@ -30,20 +28,11 @@ export interface ServerImageChange {
   currentUrl: string | null;
 }
 
-export interface ServerRename {
-  previousName: string;
-  /** What /server restore-name would set; null only if the snapshot was removed concurrently. */
-  snapshot: ServerNameSnapshot | null;
-}
-
-export interface ServerNameRestore {
-  previousName: string;
-  snapshot: ServerNameSnapshot;
-}
+export type ServerImageRejection = "too_large" | "invalid_image";
 
 export class ServerAppearanceService {
   constructor(
-    private readonly snapshotRepository: ServerNameSnapshotRepository,
+    private readonly nameHistoryRepository: ServerNameHistoryRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -52,7 +41,7 @@ export class ServerAppearanceService {
     kind: ServerImageKind,
     imageUrl: string,
     executor: Executor,
-  ): Promise<Result<ServerImageChange, "invalid_image">> {
+  ): Promise<Result<ServerImageChange, ServerImageRejection>> {
     // Fetched before the change so the reply can hand mods the original to restore by hand.
     const previous = await this.fetchCurrentImage(guild, kind);
 
@@ -63,15 +52,21 @@ export class ServerAppearanceService {
           ? await guild.setIcon(imageUrl, executor.auditReason)
           : await guild.setBanner(imageUrl, executor.auditReason);
     } catch (err) {
-      if (isRejectedImage(err)) {
-        this.logger.info(
-          { err, guildId: guild.id, kind },
-          "Discord rejected server image",
-        );
-        return Err("invalid_image");
+      const rejection = classifyImageRejection(err);
+      if (!rejection) {
+        throw err;
       }
 
-      throw err;
+      this.logger.info(
+        {
+          guildId: guild.id,
+          kind,
+          rejection,
+          discordErrors: (err as DiscordAPIError).rawError,
+        },
+        "Discord rejected server image",
+      );
+      return Err(rejection);
     }
 
     this.logger.info(
@@ -86,14 +81,8 @@ export class ServerAppearanceService {
     guild: Guild,
     name: string,
     executor: Executor,
-  ): Promise<ServerRename> {
+  ): Promise<string> {
     const previousName = guild.name;
-
-    await this.snapshotRepository.saveIfAbsent({
-      guildId: guild.id,
-      name: previousName,
-      savedBy: executor.id,
-    });
     await guild.setName(name, executor.auditReason);
 
     this.logger.info(
@@ -101,40 +90,32 @@ export class ServerAppearanceService {
       "Renamed server",
     );
 
-    return {
-      previousName,
-      snapshot: await this.snapshotRepository.findByGuild(guild.id),
-    };
+    return previousName;
   }
 
-  async restoreName(
-    guild: Guild,
-    executor: Executor,
-  ): Promise<Result<ServerNameRestore, "nothing_saved">> {
-    const snapshot = await this.snapshotRepository.findByGuild(guild.id);
-    if (!snapshot) {
-      return Err("nothing_saved");
-    }
+  async recordNameChange(
+    guildId: string,
+    oldName: string,
+    newName: string,
+  ): Promise<void> {
+    await this.nameHistoryRepository.record(guildId, [oldName, newName]);
+  }
 
-    const previousName = guild.name;
-    await guild.setName(snapshot.name, executor.auditReason);
-    await this.snapshotRepository.deleteByGuild(guild.id);
-
-    this.logger.info(
-      { guildId: guild.id, executorId: executor.id },
-      "Restored server name",
+  async suggestNames(guild: Guild, query: string): Promise<string[]> {
+    return this.nameHistoryRepository.search(
+      guild.id,
+      query.trim(),
+      guild.name,
+      NAME_SUGGESTION_LIMIT,
     );
-
-    return Ok({ previousName, snapshot });
   }
 
   private async fetchCurrentImage(
     guild: Guild,
     kind: ServerImageKind,
   ): Promise<PreviousImage | null> {
-    const hash = kind === "icon" ? guild.icon : guild.banner;
     const url = serverImageUrl(guild, kind);
-    if (!hash || !url) {
+    if (!url) {
       return null;
     }
 
@@ -152,21 +133,51 @@ export class ServerAppearanceService {
       return { url, file: null };
     }
 
-    const extension = hash.startsWith("a_") ? "gif" : "png";
+    const extension = url.includes("animated=true") ? "webp" : "png";
     return { url, file: { data, filename: `previous-${kind}.${extension}` } };
   }
 }
 
-// Animated hashes resolve to .gif regardless of the requested extension.
 function serverImageUrl(guild: Guild, kind: ServerImageKind): string | null {
-  const options = { size: 4096, extension: "png" } as const;
-  return kind === "icon" ? guild.iconURL(options) : guild.bannerURL(options);
+  const hash = kind === "icon" ? guild.icon : guild.banner;
+  if (!hash) {
+    return null;
+  }
+
+  // Animated uploads may be WebP, which doesn't convert cleanly to GIF.
+  const animated = hash.startsWith("a_");
+  const options = {
+    size: 4096,
+    extension: animated ? "webp" : "png",
+    forceStatic: true,
+  } as const;
+  const url =
+    kind === "icon" ? guild.iconURL(options) : guild.bannerURL(options);
+  if (!url) {
+    return null;
+  }
+
+  return animated ? `${url}&animated=true` : url;
 }
 
-function isRejectedImage(err: unknown): boolean {
-  return (
-    err instanceof DiscordAPIError &&
-    (err.code === RESTJSONErrorCodes.InvalidFormBodyOrContentType ||
-      err.code === RESTJSONErrorCodes.RequestEntityTooLarge)
+function classifyImageRejection(err: unknown): ServerImageRejection | null {
+  if (!(err instanceof DiscordAPIError)) {
+    return null;
+  }
+
+  if (err.code === RESTJSONErrorCodes.RequestEntityTooLarge) {
+    return "too_large";
+  }
+
+  if (err.code !== RESTJSONErrorCodes.InvalidFormBodyOrContentType) {
+    return null;
+  }
+
+  // Field errors look like { icon: { _errors: [{ code: "BINARY_TYPE_MAX_SIZE", ... }] } }.
+  const fieldErrorCodes = JSON.stringify(
+    (err.rawError as { errors?: unknown }).errors ?? {},
   );
+  return /MAX_SIZE|TOO_LARGE/.test(fieldErrorCodes)
+    ? "too_large"
+    : "invalid_image";
 }

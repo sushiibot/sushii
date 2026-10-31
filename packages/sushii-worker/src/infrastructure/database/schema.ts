@@ -1636,14 +1636,20 @@ export const reasonTemplatesInAppPublic = appPublic.table(
   ],
 );
 
-export const serverNameSnapshotsInAppPublic = appPublic.table(
-  "server_name_snapshots",
+export const serverNameHistoryInAppPublic = appPublic.table(
+  "server_name_history",
   {
-    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     name: text().notNull(),
-    savedBy: bigint("saved_by", { mode: "bigint" }).notNull(),
-    savedAt: timestamp("saved_at", { mode: "date", withTimezone: true })
+    lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
   },
+  (t) => [
+    primaryKey({ columns: [t.guildId, t.name] }),
+    index("server_name_history_guild_id_last_used_at_idx").on(
+      t.guildId,
+      t.lastUsedAt.desc(),
+    ),
+  ],
 );
