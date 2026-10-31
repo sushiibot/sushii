@@ -115,12 +115,13 @@ describe("buildHelpChoices", () => {
       BEFORE_NEW_ENDS,
     );
 
-    expect(admin.slice(0, 2).map((c) => c.name)).toEqual([
+    expect(admin.slice(0, 3).map((c) => c.name)).toEqual([
+      "New · /server · server",
       "New · /permission-audit · permission-audit",
       "New · /fishy-collection · fishy-collection",
     ]);
     expect(admin).toHaveLength(25);
-    expect(values(admin).slice(2, 5)).toEqual(["settings", "levelrole", "xp"]);
+    expect(values(admin).slice(3, 6)).toEqual(["settings", "levelrole", "xp"]);
     expect(member[0].name).toBe("New · /fishy-collection · fishy-collection");
     expect(values(member)).not.toContain("permission-audit");
     expect(values(member).filter((v) => v === "fishy-collection")).toHaveLength(

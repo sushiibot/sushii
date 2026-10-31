@@ -42,6 +42,7 @@ import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
 import { setupRoleMenuFeature } from "@/features/role-menu/setup";
 import { setupScheduleFeature } from "@/features/schedule/setup";
+import { setupServerManagementFeature } from "@/features/server-management/setup";
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
 import { setupStatusFeature } from "@/features/status/setup";
@@ -340,6 +341,13 @@ export function registerFeatures(
     permissionUsageRecorder:
       permissionAuditFeature.services.permissionUsageRecorder,
   });
+  const serverManagementFeature = setupServerManagementFeature({
+    db,
+    permissionUsageRecorder:
+      permissionAuditFeature.services.permissionUsageRecorder,
+    commandMentions,
+    logger,
+  });
   const altAccountsFeature = setupAltAccountsFeature({
     logger: logger.child({ feature: "AltAccounts" }),
     services: altAccountsServices,
@@ -447,6 +455,7 @@ export function registerFeatures(
     ...messageVerificationFeature.commands,
     ...altAccountsFeature.commands,
     ...permissionAuditFeature.commands,
+    ...serverManagementFeature.commands,
     ...memberScreeningFeature.commands,
     ...featureFlagCommands,
     ...helpFeature.commands,

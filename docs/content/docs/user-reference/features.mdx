@@ -159,6 +159,24 @@ booster status. Winners are picked automatically when the giveaway ends.
 
 ---
 
+## Server Icon, Banner and Name
+
+{/* source: packages/sushii-worker/src/features/server-management/presentation/commands/ServerCommand.ts#ServerCommand.command @f6e8b348, packages/sushii-worker/src/features/server-management/domain/serverImage.ts#checkServerImage @81b546b6 */}
+
+Let trusted mods change the server's look for events like member birthdays
+without giving them Manage Server. `/server` needs Manage Server by default;
+allow it for a mod role under **Server Settings → Integrations → sushii**.
+Changes are posted in the channel, and the audit log names the mod who made them.
+
+| Command | What it does |
+|---|---|
+| `/server icon` | Change the server icon. The reply includes the old icon so you can restore it later |
+| `/server banner` | Change the server banner (boost level 2). The reply includes the old banner |
+| `/server name` | Rename the server |
+| `/server restore-name` | Change the name back to what it was before the first `/server name` |
+
+---
+
 ## Notifications
 
 Get a ping whenever a keyword you care about is mentioned in the server —

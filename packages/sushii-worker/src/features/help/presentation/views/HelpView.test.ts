@@ -144,11 +144,11 @@ describe("buildHelpPage tabs", () => {
 });
 
 describe("buildHelpPage New line", () => {
-  test("admin sees both new commands", () => {
+  test("admin sees every new command", () => {
     const content = texts(render("members", PERMISSIONS.admin));
 
     expect(content).toContain(
-      "<:sparkle:1400000000000000100> **New:** </permission-audit:1300000000000000000> · </fishy-collection:1300000000000000000>",
+      "<:sparkle:1400000000000000100> **New:** </server icon:1300000000000000000> · </permission-audit:1300000000000000000> · </fishy-collection:1300000000000000000>",
     );
   });
 

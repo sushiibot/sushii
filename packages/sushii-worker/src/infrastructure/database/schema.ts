@@ -1,5 +1,3 @@
-import type { FishyResult } from "@/features/social/domain";
-
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -34,6 +32,7 @@ import type {
   VerdictKind,
   VerdictOutcome,
 } from "@/features/member-screening/domain/types";
+import type { FishyResult } from "@/features/social/domain";
 
 export const appPublic = pgSchema("app_public");
 export const appHidden = pgSchema("app_hidden");
@@ -101,7 +100,9 @@ export const userNameHistoryInAppPublic = appPublic.table(
     nameType: nameTypeInAppPublic("name_type").notNull(),
     guildId: bigint("guild_id", { mode: "bigint" }),
     value: text(),
-    recordedAt: timestamp("recorded_at", { mode: "date" }).defaultNow().notNull(),
+    recordedAt: timestamp("recorded_at", { mode: "date" })
+      .defaultNow()
+      .notNull(),
   },
   (t) => [
     index("idx_user_name_history_user").on(t.userId, t.recordedAt.desc()),
@@ -135,21 +136,43 @@ export const usersInAppPublic = appPublic.table("users", {
     .notNull(),
 });
 
-export const userFishyCollection = appPublic.table("user_fishy_collection", {
-  userId: bigint("user_id", { mode: "bigint" }).notNull().references(() => usersInAppPublic.id, { onDelete: "cascade" }),
-  collectibleId: text("collectible_id").notNull(),
-  catchCount: integer("catch_count").notNull().default(1),
-  firstCaughtAt: timestamp("first_caught_at", { mode: "date", withTimezone: true }).notNull(),
-  lastCaughtAt: timestamp("last_caught_at", { mode: "date", withTimezone: true }).notNull(),
-}, t => [primaryKey({ columns: [t.userId, t.collectibleId] }), check("fishy_positive_count", sql`${t.catchCount} > 0`)]);
+export const userFishyCollection = appPublic.table(
+  "user_fishy_collection",
+  {
+    userId: bigint("user_id", { mode: "bigint" })
+      .notNull()
+      .references(() => usersInAppPublic.id, { onDelete: "cascade" }),
+    collectibleId: text("collectible_id").notNull(),
+    catchCount: integer("catch_count").notNull().default(1),
+    firstCaughtAt: timestamp("first_caught_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    lastCaughtAt: timestamp("last_caught_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.collectibleId] }),
+    check("fishy_positive_count", sql`${t.catchCount} > 0`),
+  ],
+);
 
-export const fishyInteractionResults = appPrivate.table("fishy_interaction_results", {
-  interactionId: bigint("interaction_id", { mode: "bigint" }).primaryKey(),
-  userId: bigint("user_id", { mode: "bigint" }).notNull().references(() => usersInAppPublic.id, { onDelete: "cascade" }),
-  targetId: bigint("target_id", { mode: "bigint" }).notNull(),
-  result: jsonb("result").$type<FishyResult>().notNull(),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).defaultNow().notNull(),
-});
+export const fishyInteractionResults = appPrivate.table(
+  "fishy_interaction_results",
+  {
+    interactionId: bigint("interaction_id", { mode: "bigint" }).primaryKey(),
+    userId: bigint("user_id", { mode: "bigint" })
+      .notNull()
+      .references(() => usersInAppPublic.id, { onDelete: "cascade" }),
+    targetId: bigint("target_id", { mode: "bigint" }).notNull(),
+    result: jsonb("result").$type<FishyResult>().notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
 
 export const failuresInAppHidden = appHidden.table("failures", {
   failureId: text("failure_id").primaryKey().notNull(),
@@ -330,7 +353,10 @@ export const scamCandidateSightingsInAppPublic = appPublic.table(
     seenAt: timestamp("seen_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
-    index("scam_candidate_sightings_key_seen_at_idx").on(table.key, table.seenAt),
+    index("scam_candidate_sightings_key_seen_at_idx").on(
+      table.key,
+      table.seenAt,
+    ),
   ],
 );
 
@@ -349,13 +375,25 @@ export const scamCandidateStateInAppPublic = appPublic.table(
     reviewChannelId: text("review_channel_id"),
     reviewMessageId: text("review_message_id"),
     channelCount: integer("channel_count").notNull().default(0),
-    guildIds: text("guild_ids").array().notNull().default(sql`'{}'::text[]`),
-    seenByUserIds: text("seen_by_user_ids").array().notNull().default(sql`'{}'::text[]`),
+    guildIds: text("guild_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    seenByUserIds: text("seen_by_user_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     trigger: text("trigger").notNull().default("threshold"),
     newImageResults: jsonb("new_image_results"),
     classificationResult: jsonb("classification_result"),
-    attachmentUrls: text("attachment_urls").array().notNull().default(sql`'{}'::text[]`),
-    guildNames: text("guild_names").array().notNull().default(sql`'{}'::text[]`),
+    attachmentUrls: text("attachment_urls")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    guildNames: text("guild_names")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     content: text("content"),
     claimedAt: timestamp("claimed_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
@@ -384,9 +422,7 @@ export const scamHashReportsInAppPublic = appPublic.table(
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
-  (table) => [
-    index("scam_hash_reports_status_idx").on(table.status),
-  ],
+  (table) => [index("scam_hash_reports_status_idx").on(table.status)],
 );
 
 export const guildEmojisAndStickersInAppPublic = appPublic.table(
@@ -1153,7 +1189,10 @@ export const scheduleEventsInAppPublic = appPublic.table(
     }),
     foreignKey({
       columns: [table.guildId, table.calendarId],
-      foreignColumns: [schedulesInAppPublic.guildId, schedulesInAppPublic.calendarId],
+      foreignColumns: [
+        schedulesInAppPublic.guildId,
+        schedulesInAppPublic.calendarId,
+      ],
       name: "fk_schedule_events_schedule",
     }).onDelete("cascade"),
     index("schedule_events_calendar_start_idx").on(
@@ -1209,18 +1248,24 @@ export const scheduleMessagesInAppPublic = appPublic.table(
   },
   (table) => [
     primaryKey({
-      columns: [table.guildId, table.calendarId, table.year, table.month, table.messageIndex],
+      columns: [
+        table.guildId,
+        table.calendarId,
+        table.year,
+        table.month,
+        table.messageIndex,
+      ],
       name: "schedule_messages_pkey",
     }),
     foreignKey({
       columns: [table.guildId, table.calendarId],
-      foreignColumns: [schedulesInAppPublic.guildId, schedulesInAppPublic.calendarId],
+      foreignColumns: [
+        schedulesInAppPublic.guildId,
+        schedulesInAppPublic.calendarId,
+      ],
       name: "fk_schedule_messages_schedule",
     }).onDelete("cascade"),
-    index("schedule_messages_calendar_idx").on(
-      table.guildId,
-      table.calendarId,
-    ),
+    index("schedule_messages_calendar_idx").on(table.guildId, table.calendarId),
   ],
 );
 
@@ -1239,27 +1284,29 @@ const globalRankingViewColumns = {
   rank: bigint("rank", { mode: "bigint" }).notNull(),
 };
 
-export const globalUserLevelRankingsAllTime = appPublic.materializedView(
-  "global_user_level_rankings_all_time",
-  globalRankingViewColumns,
-).as(
-  sql`SELECT user_id, SUM(msg_all_time) AS all_time_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_all_time) DESC, user_id DESC) AS rank FROM app_public.user_levels GROUP BY user_id`,
-);
+export const globalUserLevelRankingsAllTime = appPublic
+  .materializedView(
+    "global_user_level_rankings_all_time",
+    globalRankingViewColumns,
+  )
+  .as(
+    sql`SELECT user_id, SUM(msg_all_time) AS all_time_xp, DENSE_RANK() OVER (ORDER BY SUM(msg_all_time) DESC, user_id DESC) AS rank FROM app_public.user_levels GROUP BY user_id`,
+  );
 
-export const globalUserLevelRankingsDay = appPublic.materializedView(
-  "global_user_level_rankings_day",
-  globalRankingViewColumns,
-).as(buildPeriodRankingView("day"));
+export const globalUserLevelRankingsDay = appPublic
+  .materializedView("global_user_level_rankings_day", globalRankingViewColumns)
+  .as(buildPeriodRankingView("day"));
 
-export const globalUserLevelRankingsWeek = appPublic.materializedView(
-  "global_user_level_rankings_week",
-  globalRankingViewColumns,
-).as(buildPeriodRankingView("week"));
+export const globalUserLevelRankingsWeek = appPublic
+  .materializedView("global_user_level_rankings_week", globalRankingViewColumns)
+  .as(buildPeriodRankingView("week"));
 
-export const globalUserLevelRankingsMonth = appPublic.materializedView(
-  "global_user_level_rankings_month",
-  globalRankingViewColumns,
-).as(buildPeriodRankingView("month"));
+export const globalUserLevelRankingsMonth = appPublic
+  .materializedView(
+    "global_user_level_rankings_month",
+    globalRankingViewColumns,
+  )
+  .as(buildPeriodRankingView("month"));
 
 export const messageVerificationsInAppPublic = appPublic.table(
   "message_verifications",
@@ -1275,13 +1322,26 @@ export const messageVerificationsInAppPublic = appPublic.table(
       withTimezone: true,
       mode: "date",
     }).notNull(),
-    attachments: jsonb().notNull().$type<
-      { filename: string; contentType: string | null; size: number; url?: string }[]
-    >(),
+    attachments: jsonb()
+      .notNull()
+      .$type<
+        {
+          filename: string;
+          contentType: string | null;
+          size: number;
+          url?: string;
+        }[]
+      >(),
     channelContext: jsonb("channel_context").$type<
       | { type: "dm" }
       | { type: "group_dm"; name: string | null; recipients: string[] }
-      | { type: "guild"; guildId: string; guildName: string | null; memberCount: number | null; channelName: string | null }
+      | {
+          type: "guild";
+          guildId: string;
+          guildName: string | null;
+          memberCount: number | null;
+          channelName: string | null;
+        }
       | null
     >(),
     createdAt: timestamp("created_at", {
@@ -1317,9 +1377,7 @@ export const altIdentitiesInAppPublic = appPublic.table(
     id: serial("id").notNull(),
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     nickname: text(),
-    createdAt: timestamp("created_at", { mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({
@@ -1342,9 +1400,7 @@ export const altIdentityMembersInAppPublic = appPublic.table(
     guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
     userId: bigint("user_id", { mode: "bigint" }).notNull(),
     linkedBy: bigint("linked_by", { mode: "bigint" }).notNull(),
-    linkedAt: timestamp("linked_at", { mode: "date" })
-      .notNull()
-      .defaultNow(),
+    linkedAt: timestamp("linked_at", { mode: "date" }).notNull().defaultNow(),
     reason: text(),
   },
   (table) => [
@@ -1578,4 +1634,16 @@ export const reasonTemplatesInAppPublic = appPublic.table(
       table.useCount.desc(),
     ),
   ],
+);
+
+export const serverNameSnapshotsInAppPublic = appPublic.table(
+  "server_name_snapshots",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    name: text().notNull(),
+    savedBy: bigint("saved_by", { mode: "bigint" }).notNull(),
+    savedAt: timestamp("saved_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
 );

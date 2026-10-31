@@ -208,12 +208,20 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
         summary: "Find risky or unused role permissions",
         newUntil: NEW_UNTIL,
       },
+      {
+        name: "server",
+        link: "server icon",
+        summary: "Let mods change the server icon, banner or name",
+        keywords: ["rename", "birthday"],
+        newUntil: NEW_UNTIL,
+      },
     ],
   },
 ];
 
 /** New line order; new commands missing here follow in catalog order. */
 export const HELP_NEW_ORDER: readonly string[] = [
+  "server",
   "permission-audit",
   "fishy-collection",
 ];
