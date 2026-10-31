@@ -15,6 +15,7 @@ import type {
   ServerNameSnapshot,
   ServerNameSnapshotRepository,
 } from "../domain/ServerNameSnapshot";
+import { MAX_SERVER_IMAGE_BYTES } from "../domain/serverImage";
 import { ServerAppearanceService } from "./ServerAppearanceService";
 
 const GUILD_ID = "111111111111111111";
@@ -109,8 +110,9 @@ describe("ServerAppearanceService", () => {
         "https://cdn/icons/oldhash.png",
         expect.anything(),
       );
-      expect(change.previous?.filename).toBe("previous-icon.png");
-      expect(change.previous?.data).toEqual(Buffer.from([1, 2, 3]));
+      expect(change.previous?.url).toBe("https://cdn/icons/oldhash.png");
+      expect(change.previous?.file?.filename).toBe("previous-icon.png");
+      expect(change.previous?.file?.data).toEqual(Buffer.from([1, 2, 3]));
       expect(change.currentUrl).toBe("https://cdn/icons/newhash.png");
       expect(guild.setIcon).toHaveBeenCalledWith(
         NEW_IMAGE_URL,
@@ -126,7 +128,32 @@ describe("ServerAppearanceService", () => {
         await service.setImage(asGuild(guild), "icon", NEW_IMAGE_URL, EXECUTOR)
       ).unwrap();
 
-      expect(change.previous?.filename).toBe("previous-icon.gif");
+      expect(change.previous?.file?.filename).toBe("previous-icon.gif");
+    });
+
+    test("links instead of attaching a previous image over the upload limit", async () => {
+      fetchSpy.mockImplementation(
+        (async () =>
+          new Response(
+            new Uint8Array(MAX_SERVER_IMAGE_BYTES + 1),
+          )) as unknown as typeof fetch,
+      );
+      const guild = createGuild({ banner: "bigbanner" });
+      const service = new ServerAppearanceService(createRepository(), logger);
+
+      const change = (
+        await service.setImage(
+          asGuild(guild),
+          "banner",
+          NEW_IMAGE_URL,
+          EXECUTOR,
+        )
+      ).unwrap();
+
+      expect(change.previous).toEqual({
+        url: "https://cdn/banners/bigbanner.png",
+        file: null,
+      });
     });
 
     test("has no previous file when the server had no banner", async () => {

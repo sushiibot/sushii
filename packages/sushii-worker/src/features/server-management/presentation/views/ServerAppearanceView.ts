@@ -93,9 +93,10 @@ export function buildServerImageChangedMessage(
     .setAccentColor(Color.Success)
     .addTextDisplayComponents(heading(`Server ${kind} updated`, executorId));
 
-  const previousUrl = change.previous
-    ? `attachment://${change.previous.filename}`
-    : null;
+  const previousFile = change.previous?.file ?? null;
+  const previousUrl = previousFile
+    ? `attachment://${previousFile.filename}`
+    : (change.previous?.url ?? null);
 
   if (kind === "icon") {
     addIconRow(container, "Before", previousUrl, "no icon");
@@ -117,10 +118,10 @@ export function buildServerImageChangedMessage(
 
   return {
     components: [container],
-    files: change.previous
+    files: previousFile
       ? [
-          new AttachmentBuilder(change.previous.data, {
-            name: change.previous.filename,
+          new AttachmentBuilder(previousFile.data, {
+            name: previousFile.filename,
           }),
         ]
       : [],

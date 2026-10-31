@@ -13,7 +13,10 @@ import {
 } from "./ServerAppearanceView";
 
 const MOD_ID = "222222222222222222";
-const PREVIOUS = { data: Buffer.from([1]), filename: "previous-icon.png" };
+const PREVIOUS = {
+  url: "https://cdn/icons/old.png",
+  file: { data: Buffer.from([1]), filename: "previous-icon.png" },
+};
 
 function json(
   components: readonly unknown[] | undefined,
@@ -44,6 +47,23 @@ describe("buildServerImageChangedMessage", () => {
     expect(content).toContain("upload it with `/server icon`");
   });
 
+  test("links the previous image when it was too large to attach", () => {
+    const message = buildServerImageChangedMessage(
+      "icon",
+      {
+        previous: { url: "https://cdn/icons/old.png", file: null },
+        currentUrl: "https://cdn/icons/new.png",
+      },
+      MOD_ID,
+      fallbackMention,
+    );
+
+    expect(message.files).toEqual([]);
+    const content = text(message.components);
+    expect(content).toContain("https://cdn/icons/old.png");
+    expect(content).toContain("switch back");
+  });
+
   test("says there was no icon and skips the hint when nothing was replaced", () => {
     const message = buildServerImageChangedMessage(
       "icon",
@@ -62,7 +82,10 @@ describe("buildServerImageChangedMessage", () => {
     const message = buildServerImageChangedMessage(
       "banner",
       {
-        previous: { ...PREVIOUS, filename: "previous-banner.png" },
+        previous: {
+          url: "https://cdn/banners/old.png",
+          file: { data: Buffer.from([1]), filename: "previous-banner.png" },
+        },
         currentUrl: "https://cdn/banners/new.png",
       },
       MOD_ID,

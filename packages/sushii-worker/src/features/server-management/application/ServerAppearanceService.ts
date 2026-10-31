@@ -9,6 +9,7 @@ import type {
   ServerNameSnapshotRepository,
 } from "../domain/ServerNameSnapshot";
 import type { ServerImageKind } from "../domain/serverImage";
+import { MAX_SERVER_IMAGE_BYTES } from "../domain/serverImage";
 
 const PREVIOUS_IMAGE_FETCH_TIMEOUT_MS = 10_000;
 
@@ -17,14 +18,15 @@ export interface Executor {
   auditReason: string;
 }
 
-export interface ImageFile {
-  data: Buffer;
-  filename: string;
+export interface PreviousImage {
+  url: string;
+  /** null when the image is too large to attach to the reply. */
+  file: { data: Buffer; filename: string } | null;
 }
 
 export interface ServerImageChange {
   /** null when the server had no image of this kind. */
-  previous: ImageFile | null;
+  previous: PreviousImage | null;
   currentUrl: string | null;
 }
 
@@ -129,7 +131,7 @@ export class ServerAppearanceService {
   private async fetchCurrentImage(
     guild: Guild,
     kind: ServerImageKind,
-  ): Promise<ImageFile | null> {
+  ): Promise<PreviousImage | null> {
     const hash = kind === "icon" ? guild.icon : guild.banner;
     const url = serverImageUrl(guild, kind);
     if (!hash || !url) {
@@ -145,11 +147,13 @@ export class ServerAppearanceService {
       });
     }
 
+    const data = Buffer.from(await response.arrayBuffer());
+    if (data.length > MAX_SERVER_IMAGE_BYTES) {
+      return { url, file: null };
+    }
+
     const extension = hash.startsWith("a_") ? "gif" : "png";
-    return {
-      data: Buffer.from(await response.arrayBuffer()),
-      filename: `previous-${kind}.${extension}`,
-    };
+    return { url, file: { data, filename: `previous-${kind}.${extension}` } };
   }
 }
 
