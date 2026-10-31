@@ -101,24 +101,20 @@ function sentFlags(mockFn: ReturnType<typeof mock>): number {
 const EPHEMERAL_V2 = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 
 describe("ServerCommand", () => {
-  test("rejects an oversized upload privately before deferring", async () => {
+  test("leaves oversized or unusual files for Discord to judge", async () => {
     const { command, appearanceService } = createCommand();
     const interaction = createInteraction({
       attachment: {
-        url: "https://cdn/attachments/huge.png",
-        contentType: "image/png",
+        url: "https://cdn/attachments/huge.webp",
+        contentType: "image/webp",
         size: 14.2 * 1024 * 1024,
       },
     });
 
     await run(command, interaction);
 
-    expect(interaction.deferReply).not.toHaveBeenCalled();
-    expect(appearanceService.setImage).not.toHaveBeenCalled();
-    expect(sentFlags(interaction.reply)).toBe(EPHEMERAL_V2);
-    expect(sentText(interaction.reply)).toContain(
-      "That image is 14.2 MB, and a server icon can be at most 10.0 MB. Resize it to about 1024×1024 or save it as a JPG and run `/server icon` again.",
-    );
+    expect(interaction.deferReply).toHaveBeenCalled();
+    expect(appearanceService.setImage).toHaveBeenCalled();
   });
 
   test("rejects a banner on a server without banners", async () => {
@@ -148,7 +144,9 @@ describe("ServerCommand", () => {
 
   test("replaces the public placeholder with a private error when Discord rejects the size", async () => {
     const { command, recorder } = createCommand({
-      setImage: mock(async () => Err("too_large" as const)),
+      setImage: mock(async () =>
+        Err({ reason: "too_large" as const, limitBytes: 10240 * 1024 }),
+      ),
     });
     const interaction = createInteraction({
       subcommand: "banner",
@@ -163,13 +161,13 @@ describe("ServerCommand", () => {
     expect(recorder.recordSushiiAction).not.toHaveBeenCalled();
     expect(sentFlags(interaction.followUp)).toBe(EPHEMERAL_V2);
     expect(sentText(interaction.followUp)).toContain(
-      "Discord says that image is too large for a server banner. Resize it to about 960×540",
+      "That image is 0.2 MB, and Discord's limit for a server banner is 10.0 MB. Resize it to about 960×540",
     );
   });
 
   test("replaces the public placeholder with a private error for unreadable images", async () => {
     const { command } = createCommand({
-      setImage: mock(async () => Err("invalid_image" as const)),
+      setImage: mock(async () => Err({ reason: "invalid_image" as const })),
     });
     const interaction = createInteraction();
 

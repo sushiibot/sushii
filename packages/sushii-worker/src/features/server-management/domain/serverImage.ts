@@ -2,42 +2,22 @@ import { GuildFeature } from "discord.js";
 
 export type ServerImageKind = "icon" | "banner";
 
-export type ServerImageError =
-  | "not_image"
-  | "too_large"
-  | "banner_locked"
-  | "animated_locked";
-
-export const MAX_SERVER_IMAGE_BYTES = 10 * 1024 * 1024;
-
-const ACCEPTED_CONTENT_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-]);
+/** Only feature gates Discord documents; format and size are left to Discord to reject. */
+export type ServerImageError = "banner_locked" | "animated_locked";
 
 export function checkServerImage(
   kind: ServerImageKind,
-  file: { contentType: string | null; size: number },
+  contentType: string | null,
   guildFeatures: readonly string[],
 ): ServerImageError | null {
-  const mimeType = file.contentType?.split(";")[0].trim().toLowerCase();
-  if (!mimeType || !ACCEPTED_CONTENT_TYPES.has(mimeType)) {
-    return "not_image";
-  }
-
-  if (file.size > MAX_SERVER_IMAGE_BYTES) {
-    return "too_large";
-  }
-
   if (kind === "banner" && !guildFeatures.includes(GuildFeature.Banner)) {
     return "banner_locked";
   }
 
+  const isGif = contentType?.split(";")[0].trim().toLowerCase() === "image/gif";
   const animatedFeature =
     kind === "icon" ? GuildFeature.AnimatedIcon : GuildFeature.AnimatedBanner;
-  if (mimeType === "image/gif" && !guildFeatures.includes(animatedFeature)) {
+  if (isGif && !guildFeatures.includes(animatedFeature)) {
     return "animated_locked";
   }
 

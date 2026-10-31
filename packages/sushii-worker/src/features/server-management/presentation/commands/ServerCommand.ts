@@ -52,7 +52,7 @@ export class ServerCommand extends SlashCommandHandler {
         .addAttachmentOption((o) =>
           o
             .setName(ServerOption.Image)
-            .setDescription("New icon (PNG, JPG, GIF or WebP).")
+            .setDescription("New icon image.")
             .setRequired(true),
         ),
     )
@@ -63,7 +63,7 @@ export class ServerCommand extends SlashCommandHandler {
         .addAttachmentOption((o) =>
           o
             .setName(ServerOption.Image)
-            .setDescription("New banner (PNG, JPG, GIF or WebP).")
+            .setDescription("New banner image.")
             .setRequired(true),
         ),
     )
@@ -138,11 +138,11 @@ export class ServerCommand extends SlashCommandHandler {
 
     const imageError = checkServerImage(
       kind,
-      { contentType: attachment.contentType, size: attachment.size },
+      attachment.contentType,
       interaction.guild.features,
     );
     if (imageError) {
-      await this.replyError(interaction, imageError, kind, attachment.size);
+      await this.replyError(interaction, imageError, kind);
       return;
     }
 
@@ -161,9 +161,11 @@ export class ServerCommand extends SlashCommandHandler {
       await interaction.deleteReply();
       await interaction.followUp(
         buildServerAppearanceErrorReply(
-          describeServerAppearanceError(result.val, {
+          describeServerAppearanceError(result.val.reason, {
             target: kind,
             fileSize: attachment.size,
+            limitBytes:
+              result.val.reason === "too_large" ? result.val.limitBytes : null,
             mention: this.mention(interaction),
           }),
         ),
@@ -201,10 +203,9 @@ export class ServerCommand extends SlashCommandHandler {
     interaction: GuildInteraction,
     error: ServerAppearanceError,
     target: ServerImageKind | "name",
-    fileSize?: number,
   ): Promise<void> {
     this.logger.debug(
-      { guildId: interaction.guildId, error, target, fileSize },
+      { guildId: interaction.guildId, error, target },
       "Server appearance change rejected",
     );
 
@@ -212,7 +213,6 @@ export class ServerCommand extends SlashCommandHandler {
       buildServerAppearanceErrorReply(
         describeServerAppearanceError(error, {
           target,
-          fileSize,
           mention: this.mention(interaction),
         }),
       ),

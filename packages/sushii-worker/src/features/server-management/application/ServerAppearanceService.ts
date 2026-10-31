@@ -6,10 +6,11 @@ import { Err, Ok } from "ts-results";
 
 import type { ServerNameHistoryRepository } from "../domain/ServerNameHistory";
 import type { ServerImageKind } from "../domain/serverImage";
-import { MAX_SERVER_IMAGE_BYTES } from "../domain/serverImage";
 
 const PREVIOUS_IMAGE_FETCH_TIMEOUT_MS = 10_000;
 const NAME_SUGGESTION_LIMIT = 25;
+// Discord's documented default per-file upload limit for the reply attachment.
+const MAX_REPLY_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 export interface Executor {
   id: string;
@@ -28,7 +29,10 @@ export interface ServerImageChange {
   currentUrl: string | null;
 }
 
-export type ServerImageRejection = "too_large" | "invalid_image";
+export type ServerImageRejection =
+  /** limitBytes is parsed from Discord's error when it states one. */
+  | { reason: "too_large"; limitBytes: number | null }
+  | { reason: "invalid_image" };
 
 export class ServerAppearanceService {
   constructor(
@@ -61,7 +65,7 @@ export class ServerAppearanceService {
         {
           guildId: guild.id,
           kind,
-          rejection,
+          rejection: rejection.reason,
           discordErrors: (err as DiscordAPIError).rawError,
         },
         "Discord rejected server image",
@@ -129,7 +133,7 @@ export class ServerAppearanceService {
     }
 
     const data = Buffer.from(await response.arrayBuffer());
-    if (data.length > MAX_SERVER_IMAGE_BYTES) {
+    if (data.length > MAX_REPLY_ATTACHMENT_BYTES) {
       return { url, file: null };
     }
 
@@ -166,18 +170,24 @@ function classifyImageRejection(err: unknown): ServerImageRejection | null {
   }
 
   if (err.code === RESTJSONErrorCodes.RequestEntityTooLarge) {
-    return "too_large";
+    return { reason: "too_large", limitBytes: null };
   }
 
   if (err.code !== RESTJSONErrorCodes.InvalidFormBodyOrContentType) {
     return null;
   }
 
-  // Field errors look like { icon: { _errors: [{ code: "BINARY_TYPE_MAX_SIZE", ... }] } }.
-  const fieldErrorCodes = JSON.stringify(
+  // Field errors look like { icon: { _errors: [{ code: "BINARY_TYPE_MAX_SIZE", message: "File cannot be larger than 10240.0 kb." }] } }.
+  const fieldErrors = JSON.stringify(
     (err.rawError as { errors?: unknown }).errors ?? {},
   );
-  return /MAX_SIZE|TOO_LARGE/.test(fieldErrorCodes)
-    ? "too_large"
-    : "invalid_image";
+  if (!/MAX_SIZE|TOO_LARGE/.test(fieldErrors)) {
+    return { reason: "invalid_image" };
+  }
+
+  const limitKb = /larger than ([\d.]+)\s*kb/i.exec(fieldErrors)?.[1];
+  return {
+    reason: "too_large",
+    limitBytes: limitKb ? Math.round(Number(limitKb) * 1024) : null,
+  };
 }

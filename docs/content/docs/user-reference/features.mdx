@@ -161,7 +161,7 @@ booster status. Winners are picked automatically when the giveaway ends.
 
 ## Server Icon, Banner and Name
 
-{/* source: packages/sushii-worker/src/features/server-management/presentation/commands/ServerCommand.ts#ServerCommand.command @68e58e57, packages/sushii-worker/src/features/server-management/domain/serverImage.ts#checkServerImage @81b546b6 */}
+{/* source: packages/sushii-worker/src/features/server-management/presentation/commands/ServerCommand.ts#ServerCommand.command @c7f8a55c, packages/sushii-worker/src/features/server-management/domain/serverImage.ts#checkServerImage @ffe13282 */}
 
 Let trusted mods change the server's look for events like member birthdays
 without giving them Manage Server. `/server` needs Manage Server by default;
@@ -170,15 +170,9 @@ Changes are posted in the channel, and the audit log names the mod who made them
 
 | Command | What it does |
 |---|---|
-| `/server icon` | Change the server icon (up to 10 MB). The reply includes the old icon so you can put it back later |
-| `/server banner` | Change the server banner (boost level 2, up to 10 MB). The reply includes the old banner |
-| `/server name` | Rename the server. Suggests names the server has used before, so switching back is one pick |
-
----|---|
-| `/server icon` | Change the server icon. The reply includes the old icon so you can restore it later |
+| `/server icon` | Change the server icon. The reply includes the old icon so you can put it back later |
 | `/server banner` | Change the server banner (boost level 2). The reply includes the old banner |
-| `/server name` | Rename the server |
-| `/server restore-name` | Change the name back to what it was before the first `/server name` |
+| `/server name` | Rename the server. Suggests names the server has used before, so switching back is one pick |
 
 ---
 

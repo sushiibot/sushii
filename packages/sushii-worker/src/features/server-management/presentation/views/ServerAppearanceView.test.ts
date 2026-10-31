@@ -125,22 +125,24 @@ describe("errors", () => {
     );
   });
 
-  test("too large states the file size, the limit and what to do", () => {
+  test("too large states Discord's limit when Discord gave one", () => {
     const text = describeServerAppearanceError("too_large", {
       target: "banner",
       fileSize: 14.2 * 1024 * 1024,
+      limitBytes: 10240 * 1024,
       mention: fallbackMention,
     });
 
     expect(text).toBe(
-      "That image is 14.2 MB, and a server banner can be at most 10.0 MB. Resize it to about 960×540 or save it as a JPG and run `/server banner` again.",
+      "That image is 14.2 MB, and Discord's limit for a server banner is 10.0 MB. Resize it to about 960×540 or save it as a JPG and run `/server banner` again.",
     );
   });
 
-  test("too large from Discord under our limit doesn't claim our limit", () => {
+  test("too large without a stated limit doesn't invent one", () => {
     const text = describeServerAppearanceError("too_large", {
       target: "icon",
       fileSize: 9.8 * 1024 * 1024,
+      limitBytes: null,
       mention: fallbackMention,
     });
 
@@ -150,11 +152,7 @@ describe("errors", () => {
   });
 
   test("every image error ends with a next step", () => {
-    for (const error of [
-      "not_image",
-      "invalid_image",
-      "animated_locked",
-    ] as const) {
+    for (const error of ["invalid_image", "animated_locked"] as const) {
       expect(
         describeServerAppearanceError(error, {
           target: "icon",

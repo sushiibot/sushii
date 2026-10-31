@@ -12,7 +12,6 @@ import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import pino from "pino";
 
 import type { ServerNameHistoryRepository } from "../domain/ServerNameHistory";
-import { MAX_SERVER_IMAGE_BYTES } from "../domain/serverImage";
 import type { ServerImageRejection } from "./ServerAppearanceService";
 import { ServerAppearanceService } from "./ServerAppearanceService";
 
@@ -149,7 +148,7 @@ describe("ServerAppearanceService", () => {
       fetchSpy.mockImplementation(
         (async () =>
           new Response(
-            new Uint8Array(MAX_SERVER_IMAGE_BYTES + 1),
+            new Uint8Array(20 * 1024 * 1024 + 1),
           )) as unknown as typeof fetch,
       );
       const guild = createGuild({ banner: "bigbanner" });
@@ -197,12 +196,21 @@ describe("ServerAppearanceService", () => {
             ],
           },
         }),
-        "too_large",
+        { reason: "too_large", limitBytes: 10240 * 1024 },
       ],
       [
         "request entity too large",
         apiError(RESTJSONErrorCodes.RequestEntityTooLarge),
-        "too_large",
+        { reason: "too_large", limitBytes: null },
+      ],
+      [
+        "a max-size field error without a stated limit",
+        apiError(RESTJSONErrorCodes.InvalidFormBodyOrContentType, {
+          banner: {
+            _errors: [{ code: "BINARY_TYPE_MAX_SIZE", message: "Too big" }],
+          },
+        }),
+        { reason: "too_large", limitBytes: null },
       ],
       [
         "any other form body error",
@@ -211,9 +219,9 @@ describe("ServerAppearanceService", () => {
             _errors: [{ code: "IMAGE_INVALID", message: "Invalid image data" }],
           },
         }),
-        "invalid_image",
+        { reason: "invalid_image" },
       ],
-    ])("maps %s to %s", async (_label, error, expected) => {
+    ])("maps %s", async (_label, error, expected) => {
       const guild = createGuild({});
       guild.setIcon.mockImplementation(async () => {
         throw error;
@@ -227,7 +235,7 @@ describe("ServerAppearanceService", () => {
         EXECUTOR,
       );
 
-      expect(result.err && result.val).toBe(expected);
+      expect(result.err && result.val).toEqual(expected);
     });
 
     test("rethrows other Discord errors", async () => {

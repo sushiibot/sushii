@@ -25,17 +25,18 @@ import type {
   ServerImageError,
   ServerImageKind,
 } from "../../domain/serverImage";
-import { MAX_SERVER_IMAGE_BYTES } from "../../domain/serverImage";
 
 export type ServerAppearanceError =
   | ServerImageError
-  | ServerImageRejection
+  | ServerImageRejection["reason"]
   | "bot_missing_permission";
 
 export interface ServerAppearanceErrorContext {
   target: ServerImageKind | "name";
-  /** Uploaded file size in bytes, when known. */
+  /** Uploaded file size in bytes. */
   fileSize?: number;
+  /** Discord's stated size limit, when its error included one. */
+  limitBytes?: number | null;
   mention: (path: string) => string;
 }
 
@@ -50,19 +51,17 @@ function formatMegabytes(bytes: number): string {
 
 export function describeServerAppearanceError(
   error: ServerAppearanceError,
-  { target, fileSize, mention }: ServerAppearanceErrorContext,
+  { target, fileSize, limitBytes, mention }: ServerAppearanceErrorContext,
 ): string {
   const retry =
     target === "name" ? "" : ` and run ${mention(`server ${target}`)} again`;
   const kind = target === "name" ? "icon" : target;
 
   switch (error) {
-    case "not_image":
-      return `That file isn't an image. Upload a PNG, JPG, GIF or WebP${retry}.`;
     case "too_large": {
       const fix = `Resize it to about ${RECOMMENDED_SIZE[kind]} or save it as a JPG${retry}.`;
-      if (fileSize !== undefined && fileSize > MAX_SERVER_IMAGE_BYTES) {
-        return `That image is ${formatMegabytes(fileSize)}, and a server ${kind} can be at most ${formatMegabytes(MAX_SERVER_IMAGE_BYTES)}. ${fix}`;
+      if (fileSize !== undefined && limitBytes) {
+        return `That image is ${formatMegabytes(fileSize)}, and Discord's limit for a server ${kind} is ${formatMegabytes(limitBytes)}. ${fix}`;
       }
 
       return `Discord says that image is too large for a server ${kind}. ${fix}`;
