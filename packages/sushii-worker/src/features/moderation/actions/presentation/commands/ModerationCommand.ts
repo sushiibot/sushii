@@ -57,7 +57,6 @@ import {
 import {
   isGalleryMedia,
   safeAttachmentName,
-  stripCdnSignature,
 } from "@/features/moderation/shared/presentation/caseMedia";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
 import {
@@ -616,7 +615,7 @@ export class ModerationCommand extends SlashCommandHandler {
     const caseIds = cases.map((c) => c.caseId);
     try {
       await this.moderationService.replaceAttachments(guildId, caseIds, [
-        stripCdnSignature(uploaded.url),
+        uploaded.url,
       ]);
     } catch (err) {
       this.logger.warn(

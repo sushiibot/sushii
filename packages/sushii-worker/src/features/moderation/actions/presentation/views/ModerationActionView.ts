@@ -42,7 +42,6 @@ import {
 } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
   splitCaseAttachments,
-  stripCdnSignature,
 } from "@/features/moderation/shared/presentation/caseMedia";
 import { quoteLines } from "@/features/moderation/shared/presentation/reasonFields";
 import {
@@ -1044,9 +1043,7 @@ function copyKnown(
         .setId(ACTION_RESPONSE_IDS.media)
         .addItems(
           component.items.map((item) =>
-            new MediaGalleryItemBuilder().setURL(
-              stripCdnSignature(item.media.url),
-            ),
+            new MediaGalleryItemBuilder().setURL(item.media.url),
           ),
         )
         .toJSON(),

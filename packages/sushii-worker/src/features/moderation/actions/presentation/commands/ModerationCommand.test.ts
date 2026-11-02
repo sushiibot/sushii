@@ -320,7 +320,7 @@ describe("ModerationCommand attachment re-hosting", () => {
     expect(ctx.replaceAttachments).toHaveBeenCalledWith(
       GUILD,
       [makeCase().caseId],
-      ["https://cdn.discordapp.com/attachments/9/8/proof_1.png"],
+      [REHOSTED_URL],
     );
   });
 

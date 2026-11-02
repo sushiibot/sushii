@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import {
   safeAttachmentName,
   splitCaseAttachments,
-  stripCdnSignature,
 } from "./caseMedia";
 
 describe("splitCaseAttachments", () => {
@@ -32,23 +31,6 @@ describe("splitCaseAttachments", () => {
     const { media, links } = splitCaseAttachments(urls);
     expect(media).toHaveLength(10);
     expect(links).toEqual(urls.slice(10));
-  });
-});
-
-describe("stripCdnSignature", () => {
-  test("drops only the signature params", () => {
-    expect(
-      stripCdnSignature(
-        "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1&is=2&hm=3&",
-      ),
-    ).toBe("https://cdn.discordapp.com/attachments/1/2/a.png");
-    expect(
-      stripCdnSignature("https://cdn.example/a.png?size=64&ex=1&is=2&hm=3"),
-    ).toBe("https://cdn.example/a.png?size=64");
-  });
-
-  test("leaves an unparseable URL alone", () => {
-    expect(stripCdnSignature("not a url")).toBe("not a url");
   });
 });
 

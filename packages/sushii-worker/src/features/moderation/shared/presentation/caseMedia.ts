@@ -36,20 +36,6 @@ export function splitCaseAttachments(attachments: readonly string[]): {
   return { media, links };
 }
 
-/** Discord re-signs a bare attachment CDN URL whenever it renders it. */
-export function stripCdnSignature(url: string): string {
-  try {
-    const parsed = new URL(url);
-    for (const param of ["ex", "is", "hm"]) {
-      parsed.searchParams.delete(param);
-    }
-    return parsed.toString();
-  } catch {
-    // Not a URL, so there's no signature to strip.
-    return url;
-  }
-}
-
 /** A name Discord stores unchanged, so `attachment://` references resolve. */
 export function safeAttachmentName(name: string): string {
   const dot = name.lastIndexOf(".");

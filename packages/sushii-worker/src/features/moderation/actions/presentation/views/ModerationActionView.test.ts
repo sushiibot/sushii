@@ -417,7 +417,7 @@ describe("buildActionResultMessage", () => {
     });
   });
 
-  test("expiry keeps the gallery without the URL signature", () => {
+  test("expiry keeps the gallery with its signed URL", () => {
     const withMedia = makeCase();
     Object.assign(withMedia, {
       _attachments: ["https://cdn.discordapp.com/attachments/1/2/proof.png"],
@@ -440,7 +440,11 @@ describe("buildActionResultMessage", () => {
 
     expect(byId(expired, ACTION_RESPONSE_IDS.media)).toMatchObject({
       items: [
-        { media: { url: "https://cdn.discordapp.com/attachments/1/2/proof.png" } },
+        {
+          media: {
+            url: "https://cdn.discordapp.com/attachments/1/2/proof.png?ex=1&is=2&hm=3&",
+          },
+        },
       ],
     });
   });
