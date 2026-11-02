@@ -41,7 +41,7 @@ alert message to report it as a false positive.
 
 Set it up in **`/settings` → Automod**:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildAlertsModal @7ff8a03a, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildExemptModal @86cebc64, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @bbb5cae2, packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildAlertsModal @7ff8a03a, packages/sushii-worker/src/features/guild-settings/presentation/modals/automodModals.ts#buildExemptModal @86cebc64, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @4a2c77c8, packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54 */}
 
 - **Scam images**: click **Turn on** to start detection. Off by default.
 - **Alerts channel** is where alerts and the moderation buttons show up.
@@ -57,7 +57,7 @@ outranks sushii's, it'll still delete the message and send the alert.
 
 ## Where the scam images come from
 
-{/* source: packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54, packages/sushii-worker/src/features/automod/application/ScamCandidateService.ts#ScamCandidateService.track @6def0b1d */}
+{/* source: packages/sushii-worker/src/features/automod/presentation/events/AutomodMessageHandler.ts#AutomodMessageHandler.handle @0f67bb54, packages/sushii-worker/src/features/automod/application/ScamCandidateService.ts#ScamCandidateService.track @f2284897 */}
 
 sushii keeps a shared list of known scam images built from what's been seen
 across the publicly listed (Discoverable) servers it's in. This runs in the background all the time,

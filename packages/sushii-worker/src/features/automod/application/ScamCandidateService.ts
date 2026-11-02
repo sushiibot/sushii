@@ -1,11 +1,9 @@
 import sharp from "sharp";
 import {
   DiscordAPIError,
-  GuildFeature,
   MessageFlags,
   ModalBuilder,
   ActionRowBuilder,
-  PermissionFlagsBits,
   RESTJSONErrorCodes,
   TextInputBuilder,
   TextInputStyle,
@@ -41,6 +39,7 @@ import {
 } from "../presentation/handlers/scamCandidateCustomIds";
 import { buildHashKey } from "../utils/bigintUtils";
 import { filenameFromUrl } from "../utils/imageUtils";
+import { publicChannelSkipReason } from "../utils/publicChannel";
 import { NEAR_MATCH_AUTO_APPROVE_THRESHOLD, REVIEW_CHANNEL_ID } from "../constants";
 
 const tracer = opentelemetry.trace.getTracer("automod");
@@ -108,25 +107,9 @@ export class ScamCandidateService {
       return;
     }
 
-    const guild = this.client.guilds.cache.get(guildId);
-    if (!guild) {
-      this.logger.trace({ guildId }, "skip — guild not in cache");
-      return;
-    }
-    if (!guild.features.includes(GuildFeature.Discoverable)) {
-      this.logger.trace({ guildId }, "skip — guild not discoverable");
-      return;
-    }
-
-    const channel = guild.channels.cache.get(channelId);
-    if (!channel) {
-      this.logger.trace({ guildId, channelId }, "skip — channel not in cache");
-      return;
-    }
-
-    const everyonePerms = channel.permissionsFor(guild.roles.everyone);
-    if (!everyonePerms?.has(PermissionFlagsBits.ViewChannel)) {
-      this.logger.trace({ guildId, channelId }, "skip — channel not public");
+    const skipReason = publicChannelSkipReason(this.client, guildId, channelId);
+    if (skipReason) {
+      this.logger.trace({ guildId, channelId }, `skip — ${skipReason}`);
       return;
     }
 
