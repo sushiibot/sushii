@@ -11,6 +11,8 @@ import {
   ButtonStyle,
   ComponentType,
   ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   SectionBuilder,
   SeparatorBuilder,
@@ -38,6 +40,10 @@ import {
   ActionTypeBotEmojis,
   actionTypeSupportsDM,
 } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import {
+  splitCaseAttachments,
+  stripCdnSignature,
+} from "@/features/moderation/shared/presentation/caseMedia";
 import { quoteLines } from "@/features/moderation/shared/presentation/reasonFields";
 import {
   getActionTypeBotEmoji,
@@ -93,6 +99,7 @@ export const ACTION_RESPONSE_IDS = {
   reasonSection: 2008,
   dmSection: 2009,
   dmFooter: 2010,
+  media: 2011,
 } as const;
 
 export const RESPONSE_WINDOW_MS = 15 * 60 * 1000;
@@ -401,15 +408,14 @@ function reasonBody(content: string): string {
 }
 
 function attachmentsLine(
-  cases: ModerationCase[],
+  urls: readonly string[],
   emojis: ModerationActionEmojis,
 ): string | null {
-  const attachments = cases[0]?.attachments.filter(Boolean) ?? [];
-  if (attachments.length === 0) {
+  if (urls.length === 0) {
     return null;
   }
   const links = truncateText(
-    attachments
+    urls
       .map(
         (url) => `[${escapeMarkdown(getCleanFilename(url) || "file")}](${url})`,
       )
@@ -417,6 +423,43 @@ function attachmentsLine(
     ATTACHMENTS_MAX_LENGTH,
   );
   return withEmoji(emojis.attachment, links);
+}
+
+/** Files a gallery can't show; they stay as links. */
+function fileLinksLine(
+  cases: ModerationCase[],
+  emojis: ModerationActionEmojis,
+): string | null {
+  return attachmentsLine(
+    splitCaseAttachments(cases[0]?.attachments ?? []).links,
+    emojis,
+  );
+}
+
+/** Older responses linked every attachment in the notes line, media included. */
+function postedAttachmentLines(
+  cases: ModerationCase[],
+  emojis: ModerationActionEmojis,
+): string[] {
+  const all = attachmentsLine(cases[0]?.attachments.filter(Boolean) ?? [], emojis);
+  const files = fileLinksLine(cases, emojis);
+  return [all, files].filter((line): line is string => line !== null);
+}
+
+function mediaGallery(
+  cases: ModerationCase[],
+  upload: string | null | undefined,
+): APIComponentInContainer | null {
+  const urls = upload
+    ? [`attachment://${upload}`]
+    : splitCaseAttachments(cases[0]?.attachments ?? []).media;
+  if (urls.length === 0) {
+    return null;
+  }
+  return new MediaGalleryBuilder()
+    .setId(ACTION_RESPONSE_IDS.media)
+    .addItems(urls.map((url) => new MediaGalleryItemBuilder().setURL(url)))
+    .toJSON();
 }
 
 function notesContent(
@@ -431,15 +474,16 @@ function notesContent(
 }
 
 /** The notes of a posted notes line, without the attachments, which come from the case. */
-function parseNotes(content: string, attachments: string | null): string[] {
+function parseNotes(content: string, attachmentLines: string[]): string[] {
   return content.split("\n").flatMap((line) => {
     let note = line.replace(/^-# /, "");
-    if (attachments) {
+    for (const attachments of attachmentLines) {
       if (note === attachments) {
         return [];
       }
       if (note.endsWith(` · ${attachments}`)) {
         note = note.slice(0, -` · ${attachments}`.length);
+        break;
       }
     }
     return [note];
@@ -495,6 +539,8 @@ export interface ResponseBodyInput {
   dmSuffix?: string;
   /** The DMs were edited to the cases' current reason. */
   dmReasonUpdated?: boolean;
+  /** Filename of the attachment uploaded with this message, before its URL is saved to the cases. */
+  upload?: string | null;
   savePrompt: boolean;
   mode: ResponseMode;
 }
@@ -741,10 +787,8 @@ function assemble(
   const encoded = encodeCaseIds(cases.map((c) => c.caseId));
   const buttonsLive = !!encoded && mode !== "expired";
 
-  const notesText = notesContent(
-    body.reasonNotes,
-    attachmentsLine(cases, emojis),
-  );
+  const notesText = notesContent(body.reasonNotes, fileLinksLine(cases, emojis));
+  const gallery = mediaGallery(cases, body.upload);
   const notes = notesText
     ? text(ACTION_RESPONSE_IDS.reasonNotes, notesText)
     : null;
@@ -814,6 +858,7 @@ function assemble(
     details,
     separator(),
     ...sectionOrTexts(ACTION_RESPONSE_IDS.reasonSection, reasonTexts, edit),
+    gallery,
     ...dmComponents,
     ...tail,
   ].filter((c): c is APIComponentInContainer => c !== null);
@@ -849,6 +894,8 @@ export interface ActionResultInput {
   reasonNotes?: readonly string[];
   /** The reason is used often and isn't a template yet. */
   savePrompt?: boolean;
+  /** Filename of the case attachment re-uploaded with the response. */
+  upload?: string | null;
   now?: Date;
 }
 
@@ -898,6 +945,7 @@ export function buildActionResultMessage(
       dm: dmContentFor(cases, guildDmText(input.actionType, input.guildConfig)),
       savePrompt:
         (input.savePrompt ?? false) && input.actionType !== ActionType.Note,
+      upload: input.upload,
       mode: "buttons",
     }),
   );
@@ -989,6 +1037,20 @@ function copyKnown(
   }
   if (component.type === ComponentType.TextDisplay) {
     return [copyText(component)];
+  }
+  if (component.type === ComponentType.MediaGallery) {
+    return [
+      new MediaGalleryBuilder()
+        .setId(ACTION_RESPONSE_IDS.media)
+        .addItems(
+          component.items.map((item) =>
+            new MediaGalleryItemBuilder().setURL(
+              stripCdnSignature(item.media.url),
+            ),
+          ),
+        )
+        .toJSON(),
+    ];
   }
   if (
     component.type === ComponentType.Section &&
@@ -1116,7 +1178,7 @@ export function rebuildActionResponse(
           fresh.startsWith(old.slice(0, -ELLIPSIS.length).trimEnd())));
     if (unchanged) {
       reasonNotes = postedNotes
-        ? parseNotes(postedNotes, attachmentsLine(body.cases, body.emojis))
+        ? parseNotes(postedNotes, postedAttachmentLines(body.cases, body.emojis))
         : [];
     } else {
       const first = body.cases[0];

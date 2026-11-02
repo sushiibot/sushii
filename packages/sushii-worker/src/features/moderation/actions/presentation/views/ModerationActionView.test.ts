@@ -80,6 +80,7 @@ function render(
     action?: ReturnType<typeof banAction> | TimeoutAction | NoteAction;
     reasonNotes?: string[];
     savePrompt?: boolean;
+    upload?: string;
     guildConfig?: GuildConfig;
   } = {},
 ): ActionResponseMessage {
@@ -93,6 +94,7 @@ function render(
     emojis,
     reasonNotes: options.reasonNotes,
     savePrompt: options.savePrompt,
+    upload: options.upload,
     now: NOW,
   });
 }
@@ -366,10 +368,10 @@ describe("buildActionResultMessage", () => {
     );
   });
 
-  test("attachments share the notes line", () => {
+  test("files a gallery can't show share the notes line", () => {
     const withFiles = makeCase();
     Object.assign(withFiles, {
-      _attachments: ["https://cdn.example/proof-1.png"],
+      _attachments: ["https://cdn.example/proof-1.pdf"],
     });
     const container = json(
       render({
@@ -379,9 +381,68 @@ describe("buildActionResultMessage", () => {
     );
 
     expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# Template \`!invites\` · ${emojis.attachment} [proof-1.png](https://cdn.example/proof-1.png)`,
+      `-# Template \`!invites\` · ${emojis.attachment} [proof-1.pdf](https://cdn.example/proof-1.pdf)`,
     );
     expect(byId(container, ACTION_RESPONSE_IDS.details)).toBeUndefined();
+    expect(byId(container, ACTION_RESPONSE_IDS.media)).toBeUndefined();
+  });
+
+  test("media renders in a gallery instead of a link", () => {
+    const withMedia = makeCase();
+    Object.assign(withMedia, {
+      _attachments: ["https://cdn.example/proof-1.png"],
+    });
+    const container = json(render({ results: [Ok(withMedia)] }));
+
+    expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBeNull();
+    expect(byId(container, ACTION_RESPONSE_IDS.media)).toMatchObject({
+      type: ComponentType.MediaGallery,
+      items: [{ media: { url: "https://cdn.example/proof-1.png" } }],
+    });
+  });
+
+  test("an uploaded file is referenced by attachment name", () => {
+    const withMedia = makeCase();
+    Object.assign(withMedia, {
+      _attachments: [
+        "https://cdn.discordapp.com/ephemeral-attachments/1/2/proof.png",
+      ],
+    });
+    const container = json(
+      render({ results: [Ok(withMedia)], upload: "proof.png" }),
+    );
+
+    expect(byId(container, ACTION_RESPONSE_IDS.media)).toMatchObject({
+      items: [{ media: { url: "attachment://proof.png" } }],
+    });
+  });
+
+  test("expiry keeps the gallery without the URL signature", () => {
+    const withMedia = makeCase();
+    Object.assign(withMedia, {
+      _attachments: ["https://cdn.discordapp.com/attachments/1/2/proof.png"],
+    });
+    const message = posted(render({ results: [Ok(withMedia)] }));
+    const gallery = (message[0] as APIContainerComponent).components.find(
+      (c) => c.id === ACTION_RESPONSE_IDS.media,
+    );
+    Object.assign(gallery ?? {}, {
+      items: [
+        {
+          media: {
+            url: "https://cdn.discordapp.com/attachments/1/2/proof.png?ex=1&is=2&hm=3&",
+          },
+        },
+      ],
+    });
+
+    const expired = json(must(expireActionResponse(message)));
+
+    expect(byId(expired, ACTION_RESPONSE_IDS.media)).toMatchObject({
+      items: [
+        { media: { url: "https://cdn.discordapp.com/attachments/1/2/proof.png" } },
+      ],
+    });
   });
 
   test("no reason: Add reason is primary and the DM says no reason was included", () => {
@@ -1206,7 +1267,7 @@ describe("rebuildActionResponse", () => {
   test("notes with attachments round-trip without doubling the attachments", () => {
     const withFiles = () => {
       const c = makeCase();
-      Object.assign(c, { _attachments: ["https://cdn.example/proof-1.png"] });
+      Object.assign(c, { _attachments: ["https://cdn.example/proof-1.pdf"] });
       return c;
     };
     const first = render({
@@ -1235,8 +1296,43 @@ describe("rebuildActionResponse", () => {
       }),
     );
     expect(textById(again, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${emojis.attachment} [proof-1.png](https://cdn.example/proof-1.png)`,
+      `-# ${emojis.attachment} [proof-1.pdf](https://cdn.example/proof-1.pdf)`,
     );
+  });
+
+  test("a posted media link from before galleries is dropped from the notes", () => {
+    const withMedia = () => {
+      const c = makeCase();
+      Object.assign(c, { _attachments: ["https://cdn.example/proof-1.png"] });
+      return c;
+    };
+    const message = posted(
+      render({
+        results: [Ok(withMedia())],
+        reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
+      }),
+    );
+    const container = message[0] as APIContainerComponent;
+    const notes = container.components
+      .flatMap((c) => (c.type === ComponentType.Section ? c.components : [c]))
+      .find((c) => c.id === ACTION_RESPONSE_IDS.reasonNotes);
+    Object.assign(notes ?? {}, {
+      content: `-# Template \`!spam\` · ${emojis.attachment} [proof-1.png](https://cdn.example/proof-1.png)`,
+    });
+
+    const rebuilt = json(
+      rebuildActionResponse(message, {
+        cases: [withMedia()],
+        emojis,
+        savePrompt: false,
+        mode: "buttons",
+      }),
+    );
+
+    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
+      "-# Template `!spam`",
+    );
+    expect(byId(rebuilt, ACTION_RESPONSE_IDS.media)).toBeDefined();
   });
 
   test("Delete DM after an edit keeps the edit notes and drops the section button", () => {

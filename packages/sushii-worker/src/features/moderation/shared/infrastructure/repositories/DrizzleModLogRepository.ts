@@ -687,6 +687,29 @@ export class DrizzleModLogRepository implements ModLogRepository {
     return results.map((row) => this.mapRowToModerationCase(row));
   }
 
+  async updateAttachments(
+    guildId: string,
+    caseIds: string[],
+    attachments: string[],
+  ): Promise<void> {
+    if (caseIds.length === 0) {
+      return;
+    }
+
+    await this.db
+      .update(modLogsInAppPublic)
+      .set({ attachments })
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          inArray(
+            modLogsInAppPublic.caseId,
+            caseIds.map((caseId) => BigInt(caseId)),
+          ),
+        ),
+      );
+  }
+
   async markDmDeleted(
     guildId: string,
     caseId: string,

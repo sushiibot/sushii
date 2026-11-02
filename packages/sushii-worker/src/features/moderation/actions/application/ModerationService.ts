@@ -27,6 +27,18 @@ export class ModerationService {
     private readonly logger: Logger,
   ) {}
 
+  async replaceAttachments(
+    guildId: string,
+    caseIds: string[],
+    attachments: string[],
+  ): Promise<void> {
+    await this.executionPipeline.replaceAttachments(
+      guildId,
+      caseIds,
+      attachments,
+    );
+  }
+
   /**
    * Enhanced executeAction with permission validation, timeout detection,
    * and focused transaction boundaries for database operations only.

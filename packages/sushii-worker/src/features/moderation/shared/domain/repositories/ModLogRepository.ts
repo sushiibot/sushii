@@ -146,6 +146,12 @@ export interface ModLogCaseOperations {
 
   findByIds(guildId: string, caseIds: string[]): Promise<ModerationCase[]>;
 
+  updateAttachments(
+    guildId: string,
+    caseIds: string[],
+    attachments: string[],
+  ): Promise<void>;
+
   /** deletedBy and deletedAt are null when only an old mod log entry recorded the deletion. */
   markDmDeleted(
     guildId: string,

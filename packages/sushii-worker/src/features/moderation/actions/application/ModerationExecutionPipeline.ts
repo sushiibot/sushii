@@ -526,8 +526,27 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * The audit log post can land before the DM result is saved; re-render the
-   * entry from the current row if it's already posted.
+   * Points the cases at a re-hosted copy of their attachment. Mod log entries
+   * already posted with the old URL are re-rendered.
+   */
+  async replaceAttachments(
+    guildId: string,
+    caseIds: string[],
+    attachments: string[],
+  ): Promise<void> {
+    await this.modLogRepository.updateAttachments(
+      guildId,
+      caseIds,
+      attachments,
+    );
+    for (const caseId of caseIds) {
+      await this.refreshPostedEntry(guildId, caseId);
+    }
+  }
+
+  /**
+   * The audit log post can land before a later write to the case; re-render
+   * the entry from the current row if it's already posted.
    */
   private async refreshPostedEntry(
     guildId: string,
@@ -541,7 +560,7 @@ export class ModerationExecutionPipeline {
     } catch (err) {
       this.logger.warn(
         { err, guildId, caseId },
-        "Failed to refresh mod log entry after the DM result",
+        "Failed to refresh posted mod log entry",
       );
     }
   }

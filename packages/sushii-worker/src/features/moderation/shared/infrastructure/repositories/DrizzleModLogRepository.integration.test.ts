@@ -376,6 +376,31 @@ describe("DrizzleModLogRepository (Integration)", () => {
       expect(found?.dmDeletedAt).toEqual(at);
     });
 
+    test("updateAttachments replaces only the given cases' attachments", async () => {
+      const first = await repo.createCase(makeCase(GUILD_ID, USER_ID));
+      const second = await repo.createCase(makeCase(GUILD_ID, USER_ID));
+      const third = await repo.createCase(makeCase(GUILD_ID, USER_ID));
+      await repo.updateMessageId(GUILD_ID, first.caseId, "666666666666666666");
+      const url = "https://cdn.discordapp.com/attachments/1/2/proof.png";
+
+      await repo.updateAttachments(
+        GUILD_ID,
+        [first.caseId, second.caseId],
+        [url],
+      );
+
+      const [a, b, c] = await repo.findByIds(GUILD_ID, [
+        first.caseId,
+        second.caseId,
+        third.caseId,
+      ]);
+      expect(a.attachments).toEqual([url]);
+      expect(a.msgId).toBe("666666666666666666");
+      expect(b.attachments).toEqual([url]);
+      expect(c.attachments).toEqual(third.attachments);
+      await repo.updateAttachments(GUILD_ID, [], [url]);
+    });
+
     test("findByIds returns the requested cases in the guild", async () => {
       await repo.createCase(makeCase(GUILD_ID, USER_ID));
       await repo.createCase(makeCase(GUILD_ID, USER_ID));

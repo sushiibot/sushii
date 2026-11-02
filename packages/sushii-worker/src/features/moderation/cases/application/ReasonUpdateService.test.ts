@@ -51,6 +51,7 @@ describe("ReasonUpdateService", () => {
       findLastReason: mock(() => Promise.resolve(null)),
       findRecentDistinctReasons: mock(() => Promise.resolve([])),
       countByNormalizedReason: mock(() => Promise.resolve(0)),
+      updateAttachments: mock(() => Promise.resolve()),
     };
 
     mockGuildConfigRepository = {

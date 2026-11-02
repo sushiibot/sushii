@@ -2,12 +2,14 @@ import type {
   Attachment,
   ChatInputCommandInteraction,
   GuildMember,
+  Message,
   PermissionFlagsBits,
   RESTPostAPIApplicationCommandsJSONBody,
   SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
 import {
   ApplicationIntegrationType,
+  AttachmentBuilder,
   InteractionContextType,
   SlashCommandBuilder,
 } from "discord.js";
@@ -17,6 +19,7 @@ import { Err, Ok } from "ts-results";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import {
+  type ActionResponseMessage,
   MODERATION_ACTION_EMOJIS,
   type ModerationActionEmojis,
   buildActionResultMessage,
@@ -51,6 +54,11 @@ import {
   REASON_MAX_LENGTH,
   Reason,
 } from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  isGalleryMedia,
+  safeAttachmentName,
+  stripCdnSignature,
+} from "@/features/moderation/shared/presentation/caseMedia";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
 import {
   getErrorMessage,
@@ -101,6 +109,17 @@ export function expandedTooLongMessage(
     what = "expanding the template";
   }
   return `**Nothing was done.** The reason is ${number.format(length)} characters after ${what}; the limit is ${number.format(REASON_MAX_LENGTH)}. Shorten the extra text by ${number.format(length - REASON_MAX_LENGTH)} characters.`;
+}
+
+/** Upper bound on fetching the attachment before the response goes out without it. */
+const ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 10_000;
+
+/** Larger files are buffered in memory and slow the response, so they keep their original link. */
+const ATTACHMENT_REHOST_MAX_BYTES = 25 * 1024 * 1024;
+
+interface UploadFile {
+  name: string;
+  data: Buffer;
 }
 
 interface ParsedOptions {
@@ -446,6 +465,15 @@ export class ModerationCommand extends SlashCommandHandler {
     // defer: fetches every target, then DMs and runs the action REST call for each one
     await interaction.deferReply();
 
+    // Command option uploads are ephemeral and get deleted, so the response
+    // re-hosts the file and the cases keep that copy.
+    const download = options.attachment
+      ? this.downloadAttachment(
+          options.attachment,
+          interaction.attachmentSizeLimit,
+        )
+      : Promise.resolve(null);
+
     const targetsResult =
       await this.targetResolutionService.fetchTargets(interaction);
     if (!targetsResult.ok) {
@@ -473,7 +501,11 @@ export class ModerationCommand extends SlashCommandHandler {
       this.config.actionType !== ActionType.Note &&
       (await this.promptSave(action.guildId, options.reason?.value ?? null));
 
-    const message = buildActionResultMessage({
+    const upload = cases.length > 0 ? await download : null;
+
+    const reasonNotes = this.reasonNotes(expansion, cases, emojis);
+    const buildMessage = (uploadName: string | null) =>
+      buildActionResultMessage({
       actionType: this.config.actionType,
       executor: interaction.user,
       targets,
@@ -481,15 +513,23 @@ export class ModerationCommand extends SlashCommandHandler {
       guildConfig: guildConfig || GuildConfig.createDefault(action.guildId),
       action,
       emojis,
-      reasonNotes: this.reasonNotes(expansion, cases, emojis),
+      reasonNotes,
       savePrompt,
+      upload: uploadName,
     });
 
     if (template && cases.length > 0) {
       await this.recordTemplateUse(action.guildId, template.id);
     }
 
-    await interaction.editReply(message);
+    const reply = upload
+      ? await this.replyWithUpload(interaction, buildMessage, upload)
+      : null;
+    if (reply) {
+      await this.saveUploadedAttachment(reply, action.guildId, cases);
+    } else {
+      await interaction.editReply(buildMessage(null));
+    }
 
     if (savePrompt) {
       this.metrics.recordSavePrompt("shown");
@@ -497,6 +537,92 @@ export class ModerationCommand extends SlashCommandHandler {
 
     if (cases.length > 0) {
       this.scheduleExpiry(interaction, this.logger);
+    }
+  }
+
+  /** Only media is re-hosted: a gallery is the one place its link keeps working. */
+  private async downloadAttachment(
+    attachment: Attachment,
+    sizeLimit: number,
+  ): Promise<UploadFile | null> {
+    if (
+      !isGalleryMedia(attachment.name) ||
+      attachment.size > Math.min(sizeLimit, ATTACHMENT_REHOST_MAX_BYTES)
+    ) {
+      return null;
+    }
+
+    try {
+      const res = await fetch(attachment.url, {
+        signal: AbortSignal.timeout(ATTACHMENT_DOWNLOAD_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(
+          { status: res.status, attachmentId: attachment.id },
+          "Failed to download case attachment",
+        );
+        return null;
+      }
+      return {
+        name: safeAttachmentName(attachment.name),
+        data: Buffer.from(await res.arrayBuffer()),
+      };
+    } catch (err) {
+      this.logger.warn(
+        { err, attachmentId: attachment.id },
+        "Failed to download case attachment",
+      );
+      return null;
+    }
+  }
+
+  /**
+   * The action already happened, so a failed upload falls back to the
+   * response without it instead of the router's error box. null on failure.
+   */
+  private async replyWithUpload(
+    interaction: ChatInputCommandInteraction<"cached">,
+    buildMessage: (uploadName: string | null) => ActionResponseMessage,
+    upload: UploadFile,
+  ): Promise<Message | null> {
+    try {
+      return await interaction.editReply({
+        ...buildMessage(upload.name),
+        files: [new AttachmentBuilder(upload.data, { name: upload.name })],
+      });
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId: interaction.guildId },
+        "Failed to upload case attachment with the response",
+      );
+      return null;
+    }
+  }
+
+  private async saveUploadedAttachment(
+    reply: Message,
+    guildId: string,
+    cases: ModerationCase[],
+  ): Promise<void> {
+    const uploaded = reply.attachments.first();
+    if (!uploaded) {
+      this.logger.warn(
+        { guildId, messageId: reply.id },
+        "Response is missing the re-uploaded case attachment",
+      );
+      return;
+    }
+
+    const caseIds = cases.map((c) => c.caseId);
+    try {
+      await this.moderationService.replaceAttachments(guildId, caseIds, [
+        stripCdnSignature(uploaded.url),
+      ]);
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId, caseIds },
+        "Failed to save re-uploaded case attachment",
+      );
     }
   }
 

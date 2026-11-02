@@ -1,5 +1,5 @@
-import { describe, expect, mock, test } from "bun:test";
-import type { ChatInputCommandInteraction } from "discord.js";
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import type { AttachmentBuilder, ChatInputCommandInteraction } from "discord.js";
 import pino from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -32,13 +32,25 @@ function expand(text: string, extra: Partial<ExpandResult> = {}): ExpandResult {
   };
 }
 
+const REHOSTED_URL =
+  "https://cdn.discordapp.com/attachments/9/8/proof_1.png?ex=a&is=b&hm=c&";
+
+const PROOF = {
+  id: "800000000000000000",
+  name: "proof 1.png",
+  size: 100,
+  url: "https://cdn.discordapp.com/ephemeral-attachments/1/2/proof%201.png?ex=a&is=b&hm=c&",
+};
+
 function setup(options: {
   configKey?: string;
   strings: Record<string, string | null>;
   expansion: ExpandResult | null;
   results?: Result<ModerationCase, string>[];
+  attachment?: { id: string; name: string; size: number; url: string };
 }) {
   const executeAction = mock(async () => options.results ?? [Ok(makeCase())]);
+  const replaceAttachments = mock(async () => undefined);
   const resolve = mock(async () => options.expansion);
   const recordUse = mock(async () => undefined);
   const shouldPromptSave = mock(async () => false);
@@ -50,7 +62,7 @@ function setup(options: {
 
   const command = new ModerationCommand(
     COMMAND_CONFIGS[options.configKey ?? "BAN"],
-    { executeAction } as never,
+    { executeAction, replaceAttachments } as never,
     {
       fetchTargets: mock(async () => Ok([makeTarget(TARGET, "spambot")])),
     } as never,
@@ -69,13 +81,17 @@ function setup(options: {
     inCachedGuild: () => true,
     options: {
       getString: (name: string) => options.strings[name] ?? null,
-      getAttachment: () => null,
+      getAttachment: () => options.attachment ?? null,
       getInteger: () => null,
       getChannel: () => null,
     },
     reply: mock(async (_o: unknown) => undefined),
     deferReply: mock(async () => undefined),
-    editReply: mock(async (_o: unknown) => undefined),
+    editReply: mock(async (_o: unknown) => ({
+      id: "900000000000000000",
+      attachments: { first: () => ({ url: REHOSTED_URL }) },
+    })),
+    attachmentSizeLimit: 1000,
   };
 
   return {
@@ -83,6 +99,7 @@ function setup(options: {
       command.handler(interaction as unknown as ChatInputCommandInteraction),
     interaction,
     executeAction,
+    replaceAttachments,
     resolve,
     recordUse,
     shouldPromptSave,
@@ -275,5 +292,103 @@ describe("ModerationCommand reason expansion", () => {
     expect(expandedTooLongMessage(3001, { id: "1", shortcut: null })).toContain(
       "after expanding the template",
     );
+  });
+});
+
+describe("ModerationCommand attachment re-hosting", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test("uploads media with the response and saves the response's URL on the cases", async () => {
+    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3])),
+    );
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: PROOF,
+    });
+    await ctx.run();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [reply] = ctx.interaction.editReply.mock.calls[0] as [
+      { files?: AttachmentBuilder[] },
+    ];
+    expect(reply.files?.map((f) => f.name)).toEqual(["proof_1.png"]);
+    expect(JSON.stringify(reply)).toContain("attachment://proof_1.png");
+    expect(ctx.replaceAttachments).toHaveBeenCalledWith(
+      GUILD,
+      [makeCase().caseId],
+      ["https://cdn.discordapp.com/attachments/9/8/proof_1.png"],
+    );
+  });
+
+  test("a file over the upload limit keeps the original link", async () => {
+    const fetchSpy = spyOn(globalThis, "fetch");
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: { ...PROOF, size: 5000 },
+    });
+    await ctx.run();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const [reply] = ctx.interaction.editReply.mock.calls[0] as [
+      { files?: unknown },
+    ];
+    expect(reply.files).toBeUndefined();
+    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+  });
+
+  test("a failed download still sends the response", async () => {
+    spyOn(globalThis, "fetch").mockRejectedValue(new Error("network"));
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: PROOF,
+    });
+    await ctx.run();
+
+    const [reply] = ctx.interaction.editReply.mock.calls[0] as [
+      { files?: unknown },
+    ];
+    expect(reply.files).toBeUndefined();
+    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+  });
+
+  test("a failed upload falls back to the response without the file", async () => {
+    spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3])),
+    );
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: PROOF,
+    });
+    ctx.interaction.editReply.mockImplementationOnce(async () => {
+      throw new Error("Request entity too large");
+    });
+    await ctx.run();
+
+    expect(ctx.interaction.editReply).toHaveBeenCalledTimes(2);
+    const [fallback] = ctx.interaction.editReply.mock.calls[1] as [
+      { files?: unknown },
+    ];
+    expect(fallback.files).toBeUndefined();
+    expect(JSON.stringify(fallback)).not.toContain("attachment://");
+    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+  });
+
+  test("files a gallery can't show aren't re-hosted", async () => {
+    const fetchSpy = spyOn(globalThis, "fetch");
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: { ...PROOF, name: "log.txt" },
+    });
+    await ctx.run();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -35,6 +35,7 @@ import {
   getActionTypeBotEmoji,
   getActionTypeColor,
 } from "./ActionTypeFormatter";
+import { splitCaseAttachments } from "../caseMedia";
 import {
   buildModLogDeleteDmButtonId,
   buildModLogDmConfirmId,
@@ -54,10 +55,8 @@ export type ModLogEmojis = EmojiMap<typeof MOD_LOG_EMOJIS>;
 
 /** Discord's cap on text across all text displays in one message. */
 const MESSAGE_TEXT_MAX_LENGTH = 4000;
-const MEDIA_GALLERY_MAX_ITEMS = 10;
 const LEGACY_DM_DELETED_LABEL = "Reason DM deleted";
 const ATTACHMENT_LINKS_MAX_LENGTH = 600;
-const MEDIA_EXTENSIONS = /\.(png|jpe?g|gif|webp|avif|mp4|mov|webm)$/i;
 
 export interface ModLogTarget {
   id: string;
@@ -284,26 +283,6 @@ export function isLegacyEntryWithDeletedDm(message: PostedMessage): boolean {
   });
 }
 
-function splitAttachments(attachments: string[]): {
-  media: string[];
-  links: string[];
-} {
-  const media: string[] = [];
-  const links: string[] = [];
-
-  for (const url of attachments.filter(Boolean)) {
-    const isMedia =
-      /^https?:\/\//.test(url) && MEDIA_EXTENSIONS.test(getCleanFilename(url));
-    if (isMedia && media.length < MEDIA_GALLERY_MAX_ITEMS) {
-      media.push(url);
-    } else {
-      links.push(url);
-    }
-  }
-
-  return { media, links };
-}
-
 function attachmentLinks(links: string[]): string {
   const shown: string[] = [];
   let length = 0;
@@ -443,7 +422,7 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     ...moderatorLines,
   ].join("\n");
 
-  const { media, links } = splitAttachments(moderationCase.attachments);
+  const { media, links } = splitCaseAttachments(moderationCase.attachments);
   let factsText: string | null;
   if (input.factsBlock && !input.timeoutChange) {
     factsText = input.factsBlock;
