@@ -273,7 +273,7 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
     expect(texts).not.toContain(withPrepositions);
   });
 
-  it("preserves timeout duration and attachment lines, which the old hand-built line dropped", () => {
+  it("preserves timeout duration and the attachment count", () => {
     const moderationCase = ModerationCase.create(
       GUILD_ID,
       "1",
@@ -293,6 +293,6 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
     const expected = formatModerationCase(moderationCase, emojis, false, true);
     expect(texts).toContain(expected);
     expect(expected).toContain("hour");
-    expect(expected).toContain("proof.png");
+    expect(expected).toContain("1 attachment");
   });
 });

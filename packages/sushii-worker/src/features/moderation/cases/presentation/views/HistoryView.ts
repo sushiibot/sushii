@@ -11,7 +11,7 @@ import {
 import dayjs from "@/shared/domain/dayjs";
 import { TAB_CONTENT_CHAR_BUDGET } from "@/shared/presentation/packLines";
 import { quoteMarkdownString } from "@/utils/markdown";
-import { getCleanFilename } from "@/utils/url";
+import { countWithNoun } from "@/shared/presentation/pluralize";
 
 export const HISTORY_ACTION_EMOJIS = [
   ...ActionTypeBotEmojis,
@@ -22,10 +22,9 @@ export const HISTORY_ACTION_EMOJIS = [
 ] as const satisfies readonly BotEmojiNameType[];
 
 // A single case must never approach Discord's 4000-char Text Display limit on
-// its own — a max-length reason (quoted, newline-heavy) plus several signed
-// CDN attachment links can otherwise exceed it, which throws rather than
-// degrading. The head (identifier, type, attribution, timestamp) always
-// survives; only the reason/attachment continuation is truncated to fit.
+// its own — a max-length, newline-heavy quoted reason can otherwise exceed it,
+// which throws rather than degrading. The head (identifier, type, attribution,
+// timestamp) always survives; only the continuation is truncated to fit.
 const MAX_CASE_LENGTH = TAB_CONTENT_CHAR_BUDGET;
 const TRUNCATION_NOTE = "\n> (truncated)";
 
@@ -84,21 +83,22 @@ export function formatModerationCase(
     continuation += `\n` + quoteMarkdownString(moderationCase.reason.value);
   }
 
-  if (moderationCase.attachments.length > 0) {
-    const validAttachments = moderationCase.attachments.filter(
-      (a): a is string => !!a,
-    );
-    if (validAttachments.length > 0) {
-      const attachmentLinks = validAttachments
-        .map((a) => `[${getCleanFilename(a)}](${a})`)
-        .join(", ");
-      continuation += `\n> ${emojis.attachment} ${attachmentLinks}`;
-    }
+  const attachmentCount = caseAttachments(moderationCase).length;
+  if (attachmentCount > 0) {
+    continuation += `\n> ${emojis.attachment} ${countWithNoun(attachmentCount, "attachment")}`;
   }
 
   const continuationBudget = Math.max(0, MAX_CASE_LENGTH - s.length);
 
   return s + capContinuation(continuation, continuationBudget);
+}
+
+/**
+ * Attachments open from a picker instead of inline links: signed CDN links
+ * expire once opened in a browser, and a gallery per case would swamp the list.
+ */
+export function caseAttachments(moderationCase: ModerationCase): string[] {
+  return moderationCase.attachments.filter(Boolean);
 }
 
 export function spansMultipleUsers(cases: ModerationCase[]): boolean {

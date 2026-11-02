@@ -55,7 +55,7 @@ describe("formatModerationCase", () => {
     expect(line).toContain(`on <@${USER_B}>`);
   });
 
-  it("caps a case with a huge reason and many attachments instead of overflowing", () => {
+  it("keeps a case with a huge reason and many attachments under the limit", () => {
     // Newline-heavy reason: quoteMarkdownString prefixes "> " per line, so a
     // 1024-char reason of alternating "a\n" balloons well past its raw length.
     const hugeReason = "a\n".repeat(512).slice(0, 1024);
@@ -80,7 +80,8 @@ describe("formatModerationCase", () => {
     const line = formatModerationCase(moderationCase, emojis);
 
     expect(line.length).toBeLessThan(3700);
-    expect(line).toContain("(truncated)");
+    expect(line).toContain(`${emojis.attachment} 10 attachments`);
+    expect(line).not.toContain("cdn.discordapp.com");
     // The head — identifier, type, attribution, timestamp — must survive intact.
     expect(line).toContain("`#1`");
     expect(line).toContain(":R>");

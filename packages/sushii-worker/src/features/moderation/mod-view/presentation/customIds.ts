@@ -24,6 +24,7 @@ export const MODVIEW_CUSTOM_IDS = {
   openNames: "modview_open_names",
   openLookup: "modview_open_lookup",
   historyAlts: "modview_history_alts",
+  historyAttachments: "modview_history_attachments",
   altsNickname: "modview_alts_nickname",
   /** Prefix only — the live modal ID appends the triggering interaction's ID. */
   altsNicknameModal: "modview_alts_nickname_modal",

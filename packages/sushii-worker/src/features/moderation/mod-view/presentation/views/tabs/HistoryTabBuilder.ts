@@ -12,6 +12,7 @@ import { chunkItems } from "@/shared/presentation/packLines";
 import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
+import { buildAttachmentSelect } from "../CaseAttachmentsView";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import {
   addScopeBlockWithAction,
@@ -184,4 +185,9 @@ export const addHistoryTabContent: ModViewTabContentBuilder = (
     .join("\n");
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(body));
+
+  const attachmentSelect = buildAttachmentSelect(pageCases, disabled);
+  if (attachmentSelect) {
+    container.addActionRowComponents(attachmentSelect);
+  }
 };

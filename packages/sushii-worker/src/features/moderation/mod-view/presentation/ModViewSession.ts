@@ -6,12 +6,12 @@ import type {
   ContainerBuilder,
   GuildMember,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
   User,
   UserContextMenuCommandInteraction,
 } from "discord.js";
 import {
   ActionRowBuilder,
-  ComponentType,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -30,6 +30,7 @@ import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginat
 
 import type { ModViewResult } from "../application/ModViewService";
 import { MODVIEW_CUSTOM_IDS } from "./customIds";
+import { buildCaseAttachmentsMessage } from "./views/CaseAttachmentsView";
 import {
   MODVIEW_IDLE_TIMEOUT_MS,
   createModViewMessage,
@@ -154,7 +155,6 @@ export class ModViewSession {
     }
 
     const collector = msg.createMessageComponentCollector({
-      componentType: ComponentType.Button,
       idle: MODVIEW_IDLE_TIMEOUT_MS,
     });
 
@@ -173,7 +173,11 @@ export class ModViewSession {
           return;
         }
 
-        await this.handleButton(i);
+        if (i.isStringSelectMenu()) {
+          await this.handleSelect(i);
+        } else if (i.isButton()) {
+          await this.handleButton(i);
+        }
       } catch (err) {
         this.logger.error(
           { err, customId: i.customId, targetId: this.targetUser.id },
@@ -245,6 +249,33 @@ export class ModViewSession {
       { customId: i.customId, targetId: this.targetUser.id },
       "Unknown mod view button",
     );
+  }
+
+  private async handleSelect(
+    i: StringSelectMenuInteraction<"cached">,
+  ): Promise<void> {
+    if (i.customId !== MODVIEW_CUSTOM_IDS.historyAttachments) {
+      this.logger.warn(
+        { customId: i.customId, targetId: this.targetUser.id },
+        "Unknown mod view select",
+      );
+      return;
+    }
+
+    const moderationCase = this.data.history.moderationHistory.find(
+      (c) => c.caseId === i.values[0],
+    );
+
+    // Re-rendering clears the pick, so the same case can be opened again.
+    await i.update(
+      this.paginator
+        ? await this.paginator.renderCurrentPage()
+        : this.renderScreen({ disabled: false }),
+    );
+
+    if (moderationCase) {
+      await i.followUp(buildCaseAttachmentsMessage(moderationCase, this.emojis));
+    }
   }
 
   private async openTab(
