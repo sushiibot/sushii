@@ -97,6 +97,7 @@ const IP_GRABBERS: IpGrabberSettingsState = {
     { id: "300000000000000101", name: "Block links", keywordCount: 167 },
     { id: "300000000000000102", name: "Slurs", keywordCount: 310 },
   ],
+  rulesError: null,
 };
 
 const SCREENING: ScreeningSettingsState = {

@@ -432,11 +432,44 @@ export default class SettingsCommand extends SlashCommandHandler {
     await i.update(await this.renderSession(session, false));
   }
 
+  /**
+   * The rule picker is useless without the guild's rules. A failure from the
+   * last render is retried, since the permission may have been granted since.
+   */
+  private async refreshIpGrabberRules(
+    session: PanelSession,
+    guild: Guild,
+  ): Promise<string | null> {
+    if (session.ctx.ipGrabbers?.rulesError) {
+      const fresh = await this.getIpGrabbers(guild);
+      if (fresh) {
+        session.ctx = { ...session.ctx, ipGrabbers: fresh };
+      }
+    }
+
+    switch (session.ctx.ipGrabbers?.rulesError) {
+      case "missing_permission":
+        return "sushii needs the **Manage Server** permission to see and edit your AutoMod rules. Give it that permission, then try again.";
+      case "unavailable":
+        return "sushii couldn't load your AutoMod rules from Discord. Try again in a moment.";
+      default:
+        return null;
+    }
+  }
+
   private async handleEdit(
     session: PanelSession,
     i: ButtonInteraction<"cached">,
     target: SettingsEditTarget,
   ): Promise<void> {
+    if (target === "ip-grabbers") {
+      const unavailable = await this.refreshIpGrabberRules(session, i.guild);
+      if (unavailable) {
+        await i.reply({ content: unavailable, flags: MessageFlags.Ephemeral });
+        return;
+      }
+    }
+
     const ctx = session.ctx;
     const submission = await openSettingsModal(
       i,

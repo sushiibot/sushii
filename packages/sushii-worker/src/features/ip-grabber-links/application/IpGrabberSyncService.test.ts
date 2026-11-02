@@ -120,7 +120,11 @@ function setup(rules: FakeRule[], fetchError?: unknown) {
     }
     return rule;
   });
-  const guild = { id: GUILD_ID, autoModerationRules: { fetch } };
+  const guild = {
+    id: GUILD_ID,
+    autoModerationRules: { fetch },
+    members: { me: { permissions: { has: () => true } } },
+  };
   const client = {
     guilds: { cache: new Map([[GUILD_ID, guild]]) },
   } as unknown as Client;
@@ -347,6 +351,23 @@ describe("IpGrabberSyncService", () => {
     expect(state.rules).toEqual([
       { id: RULE_ID, name: "Block links", keywordCount: 2 },
     ]);
+    expect(state.rulesError).toBeNull();
     expect(state.ruleId).toBeNull();
+  });
+
+  test("getForSettings reports a missing Manage Server without calling Discord", async () => {
+    const { service, guild } = setup([makeRule(RULE_ID, [])]);
+    guild.members.me.permissions.has = () => false;
+
+    const state = await service.getForSettings(guild as never);
+    expect(state.rulesError).toBe("missing_permission");
+    expect(guild.autoModerationRules.fetch).not.toHaveBeenCalled();
+  });
+
+  test("getForSettings reports other failures as unavailable", async () => {
+    const { service, guild } = setup([], new Error("Discord down"));
+
+    const state = await service.getForSettings(guild as never);
+    expect(state.rulesError).toBe("unavailable");
   });
 });

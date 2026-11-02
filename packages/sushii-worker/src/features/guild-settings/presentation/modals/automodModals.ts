@@ -107,8 +107,8 @@ function buildIpGrabbersModal(ctx: ModalContext): ModalBuilder {
     throw new Error("IP grabber modal requested without IP grabber settings");
   }
   const state = ctx.ipGrabbers;
-  const rules = (state.rules ?? []).slice(0, MAX_RULE_OPTIONS);
-  // A rule that can't be listed right now is kept as an option so a submit doesn't turn it off.
+  const rules = state.rules.slice(0, MAX_RULE_OPTIONS);
+  // A rule cut off by the option limit stays selectable so a submit doesn't turn it off.
   if (state.ruleId && !rules.some((rule) => rule.id === state.ruleId)) {
     rules.unshift({
       id: state.ruleId,
@@ -144,9 +144,7 @@ function buildIpGrabbersModal(ctx: ModalContext): ModalBuilder {
       : new Set(IP_GRABBER_PROVIDER_IDS);
 
   const note =
-    state.rules === null
-      ? "-# sushii couldn't list your AutoMod rules. It needs the Manage Server permission."
-      : "-# Lists your keyword rules from Server Settings → AutoMod. Unticking a service removes its keywords; your own keywords are never touched.";
+    "-# Lists your keyword rules from Server Settings → AutoMod. Unticking a service removes its keywords; your own keywords are never touched.";
 
   return new ModalBuilder()
     .setCustomId(settingsIds.modal("ip-grabbers"))

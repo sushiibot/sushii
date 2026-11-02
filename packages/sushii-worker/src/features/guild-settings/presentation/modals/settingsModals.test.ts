@@ -150,6 +150,7 @@ const IP_GRABBERS: IpGrabberSettingsState = {
     { id: "300000000000000101", name: "Block links", keywordCount: 167 },
     { id: "300000000000000102", name: "Slurs", keywordCount: 310 },
   ],
+  rulesError: null,
 };
 
 const SCREENING: ScreeningSettingsState = {
@@ -613,19 +614,23 @@ describe("buildSettingsModal", () => {
       });
     });
 
-    test("ip-grabbers keeps the current rule when rules can't be listed", () => {
+    test("ip-grabbers keeps the current rule when the option limit cuts it off", () => {
+      const rules = Array.from({ length: 30 }, (_, i) => ({
+        id: `3000000000000002${String(i).padStart(2, "0")}`,
+        name: `Rule ${i}`,
+        keywordCount: i,
+      }));
       const json = modalJson(
         "ip-grabbers",
-        makeCtx({ ipGrabbers: { ...IP_GRABBERS, rules: null } }),
+        makeCtx({ ipGrabbers: { ...IP_GRABBERS, rules } }),
       );
       const options = labelComponent(json, 0).options;
 
-      expect(options.map((o: Json) => o.value)).toEqual([
-        "off",
-        "300000000000000101",
-      ]);
-      expect(options[1].default).toBe(true);
-      expect(json.components.at(-1).content).toContain("Manage Server");
+      expect(options).toHaveLength(25);
+      expect(options[1]).toMatchObject({
+        value: "300000000000000101",
+        default: true,
+      });
     });
 
     test("ip-grabbers starts with Off and every provider ticked when not set up", () => {

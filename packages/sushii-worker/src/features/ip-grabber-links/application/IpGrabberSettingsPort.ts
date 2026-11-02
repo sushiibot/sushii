@@ -16,8 +16,9 @@ export interface IpGrabberSettingsState {
   keywordCount: number;
   lastSyncedAt: Date | null;
   problem: IpGrabberSyncError | null;
-  /** The guild's keyword rules; null when they couldn't be listed. */
-  rules: KeywordRuleOption[] | null;
+  /** The guild's keyword rules; empty when `rulesError` is set. */
+  rules: KeywordRuleOption[];
+  rulesError: "missing_permission" | "unavailable" | null;
 }
 
 export interface IpGrabberSettingsPort {

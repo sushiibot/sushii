@@ -4,6 +4,7 @@ import {
   type Client,
   DiscordAPIError,
   type Guild,
+  PermissionFlagsBits,
   RESTJSONErrorCodes,
 } from "discord.js";
 import type { Logger } from "pino";
@@ -312,7 +313,7 @@ export class IpGrabberSyncService implements IpGrabberSettingsPort {
   }
 
   async getForSettings(guild: Guild): Promise<IpGrabberSettingsState> {
-    const [settings, rules] = await Promise.all([
+    const [settings, listed] = await Promise.all([
       this.repository.getSettings(guild.id),
       this.listKeywordRules(guild),
     ]);
@@ -324,13 +325,17 @@ export class IpGrabberSyncService implements IpGrabberSettingsPort {
       keywordCount: settings?.managedKeywords.length ?? 0,
       lastSyncedAt: settings?.lastSyncedAt ?? null,
       problem: settings?.lastError ?? null,
-      rules,
+      ...listed,
     };
   }
 
   private async listKeywordRules(
     guild: Guild,
-  ): Promise<KeywordRuleOption[] | null> {
+  ): Promise<Pick<IpGrabberSettingsState, "rules" | "rulesError">> {
+    if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      return { rules: [], rulesError: "missing_permission" };
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const rules = await Promise.race([
@@ -343,7 +348,7 @@ export class IpGrabberSyncService implements IpGrabberSettingsPort {
         }),
       ]);
 
-      return [...rules.values()]
+      const keywordRules = [...rules.values()]
         .filter(
           (rule) => rule.triggerType === AutoModerationRuleTriggerType.Keyword,
         )
@@ -352,14 +357,16 @@ export class IpGrabberSyncService implements IpGrabberSettingsPort {
           name: rule.name,
           keywordCount: rule.triggerMetadata.keywordFilter.length,
         }));
+      return { rules: keywordRules, rulesError: null };
     } catch (err) {
-      if (!isPermissionError(err)) {
-        this.logger.warn(
-          { err, guildId: guild.id },
-          "Failed to list AutoMod rules",
-        );
+      if (isPermissionError(err)) {
+        return { rules: [], rulesError: "missing_permission" };
       }
-      return null;
+      this.logger.warn(
+        { err, guildId: guild.id },
+        "Failed to list AutoMod rules",
+      );
+      return { rules: [], rulesError: "unavailable" };
     } finally {
       clearTimeout(timer);
     }

@@ -655,6 +655,7 @@ describe("SettingsCommand", () => {
       rules: [
         { id: "300000000000000101", name: "Block links", keywordCount: 3 },
       ],
+      rulesError: null,
     };
     const configure = mock(async () => undefined);
     const ipPort: IpGrabberSettingsPort = {
@@ -686,6 +687,38 @@ describe("SettingsCommand", () => {
     expect(responses.deferUpdate).toHaveBeenCalledTimes(1);
     expect(responses.editReply).toHaveBeenCalledTimes(1);
     expect(responses.update).not.toHaveBeenCalled();
+  });
+
+  test("Edit on IP grabber links replies privately when rules can't be listed", async () => {
+    const getForSettings = mock(async () => ({
+      ruleId: null,
+      ruleName: null,
+      providers: [],
+      keywordCount: 0,
+      lastSyncedAt: null,
+      problem: null,
+      rules: [],
+      rulesError: "missing_permission" as const,
+    }));
+    const ipPort: IpGrabberSettingsPort = {
+      getForSettings,
+      configure: mock(async () => undefined),
+    };
+    const { command } = createCommand(port, mockEmojis, ipPort);
+    const panel = startPanel(command);
+    const edit = createButton(panel, settingsIds.edit("ip-grabbers"));
+
+    await panel.run();
+    getForSettings.mockClear();
+    await panel.collect(edit.interaction);
+
+    // Re-checked on click in case the permission was granted since the panel rendered.
+    expect(getForSettings).toHaveBeenCalledTimes(1);
+    expect(edit.showModal).not.toHaveBeenCalled();
+    expect(edit.reply).toHaveBeenCalledWith({
+      content: expect.stringContaining("Manage Server"),
+      flags: MessageFlags.Ephemeral,
+    });
   });
 
   test("a modal timeout leaves the panel untouched", async () => {
