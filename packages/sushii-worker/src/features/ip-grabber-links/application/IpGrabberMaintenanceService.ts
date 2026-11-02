@@ -89,7 +89,12 @@ export class IpGrabberMaintenanceService {
 
     const seeds = new Set(IP_GRABBER_PROVIDERS.grabify.seedDomains);
     for (const hostname of hostnames) {
-      if (seeds.has(hostname) || (await this.repository.findDomain(hostname))) {
+      if (seeds.has(hostname)) {
+        continue;
+      }
+      // Stale domains are checked again so a returning one is reactivated.
+      const existing = await this.repository.findDomain(hostname);
+      if (existing && existing.status !== "stale") {
         continue;
       }
 

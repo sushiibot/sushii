@@ -21,6 +21,10 @@ import type {
   EmojiMap,
 } from "@/features/bot-emojis/domain";
 import type {
+  IpGrabberSettingsPort,
+  IpGrabberSettingsState,
+} from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
+import type {
   ScreeningSettingsPort,
   ScreeningSettingsState,
 } from "@/features/member-screening/application/ScreeningSettingsPort";
@@ -134,6 +138,7 @@ class FakeScreeningPort implements ScreeningSettingsPort {
 function createCommand(
   port: ScreeningSettingsPort | null,
   emojis: Record<string, string> = mockEmojis,
+  ipGrabbers: IpGrabberSettingsPort | null = null,
 ) {
   let config = GuildConfig.createDefault(GUILD_ID);
   let ignored: string[] = [];
@@ -173,7 +178,7 @@ function createCommand(
       logger as unknown as Logger,
       emojiRepository,
       port,
-      null,
+      ipGrabbers,
       0,
     ),
     logger,
@@ -327,7 +332,9 @@ function createSubmission(components: Record<string, unknown>[]) {
     id: i + 1,
     component,
   }));
-  const deferUpdate = mock(async () => undefined);
+  const deferUpdate = mock(async () => {
+    submission.deferred = true;
+  });
   const update = mock(async (_payload: Payload) => {
     submission.replied = true;
   });
@@ -635,6 +642,50 @@ describe("SettingsCommand", () => {
     expect(port.setCheckAvatars).toHaveBeenCalledWith(GUILD_ID, false);
     expect(apply).not.toHaveBeenCalled();
     expectUpdatedDirectly(responses);
+  });
+
+  test("Edit on IP grabber links defers, configures the rule and edits the panel", async () => {
+    const state: IpGrabberSettingsState = {
+      ruleId: null,
+      ruleName: null,
+      providers: [],
+      keywordCount: 0,
+      lastSyncedAt: null,
+      problem: null,
+      rules: [
+        { id: "300000000000000101", name: "Block links", keywordCount: 3 },
+      ],
+    };
+    const configure = mock(async () => undefined);
+    const ipPort: IpGrabberSettingsPort = {
+      getForSettings: mock(async () => state),
+      configure,
+    };
+    const { command, apply } = createCommand(port, mockEmojis, ipPort);
+    const panel = startPanel(command);
+    const edit = createButton(panel, settingsIds.edit("ip-grabbers"));
+    const responses = createSubmission([
+      {
+        type: ComponentType.StringSelect,
+        custom_id: "rule",
+        values: ["300000000000000101"],
+      },
+      { type: ComponentType.Checkbox, custom_id: "grabify", value: true },
+      { type: ComponentType.Checkbox, custom_id: "iplogger", value: false },
+    ]);
+    submitWith(edit, responses.submission);
+
+    await panel.run();
+    await panel.collect(edit.interaction);
+
+    expect(configure).toHaveBeenCalledWith(GUILD_ID, {
+      ruleId: "300000000000000101",
+      providers: ["grabify"],
+    });
+    expect(apply).not.toHaveBeenCalled();
+    expect(responses.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(responses.editReply).toHaveBeenCalledTimes(1);
+    expect(responses.update).not.toHaveBeenCalled();
   });
 
   test("a modal timeout leaves the panel untouched", async () => {

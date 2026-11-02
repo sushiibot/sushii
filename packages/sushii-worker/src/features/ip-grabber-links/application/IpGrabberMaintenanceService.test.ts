@@ -55,9 +55,14 @@ function domain(hostname: string): IpGrabberDomain {
 
 function setup(results: Record<string, CheckResult>, payload: unknown = []) {
   const repository = {
-    findDomain: mock(async (h: string) =>
-      h === "known.icu" ? domain(h) : null,
-    ),
+    findDomain: mock(async (h: string) => {
+      if (h === "known.icu") {
+        return domain(h);
+      }
+      return h === "stale.icu"
+        ? { ...domain(h), status: "stale" as const }
+        : null;
+    }),
     addDomain: mock(async () => true),
     listDomainsToRecheck: mock(async () => [
       domain("a.icu"),
@@ -101,9 +106,13 @@ function setup(results: Record<string, CheckResult>, payload: unknown = []) {
 describe("IpGrabberMaintenanceService", () => {
   test("adds only new endpoint domains that pass the DNS check", async () => {
     const { service, repository, detector } = setup(
-      { "new.icu": { kind: "match", hostname: "new.icu" } },
+      {
+        "new.icu": { kind: "match", hostname: "new.icu" },
+        "stale.icu": { kind: "match", hostname: "stale.icu" },
+      },
       [
         { Domain: "new.icu", Expiry: "2027-01-01T00:00:00Z" },
+        { Domain: "stale.icu", Expiry: "2027-01-01T00:00:00Z" },
         { Domain: "fake.icu", Expiry: "2027-01-01T00:00:00Z" },
         { Domain: "known.icu", Expiry: "2027-01-01T00:00:00Z" },
         { Domain: "mymap.icu", Expiry: "2027-01-01T00:00:00Z" },
@@ -112,14 +121,19 @@ describe("IpGrabberMaintenanceService", () => {
 
     await service.refreshFromEndpoint();
 
-    expect(repository.addDomain).toHaveBeenCalledTimes(1);
+    expect(repository.addDomain).toHaveBeenCalledTimes(2);
     expect(repository.addDomain).toHaveBeenCalledWith({
       hostname: "new.icu",
       provider: "grabify",
       source: "endpoint",
     });
-    // Known and seeded domains aren't looked up again.
-    expect(detector.check).toHaveBeenCalledTimes(2);
+    expect(repository.addDomain).toHaveBeenCalledWith({
+      hostname: "stale.icu",
+      provider: "grabify",
+      source: "endpoint",
+    });
+    // Active and seeded domains aren't looked up again.
+    expect(detector.check).toHaveBeenCalledTimes(3);
   });
 
   test("recheck records passes and misses but skips lookup errors", async () => {

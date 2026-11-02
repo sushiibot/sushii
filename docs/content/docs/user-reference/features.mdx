@@ -70,8 +70,8 @@ shared image database works.
 {/* source: packages/sushii-worker/src/features/ip-grabber-links/domain/providers.ts#IP_GRABBER_PROVIDERS @ecb8c913, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"IP grabber links" @c5a2a6e1, packages/sushii-worker/src/features/ip-grabber-links/domain/keywords.ts#mergeKeywords @12c38627 */}
 
 IP grabber links keeps Grabify and IPLogger domains in one of your own Discord
-AutoMod keyword rules, so links that log a member's IP address are blocked
-before anyone sees them. Pick the rule in `/settings` → Automod → IP grabber
+AutoMod keyword rules, so links that log a member's IP address trigger that
+rule's actions, such as blocking the message. Pick the rule in `/settings` → Automod → IP grabber
 links. sushii only adds and removes the keywords it added; your other keywords
 and the rule's actions and exemptions stay as you set them. New domains are
 added as sushii finds them.

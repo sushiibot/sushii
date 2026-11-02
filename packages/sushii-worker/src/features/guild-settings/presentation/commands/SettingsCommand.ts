@@ -449,14 +449,25 @@ export default class SettingsCommand extends SlashCommandHandler {
     }
 
     try {
+      if (target === "ip-grabbers") {
+        // defer: edits the server's AutoMod rules through Discord's API
+        await submission.deferUpdate();
+      }
+
       for (const patch of parseSettingsModal(target, submission, ctx)) {
         await this.applyPatch(i.guildId, patch);
       }
 
       // A submit that lands after the collector ended must not re-enable a dead panel.
-      await submission.update(
-        await this.renderSession(session, session.collector.ended),
+      const payload = await this.renderSession(
+        session,
+        session.collector.ended,
       );
+      if (submission.deferred) {
+        await submission.editReply(payload);
+      } else {
+        await submission.update(payload);
+      }
     } catch (err) {
       await this.sendInternalError(submission);
       throw err;
