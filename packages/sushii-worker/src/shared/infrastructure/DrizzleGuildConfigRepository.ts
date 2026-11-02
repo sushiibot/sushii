@@ -74,6 +74,10 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
           ? data.logReaction.toString()
           : null,
         reactionLogEnabled: data.logReactionEnabled ?? false,
+        sushiiNotificationsChannel: data.logSushiiNotifications
+          ? data.logSushiiNotifications.toString()
+          : null,
+        sushiiNotificationsEnabled: data.logSushiiNotificationsEnabled ?? false,
       },
       {
         timeoutDmText: data.timeoutDmText,
@@ -127,6 +131,11 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         ? BigInt(config.loggingSettings.reactionLogChannel)
         : null,
       logReactionEnabled: config.loggingSettings.reactionLogEnabled,
+      logSushiiNotifications: config.loggingSettings.sushiiNotificationsChannel
+        ? BigInt(config.loggingSettings.sushiiNotificationsChannel)
+        : null,
+      logSushiiNotificationsEnabled:
+        config.loggingSettings.sushiiNotificationsEnabled,
       timeoutDmText: config.moderationSettings.timeoutDmText,
       timeoutCommandDmEnabled:
         config.moderationSettings.timeoutCommandDmEnabled,

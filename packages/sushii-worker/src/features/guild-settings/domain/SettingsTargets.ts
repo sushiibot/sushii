@@ -11,6 +11,7 @@ export const SETTINGS_EDIT_TARGETS = [
   "memberlog",
   "msglog",
   "reactionlog",
+  "notifications",
   "dm-timeout",
   "dm-warn",
   "dm-ban",
@@ -21,6 +22,7 @@ export const SETTINGS_EDIT_TARGETS = [
   "exempt",
   "alerts",
   "screening",
+  "ip-grabbers",
 ] as const;
 
 export const SETTINGS_TOGGLE_TARGETS = ["lookup", "scam", "spam"] as const;

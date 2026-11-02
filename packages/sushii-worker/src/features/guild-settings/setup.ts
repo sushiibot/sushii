@@ -2,6 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
+import type { IpGrabberSettingsPort } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsPort } from "@/features/member-screening/application/ScreeningSettingsPort";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
@@ -20,6 +21,7 @@ interface GuildSettingsDependencies {
   logger: Logger;
   botEmojiRepository: BotEmojiRepository;
   screeningSettings: ScreeningSettingsPort | null;
+  ipGrabberSettings: IpGrabberSettingsPort | null;
 }
 
 export function createGuildSettingsServices({
@@ -62,6 +64,7 @@ export function createGuildSettingsCommands(
   logger: Logger,
   botEmojiRepository: BotEmojiRepository,
   screeningSettings: ScreeningSettingsPort | null,
+  ipGrabberSettings: IpGrabberSettingsPort | null,
 ) {
   const { guildSettingsService, messageLogBlockService } = services;
 
@@ -72,6 +75,7 @@ export function createGuildSettingsCommands(
       logger.child({ module: "settingsCommand" }),
       botEmojiRepository,
       screeningSettings,
+      ipGrabberSettings,
     ),
   ];
 
@@ -96,12 +100,14 @@ export function setupGuildSettingsFeature({
   logger,
   botEmojiRepository,
   screeningSettings,
+  ipGrabberSettings,
 }: GuildSettingsDependencies): FeatureSetupWithServices<GuildSettingsServices> {
   const commands = createGuildSettingsCommands(
     services,
     logger,
     botEmojiRepository,
     screeningSettings,
+    ipGrabberSettings,
   );
   const events = createGuildSettingsEventHandlers(services, logger);
 

@@ -100,6 +100,11 @@ describe("computeSettingsStatus", () => {
         channel: "reactionLogChannel",
         enabled: "reactionLogEnabled",
       },
+      {
+        row: "notifications",
+        channel: "sushiiNotificationsChannel",
+        enabled: "sushiiNotificationsEnabled",
+      },
     ] as const;
 
     const cases = [
@@ -666,6 +671,8 @@ describe("computeSettingsStatus", () => {
             messageLogEnabled: true,
             reactionLogChannel: NO_PERMS_CHANNEL,
             reactionLogEnabled: true,
+            sushiiNotificationsChannel: null,
+            sushiiNotificationsEnabled: true,
           },
           moderationSettings: {
             automodAlertsChannelId: DELETED_CHANNEL,

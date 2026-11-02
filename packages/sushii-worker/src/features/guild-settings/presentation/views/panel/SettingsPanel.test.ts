@@ -9,6 +9,7 @@ import type {
   SettingsStatus,
 } from "@/features/guild-settings/application/SettingsStatus";
 import { computeSettingsStatus } from "@/features/guild-settings/application/SettingsStatus";
+import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
@@ -85,6 +86,19 @@ function typicalConfig(): GuildConfig {
   return config;
 }
 
+const IP_GRABBERS: IpGrabberSettingsState = {
+  ruleId: "300000000000000101",
+  ruleName: "Block links",
+  providers: ["grabify", "iplogger"],
+  keywordCount: 25,
+  lastSyncedAt: new Date("2026-11-02T11:00:00Z"),
+  problem: null,
+  rules: [
+    { id: "300000000000000101", name: "Block links", keywordCount: 167 },
+    { id: "300000000000000102", name: "Slurs", keywordCount: 310 },
+  ],
+};
+
 const SCREENING: ScreeningSettingsState = {
   enabled: true,
   logChannelId: CH.screening,
@@ -94,6 +108,7 @@ const SCREENING: ScreeningSettingsState = {
 interface Fixture {
   config: GuildConfig;
   screening?: ScreeningSettingsState | null;
+  ipGrabbers?: IpGrabberSettingsState | null;
   health?: [string, ChannelHealth][];
 }
 
@@ -103,15 +118,18 @@ function makeInput(
   overrides: Partial<PanelInput> = {},
 ): PanelInput {
   const screening = fixture.screening ?? null;
+  const ipGrabbers = fixture.ipGrabbers ?? null;
   return {
     tab,
     config: fixture.config,
     status: computeSettingsStatus({
       config: fixture.config,
       screening,
+      ipGrabbers,
       channelHealth: new Map(fixture.health ?? []),
     }),
     screening,
+    ipGrabbers,
     ignoredChannelIds: [CH.botspam, CH.memes],
     emojis: EMOJIS,
     expired: false,
@@ -215,7 +233,7 @@ const FOOTER = ROW;
 
 const DESIGN_SHAPES: Record<SettingsTab, string[]> = {
   overview: [TABS, SEP, "10", "10", SEP, FOOTER],
-  logging: [TABS, SEP, ROW, ROW, ROW, ROW, SEP, FOOTER],
+  logging: [TABS, SEP, ROW, ROW, ROW, ROW, ROW, SEP, FOOTER],
   moderation: [TABS, SEP, "10", ROW, ROW, ROW, ROW, SEP, ROW, SEP, FOOTER],
   automod: [TABS, SEP, ROW, ROW, SEP, ROW, ROW, SEP, FOOTER],
   welcome: [TABS, SEP, ROW, ROW, ROW, SEP, FOOTER],
@@ -328,7 +346,7 @@ describe("buildSettingsPanel", () => {
       const content = children(json)[2].content;
       expect(content).toBe(
         [
-          "<:enabled:1400000000000000001> **Logging** · 3 of 4 on",
+          "<:enabled:1400000000000000001> **Logging** · 3 of 5 on",
           "<:enabled:1400000000000000001> **Moderation** · 3 of 4 DMs on · lookup sharing on",
           "<:enabled:1400000000000000001> **Automod** · Scam images and spam on",
           `<:enabled:1400000000000000001> **Welcome** · Join message on in <#${CH.welcome}>`,
@@ -352,7 +370,7 @@ describe("buildSettingsPanel", () => {
         ].join("\n"),
       );
       expect(allText(json)).toContain(
-        "<:warning:1400000000000000002> **Logging** · 3 of 4 on · 1 needs attention",
+        "<:warning:1400000000000000002> **Logging** · 3 of 5 on · 1 needs attention",
       );
     });
 
@@ -386,7 +404,7 @@ describe("buildSettingsPanel", () => {
       );
       const text = allText(json);
       expect(text).toContain("⚠️ **Needs attention**");
-      expect(text).toContain("⚠️ **Logging** · 3 of 4 on · 1 needs attention");
+      expect(text).toContain("⚠️ **Logging** · 3 of 5 on · 1 needs attention");
       expect(text).toContain("✅ **Moderation**");
     });
   });
@@ -449,6 +467,7 @@ describe("buildSettingsPanel", () => {
         "settings:edit:memberlog",
         "settings:edit:msglog",
         "settings:edit:reactionlog",
+        "settings:edit:notifications",
       ]);
       for (const b of edits) {
         expect(b.label).toBe("Edit");
@@ -462,7 +481,7 @@ describe("buildSettingsPanel", () => {
       const rowButtons = buttons(json).filter((b) =>
         String(b.custom_id).startsWith("settings:edit:"),
       );
-      expect(rowButtons).toHaveLength(4);
+      expect(rowButtons).toHaveLength(5);
       for (const b of rowButtons) {
         expect(b.disabled).toBe(true);
       }
@@ -548,6 +567,60 @@ describe("buildSettingsPanel", () => {
   });
 
   describe("automod", () => {
+    test("IP grabber links get their own Discord AutoMod group", () => {
+      const json = toJson(
+        makeInput("automod", {
+          config: typicalConfig(),
+          ipGrabbers: IP_GRABBERS,
+        }),
+      );
+      const text = allText(json);
+
+      expect(text).toContain("**sushii automod**");
+      expect(text).toContain("**Discord AutoMod**");
+      expect(text).toContain(
+        "**IP grabber links** · Blocks 25 domains in **Block links**",
+      );
+      expect(text).toContain("Grabify, IPLogger · synced <t:1793617200:R>");
+      expect(
+        buttons(json).some((b) => b.custom_id === "settings:edit:ip-grabbers"),
+      ).toBe(true);
+    });
+
+    test("IP grabber links off, and a deleted rule needing attention", () => {
+      const off = allText(
+        toJson(
+          makeInput("automod", {
+            config: typicalConfig(),
+            ipGrabbers: { ...IP_GRABBERS, ruleId: null, providers: [] },
+          }),
+        ),
+      );
+      expect(off).toContain("**IP grabber links** · Off");
+
+      const deleted = allText(
+        toJson(
+          makeInput("automod", {
+            config: typicalConfig(),
+            ipGrabbers: {
+              ...IP_GRABBERS,
+              ruleId: null,
+              problem: "rule_missing",
+            },
+          }),
+        ),
+      );
+      expect(deleted).toContain("**IP grabber links** · Rule was deleted");
+      expect(deleted).toContain(
+        "The AutoMod rule was deleted, pick another one",
+      );
+    });
+
+    test("no group headings without IP grabber settings", () => {
+      const text = allText(toJson(makeInput("automod", typical())));
+      expect(text).not.toContain("**sushii automod**");
+    });
+
     test("typical", () => {
       const json = toJson(makeInput("automod", typical()));
       const text = allText(json);
@@ -821,6 +894,7 @@ describe("budgets", () => {
         memberlog: attention,
         msglog: attention,
         reactionlog: attention,
+        notifications: attention,
       },
       moderation: {
         "dm-timeout": { kind: "attention", problem: { kind: "needs_mod_log" } },
@@ -833,6 +907,7 @@ describe("budgets", () => {
         scam: { kind: "on" },
         spam: { kind: "on" },
         screening: attention,
+        ipGrabbers: { kind: "attention", problem: { kind: "rule_full" } },
         exempt: { kind: "on" },
         alerts: attention,
       },
@@ -861,6 +936,11 @@ describe("budgets", () => {
         config: maxConfig(),
         status: maxStatus(),
         screening: SCREENING,
+        ipGrabbers: {
+          ...IP_GRABBERS,
+          ruleName: "r".repeat(100),
+          problem: "rule_full",
+        },
         ignoredChannelIds: Array.from(
           { length: ignoredCount },
           (_, i) => `1029384756102939${String(i).padStart(3, "0")}`,

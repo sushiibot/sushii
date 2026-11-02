@@ -1,4 +1,7 @@
-export type LogType = "mod" | "member" | "message" | "reaction";
+import type { IpGrabberProviderId } from "@/features/ip-grabber-links/domain/providers";
+import type { LogType } from "@/shared/domain/entities/GuildConfig";
+
+export type { LogType };
 
 export type GuildSettingsPatch =
   | { kind: "logChannel"; log: LogType; channelId: string | null }
@@ -34,7 +37,14 @@ export interface ScreeningPatch {
   checkAvatars: boolean;
 }
 
+export interface IpGrabberPatch {
+  kind: "ipGrabbers";
+  ruleId: string | null;
+  providers: IpGrabberProviderId[];
+}
+
 export type SettingsPatch =
   | GuildSettingsPatch
   | MessageLogIgnorePatch
-  | ScreeningPatch;
+  | ScreeningPatch
+  | IpGrabberPatch;

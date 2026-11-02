@@ -9,7 +9,7 @@ import type {
   SettingsEditTarget,
   SettingsTab,
 } from "../../session/settingsIds";
-import { logChannelId } from "./LoggingPanel";
+import { LOG_ROWS, logChannelId } from "./LoggingPanel";
 import {
   attentionDetail,
   channelMention,
@@ -26,6 +26,7 @@ const ROW_NAMES: Record<SettingsEditTarget, string> = {
   memberlog: "Member log",
   msglog: "Message log",
   reactionlog: "Reaction log",
+  notifications: "sushii notifications",
   "dm-timeout": "Timeout DM",
   "dm-warn": "Warn DM",
   "dm-ban": "Ban DM",
@@ -36,6 +37,7 @@ const ROW_NAMES: Record<SettingsEditTarget, string> = {
   exempt: "Exempt roles",
   alerts: "Alerts channel",
   screening: "Member screening",
+  "ip-grabbers": "IP grabber links",
 };
 
 function rowChannelId(
@@ -47,6 +49,7 @@ function rowChannelId(
     case "memberlog":
     case "msglog":
     case "reactionlog":
+    case "notifications":
       return logChannelId(input, row);
     case "welcome-channel":
     case "join":
@@ -125,7 +128,7 @@ export function addOverviewPanel(
   const loggingSummary =
     logsOn === 0 && attentionCount("logging") === 0
       ? "None set up"
-      : `${logsOn} of 4 on`;
+      : `${logsOn} of ${LOG_ROWS.length} on`;
 
   const mod = status.moderation;
   const dmsOn = onCount([

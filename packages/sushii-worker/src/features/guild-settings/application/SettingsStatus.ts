@@ -1,3 +1,4 @@
+import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -15,7 +16,10 @@ export type ChannelHealth = { kind: "ok" } | ChannelProblem;
 export type AttentionProblem =
   | ChannelProblem
   | { kind: "no_channel" }
-  | { kind: "needs_mod_log" };
+  | { kind: "needs_mod_log" }
+  | { kind: "rule_missing" }
+  | { kind: "rule_full" }
+  | { kind: "needs_manage_server" };
 
 export type RowState =
   | { kind: "on" }
@@ -30,7 +34,10 @@ export interface AttentionItem {
 }
 
 export interface SettingsStatus {
-  logging: Record<"modlog" | "memberlog" | "msglog" | "reactionlog", RowState>;
+  logging: Record<
+    "modlog" | "memberlog" | "msglog" | "reactionlog" | "notifications",
+    RowState
+  >;
   moderation: Record<
     "dm-timeout" | "dm-warn" | "dm-ban" | "dm-kick",
     RowState
@@ -41,6 +48,7 @@ export interface SettingsStatus {
     scam: RowState;
     spam: RowState;
     screening: RowState | null;
+    ipGrabbers: RowState | null;
     exempt: RowState;
     alerts: RowState;
   };
@@ -64,9 +72,11 @@ function attention(problem: AttentionProblem): RowState {
 export function computeSettingsStatus(input: {
   config: GuildConfig;
   screening: ScreeningSettingsState | null;
+  ipGrabbers?: IpGrabberSettingsState | null;
   channelHealth: ReadonlyMap<string, ChannelHealth>;
 }): SettingsStatus {
   const { config, screening, channelHealth } = input;
+  const ipGrabbers = input.ipGrabbers ?? null;
   const logs = config.loggingSettings;
   const mod = config.moderationSettings;
   const msgs = config.messageSettings;
@@ -154,11 +164,28 @@ export function computeSettingsStatus(input: {
     return onOff(state.enabled && state.logChannelId !== null);
   };
 
+  const ipGrabberRow = (state: IpGrabberSettingsState): RowState => {
+    switch (state.problem) {
+      case "rule_missing":
+        return attention({ kind: "rule_missing" });
+      case "rule_full":
+        return attention({ kind: "rule_full" });
+      case "missing_permission":
+        return attention({ kind: "needs_manage_server" });
+      case null:
+        return onOff(state.ruleId !== null);
+    }
+  };
+
   const logging: SettingsStatus["logging"] = {
     modlog: logRow(logs.modLogChannel, logs.modLogEnabled),
     memberlog: logRow(logs.memberLogChannel, logs.memberLogEnabled),
     msglog: logRow(logs.messageLogChannel, logs.messageLogEnabled),
     reactionlog: logRow(logs.reactionLogChannel, logs.reactionLogEnabled),
+    notifications: logRow(
+      logs.sushiiNotificationsChannel,
+      logs.sushiiNotificationsEnabled,
+    ),
   };
 
   const moderation: SettingsStatus["moderation"] = {
@@ -173,6 +200,7 @@ export function computeSettingsStatus(input: {
     scam: onOff(mod.automodScamImageEnabled),
     spam: onOff(mod.automodSpamEnabled),
     screening: screening ? screeningRow(screening) : null,
+    ipGrabbers: ipGrabbers ? ipGrabberRow(ipGrabbers) : null,
     exempt: mod.automodExemptRoleIds.length > 0 ? ON : NOT_SET,
     alerts: channelRow(mod.automodAlertsChannelId, problemOf),
   };
@@ -188,11 +216,13 @@ export function computeSettingsStatus(input: {
     ["logging", "memberlog", logging.memberlog],
     ["logging", "msglog", logging.msglog],
     ["logging", "reactionlog", logging.reactionlog],
+    ["logging", "notifications", logging.notifications],
     ["moderation", "dm-timeout", moderation["dm-timeout"]],
     ["moderation", "dm-warn", moderation["dm-warn"]],
     ["moderation", "dm-ban", moderation["dm-ban"]],
     ["moderation", "dm-kick", moderation["dm-kick"]],
     ["automod", "screening", automod.screening],
+    ["automod", "ip-grabbers", automod.ipGrabbers],
     ["automod", "exempt", automod.exempt],
     ["automod", "alerts", automod.alerts],
     ["welcome", "welcome-channel", welcome["welcome-channel"]],

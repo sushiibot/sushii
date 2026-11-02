@@ -1,4 +1,5 @@
 import type { SettingsStatus } from "@/features/guild-settings/application/SettingsStatus";
+import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -11,6 +12,7 @@ export interface PanelInput {
   config: GuildConfig;
   status: SettingsStatus;
   screening: ScreeningSettingsState | null;
+  ipGrabbers: IpGrabberSettingsState | null;
   ignoredChannelIds: string[];
   emojis: PanelEmojis;
   expired: boolean;

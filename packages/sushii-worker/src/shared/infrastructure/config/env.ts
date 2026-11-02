@@ -52,6 +52,11 @@ const envSchema = z.object({
     .preprocess((x) => x === "true", z.boolean())
     .optional()
     .default(false),
+  // Checks links in public servers for new IP grabber domains.
+  IP_GRABBER_DISCOVERY_ENABLED: z
+    .preprocess((x) => x === "true", z.boolean())
+    .optional()
+    .default(false),
 
   // Build information
   GIT_HASH: z.string().optional(),

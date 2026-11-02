@@ -7,6 +7,7 @@ import {
   ModalSubmitInteraction,
 } from "discord.js";
 
+import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -69,6 +70,8 @@ function makeConfig(): GuildConfig {
       messageLogEnabled: true,
       reactionLogChannel: REACTION_CHANNEL,
       reactionLogEnabled: false,
+      sushiiNotificationsChannel: null,
+      sushiiNotificationsEnabled: true,
     },
     {
       ...config.moderationSettings,
@@ -100,6 +103,7 @@ function makeStatus(
       memberlog: ON,
       msglog: ON,
       reactionlog: OFF,
+      notifications: OFF,
       ...overrides.logging,
     },
     moderation: {
@@ -113,6 +117,7 @@ function makeStatus(
       scam: ON,
       spam: ON,
       screening: ON,
+      ipGrabbers: ON,
       exempt: ON,
       alerts: ON,
       ...overrides.automod,
@@ -134,6 +139,19 @@ function makeStatus(
   };
 }
 
+const IP_GRABBERS: IpGrabberSettingsState = {
+  ruleId: "300000000000000101",
+  ruleName: "Block links",
+  providers: ["grabify", "iplogger"],
+  keywordCount: 25,
+  lastSyncedAt: new Date("2026-11-02T11:00:00Z"),
+  problem: null,
+  rules: [
+    { id: "300000000000000101", name: "Block links", keywordCount: 167 },
+    { id: "300000000000000102", name: "Slurs", keywordCount: 310 },
+  ],
+};
+
 const SCREENING: ScreeningSettingsState = {
   enabled: true,
   logChannelId: SCREENING_CHANNEL,
@@ -154,6 +172,7 @@ function makeCtx(
     config: makeConfig(),
     status: makeStatus(),
     screening: SCREENING,
+    ipGrabbers: IP_GRABBERS,
     ignoredChannelIds: [IGNORED_A, IGNORED_B],
     ...overrides,
   };
@@ -228,6 +247,11 @@ const textInput = (value: string) => ({
   custom_id: "text",
   value,
 });
+const stringSelect = (customId: string, values: string[]) => ({
+  type: ComponentType.StringSelect,
+  custom_id: customId,
+  values,
+});
 const checkbox = (customId: string, value: boolean) => ({
   type: ComponentType.Checkbox,
   custom_id: customId,
@@ -250,6 +274,7 @@ describe("buildSettingsModal", () => {
     "exempt",
     "alerts",
     "screening",
+    "ip-grabbers",
   ] as const)("%s uses a fresh settings modal ID", (target) => {
     const ctx = makeCtx();
     const first = modalJson(target, ctx).custom_id;
@@ -567,6 +592,61 @@ describe("buildSettingsModal", () => {
       expect(json.components[0].description).toBe(
         "Where new members are posted for review. Pick one to turn on.",
       );
+    });
+
+    test("ip-grabbers lists Off first, then the keyword rules", () => {
+      const json = modalJson("ip-grabbers", makeCtx());
+      const select = labelComponent(json, 0);
+
+      expect(select.options.map((o: Json) => [o.value, o.default])).toEqual([
+        ["off", false],
+        ["300000000000000101", true],
+        ["300000000000000102", false],
+      ]);
+      expect(labelComponent(json, 1)).toMatchObject({
+        custom_id: "grabify",
+        default: true,
+      });
+      expect(labelComponent(json, 2)).toMatchObject({
+        custom_id: "iplogger",
+        default: true,
+      });
+    });
+
+    test("ip-grabbers keeps the current rule when rules can't be listed", () => {
+      const json = modalJson(
+        "ip-grabbers",
+        makeCtx({ ipGrabbers: { ...IP_GRABBERS, rules: null } }),
+      );
+      const options = labelComponent(json, 0).options;
+
+      expect(options.map((o: Json) => o.value)).toEqual([
+        "off",
+        "300000000000000101",
+      ]);
+      expect(options[1].default).toBe(true);
+      expect(json.components.at(-1).content).toContain("Manage Server");
+    });
+
+    test("ip-grabbers starts with Off and every provider ticked when not set up", () => {
+      const json = modalJson(
+        "ip-grabbers",
+        makeCtx({
+          ipGrabbers: {
+            ...IP_GRABBERS,
+            ruleId: null,
+            ruleName: null,
+            providers: [],
+          },
+        }),
+      );
+
+      expect(labelComponent(json, 0).options[0]).toMatchObject({
+        value: "off",
+        default: true,
+      });
+      expect(labelComponent(json, 1).default).toBe(true);
+      expect(labelComponent(json, 2).default).toBe(true);
     });
 
     test("screening without screening settings throws", () => {
@@ -964,6 +1044,40 @@ describe("parseSettingsModal", () => {
     ]);
   });
 
+  test("ip-grabbers reads the rule and ticked providers", () => {
+    expect(
+      parse(
+        "ip-grabbers",
+        submit([
+          stringSelect("rule", ["300000000000000102"]),
+          checkbox("grabify", false),
+          checkbox("iplogger", true),
+        ]),
+      ),
+    ).toEqual([
+      {
+        kind: "ipGrabbers",
+        ruleId: "300000000000000102",
+        providers: ["iplogger"],
+      },
+    ]);
+  });
+
+  test("ip-grabbers Off becomes a null rule", () => {
+    expect(
+      parse(
+        "ip-grabbers",
+        submit([
+          stringSelect("rule", ["off"]),
+          checkbox("grabify", true),
+          checkbox("iplogger", true),
+        ]),
+      ),
+    ).toEqual([
+      { kind: "ipGrabbers", ruleId: null, providers: ["grabify", "iplogger"] },
+    ]);
+  });
+
   test("screening cleared becomes null", () => {
     expect(
       parse(
@@ -986,6 +1100,14 @@ function untouched(json: Json): ModalSubmission {
             type: c.type,
             custom_id: c.custom_id,
             values: (c.default_values ?? []).map((v: { id: string }) => v.id),
+          };
+        case ComponentType.StringSelect:
+          return {
+            type: c.type,
+            custom_id: c.custom_id,
+            values: c.options
+              .filter((o: Json) => o.default)
+              .map((o: Json) => o.value),
           };
         case ComponentType.TextInput:
           return { type: c.type, custom_id: c.custom_id, value: c.value ?? "" };
@@ -1067,6 +1189,16 @@ describe("untouched submit keeps the current settings", () => {
           kind: "screening",
           channelId: SCREENING_CHANNEL,
           checkAvatars: true,
+        },
+      ],
+    ],
+    [
+      "ip-grabbers",
+      [
+        {
+          kind: "ipGrabbers",
+          ruleId: IP_GRABBERS.ruleId,
+          providers: ["grabify", "iplogger"],
         },
       ],
     ],

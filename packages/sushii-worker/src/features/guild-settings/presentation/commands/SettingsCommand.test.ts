@@ -173,6 +173,7 @@ function createCommand(
       logger as unknown as Logger,
       emojiRepository,
       port,
+      null,
       0,
     ),
     logger,

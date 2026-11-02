@@ -261,6 +261,12 @@ export const guildConfigsInAppPublic = appPublic.table(
     logMemberEnabled: boolean("log_member_enabled").default(true).notNull(),
     logReaction: bigint("log_reaction", { mode: "bigint" }),
     logReactionEnabled: boolean("log_reaction_enabled").default(true).notNull(),
+    logSushiiNotifications: bigint("log_sushii_notifications", {
+      mode: "bigint",
+    }),
+    logSushiiNotificationsEnabled: boolean("log_sushii_notifications_enabled")
+      .default(true)
+      .notNull(),
 
     // Moderation action default behavior
     timeoutDmText: text("timeout_dm_text"),
@@ -423,6 +429,70 @@ export const scamHashReportsInAppPublic = appPublic.table(
     updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [index("scam_hash_reports_status_idx").on(table.status)],
+);
+
+export const ipGrabberDomainStatusInAppPublic = appPublic.enum(
+  "ip_grabber_domain_status",
+  ["active", "stale", "reverted"],
+);
+
+export const ipGrabberReviewStatusInAppPublic = appPublic.enum(
+  "ip_grabber_review_status",
+  ["pending", "posted", "reverted"],
+);
+
+export const ipGrabberDomainsInAppPublic = appPublic.table(
+  "ip_grabber_domains",
+  {
+    hostname: text().primaryKey().notNull(),
+    provider: text().notNull(),
+    source: text().notNull(),
+    status: ipGrabberDomainStatusInAppPublic().notNull().default("active"),
+    firstSeenGuildId: text("first_seen_guild_id"),
+    firstSeenGuildName: text("first_seen_guild_name"),
+    firstSeenChannelId: text("first_seen_channel_id"),
+    firstSeenChannelName: text("first_seen_channel_name"),
+    reviewStatus: ipGrabberReviewStatusInAppPublic("review_status")
+      .notNull()
+      .default("pending"),
+    reviewMessageId: text("review_message_id"),
+    failedChecks: integer("failed_checks").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastCheckedAt: timestamp("last_checked_at", {
+      mode: "date",
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("ip_grabber_domains_status_idx").on(table.status),
+    index("ip_grabber_domains_review_status_idx").on(table.reviewStatus),
+  ],
+);
+
+export const ipGrabberGuildSettingsInAppPublic = appPublic.table(
+  "ip_grabber_guild_settings",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey().notNull(),
+    ruleId: bigint("rule_id", { mode: "bigint" }),
+    ruleName: text("rule_name"),
+    providers: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    managedKeywords: text("managed_keywords")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    lastSyncedAt: timestamp("last_synced_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    lastError: text("last_error"),
+  },
 );
 
 export const guildEmojisAndStickersInAppPublic = appPublic.table(

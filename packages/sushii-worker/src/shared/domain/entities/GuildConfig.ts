@@ -8,6 +8,13 @@ export interface MessageSettings {
   messageChannel: string | null;
 }
 
+export type LogType =
+  | "mod"
+  | "member"
+  | "message"
+  | "reaction"
+  | "notifications";
+
 export interface LoggingSettings {
   modLogChannel: string | null;
   modLogEnabled: boolean;
@@ -17,6 +24,8 @@ export interface LoggingSettings {
   messageLogEnabled: boolean;
   reactionLogChannel: string | null;
   reactionLogEnabled: boolean;
+  sushiiNotificationsChannel: string | null;
+  sushiiNotificationsEnabled: boolean;
 }
 
 export interface ModerationSettings {
@@ -88,6 +97,8 @@ export class GuildConfig {
         messageLogEnabled: true,
         reactionLogChannel: null,
         reactionLogEnabled: true,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -202,10 +213,7 @@ export class GuildConfig {
     return config;
   }
 
-  updateLogChannel(
-    type: "mod" | "member" | "message" | "reaction",
-    channelId: string | null,
-  ): GuildConfig {
+  updateLogChannel(type: LogType, channelId: string | null): GuildConfig {
     const config = this.clone();
 
     switch (type) {
@@ -221,15 +229,15 @@ export class GuildConfig {
       case "reaction":
         config.loggingSettings.reactionLogChannel = channelId;
         break;
+      case "notifications":
+        config.loggingSettings.sushiiNotificationsChannel = channelId;
+        break;
     }
 
     return config;
   }
 
-  setLoggingEnabled(
-    type: "mod" | "member" | "message" | "reaction",
-    enabled: boolean,
-  ): GuildConfig {
+  setLoggingEnabled(type: LogType, enabled: boolean): GuildConfig {
     const config = this.clone();
 
     switch (type) {
@@ -244,6 +252,9 @@ export class GuildConfig {
         break;
       case "reaction":
         config.loggingSettings.reactionLogEnabled = enabled;
+        break;
+      case "notifications":
+        config.loggingSettings.sushiiNotificationsEnabled = enabled;
         break;
     }
 

@@ -34,6 +34,7 @@ const enabledKey = {
   member: "memberLogEnabled",
   message: "messageLogEnabled",
   reaction: "reactionLogEnabled",
+  notifications: "sushiiNotificationsEnabled",
 } as const;
 
 const channelKey = {
@@ -41,9 +42,16 @@ const channelKey = {
   member: "memberLogChannel",
   message: "messageLogChannel",
   reaction: "reactionLogChannel",
+  notifications: "sushiiNotificationsChannel",
 } as const;
 
-const logTypes: LogType[] = ["mod", "member", "message", "reaction"];
+const logTypes: LogType[] = [
+  "mod",
+  "member",
+  "message",
+  "reaction",
+  "notifications",
+];
 
 function withLog(log: LogType, channel: string | null, enabled: boolean) {
   const config = GuildConfig.createDefault(GUILD)

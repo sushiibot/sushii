@@ -28,6 +28,7 @@ import {
 } from "@/features/guild-settings/setup";
 import { setupHelpFeature } from "@/features/help/setup";
 import { setupInteractionHandlerFeature } from "@/features/interaction-handler/setup";
+import { setupIpGrabberLinksFeature } from "@/features/ip-grabber-links/setup";
 import { setupLegacyAuditLogsFeature } from "@/features/legacy-audit-logs/setup";
 import { setupLevelingFeature } from "@/features/leveling/setup";
 import { setupMemberEventsFeature } from "@/features/member-events/setup";
@@ -251,6 +252,14 @@ export function registerFeatures(
     scamImageStore,
     scamImageMetrics,
   });
+  const ipGrabberLinksFeature = setupIpGrabberLinksFeature({
+    client,
+    db,
+    guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
+    deploymentService,
+    logger: logger.child({ feature: "IpGrabberLinks" }),
+    discoveryEnabled: config.ipGrabberDiscoveryEnabled,
+  });
   const feedbackFeature = setupFeedbackFeature({
     db,
     webhookUrl: secrets.FEEDBACK_WEBHOOK_URL,
@@ -397,6 +406,7 @@ export function registerFeatures(
     logger,
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
     screeningSettings: memberScreeningFeature.services.settingsPort,
+    ipGrabberSettings: ipGrabberLinksFeature.services.settingsPort,
   });
 
   // Message log feature
@@ -510,6 +520,7 @@ export function registerFeatures(
     ...emojiStatsFeature.buttonHandlers,
     ...promptsFeature.buttonHandlers,
     ...automodFeature.buttonHandlers,
+    ...ipGrabberLinksFeature.buttonHandlers,
     ...altAccountsFeature.buttonHandlers,
     ...memberScreeningFeature.buttonHandlers,
     ...helpFeature.buttonHandlers,
@@ -543,6 +554,7 @@ export function registerFeatures(
     ...levelingFeature.eventHandlers,
     deploymentHandler,
     ...automodFeature.eventHandlers,
+    ...ipGrabberLinksFeature.eventHandlers,
     ...notificationFeature.eventHandlers,
     ...memberEventsFeature.eventHandlers,
     ...moderationFeature.eventHandlers,
@@ -625,6 +637,7 @@ export function registerFeatures(
     ...scheduleFeature.tasks,
     ...levelingFeature.tasks,
     ...automodFeature.tasks,
+    ...ipGrabberLinksFeature.tasks,
     ...messageVerificationFeature.tasks,
     ...permissionAuditFeature.tasks,
     ...memberScreeningFeature.tasks,

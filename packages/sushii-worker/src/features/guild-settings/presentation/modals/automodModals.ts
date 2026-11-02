@@ -3,8 +3,14 @@ import {
   LabelBuilder,
   ModalBuilder,
   RoleSelectMenuBuilder,
+  StringSelectMenuBuilder,
+  TextDisplayBuilder,
 } from "discord.js";
 
+import {
+  IP_GRABBER_PROVIDERS,
+  IP_GRABBER_PROVIDER_IDS,
+} from "@/features/ip-grabber-links/domain/providers";
 import { MAX_AUTOMOD_EXEMPT_ROLES } from "@/shared/domain/entities/GuildConfig";
 
 import type { SettingsPatch } from "../../application/SettingsPatch";
@@ -22,7 +28,11 @@ import {
   readSelectValues,
 } from "./modalFields";
 
-export type AutomodTarget = "exempt" | "alerts" | "screening";
+export type AutomodTarget = "exempt" | "alerts" | "screening" | "ip-grabbers";
+
+const RULE_OFF = "off";
+// One option is taken by Off.
+const MAX_RULE_OPTIONS = 24;
 
 function buildExemptModal(ctx: ModalContext): ModalBuilder {
   const select = new RoleSelectMenuBuilder()
@@ -92,6 +102,74 @@ function buildScreeningModal(ctx: ModalContext): ModalBuilder {
     );
 }
 
+function buildIpGrabbersModal(ctx: ModalContext): ModalBuilder {
+  if (!ctx.ipGrabbers) {
+    throw new Error("IP grabber modal requested without IP grabber settings");
+  }
+  const state = ctx.ipGrabbers;
+  const rules = (state.rules ?? []).slice(0, MAX_RULE_OPTIONS);
+  // A rule that can't be listed right now is kept as an option so a submit doesn't turn it off.
+  if (state.ruleId && !rules.some((rule) => rule.id === state.ruleId)) {
+    rules.unshift({
+      id: state.ruleId,
+      name: state.ruleName ?? "Current rule",
+      keywordCount: state.keywordCount,
+    });
+    rules.splice(MAX_RULE_OPTIONS);
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(FIELD.rule)
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions(
+      {
+        label: "Off",
+        value: RULE_OFF,
+        description: "Removes the keywords sushii added",
+        default: !state.ruleId,
+      },
+      ...rules.map((rule) => ({
+        label: rule.name.slice(0, 100),
+        value: rule.id,
+        description: `${rule.keywordCount} keywords`,
+        default: rule.id === state.ruleId,
+      })),
+    );
+
+  // New setups start with every provider on.
+  const enabled =
+    state.ruleId || state.providers.length > 0
+      ? new Set(state.providers)
+      : new Set(IP_GRABBER_PROVIDER_IDS);
+
+  const note =
+    state.rules === null
+      ? "-# sushii couldn't list your AutoMod rules. It needs the Manage Server permission."
+      : "-# Lists your keyword rules from Server Settings → AutoMod. Unticking a service removes its keywords; your own keywords are never touched.";
+
+  return new ModalBuilder()
+    .setCustomId(settingsIds.modal("ip-grabbers"))
+    .setTitle("IP grabber links")
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel("AutoMod rule")
+        .setDescription(
+          "sushii adds the domains to this rule. Your keywords, actions and exemptions stay as they are.",
+        )
+        .setStringSelectMenuComponent(select),
+      ...IP_GRABBER_PROVIDER_IDS.map((id) =>
+        checkboxLabel({
+          label: IP_GRABBER_PROVIDERS[id].name,
+          customId: id,
+          checked: enabled.has(id),
+          description: IP_GRABBER_PROVIDERS[id].description,
+        }),
+      ),
+    )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(note));
+}
+
 export function buildAutomodModal(
   target: AutomodTarget,
   ctx: ModalContext,
@@ -103,6 +181,8 @@ export function buildAutomodModal(
       return buildAlertsModal(ctx);
     case "screening":
       return buildScreeningModal(ctx);
+    case "ip-grabbers":
+      return buildIpGrabbersModal(ctx);
   }
 }
 
@@ -134,5 +214,17 @@ export function parseAutomodModal(
           checkAvatars: readCheckbox(submission, FIELD.avatars),
         },
       ];
+    case "ip-grabbers": {
+      const [rule] = submission.fields.getStringSelectValues(FIELD.rule);
+      return [
+        {
+          kind: "ipGrabbers",
+          ruleId: !rule || rule === RULE_OFF ? null : rule,
+          providers: IP_GRABBER_PROVIDER_IDS.filter((id) =>
+            readCheckbox(submission, id),
+          ),
+        },
+      ];
+    }
   }
 }

@@ -19,6 +19,7 @@ export function buildSettingsModal(
     case "memberlog":
     case "msglog":
     case "reactionlog":
+    case "notifications":
       return buildLogModal(target, ctx);
     case "dm-timeout":
     case "dm-warn":
@@ -32,6 +33,7 @@ export function buildSettingsModal(
     case "exempt":
     case "alerts":
     case "screening":
+    case "ip-grabbers":
       return buildAutomodModal(target, ctx);
   }
 }
@@ -46,6 +48,7 @@ export function parseSettingsModal(
     case "memberlog":
     case "msglog":
     case "reactionlog":
+    case "notifications":
       return parseLogModal(target, submission, ctx);
     case "dm-timeout":
     case "dm-warn":
@@ -59,6 +62,7 @@ export function parseSettingsModal(
     case "exempt":
     case "alerts":
     case "screening":
+    case "ip-grabbers":
       return parseAutomodModal(target, submission);
   }
 }

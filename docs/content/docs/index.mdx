@@ -32,7 +32,7 @@ Each row shows its current state and flags anything that needs attention.
 Click **Edit** to change a setting, or **Turn on** / **Turn off** for simple switches.
 Changes save as soon as you make them.
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/OverviewPanel.ts#attentionLine @06284cbd, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#attentionDetail @b7653117, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#AttentionProblem @11e44f4d, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#computeSettingsStatus @4a0f6c8a */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/OverviewPanel.ts#attentionLine @06284cbd, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#attentionDetail @f25668a4, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#AttentionProblem @6e5b5880, packages/sushii-worker/src/features/guild-settings/application/SettingsStatus.ts#computeSettingsStatus @82b2f908 */}
 
 The **Overview** tab sums up each tab and lists anything that **needs
 attention**, such as a log channel that was deleted, a channel sushii is
@@ -47,7 +47,7 @@ missing permissions in, or a join message that's on with no channel picked.
 If you plan to use sushii for moderation, the most important first step is
 pointing it to a private moderation log channel:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @b9ef4da2, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @8f995578 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @f3de2765, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @8f995578 */}
 
 ```
 /settings → Logging → Mod log → Edit
@@ -68,11 +68,11 @@ done through Discord itself.
 
 From `/settings` you can also set up:
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildTimeoutModal @f686289e, packages/sushii-worker/src/features/guild-settings/presentation/modals/logModals.ts#LOGS @af5b9db3, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildWarnModal @5ed3183c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/WelcomePanel.ts#addWelcomePanel @416fc764, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#EXTRA_TEXT_DESCRIPTION @53ee7147, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Times out cross-channel spam" @a1ed370b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Actions are always logged in " @a8005e17 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildTimeoutModal @f686289e, packages/sushii-worker/src/features/guild-settings/presentation/modals/logModals.ts#LOGS @c4e9c6a6, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildWarnModal @5ed3183c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/WelcomePanel.ts#addWelcomePanel @416fc764, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#EXTRA_TEXT_DESCRIPTION @53ee7147, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Times out cross-channel spam" @a1ed370b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Actions are always logged in " @a8005e17, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"IP grabber links" @c5a2a6e1 */}
 
-- **Logging** — message edits and deletes, member joins and leaves, and removed reactions, each in its own channel
+- **Logging** — message edits and deletes, member joins and leaves, and removed reactions, each in its own channel, plus a sushii notifications channel where sushii reports problems with your setup
 - **Moderation** — whether sushii DMs members when they're timed out, kicked, or banned, extra text for those DMs and for warnings, and whether other servers can see your server name and ban reasons in `/lookup`
-- **Automod** — scam image detection, spam detection, and an alerts channel for automod actions
+- **Automod** — scam image detection, spam detection, an alerts channel for automod actions, and IP grabber links kept up to date in one of your Discord AutoMod rules
 - **Welcome** — custom join and leave messages sent to a channel
 
 {/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/OverviewPanel.ts#"More setup:" @310d3bcd */}

@@ -14,7 +14,12 @@ import {
   readChannels,
 } from "./modalFields";
 
-export type LogTarget = "modlog" | "memberlog" | "msglog" | "reactionlog";
+export type LogTarget =
+  | "modlog"
+  | "memberlog"
+  | "msglog"
+  | "reactionlog"
+  | "notifications";
 
 const LOGS: Record<
   LogTarget,
@@ -48,6 +53,12 @@ const LOGS: Record<
     title: "Reaction log",
     what: "Where removed reactions are logged.",
     channel: (ctx) => ctx.config.loggingSettings.reactionLogChannel,
+  },
+  notifications: {
+    log: "notifications",
+    title: "sushii notifications",
+    what: "Where sushii tells you about problems with your setup.",
+    channel: (ctx) => ctx.config.loggingSettings.sushiiNotificationsChannel,
   },
 };
 

@@ -83,10 +83,18 @@ export function attentionDetail(
       return "On, but no channel picked";
     case "needs_mod_log":
       return "Right-click timeouts need the mod log turned on";
+    case "rule_missing":
+      return "The AutoMod rule was deleted, pick another one";
+    case "rule_full":
+      return "The AutoMod rule is full, remove some keywords or pick another rule";
+    case "needs_manage_server":
+      return "sushii needs Manage Server to edit AutoMod rules";
   }
 }
 
 export interface RowSpec {
+  /** Lines above the row, sharing its text component to save on the component budget. */
+  heading?: string;
   icon: string;
   name: string;
   value?: string;
@@ -101,7 +109,11 @@ export function rowSection(spec: RowSpec): SectionBuilder {
       ? `**${spec.name}** · ${spec.value}`
       : `**${spec.name}**`,
   );
-  const lines = [head, ...(spec.details ?? []).filter((d) => !!d)];
+  const lines = [
+    ...(spec.heading ? [spec.heading] : []),
+    head,
+    ...(spec.details ?? []).filter((d) => !!d),
+  ];
 
   return new SectionBuilder()
     .addTextDisplayComponents(

@@ -19,6 +19,10 @@ import type { Logger } from "pino";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import { buildFeedbackPanelButton } from "@/features/feedback/presentation/views/FeedbackButton";
 import type {
+  IpGrabberSettingsPort,
+  IpGrabberSettingsState,
+} from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
+import type {
   ScreeningSettingsPort,
   ScreeningSettingsState,
 } from "@/features/member-screening/application/ScreeningSettingsPort";
@@ -104,6 +108,7 @@ function configuredChannelIds(
     logs.memberLogChannel,
     logs.messageLogChannel,
     logs.reactionLogChannel,
+    logs.sushiiNotificationsChannel,
     config.messageSettings.messageChannel,
     config.moderationSettings.automodAlertsChannelId,
     screening?.logChannelId,
@@ -117,6 +122,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     private readonly logger: Logger,
     private readonly emojiRepository: BotEmojiRepository,
     private readonly screeningSettings: ScreeningSettingsPort | null,
+    private readonly ipGrabberSettings: IpGrabberSettingsPort | null,
     private readonly rejectionDeleteMs: number = REJECTION_DELETE_MS,
   ) {
     super();
@@ -157,11 +163,30 @@ export default class SettingsCommand extends SlashCommandHandler {
     }
   }
 
+  private async getIpGrabbers(
+    guild: Guild,
+  ): Promise<IpGrabberSettingsState | null> {
+    if (!this.ipGrabberSettings) {
+      return null;
+    }
+
+    try {
+      return await this.ipGrabberSettings.getForSettings(guild);
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId: guild.id },
+        "Failed to load IP grabber settings, hiding the section",
+      );
+      return null;
+    }
+  }
+
   private async loadContext(guild: Guild): Promise<ModalContext> {
-    const [config, blocks, screening] = await Promise.all([
+    const [config, blocks, screening, ipGrabbers] = await Promise.all([
       this.guildSettingsService.getGuildSettings(guild.id),
       this.messageLogBlockService.getIgnoredChannels(guild.id),
       this.getScreening(guild.id),
+      this.getIpGrabbers(guild),
     ]);
     const channelHealth = checkChannelHealth(
       guild,
@@ -173,13 +198,19 @@ export default class SettingsCommand extends SlashCommandHandler {
     return {
       config,
       screening,
+      ipGrabbers,
       ignoredChannelIds,
       ...resolveModalPrefills(
         guild,
         ignoredChannelIds,
         config.moderationSettings.automodExemptRoleIds,
       ),
-      status: computeSettingsStatus({ config, screening, channelHealth }),
+      status: computeSettingsStatus({
+        config,
+        screening,
+        ipGrabbers,
+        channelHealth,
+      }),
     };
   }
 
@@ -452,6 +483,15 @@ export default class SettingsCommand extends SlashCommandHandler {
           guildId,
           patch.checkAvatars,
         );
+        return;
+      case "ipGrabbers":
+        if (!this.ipGrabberSettings) {
+          throw new Error("IP grabber patch without an IP grabber port");
+        }
+        await this.ipGrabberSettings.configure(guildId, {
+          ruleId: patch.ruleId,
+          providers: patch.providers,
+        });
         return;
       default:
         await this.guildSettingsService.apply(guildId, patch);

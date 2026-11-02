@@ -1,0 +1,2 @@
+ALTER TABLE "app_public"."guild_configs" ADD COLUMN "log_sushii_notifications" bigint;
+ALTER TABLE "app_public"."guild_configs" ADD COLUMN "log_sushii_notifications_enabled" boolean DEFAULT true NOT NULL;

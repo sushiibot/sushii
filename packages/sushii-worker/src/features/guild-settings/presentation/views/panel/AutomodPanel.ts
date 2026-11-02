@@ -1,6 +1,8 @@
 import type { ContainerBuilder } from "discord.js";
 
 import type { RowState } from "@/features/guild-settings/application/SettingsStatus";
+import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
+import { IP_GRABBER_PROVIDERS } from "@/features/ip-grabber-links/domain/providers";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
 
 import {
@@ -40,6 +42,37 @@ function modLogNote(input: PanelInput): string {
   return "Actions are logged in your mod log when it's on";
 }
 
+function ipGrabberValue(
+  state: RowState,
+  ipGrabbers: IpGrabberSettingsState,
+): string {
+  if (state.kind === "attention") {
+    return ipGrabbers.problem === "rule_missing"
+      ? "Rule was deleted"
+      : `Can't update **${ipGrabbers.ruleName ?? "the rule"}**`;
+  }
+  if (state.kind === "off" || !ipGrabbers.ruleId) {
+    return "Off";
+  }
+
+  const domains = ipGrabbers.keywordCount === 1 ? "domain" : "domains";
+  return `Blocks ${ipGrabbers.keywordCount} ${domains} in **${ipGrabbers.ruleName ?? "your rule"}**`;
+}
+
+function ipGrabberDetail(ipGrabbers: IpGrabberSettingsState): string | null {
+  if (!ipGrabbers.ruleId) {
+    return null;
+  }
+
+  const names = ipGrabbers.providers
+    .map((id) => IP_GRABBER_PROVIDERS[id].name)
+    .join(", ");
+  const synced = ipGrabbers.lastSyncedAt
+    ? ` · synced <t:${Math.floor(ipGrabbers.lastSyncedAt.getTime() / 1000)}:R>`
+    : "";
+  return names ? `${names}${synced}` : null;
+}
+
 export function addAutomodPanel(
   container: ContainerBuilder,
   input: PanelInput,
@@ -52,9 +85,15 @@ export function addAutomodPanel(
   const attentionOnlyIcon = (state: RowState): string =>
     state.kind === "attention" ? icon(state) : "";
 
+  // Headings only matter once Discord AutoMod settings share the tab.
+  const showIpGrabbers = !!(input.ipGrabbers && states.ipGrabbers);
+
   const scamOn = states.scam.kind === "on";
   container.addSectionComponents(
     rowSection({
+      heading: showIpGrabbers
+        ? `**sushii automod**\n${smallText("Checks sushii runs itself")}\n`
+        : undefined,
       icon: icon(states.scam),
       name: "Scam images",
       value: scamOn ? "Times out on a match" : "Off",
@@ -122,4 +161,25 @@ export function addAutomodPanel(
       accessory: editButton("alerts", input.expired),
     }),
   );
+
+  if (input.ipGrabbers && states.ipGrabbers) {
+    const state = states.ipGrabbers;
+    const detail = ipGrabberDetail(input.ipGrabbers);
+    container.addSeparatorComponents(divider());
+    container.addSectionComponents(
+      rowSection({
+        heading: `**Discord AutoMod**\n${smallText("Lists sushii keeps up to date in your own AutoMod rules. Exemptions and alerts are set in Server Settings → AutoMod.")}\n`,
+        icon: icon(state),
+        name: "IP grabber links",
+        value: ipGrabberValue(state, input.ipGrabbers),
+        details: [
+          state.kind === "attention"
+            ? smallText(attentionDetail(state.problem, null))
+            : null,
+          state.kind === "on" && detail ? smallText(detail) : null,
+        ],
+        accessory: editButton("ip-grabbers", input.expired),
+      }),
+    );
+  }
 }

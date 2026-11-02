@@ -74,6 +74,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: true,
         reactionLogChannel: "111000111",
         reactionLogEnabled: true,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: true,
       },
       {
         timeoutDmText: "You have been muted",
@@ -134,6 +136,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: false,
         reactionLogChannel: null,
         reactionLogEnabled: false,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: false,
       },
       {
         timeoutDmText: null,
@@ -176,6 +180,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: false,
         reactionLogChannel: null,
         reactionLogEnabled: false,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: false,
       },
       {
         timeoutDmText: "Muted!",
@@ -230,6 +236,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: false,
         reactionLogChannel: null,
         reactionLogEnabled: false,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: false,
       },
       {
         timeoutDmText: null,
@@ -301,6 +309,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: false,
         reactionLogChannel: null,
         reactionLogEnabled: false,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: false,
       },
       {
         timeoutDmText: null,
@@ -351,6 +361,8 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         messageLogEnabled: true,
         reactionLogChannel: null,
         reactionLogEnabled: true,
+        sushiiNotificationsChannel: null,
+        sushiiNotificationsEnabled: true,
       },
       {
         timeoutDmText: null,

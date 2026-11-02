@@ -13,13 +13,27 @@ import {
 } from "./panelParts";
 import type { PanelInput } from "./panelTypes";
 
-type LogTarget = "modlog" | "memberlog" | "msglog" | "reactionlog";
+type LogTarget =
+  | "modlog"
+  | "memberlog"
+  | "msglog"
+  | "reactionlog"
+  | "notifications";
 
-export const LOG_ROWS: readonly { target: LogTarget; name: string }[] = [
+export const LOG_ROWS: readonly {
+  target: LogTarget;
+  name: string;
+  hint?: string;
+}[] = [
   { target: "modlog", name: "Mod log" },
   { target: "memberlog", name: "Member log" },
   { target: "msglog", name: "Message log" },
   { target: "reactionlog", name: "Reaction log" },
+  {
+    target: "notifications",
+    name: "sushii notifications",
+    hint: "Problems sushii needs you to fix",
+  },
 ];
 
 export function logChannelId(
@@ -36,6 +50,8 @@ export function logChannelId(
       return logs.messageLogChannel;
     case "reactionlog":
       return logs.reactionLogChannel;
+    case "notifications":
+      return logs.sushiiNotificationsChannel;
   }
 }
 
@@ -64,7 +80,7 @@ export function addLoggingPanel(
   container: ContainerBuilder,
   input: PanelInput,
 ): void {
-  for (const { target, name } of LOG_ROWS) {
+  for (const { target, name, hint } of LOG_ROWS) {
     const state = input.status.logging[target];
     const channelId = logChannelId(input, target);
 
@@ -78,6 +94,9 @@ export function addLoggingPanel(
       input.ignoredChannelIds.length > 0
     ) {
       details.push(smallText(ignoredText(input.ignoredChannelIds)));
+    }
+    if (hint) {
+      details.push(smallText(hint));
     }
 
     container.addSectionComponents(

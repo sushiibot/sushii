@@ -21,6 +21,7 @@ export const FIELD = {
   text: "text",
   roles: "roles",
   avatars: "avatars",
+  rule: "rule",
 } as const;
 
 const TEXT_MAX_LENGTH = 1000;

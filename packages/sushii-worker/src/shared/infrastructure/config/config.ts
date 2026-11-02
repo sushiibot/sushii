@@ -90,6 +90,7 @@ export class Config {
   readonly features: FeatureFlags;
   readonly build: BuildConfig;
   readonly openRouterScamClassifyModel: string;
+  readonly ipGrabberDiscoveryEnabled: boolean;
   readonly scamImageStoreEndpoint?: string;
   readonly scamImageStoreBucket?: string;
 
@@ -137,6 +138,7 @@ export class Config {
       env.BUILD_DATE ? new Date(env.BUILD_DATE) : undefined,
     );
     this.openRouterScamClassifyModel = env.OPENROUTER_SCAM_CLASSIFY_MODEL;
+    this.ipGrabberDiscoveryEnabled = env.IP_GRABBER_DISCOVERY_ENABLED;
     this.scamImageStoreEndpoint = env.SCAM_IMAGE_STORE_ENDPOINT;
     this.scamImageStoreBucket = env.SCAM_IMAGE_STORE_BUCKET;
 
