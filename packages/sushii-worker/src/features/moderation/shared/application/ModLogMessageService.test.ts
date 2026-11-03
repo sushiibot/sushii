@@ -167,6 +167,7 @@ function setup(
       guildConfigRepository,
       emojiRepository,
       { markDmDeleted },
+      {} as never,
       pino({ level: "silent" }),
       { recordModLogEdit },
     ),

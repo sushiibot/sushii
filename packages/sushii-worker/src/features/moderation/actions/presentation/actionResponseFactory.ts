@@ -36,6 +36,7 @@ export function createActionResponseHandlers(
   const buttonHandlers: ButtonHandler[] = [
     new ActionResponseButtonHandler({
       modLogRepository: services.modLogRepository,
+      caseProofRepository: services.caseProofRepository,
       reasonUpdateService: services.reasonUpdateService,
       caseDmDeletionService: services.caseDmDeletionService,
       reasonTemplateService: services.reasonTemplateService,

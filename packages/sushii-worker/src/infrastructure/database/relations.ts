@@ -3,6 +3,7 @@ import { relations } from "drizzle-orm/relations";
 import {
   giveawayEntriesInAppPublic,
   giveawaysInAppPublic,
+  modLogProofsInAppPublic,
   modLogsInAppPublic,
   mutesInAppPublic,
   roleMenuRolesInAppPublic,
@@ -40,6 +41,17 @@ export const modLogsInAppPublicRelations = relations(
   modLogsInAppPublic,
   ({ many }) => ({
     mutesInAppPublics: many(mutesInAppPublic),
+    modLogProofsInAppPublics: many(modLogProofsInAppPublic),
+  }),
+);
+
+export const modLogProofsInAppPublicRelations = relations(
+  modLogProofsInAppPublic,
+  ({ one }) => ({
+    modLogsInAppPublic: one(modLogsInAppPublic, {
+      fields: [modLogProofsInAppPublic.guildId, modLogProofsInAppPublic.caseId],
+      references: [modLogsInAppPublic.guildId, modLogsInAppPublic.caseId],
+    }),
   }),
 );
 

@@ -31,6 +31,7 @@ import type {
   ActionResponseButtonOutcome,
   ModerationMetrics,
 } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
+import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
@@ -94,6 +95,7 @@ type MessageInteraction =
 
 export interface ActionResponseDeps {
   modLogRepository: Pick<ModLogRepository, "findByIds">;
+  caseProofRepository: CaseProofRepository;
   reasonUpdateService: Pick<ReasonUpdateService, "updateReasons">;
   caseDmDeletionService: Pick<CaseDmDeletionService, "deleteDms">;
   reasonTemplateService: Pick<

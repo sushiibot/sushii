@@ -14,6 +14,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { ModerationCase } from "../domain/entities/ModerationCase";
 import type { ModerationMetrics } from "../domain/metrics/ModerationMetrics";
 import { NOOP_MODERATION_METRICS } from "../domain/metrics/ModerationMetrics";
+import type { CaseProofRepository } from "../domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "../domain/repositories/ModLogRepository";
 import {
   MOD_LOG_EMOJIS,
@@ -86,6 +87,7 @@ export class ModLogMessageService {
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly emojiRepository: BotEmojiRepository,
     private readonly modLogRepository: Pick<ModLogRepository, "markDmDeleted">,
+    private readonly caseProofRepository: CaseProofRepository,
     private readonly logger: Logger,
     private readonly metrics: Pick<
       ModerationMetrics,

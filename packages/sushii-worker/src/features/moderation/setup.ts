@@ -82,6 +82,7 @@ import { TimeoutDetectionService } from "./shared/domain/services/TimeoutDetecti
 import {
   DiscordModLogService,
   DiscordPermissionValidationService,
+  DrizzleCaseProofRepository,
   DrizzleModLogRepository,
   DrizzleTempBanRepository,
 } from "./shared/infrastructure";
@@ -122,6 +123,8 @@ export function createModerationServices({
     logger.child({ module: "modLogRepository" }),
   );
 
+  const caseProofRepository = new DrizzleCaseProofRepository(db);
+
   // Built here, after the OTel SDK registers; an earlier meter stays a no-op.
   const moderationMetrics = new OtelModerationMetrics();
 
@@ -160,6 +163,7 @@ export function createModerationServices({
     guildConfigRepository,
     emojiRepository,
     modLogRepository,
+    caseProofRepository,
     logger.child({ module: "modLogMessageService" }),
     moderationMetrics,
   );
@@ -296,6 +300,7 @@ export function createModerationServices({
 
   return {
     modLogRepository,
+    caseProofRepository,
     guildConfigRepository,
     tempBanRepository,
     timeoutDetectionService,
@@ -485,6 +490,7 @@ export function setupModerationFeature({
     tempBanRepository: services.tempBanRepository,
     timeoutDetectionService: services.timeoutDetectionService,
     setNicknameService,
+    caseProofRepository: services.caseProofRepository,
   });
 
   const commands = createModerationCommands(

@@ -610,6 +610,7 @@ describe("legacy entry whose REST conversion fails (real ModLogMessageService)",
         ),
       } as never,
       { markDmDeleted: mock(async () => undefined) },
+      {} as never,
       pino({ level: "silent" }),
     );
     return { service, patch };

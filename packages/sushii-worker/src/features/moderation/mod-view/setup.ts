@@ -9,6 +9,7 @@ import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 import type { HistoryUserService } from "../cases/application/HistoryUserService";
 import type { LookupUserService } from "../cases/application/LookupUserService";
 import type { NamesUserService } from "../cases/application/NamesUserService";
+import type { CaseProofRepository } from "../shared/domain/repositories/CaseProofRepository";
 import type { TempBanRepository } from "../shared/domain/repositories/TempBanRepository";
 import type { TimeoutDetectionService } from "../shared/domain/services/TimeoutDetectionService";
 import { ModViewService } from "./application/ModViewService";
@@ -27,6 +28,7 @@ interface CreateModViewDependenciesDeps {
   tempBanRepository: TempBanRepository;
   timeoutDetectionService: TimeoutDetectionService;
   setNicknameService: SetNicknameService;
+  caseProofRepository: CaseProofRepository;
 }
 
 export interface ModViewFeatureServices {

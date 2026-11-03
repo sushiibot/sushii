@@ -274,6 +274,7 @@ describe("ActionResponseButtonHandler", () => {
 
     handler = new ActionResponseButtonHandler({
       modLogRepository: { findByIds },
+      caseProofRepository: {} as never,
       reasonUpdateService: { updateReasons },
       caseDmDeletionService: { deleteDms },
       reasonTemplateService: {

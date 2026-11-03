@@ -32,6 +32,10 @@ import type {
   VerdictKind,
   VerdictOutcome,
 } from "@/features/member-screening/domain/types";
+import {
+  CASE_PROOF_SOURCES,
+  type CaseProofSource,
+} from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { FishyResult } from "@/features/social/domain";
 
 export const appPublic = pgSchema("app_public");
@@ -1148,6 +1152,45 @@ export const mutesInAppPublic = appPublic.table(
       to: ["sushii_admin"],
       using: sql`true`,
     }),
+  ],
+);
+
+export const modLogProofsInAppPublic = appPublic.table(
+  "mod_log_proofs",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    caseId: bigint("case_id", { mode: "bigint" }).notNull(),
+    authorId: bigint("author_id", { mode: "bigint" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    content: text(),
+    attachments: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    sourceMessageUrl: text("source_message_url"),
+    sourceAuthorId: bigint("source_author_id", { mode: "bigint" }),
+    sourceContent: text("source_content"),
+    hostMessageId: bigint("host_message_id", { mode: "bigint" }),
+    source: text().$type<CaseProofSource>().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.guildId, table.caseId],
+      foreignColumns: [modLogsInAppPublic.guildId, modLogsInAppPublic.caseId],
+      name: "mod_log_proofs_case_fkey",
+    }).onDelete("cascade"),
+    check(
+      "mod_log_proofs_source_check",
+      sql`${table.source} IN (${sql.raw(CASE_PROOF_SOURCES.map((s) => `'${s}'`).join(", "))})`,
+    ),
+    index("mod_log_proofs_guild_id_case_id_created_at_idx").on(
+      table.guildId,
+      table.caseId,
+      table.createdAt,
+    ),
   ],
 );
 
