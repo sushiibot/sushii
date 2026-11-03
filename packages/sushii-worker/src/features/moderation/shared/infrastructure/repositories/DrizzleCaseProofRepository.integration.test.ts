@@ -140,6 +140,14 @@ describe("DrizzleCaseProofRepository (Integration)", () => {
       expect(await repo.listByCase(GUILD_ID, "1")).toEqual([]);
     });
 
+    test("drops blank attachment entries", async () => {
+      const [added] = await repo.add([
+        proof({ attachments: ["", "https://x/a.png", " "] }),
+      ]);
+
+      expect(added.attachments).toEqual(["https://x/a.png"]);
+    });
+
     test("returns an empty list for no rows", async () => {
       expect(await repo.add([])).toEqual([]);
     });
@@ -237,6 +245,19 @@ describe("DrizzleCaseProofRepository (Integration)", () => {
       expect(counts.has("3")).toBe(false);
     });
 
+    test("doesn't count empty strings stored in attachments", async () => {
+      await db.insert(modLogProofsInAppPublic).values({
+        guildId: BigInt(GUILD_ID),
+        caseId: 1n,
+        attachments: ["", "https://x/a.png"],
+        source: "backfill",
+      });
+
+      const counts = await repo.countsByCases(GUILD_ID, ["1"]);
+
+      expect(counts.get("1")).toEqual({ entries: 1, files: 1 });
+    });
+
     test("returns an empty map for no case ids", async () => {
       expect((await repo.countsByCases(GUILD_ID, [])).size).toBe(0);
     });
@@ -264,6 +285,18 @@ describe("DrizzleCaseProofRepository (Integration)", () => {
       const [cleared] = await repo.listByCase(GUILD_ID, "1");
       expect(cleared.attachments).toEqual([]);
       expect(cleared.hostMessageId).toBeNull();
+    });
+
+    test("drops blank attachment entries", async () => {
+      const [added] = await repo.add([proof()]);
+
+      await repo.updateHosting(GUILD_ID, added.id, {
+        attachments: ["https://new/a.png", ""],
+        hostMessageId: "888888888888888888",
+      });
+
+      const [updated] = await repo.listByCase(GUILD_ID, "1");
+      expect(updated.attachments).toEqual(["https://new/a.png"]);
     });
 
     test("doesn't touch another guild's row", async () => {
@@ -408,6 +441,15 @@ describe("case proof backfill migration (Integration)", () => {
       executorId: null,
     });
     await insertCase(db, GUILD_ID, "5", { attachments: [] });
+    await insertCase(db, GUILD_ID, "6", { attachments: [" "] });
+    await insertCase(db, GUILD_ID, "7", {
+      attachments: ["", "https://cdn.discordapp.com/a.png", " "],
+    });
+    await insertCase(db, GUILD_ID, "8");
+    await client.query(
+      `UPDATE app_public.mod_logs SET attachments = '{{https://x/a.png,https://x/b.png}}' WHERE guild_id = $1 AND case_id = 8`,
+      [GUILD_ID],
+    );
 
     await migrate(db, { migrationsFolder: migrationsDir });
   });
@@ -420,11 +462,29 @@ describe("case proof backfill migration (Integration)", () => {
     }
   });
 
+  test("leaves a multi-dimensional attachments row in place", async () => {
+    const result = await client.query(
+      "SELECT array_ndims(attachments) AS dims FROM app_public.mod_logs WHERE guild_id = $1 AND case_id = 8",
+      [GUILD_ID],
+    );
+
+    expect(result.rows[0]?.dims).toBe(2);
+  });
+
   test("copies non-empty attachments into one proof row per case", async () => {
     const repo = new DrizzleCaseProofRepository(db);
-    const byCase = await repo.listByCases(GUILD_ID, ["1", "2", "3", "4", "5"]);
+    const byCase = await repo.listByCases(GUILD_ID, [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+    ]);
 
-    expect([...byCase.keys()].sort()).toEqual(["1", "4"]);
+    expect([...byCase.keys()].sort()).toEqual(["1", "4", "7"]);
 
     expect(byCase.get("1")).toEqual([
       expect.objectContaining({
@@ -446,6 +506,10 @@ describe("case proof backfill migration (Integration)", () => {
         attachments: ["https://x/b.png", "https://x/c.txt"],
         source: "backfill",
       }),
+    ]);
+
+    expect(byCase.get("7")?.map((p) => p.attachments)).toEqual([
+      ["https://cdn.discordapp.com/a.png"],
     ]);
   });
 });

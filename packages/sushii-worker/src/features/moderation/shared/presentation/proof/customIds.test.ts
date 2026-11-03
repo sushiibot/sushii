@@ -71,6 +71,20 @@ describe("add proof custom ID", () => {
     }
   });
 
+  test("throws instead of dropping invalid case IDs", () => {
+    expect(() => buildAddProofCustomId(["4822", "abc"])).toThrow(
+      "Add proof custom ID can't encode every case ID",
+    );
+    expect(() => buildAddProofCustomId(["4822", "0"])).toThrow();
+    expect(() => buildAddProofCustomId(["4822", "04823"])).toThrow();
+  });
+
+  test("allows duplicate case IDs", () => {
+    expect(buildAddProofCustomId(["5", "5", "6"])).toBe(
+      `${ADD_PROOF_PREFIX}5-6`,
+    );
+  });
+
   test("throws without case IDs", () => {
     expect(() => buildAddProofCustomId([])).toThrow();
   });

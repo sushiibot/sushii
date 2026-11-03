@@ -1,4 +1,4 @@
-import { ButtonBuilder, ButtonStyle } from "discord.js";
+import { ButtonBuilder, ButtonStyle, escapeMarkdown } from "discord.js";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import { quoteMarkdownString } from "@/utils/markdown";
@@ -51,7 +51,16 @@ export function proofEntryText(
     lines.push(proof.content);
   }
   if (proof.sourceContent) {
-    lines.push(quoteMarkdownString(proof.sourceContent));
+    lines.push(
+      quoteMarkdownString(
+        escapeMarkdown(proof.sourceContent, {
+          maskedLink: true,
+          heading: true,
+          bulletedList: true,
+          numberedList: true,
+        }),
+      ),
+    );
   }
   if (proof.sourceMessageUrl) {
     lines.push(proof.sourceMessageUrl);

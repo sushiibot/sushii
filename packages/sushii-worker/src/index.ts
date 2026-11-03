@@ -1,6 +1,8 @@
 import type { Child } from "discord-hybrid-sharding";
 import { ClusterManager, HeartbeatManager } from "discord-hybrid-sharding";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { Client } from "pg";
 import { fileURLToPath } from "url";
 
 // Type-safe reference to ensure shard.ts exists WITHOUT importing and running
@@ -24,14 +26,24 @@ Error.stackTraceLimit = 50;
 async function main(): Promise<void> {
   log.info("Running migrations");
 
-  // 1 connection is enough for migrations and ongoing health probes
-  const db = initDatabase(secrets.DATABASE_URL, 1);
-
-  // Initial migration skipped manually for graphile-migrate -> drizzle migration
-  // Run database migrations
-  await migrate(db, {
-    migrationsFolder: "./drizzle",
+  // The live blue/green slot keeps writing during a release, so a migration
+  // that can't get its locks fails fast instead of stalling those writes.
+  const migrationClient = new Client({
+    connectionString: secrets.DATABASE_URL,
+    options: "-c lock_timeout=5s",
   });
+  await migrationClient.connect();
+  try {
+    // Initial migration skipped manually for graphile-migrate -> drizzle migration
+    await migrate(drizzle({ client: migrationClient }), {
+      migrationsFolder: "./drizzle",
+    });
+  } finally {
+    await migrationClient.end();
+  }
+
+  // 1 connection is enough for ongoing health probes
+  const db = initDatabase(secrets.DATABASE_URL, 1);
 
   // ---------------------------------------------------------------------------
   // Initialize main process core components

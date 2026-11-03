@@ -1,3 +1,5 @@
+import { escapeMarkdown } from "discord.js";
+
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 
 export const REASON_EMOJIS = [
@@ -21,9 +23,9 @@ export function reasonHeading(
   state: ReasonDeliveryState,
 ): string {
   if (state.sent) {
-    return `**${withEmoji(emojis.additional_message, "Reason")}** · sent to ${state.to} by DM`;
+    return `**${withEmoji(emojis.additional_message, "Reason")}** · sent to ${escapeMarkdown(state.to)} by DM`;
   }
 
-  const why = state.why ? ` (${state.why})` : "";
+  const why = state.why ? ` (${escapeMarkdown(state.why)})` : "";
   return `**${withEmoji(emojis.reason, "Reason")}** · not sent${why}`;
 }

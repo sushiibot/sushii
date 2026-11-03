@@ -20,6 +20,10 @@ function toBigInt(id: string | null): bigint | null {
   return id === null ? null : BigInt(id);
 }
 
+function withoutBlanks(attachments: string[]): string[] {
+  return attachments.filter((url) => url.trim() !== "");
+}
+
 function mapRow(row: ProofRow): CaseProof {
   return {
     id: row.id.toString(),
@@ -55,7 +59,7 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
             authorId: toBigInt(proof.authorId),
             createdAt: proof.createdAt,
             content: proof.content,
-            attachments: proof.attachments,
+            attachments: withoutBlanks(proof.attachments),
             sourceMessageUrl: proof.sourceMessageUrl,
             sourceAuthorId: toBigInt(proof.sourceAuthorId),
             sourceContent: proof.sourceContent,
@@ -135,7 +139,7 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
       .select({
         caseId: modLogProofsInAppPublic.caseId,
         entries: sql<number>`count(*)::int`,
-        files: sql<number>`coalesce(sum(cardinality(${modLogProofsInAppPublic.attachments})), 0)::int`,
+        files: sql<number>`coalesce(sum(cardinality(array_remove(${modLogProofsInAppPublic.attachments}, ''))), 0)::int`,
       })
       .from(modLogProofsInAppPublic)
       .where(
@@ -164,7 +168,7 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
     await this.db
       .update(modLogProofsInAppPublic)
       .set({
-        attachments: hosting.attachments,
+        attachments: withoutBlanks(hosting.attachments),
         hostMessageId: toBigInt(hosting.hostMessageId),
       })
       .where(

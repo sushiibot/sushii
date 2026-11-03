@@ -13,6 +13,11 @@ export function buildAddProofCustomId(caseIds: string[]): string {
   if (!encoded) {
     throw new Error("Add proof custom ID needs at least one case ID");
   }
+  if (decodeCaseIds(encoded)?.length !== new Set(caseIds).size) {
+    throw new Error("Add proof custom ID can't encode every case ID", {
+      cause: { caseIds },
+    });
+  }
 
   const customId = ADD_PROOF_PREFIX + encoded;
   if (customId.length > CUSTOM_ID_MAX_LENGTH) {

@@ -103,6 +103,23 @@ describe("proofEntryText", () => {
     );
   });
 
+  test("escapes masked links, headings and lists in the quoted message", () => {
+    const text = proofEntryText(
+      makeProof({
+        sourceAuthorId: AUTHOR,
+        sourceContent:
+          "[discord.com/gift](https://evil.example/x)\n# Free nitro\n- claim\n1. now",
+      }),
+      EMOJIS,
+    );
+
+    expect(text).toContain("> \\[discord.com/gift](https://evil.example/x)");
+    expect(text).not.toMatch(/(^|[^\\])\[discord\.com\/gift\]\(/);
+    expect(text).toContain("> \\# Free nitro");
+    expect(text).toContain("> \\- claim");
+    expect(text).toContain("> 1\\. now");
+  });
+
   test("keeps URLs raw and never truncates", () => {
     const long = `${"a".repeat(990)} https://example.com/evidence`;
     const text = proofEntryText(makeProof({ content: long }), EMOJIS);
@@ -126,6 +143,19 @@ describe("proofMediaUrls / proofFileLinks", () => {
       "https://x/b.mp4",
     ]);
     expect(proofFileLinks(proofs)).toEqual(["https://x/log.txt"]);
+  });
+});
+
+describe("proofMediaUrls overflow", () => {
+  test("media past the 10-item gallery go to the file links", () => {
+    const urls = Array.from(
+      { length: 11 },
+      (_, i) => `https://x/shot-${i + 1}.png`,
+    );
+    const proofs = [makeProof({ attachments: urls })];
+
+    expect(proofMediaUrls(proofs)).toEqual(urls.slice(0, 10));
+    expect(proofFileLinks(proofs)).toEqual(["https://x/shot-11.png"]);
   });
 });
 
