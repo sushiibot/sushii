@@ -158,6 +158,7 @@ function makePopulatedData(): ModViewResult {
       nickname: "Suspicious Group",
     }),
     standing: null,
+    proofCounts: new Map(),
   };
 }
 
@@ -179,6 +180,7 @@ function makeEmptyData(): ModViewResult {
     names: { userInfo, history: [], eligibilityDenied: false },
     identity: null,
     standing: null,
+    proofCounts: new Map(),
   };
 }
 

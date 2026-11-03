@@ -8,17 +8,21 @@ import {
   spansMultipleUsers,
 } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { CaseProofCounts } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { chunkItems } from "@/shared/presentation/packLines";
 import { countWithNoun } from "@/shared/presentation/pluralize";
 
 import { MODVIEW_CUSTOM_IDS } from "../../customIds";
-import { buildAttachmentSelect } from "../CaseAttachmentsView";
+import { buildCaseSelect } from "../CaseView";
 import type { ModViewTabContentBuilder } from "../ModViewMessageBuilder";
 import {
   addScopeBlockWithAction,
   addStateLine,
   addSubtextBlock,
 } from "../components/ModViewChrome";
+
+/** The "View case…" select lists every case on a page, and a select holds 25 options. */
+export const HISTORY_PAGE_MAX_CASES = 25;
 
 /**
  * Bins the target's cases (already filtered by the caller, e.g. by
@@ -30,14 +34,27 @@ export function buildHistoryTabPages(
   cases: ModerationCase[],
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
   showTargetMention: boolean,
+  proofCounts: ReadonlyMap<string, CaseProofCounts> = new Map(),
 ): ModerationCase[][] {
   // `cases` (from UserHistoryResult.moderationHistory) is oldest-first
   // ascending by case ID; reverse so page 1 bins the most recent cases.
   const casesNewestFirst = [...cases].reverse();
 
   const bins = chunkItems(casesNewestFirst, (c) =>
-    formatModerationCase(c, emojis, showTargetMention, true),
-  );
+    formatModerationCase(
+      c,
+      emojis,
+      showTargetMention,
+      true,
+      proofCounts.get(c.caseId),
+    ),
+  ).flatMap((bin) => {
+    const capped: ModerationCase[][] = [];
+    for (let i = 0; i < bin.length; i += HISTORY_PAGE_MAX_CASES) {
+      capped.push(bin.slice(i, i + HISTORY_PAGE_MAX_CASES));
+    }
+    return capped;
+  });
 
   return bins.map((bin) => [...bin].reverse());
 }
@@ -63,6 +80,7 @@ export function deriveHistoryTabView(
   viewedUserId: string,
   emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
   includeAltsPreference: boolean | undefined,
+  proofCounts: ReadonlyMap<string, CaseProofCounts>,
 ): HistoryTabView {
   const hasLinkedIdentity =
     !!history.linkedIdentity && history.linkedIdentity.members.length > 1;
@@ -81,7 +99,12 @@ export function deriveHistoryTabView(
     includeAlts,
     filteredCases,
     showTargetMention,
-    pages: buildHistoryTabPages(filteredCases, emojis, showTargetMention),
+    pages: buildHistoryTabPages(
+      filteredCases,
+      emojis,
+      showTargetMention,
+      proofCounts,
+    ),
   };
 }
 
@@ -148,6 +171,7 @@ export const addHistoryTabContent: ModViewTabContentBuilder = (
     data.userInfo.id,
     emojis,
     options.includeAlts,
+    data.proofCounts,
   );
 
   const scopeText = buildScopeText(
@@ -181,13 +205,21 @@ export const addHistoryTabContent: ModViewTabContentBuilder = (
   }
 
   const body = pageCases
-    .map((c) => formatModerationCase(c, emojis, showTargetMention, true))
+    .map((c) =>
+      formatModerationCase(
+        c,
+        emojis,
+        showTargetMention,
+        true,
+        data.proofCounts.get(c.caseId),
+      ),
+    )
     .join("\n");
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(body));
 
-  const attachmentSelect = buildAttachmentSelect(pageCases, disabled);
-  if (attachmentSelect) {
-    container.addActionRowComponents(attachmentSelect);
+  const caseSelect = buildCaseSelect(pageCases, emojis, disabled);
+  if (caseSelect) {
+    container.addActionRowComponents(caseSelect);
   }
 };

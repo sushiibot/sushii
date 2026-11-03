@@ -80,6 +80,7 @@ function render(
     names: { userInfo, history, eligibilityDenied: false },
     identity: null,
     standing: null,
+    proofCounts: new Map(),
   };
 
   const options: ModViewTabContentOptions = {

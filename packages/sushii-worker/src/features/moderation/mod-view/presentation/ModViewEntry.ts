@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import type { SetNicknameService } from "@/features/alt-accounts/application/SetNicknameService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { getErrorMessage } from "@/interactions/responses/error";
 
 import type { ModViewService } from "../application/ModViewService";
@@ -15,6 +16,7 @@ export interface ModViewDependencies {
   modViewService: ModViewService;
   emojiRepository: BotEmojiRepository;
   setNicknameService: SetNicknameService;
+  caseProofRepository: CaseProofRepository;
   logger: Logger;
 }
 
@@ -76,6 +78,7 @@ export async function openModView(
     member,
     emojis,
     deps.setNicknameService,
+    deps.caseProofRepository,
     deps.logger,
     initialTab,
     ephemeral,

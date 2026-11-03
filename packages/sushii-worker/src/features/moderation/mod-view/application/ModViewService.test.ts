@@ -6,11 +6,13 @@ import { Err, Ok } from "ts-results";
 
 import type { AltAccountRepository } from "@/features/alt-accounts/domain/repositories";
 import { makeAltIdentity } from "@/test/fixtures/altIdentity";
+import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
 import type { HistoryUserService } from "../../cases/application/HistoryUserService";
 import type { LookupUserService } from "../../cases/application/LookupUserService";
 import type { NamesUserService } from "../../cases/application/NamesUserService";
 import { TempBan } from "../../shared/domain/entities/TempBan";
+import type { CaseProofRepository } from "../../shared/domain/repositories/CaseProofRepository";
 import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import { TimeoutDetectionService } from "../../shared/domain/services/TimeoutDetectionService";
 import type { UserInfo } from "../../shared/domain/types/UserInfo";
@@ -74,6 +76,7 @@ describe("ModViewService", () => {
   let namesUserService: NamesUserService;
   let altAccountRepository: AltAccountRepository;
   let tempBanRepository: TempBanRepository;
+  let caseProofRepository: CaseProofRepository;
   const timeoutDetectionService = new TimeoutDetectionService();
 
   beforeEach(() => {
@@ -117,6 +120,10 @@ describe("ModViewService", () => {
     tempBanRepository = {
       findByGuildAndUserId: mock(() => Promise.resolve(null)),
     } as unknown as TempBanRepository;
+
+    caseProofRepository = {
+      countsByCases: mock(() => Promise.resolve(new Map())),
+    } as unknown as CaseProofRepository;
   });
 
   function makeService(client: Client) {
@@ -128,9 +135,42 @@ describe("ModViewService", () => {
       altAccountRepository,
       tempBanRepository,
       timeoutDetectionService,
+      caseProofRepository,
       testLogger,
     );
   }
+
+  it("loads proof counts for every history case", async () => {
+    const cases = [
+      makeModerationCase({ guildId: GUILD_ID, caseId: "4", userId: USER_ID }),
+      makeModerationCase({ guildId: GUILD_ID, caseId: "7", userId: USER_ID }),
+    ];
+    historyUserService = {
+      getUserHistory: mock(() =>
+        Promise.resolve(
+          Ok({
+            userInfo,
+            moderationHistory: cases,
+            totalCases: 2,
+            linkedIdentity: null,
+          }),
+        ),
+      ),
+    } as unknown as HistoryUserService;
+    const counts = new Map([["7", { entries: 2, files: 3 }]]);
+    caseProofRepository = {
+      countsByCases: mock(() => Promise.resolve(counts)),
+    } as unknown as CaseProofRepository;
+
+    const service = makeService(makeClient({ guild: { public: false } }));
+    const result = await service.getModView(GUILD_ID, USER_ID, null);
+
+    expect(caseProofRepository.countsByCases).toHaveBeenCalledWith(GUILD_ID, [
+      "4",
+      "7",
+    ]);
+    expect(result.ok && result.val.proofCounts).toBe(counts);
+  });
 
   it("resolves without throwing for a target with no data at all", async () => {
     const service = makeService(makeClient({ guild: { public: false } }));

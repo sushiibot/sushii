@@ -89,7 +89,13 @@ export const addOverviewTabContent: ModViewTabContentBuilder = (
 
     const entriesText = recentCases
       .map((c) =>
-        formatModerationCase(c, emojis, c.userId !== userInfo.id, true),
+        formatModerationCase(
+          c,
+          emojis,
+          c.userId !== userInfo.id,
+          true,
+          data.proofCounts.get(c.caseId),
+        ),
       )
       .join("\n");
 

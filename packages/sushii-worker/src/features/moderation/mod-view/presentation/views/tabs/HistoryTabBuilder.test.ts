@@ -143,6 +143,7 @@ function makeData(overrides: {
     names: { userInfo, history: [], eligibilityDenied: false },
     identity: null,
     standing: null,
+    proofCounts: new Map(),
   };
 }
 
@@ -220,6 +221,7 @@ describe("HistoryTabBuilder — linked-account filter", () => {
       TARGET_ID,
       emojis,
       false,
+      data.proofCounts,
     );
 
     const { texts } = render(data, { includeAlts: false });
@@ -323,5 +325,60 @@ describe("HistoryTabBuilder — ordering", () => {
     expect(Number(firstPage[0].caseId)).toBeGreaterThan(
       Number(secondPage.at(-1)?.caseId),
     );
+  });
+});
+
+describe("HistoryTabBuilder — View case select", () => {
+  it("caps a page at the select's 25 options", () => {
+    const cases = Array.from({ length: 30 }, (_, i) =>
+      makeCase({ caseId: `${i + 1}` }),
+    );
+
+    const pages = buildHistoryTabPages(cases, emojis, false);
+
+    expect(pages.map((p) => p.length)).toEqual([25, 5]);
+    expect(pages[0].at(-1)?.caseId).toBe("30");
+  });
+
+  it("lists every case on the page", () => {
+    const cases = Array.from({ length: 3 }, (_, i) =>
+      makeCase({ caseId: `${i + 1}` }),
+    );
+    const container = new ContainerBuilder();
+    addHistoryTabContent(
+      container,
+      baseOptions(makeData({ moderationHistory: cases })),
+    );
+
+    const json = container.toJSON() as unknown as {
+      components: {
+        type: number;
+        components?: { custom_id?: string; options?: { value: string }[] }[];
+      }[];
+    };
+    const select = json.components
+      .flatMap((c) => c.components ?? [])
+      .find((c) => c.custom_id === MODVIEW_CUSTOM_IDS.historyCase);
+
+    expect(select?.options?.map((o) => o.value)).toEqual(["1", "2", "3"]);
+  });
+
+  it("counts proof lines when packing pages", () => {
+    const cases = Array.from({ length: 25 }, (_, i) =>
+      makeModerationCase({
+        guildId: GUILD_ID,
+        caseId: `${i + 1}`,
+        userId: TARGET_ID,
+        reason: "x".repeat(100),
+      }),
+    );
+    const counts = new Map(
+      cases.map((c) => [c.caseId, { entries: 5, files: 5 }]),
+    );
+
+    const without = buildHistoryTabPages(cases, emojis, false);
+    const withProof = buildHistoryTabPages(cases, emojis, false, counts);
+
+    expect(withProof[0].length).toBeLessThan(without[0].length);
   });
 });

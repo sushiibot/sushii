@@ -1,0 +1,266 @@
+import {
+  ActionRowBuilder,
+  ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  MessageFlags,
+  SectionBuilder,
+  SeparatorBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  TextDisplayBuilder,
+} from "discord.js";
+
+import {
+  type HistoryEmojis,
+  reasonDelivery,
+} from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import {
+  addProofButton,
+  proofEntryText,
+  proofFileLinks,
+  proofHeading,
+  proofMediaUrls,
+} from "@/features/moderation/shared/presentation/proof/proofBlock";
+import {
+  reasonHeading,
+  withEmoji,
+} from "@/features/moderation/shared/presentation/proof/reasonBlock";
+import {
+  formatActionType,
+  formatActionTypeAsSentence,
+  getActionTypeBotEmoji,
+  getActionTypeColor,
+} from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
+import dayjs from "@/shared/domain/dayjs";
+import Color from "@/utils/colors";
+import { truncateText } from "@/utils/truncateText";
+
+import { MODVIEW_CUSTOM_IDS } from "../customIds";
+
+const SELECT_MAX_OPTIONS = 25;
+const SELECT_TEXT_MAX_LENGTH = 100;
+
+/** Discord's cap on all Text Display content in one message. */
+export const CASE_VIEW_TEXT_MAX = 4000;
+
+const NO_PROOF_LINE =
+  "-# None yet. Add screenshots, message links or context for other mods.";
+
+/** Opens any case on the current page; null for an empty page. */
+export function buildCaseSelect(
+  pageCases: readonly ModerationCase[],
+  emojis: HistoryEmojis,
+  disabled: boolean,
+  now: Date = new Date(),
+): ActionRowBuilder<StringSelectMenuBuilder> | null {
+  if (pageCases.length === 0) {
+    return null;
+  }
+
+  const options = pageCases.slice(0, SELECT_MAX_OPTIONS).map((c) => {
+    const age = dayjs(c.actionTime).from(now);
+    const option = new StringSelectMenuOptionBuilder()
+      .setValue(c.caseId)
+      .setLabel(
+        truncateText(
+          `#${c.caseId} ${formatActionTypeAsSentence(c.actionType)} · ${age}`,
+          SELECT_TEXT_MAX_LENGTH,
+        ),
+      );
+
+    const reason = c.reason?.value.replace(/\s+/g, " ").trim();
+    if (reason) {
+      option.setDescription(truncateText(reason, SELECT_TEXT_MAX_LENGTH));
+    }
+
+    const emoji = emojis[getActionTypeBotEmoji(c.actionType)];
+    if (emoji) {
+      option.setEmoji(emoji);
+    }
+
+    return option;
+  });
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(MODVIEW_CUSTOM_IDS.historyCase)
+      .setPlaceholder("View case…")
+      .setDisabled(disabled)
+      .addOptions(options),
+  );
+}
+
+export interface CaseViewOptions {
+  /** Whether the DM carried the server's custom text for this action. */
+  serverDmTextIncluded: boolean;
+}
+
+function headerText(moderationCase: ModerationCase, emojis: HistoryEmojis) {
+  const emoji = emojis[getActionTypeBotEmoji(moderationCase.actionType)];
+  const title = `${formatActionTypeAsSentence(moderationCase.actionType)} · Case #${moderationCase.caseId}`;
+  const by = moderationCase.executorId
+    ? ` · by <@${moderationCase.executorId}>`
+    : "";
+  const at = dayjs.utc(moderationCase.actionTime).unix();
+
+  return `### ${withEmoji(emoji, title)}\n<@${moderationCase.userId}>${by} · <t:${at}:R>`;
+}
+
+function reasonText(
+  moderationCase: ModerationCase,
+  emojis: HistoryEmojis,
+  opts: CaseViewOptions,
+): string {
+  const reason = moderationCase.reason?.value;
+
+  if (moderationCase.actionType === ActionType.Note) {
+    const heading = `**${withEmoji(emojis.lock, "Note")}** · mods only`;
+    return `${heading}\n${reason ?? "-# No text"}`;
+  }
+
+  const delivery = reasonDelivery(moderationCase);
+  const heading = reasonHeading(
+    emojis,
+    delivery.sent
+      ? { sent: true, to: "user" }
+      : { sent: false, why: delivery.why ?? undefined },
+  );
+
+  let s = `${heading}\n${reason ?? "-# No reason given"}`;
+  if (delivery.sent && opts.serverDmTextIncluded) {
+    s += `\n-# Also included your server's ${formatActionType(moderationCase.actionType)} message`;
+  }
+
+  return s;
+}
+
+/** How many entries fit, each joined with "\n", after `used` chars. */
+function packEntries(
+  entries: readonly string[],
+  used: number,
+  budget: number,
+): number {
+  let count = 0;
+  for (const entry of entries) {
+    const cost = entry.length + 1;
+    if (used + cost > budget) {
+      break;
+    }
+    used += cost;
+    count++;
+  }
+
+  return count;
+}
+
+function moreProofHeading(
+  moderationCase: ModerationCase,
+  emojis: HistoryEmojis,
+): string {
+  return `**${withEmoji(emojis.lock, `More proof · Case #${moderationCase.caseId}`)}**`;
+}
+
+function caseViewMessage(container: ContainerBuilder) {
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  } as const;
+}
+
+export type CaseViewMessage = ReturnType<typeof caseViewMessage>;
+
+/**
+ * Read-only private view of one case: the reason as the user got it, then
+ * every proof entry in full. Proof that would push past Discord's text cap
+ * moves to follow-up messages rather than being cut.
+ */
+export function buildCaseViewMessages(
+  moderationCase: ModerationCase,
+  proofs: readonly CaseProof[],
+  emojis: HistoryEmojis,
+  opts: CaseViewOptions,
+): CaseViewMessage[] {
+  const header = headerText(moderationCase, emojis);
+  const reason = reasonText(moderationCase, emojis, opts);
+  const heading = proofHeading(emojis);
+  const entries = proofs.map((p) => proofEntryText(p, emojis));
+  const media = proofMediaUrls(proofs);
+  const links = proofFileLinks(proofs);
+  const linksText = links.join("\n");
+
+  const fixed = header.length + reason.length + heading.length;
+  const shown = packEntries(entries, fixed, CASE_VIEW_TEXT_MAX);
+  const spilled = entries.slice(shown);
+
+  const sectionText =
+    entries.length === 0
+      ? `${heading}\n${NO_PROOF_LINE}`
+      : [heading, ...entries.slice(0, shown)].join("\n");
+
+  // Links stay with the gallery unless proof already spilled or they'd overflow.
+  const linksOnFirst =
+    links.length > 0 &&
+    spilled.length === 0 &&
+    fixed + (sectionText.length - heading.length) + linksText.length <=
+      CASE_VIEW_TEXT_MAX;
+
+  const accent = getActionTypeColor(moderationCase.actionType) ?? Color.Info;
+  const container = new ContainerBuilder()
+    .setAccentColor(accent)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(header))
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(reason))
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(sectionText),
+        )
+        .setButtonAccessory(addProofButton([moderationCase.caseId], emojis)),
+    );
+
+  if (media.length > 0) {
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        media.map((url) => new MediaGalleryItemBuilder().setURL(url)),
+      ),
+    );
+  }
+
+  if (linksOnFirst) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(linksText),
+    );
+  }
+
+  const messages = [caseViewMessage(container)];
+
+  const overflow =
+    linksOnFirst || links.length === 0 ? spilled : [...spilled, linksText];
+  const moreHeading = moreProofHeading(moderationCase, emojis);
+
+  let rest = overflow;
+  while (rest.length > 0) {
+    // A lone oversized entry still goes out on its own rather than looping.
+    const take = Math.max(
+      1,
+      packEntries(rest, moreHeading.length, CASE_VIEW_TEXT_MAX),
+    );
+    const text = [moreHeading, ...rest.slice(0, take)].join("\n");
+    messages.push(
+      caseViewMessage(
+        new ContainerBuilder()
+          .setAccentColor(accent)
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(text)),
+      ),
+    );
+    rest = rest.slice(take);
+  }
+
+  return messages;
+}

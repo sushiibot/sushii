@@ -51,6 +51,7 @@ export function createModViewDependencies(
     deps.altAccountRepository,
     deps.tempBanRepository,
     deps.timeoutDetectionService,
+    deps.caseProofRepository,
     deps.logger.child({ module: "modViewService" }),
   );
 
@@ -58,6 +59,7 @@ export function createModViewDependencies(
     modViewService,
     emojiRepository: deps.emojiRepository,
     setNicknameService: deps.setNicknameService,
+    caseProofRepository: deps.caseProofRepository,
     logger: deps.logger.child({ feature: "modView" }),
   };
 }

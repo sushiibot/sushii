@@ -5,9 +5,12 @@ import { pino } from "pino";
 
 import type { EmojiMap } from "@/features/bot-emojis";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
+import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
 import type { ModViewResult } from "../application/ModViewService";
 import { ModViewSession } from "./ModViewSession";
+import { MODVIEW_CUSTOM_IDS } from "./customIds";
 
 const GUILD_ID = "111111111111111111";
 const TARGET_ID = "222222222222222222";
@@ -56,6 +59,7 @@ function makeEmptyData(): ModViewResult {
     },
     identity: null,
     standing: null,
+    proofCounts: new Map(),
   };
 }
 
@@ -112,6 +116,8 @@ describe("ModViewSession expiry", () => {
       mockEmojis,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
       pino({ level: "silent" }),
     );
 
@@ -149,6 +155,8 @@ describe("ModViewSession ephemeral", () => {
       mockEmojis,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
       pino({ level: "silent" }),
     );
 
@@ -170,6 +178,8 @@ describe("ModViewSession ephemeral", () => {
       mockEmojis,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
       pino({ level: "silent" }),
       "overview",
       true,
@@ -181,5 +191,56 @@ describe("ModViewSession ephemeral", () => {
     expect((replyArg?.flags as number) & MessageFlags.Ephemeral).toBe(
       MessageFlags.Ephemeral,
     );
+  });
+});
+
+describe("ModViewSession View case select", () => {
+  it("clears the pick and sends the picked case privately", async () => {
+    const { interaction, collectorHandlers } = makeInteraction();
+    const data = makeEmptyData();
+    const moderationCase = makeModerationCase({
+      guildId: GUILD_ID,
+      caseId: "7",
+      userId: TARGET_ID,
+      reason: "spam",
+    });
+    data.history.moderationHistory = [moderationCase];
+    data.history.totalCases = 1;
+
+    const caseProofRepository = {
+      listByCase: mock(() => Promise.resolve([])),
+    } as unknown as CaseProofRepository;
+
+    const session = new ModViewSession(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      interaction as any,
+      data,
+      makeUser(),
+      null,
+      mockEmojis,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
+      caseProofRepository,
+      pino({ level: "silent" }),
+    );
+    await session.start();
+
+    const select = {
+      user: { id: EXECUTOR_ID },
+      customId: MODVIEW_CUSTOM_IDS.historyCase,
+      values: ["7"],
+      isStringSelectMenu: () => true,
+      isButton: () => false,
+      update: mock(() => Promise.resolve()),
+      followUp: mock((_message: { flags: number }) => Promise.resolve()),
+    };
+    await collectorHandlers.collect(select);
+
+    expect(caseProofRepository.listByCase).toHaveBeenCalledWith(GUILD_ID, "7");
+    expect(select.update).toHaveBeenCalledTimes(1);
+    expect(select.followUp).toHaveBeenCalledTimes(1);
+    const sent = select.followUp.mock.calls[0][0];
+    expect(sent.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
+    expect(JSON.stringify(sent)).toContain("Case #7");
   });
 });

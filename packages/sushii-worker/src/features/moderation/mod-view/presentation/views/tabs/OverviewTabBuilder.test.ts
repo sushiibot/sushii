@@ -118,6 +118,7 @@ function makeData(overrides: {
   moderationHistory?: ModerationCase[];
   namesHistory?: UserNameHistoryEntry[];
   namesEligibilityDenied?: boolean;
+  proofCounts?: ModViewResult["proofCounts"];
 }): ModViewResult {
   const moderationHistory = overrides.moderationHistory ?? [];
 
@@ -137,6 +138,7 @@ function makeData(overrides: {
     },
     identity: null,
     standing: null,
+    proofCounts: overrides.proofCounts ?? new Map(),
   };
 }
 
@@ -273,7 +275,7 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
     expect(texts).not.toContain(withPrepositions);
   });
 
-  it("preserves timeout duration and the attachment count", () => {
+  it("preserves timeout duration and shows the proof count", () => {
     const moderationCase = ModerationCase.create(
       GUILD_ID,
       "1",
@@ -283,16 +285,26 @@ describe("OverviewTabBuilder — most recent case rendering", () => {
       EXECUTOR_ID,
       Reason.create("spamming").unwrap(),
       undefined,
-      ["https://cdn.discordapp.com/attachments/1/2/proof.png"],
+      [],
       3600,
     );
+    const counts = { entries: 1, files: 1 };
 
-    const data = makeData({ moderationHistory: [moderationCase] });
+    const data = makeData({
+      moderationHistory: [moderationCase],
+      proofCounts: new Map([["1", counts]]),
+    });
     const { texts } = renderOverview(data);
 
-    const expected = formatModerationCase(moderationCase, emojis, false, true);
+    const expected = formatModerationCase(
+      moderationCase,
+      emojis,
+      false,
+      true,
+      counts,
+    );
     expect(texts).toContain(expected);
     expect(expected).toContain("hour");
-    expect(expected).toContain("1 attachment");
+    expect(expected).toContain(":lock: 1 proof · :attachment: 1 file");
   });
 });

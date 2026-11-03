@@ -70,7 +70,6 @@ function makeCase(
   actionType: ActionType,
   userId: string,
   reason: string | null = null,
-  attachments: string[] = [],
 ): ModerationCase {
   return new ModerationCase(
     GUILD_ID,
@@ -81,8 +80,6 @@ function makeCase(
     "TestUser#0001",
     EXECUTOR_ID,
     Reason.create(reason).unwrap(),
-    null,
-    attachments,
   );
 }
 
@@ -100,16 +97,11 @@ function makeFullData(): ModViewResult {
   });
 
   const moderationHistory = [
-    // Attachments put the History tab's "View attachments" picker in the budget.
-    makeCase("1", ActionType.Ban, TARGET_ID, "spamming", [
-      "https://cdn.discordapp.com/attachments/1/2/proof.png",
-    ]),
+    makeCase("1", ActionType.Ban, TARGET_ID, "spamming"),
     makeCase("2", ActionType.BanRemove, TARGET_ID),
     makeCase("3", ActionType.Timeout, ALT_ID, "harassment"),
     makeCase("4", ActionType.TimeoutRemove, ALT_ID),
-    makeCase("5", ActionType.Warn, TARGET_ID, "rule 3", [
-      "https://cdn.discordapp.com/attachments/1/3/log.txt",
-    ]),
+    makeCase("5", ActionType.Warn, TARGET_ID, "rule 3"),
     makeCase("6", ActionType.Note, TARGET_ID, "watch this user"),
   ];
 
@@ -201,6 +193,11 @@ function makeFullData(): ModViewResult {
     },
     identity,
     standing: null,
+    // Proof lines count toward the History tab's text budget.
+    proofCounts: new Map([
+      ["1", { entries: 3, files: 2 }],
+      ["5", { entries: 1, files: 0 }],
+    ]),
   };
 }
 
@@ -234,6 +231,7 @@ function makeEmptyData(): ModViewResult {
     },
     identity: null,
     standing: null,
+    proofCounts: new Map(),
   };
 }
 

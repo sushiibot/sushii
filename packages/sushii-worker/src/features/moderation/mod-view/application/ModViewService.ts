@@ -19,6 +19,10 @@ import type {
   NamesUserService,
 } from "../../cases/application/NamesUserService";
 import { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
+import type {
+  CaseProofCounts,
+  CaseProofRepository,
+} from "../../shared/domain/repositories/CaseProofRepository";
 import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import { isPublicServer } from "../../shared/domain/services/PublicServerValidationService";
 import type { TimeoutDetectionService } from "../../shared/domain/services/TimeoutDetectionService";
@@ -49,6 +53,8 @@ export interface ModViewResult {
    * the signal, so don't add one for the presentation layer to branch on.
    */
   standing: ModViewStanding | null;
+  /** Keyed by case ID; cases without proof are absent. */
+  proofCounts: ReadonlyMap<string, CaseProofCounts>;
 }
 
 export class ModViewService {
@@ -60,6 +66,7 @@ export class ModViewService {
     private readonly altAccountRepository: AltAccountRepository,
     private readonly tempBanRepository: TempBanRepository,
     private readonly timeoutDetectionService: TimeoutDetectionService,
+    private readonly caseProofRepository: CaseProofRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -126,6 +133,11 @@ export class ModViewService {
       return Err(identityResult.val);
     }
 
+    const proofCounts = await this.caseProofRepository.countsByCases(
+      guildId,
+      historyResult.val.moderationHistory.map((c) => c.caseId),
+    );
+
     const timeoutExpiration = member
       ? this.timeoutDetectionService.getCurrentTimeoutExpiration(
           new ModerationTarget(member.user, member),
@@ -149,6 +161,7 @@ export class ModViewService {
       names: namesResult.val,
       identity: identityResult.val,
       standing,
+      proofCounts,
     });
   }
 }

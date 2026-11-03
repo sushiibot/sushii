@@ -25,12 +25,13 @@ import type { EmojiMap } from "@/features/bot-emojis";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import type { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
 import type { ModViewResult } from "../application/ModViewService";
 import { MODVIEW_CUSTOM_IDS } from "./customIds";
-import { buildCaseAttachmentsMessage } from "./views/CaseAttachmentsView";
+import { buildCaseViewMessages } from "./views/CaseView";
 import {
   MODVIEW_IDLE_TIMEOUT_MS,
   createModViewMessage,
@@ -107,6 +108,7 @@ export class ModViewSession {
     private readonly targetMember: GuildMember | null,
     private readonly emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
     private readonly setNicknameService: SetNicknameService,
+    private readonly caseProofRepository: CaseProofRepository,
     private readonly logger: Logger,
     initialTab: ModViewTab = "overview",
     private readonly ephemeral = false,
@@ -254,7 +256,7 @@ export class ModViewSession {
   private async handleSelect(
     i: StringSelectMenuInteraction<"cached">,
   ): Promise<void> {
-    if (i.customId !== MODVIEW_CUSTOM_IDS.historyAttachments) {
+    if (i.customId !== MODVIEW_CUSTOM_IDS.historyCase) {
       this.logger.warn(
         { customId: i.customId, targetId: this.targetUser.id },
         "Unknown mod view select",
@@ -265,6 +267,12 @@ export class ModViewSession {
     const moderationCase = this.data.history.moderationHistory.find(
       (c) => c.caseId === i.values[0],
     );
+    const proofs = moderationCase
+      ? await this.caseProofRepository.listByCase(
+          this.interaction.guildId,
+          moderationCase.caseId,
+        )
+      : [];
 
     // Re-rendering clears the pick, so the same case can be opened again.
     await i.update(
@@ -273,8 +281,19 @@ export class ModViewSession {
         : this.renderScreen({ disabled: false }),
     );
 
-    if (moderationCase) {
-      await i.followUp(buildCaseAttachmentsMessage(moderationCase, this.emojis));
+    if (!moderationCase) {
+      return;
+    }
+
+    // Guild config isn't in the mod view's deps, so the server DM text note is omitted.
+    const messages = buildCaseViewMessages(
+      moderationCase,
+      proofs,
+      this.emojis,
+      { serverDmTextIncluded: false },
+    );
+    for (const message of messages) {
+      await i.followUp(message);
     }
   }
 
@@ -413,6 +432,7 @@ export class ModViewSession {
       this.data.userInfo.id,
       this.emojis,
       this.includeAlts,
+      this.data.proofCounts,
     );
 
     return this.createBinPaginator(

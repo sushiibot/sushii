@@ -3,11 +3,21 @@ import { describe, expect, it } from "bun:test";
 import type { EmojiMap } from "@/features/bot-emojis";
 import { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
-import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
-import { chunkItems } from "@/shared/presentation/packLines";
+import {
+  REASON_MAX_LENGTH,
+  Reason,
+} from "@/features/moderation/shared/domain/value-objects/Reason";
+import {
+  TAB_CONTENT_CHAR_BUDGET,
+  chunkItems,
+} from "@/shared/presentation/packLines";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
-import { HISTORY_ACTION_EMOJIS, formatModerationCase } from "./HistoryView";
+import {
+  HISTORY_ACTION_EMOJIS,
+  formatModerationCase,
+  reasonDelivery,
+} from "./HistoryView";
 
 const GUILD_ID = "111111111111111111";
 const USER_A = "222222222222222222";
@@ -24,6 +34,21 @@ function makeCase(userId: string, caseId: string) {
     userId,
     executorId: USER_A,
   });
+}
+
+function makeReasonCase(
+  reason: string,
+  actionType: ActionType = ActionType.Warn,
+) {
+  return ModerationCase.create(
+    GUILD_ID,
+    "1",
+    actionType,
+    USER_A,
+    "TestUser#0001",
+    USER_B,
+    Reason.create(reason).unwrap(),
+  );
 }
 
 /** Exercises `chunkItems` the same way `buildHistoryTabPages` does, without pulling in the mod-view module. */
@@ -55,63 +80,157 @@ describe("formatModerationCase", () => {
     expect(line).toContain(`on <@${USER_B}>`);
   });
 
-  it("keeps a case with a huge reason and many attachments under the limit", () => {
-    // Newline-heavy reason: quoteMarkdownString prefixes "> " per line, so a
-    // 1024-char reason of alternating "a\n" balloons well past its raw length.
-    const hugeReason = "a\n".repeat(512).slice(0, 1024);
-    const manyAttachments = Array.from(
-      { length: 10 },
-      (_, i) =>
-        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222n + BigInt(i)}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
-    );
+  it("quotes a delivered reason with the sent emoji", () => {
+    const c = makeReasonCase("Spamming invite links").withDMResult({
+      channelId: "1",
+      messageId: "2",
+    });
 
-    const moderationCase = ModerationCase.create(
-      GUILD_ID,
-      "1",
-      ActionType.Warn,
-      USER_A,
-      "TestUser#0001",
-      USER_A,
-      Reason.create(hugeReason).unwrap(),
-      undefined,
-      manyAttachments,
-    );
+    const line = formatModerationCase(c, emojis);
 
-    const line = formatModerationCase(moderationCase, emojis);
-
-    expect(line.length).toBeLessThan(3700);
-    expect(line).toContain(`${emojis.attachment} 10 attachments`);
-    expect(line).not.toContain("cdn.discordapp.com");
-    // The head — identifier, type, attribution, timestamp — must survive intact.
-    expect(line).toContain("`#1`");
-    expect(line).toContain(":R>");
+    expect(line).toContain("\n> :additional_message: Spamming invite links");
+    expect(line).not.toContain("Not sent");
   });
 
-  it("never throws building a page from a case with a huge reason and many attachments", () => {
-    const hugeReason = "a\n".repeat(512).slice(0, 1024);
-    const manyAttachments = Array.from(
-      { length: 10 },
-      (_, i) =>
-        `https://cdn.discordapp.com/attachments/111111111111111111/${222222222222222222n + BigInt(i)}/${"f".repeat(80)}-${i}.png?ex=aaaaaaaa&is=bbbbbbbb&hm=${"c".repeat(64)}`,
+  it("marks a reason that wasn't sent, with why", () => {
+    const c = makeReasonCase("Ignoring mods", ActionType.Kick).withDMIntent(
+      false,
+      "guild_default",
     );
 
-    const moderationCase = ModerationCase.create(
+    const line = formatModerationCase(c, emojis);
+
+    expect(line).toContain(
+      "\n> :reason: Ignoring mods\n> -# Not sent: kick DMs are off",
+    );
+  });
+
+  it("marks a failed DM as not sent", () => {
+    const c = makeReasonCase("spam").withDMResult({
+      error: "Cannot send messages to this user",
+      failureReason: "user_blocked",
+    });
+
+    expect(formatModerationCase(c, emojis)).toContain(
+      "> :reason: spam\n> -# Not sent: they have DMs off or blocked sushii",
+    );
+  });
+
+  it("treats a deleted DM as not sent", () => {
+    const c = makeReasonCase("spam")
+      .withDMResult({ channelId: "1", messageId: "2" })
+      .withDmDeleted(USER_B, new Date());
+
+    expect(formatModerationCase(c, emojis)).toContain(
+      `> :reason: spam\n> -# Not sent: DM deleted by <@${USER_B}>`,
+    );
+  });
+
+  it("omits the not-sent line when the cause wasn't recorded", () => {
+    const line = formatModerationCase(makeReasonCase("spam"), emojis);
+
+    expect(line).toContain("> :reason: spam");
+    expect(line).not.toContain("Not sent");
+  });
+
+  it("prefixes a note with the lock and never says not sent", () => {
+    const line = formatModerationCase(
+      makeReasonCase("Possible alt", ActionType.Note),
+      emojis,
+    );
+
+    expect(line).toContain("\n> :lock: Possible alt");
+    expect(line).not.toContain("Not sent");
+    expect(line).not.toContain(":reason:");
+  });
+
+  it("shows proof counts, and files only when there are any", () => {
+    const c = makeReasonCase("spam");
+
+    expect(
+      formatModerationCase(c, emojis, false, false, { entries: 3, files: 2 }),
+    ).toContain("\n> -# :lock: 3 proof · :attachment: 2 files");
+    expect(
+      formatModerationCase(c, emojis, false, false, { entries: 1, files: 0 }),
+    ).toMatch(/> -# :lock: 1 proof$/);
+    expect(formatModerationCase(c, emojis)).not.toContain("proof");
+  });
+
+  it("no longer counts legacy attachments", () => {
+    const c = ModerationCase.create(
       GUILD_ID,
       "1",
       ActionType.Warn,
       USER_A,
       "TestUser#0001",
       USER_A,
-      Reason.create(hugeReason).unwrap(),
+      null,
       undefined,
-      manyAttachments,
+      ["https://cdn.discordapp.com/attachments/1/2/a.png"],
     );
 
-    expect(() => buildPages([moderationCase], false)).not.toThrow();
+    expect(formatModerationCase(c, emojis)).not.toContain("attachment");
+  });
 
-    const pages = buildPages([moderationCase], false);
-    expect(pages).toHaveLength(1);
-    expect(pages[0]).toHaveLength(1);
+  it("never clips a max-length reason with real-length emojis", () => {
+    const realEmojis = Object.fromEntries(
+      HISTORY_ACTION_EMOJIS.map((name) => [
+        name,
+        `<:${name}:1234567890123456789>`,
+      ]),
+    ) as EmojiMap<typeof HISTORY_ACTION_EMOJIS>;
+    const words = "Spamming invite links in general after two warnings. ";
+    const reason = words.repeat(60).slice(0, REASON_MAX_LENGTH);
+    const c = makeReasonCase(reason).withDMIntent(false, "executor_no");
+
+    const line = formatModerationCase(c, realEmojis, true, true, {
+      entries: 10,
+      files: 10,
+    });
+
+    expect(line).toContain(reason);
+    expect(line).not.toContain("Too long");
+    expect(line).toContain("Not sent: the mod chose no DM");
+  });
+
+  it("falls back to a pointer for a reason too newline-heavy to fit", () => {
+    const hugeReason = "a\n".repeat(REASON_MAX_LENGTH / 2);
+    const c = makeReasonCase(hugeReason);
+
+    const line = formatModerationCase(c, emojis, false, false, {
+      entries: 1,
+      files: 1,
+    });
+
+    expect(line.length).toBeLessThanOrEqual(TAB_CONTENT_CHAR_BUDGET);
+    expect(line).toContain("`#1`");
+    expect(line).toContain("Open it with View case");
+    expect(line).toContain(":lock: 1 proof");
+  });
+});
+
+describe("reasonDelivery", () => {
+  it("is sent only for a live DM", () => {
+    expect(
+      reasonDelivery(
+        makeReasonCase("x").withDMResult({ channelId: "1", messageId: "2" }),
+      ),
+    ).toEqual({ sent: true });
+  });
+
+  it("explains a DM skipped because the user left", () => {
+    expect(
+      reasonDelivery(
+        makeReasonCase("x").withDMIntent(true, "unknown", "user_not_in_guild"),
+      ),
+    ).toEqual({ sent: false, why: "they weren't in the server" });
+  });
+
+  it("has no cause for actions that never DM", () => {
+    expect(reasonDelivery(makeReasonCase("x", ActionType.BanRemove))).toEqual({
+      sent: false,
+      why: null,
+    });
   });
 });
 

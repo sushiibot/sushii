@@ -1,49 +1,146 @@
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis";
-import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type {
+  DMFailureReason,
+  ModerationCase,
+} from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { CaseProofCounts } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import {
   ActionType,
   ActionTypeBotEmojis,
+  actionTypeSupportsDM,
 } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
+  formatActionType,
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import dayjs from "@/shared/domain/dayjs";
 import { TAB_CONTENT_CHAR_BUDGET } from "@/shared/presentation/packLines";
-import { quoteMarkdownString } from "@/utils/markdown";
 import { countWithNoun } from "@/shared/presentation/pluralize";
+import { quoteMarkdownString } from "@/utils/markdown";
 
 export const HISTORY_ACTION_EMOJIS = [
   ...ActionTypeBotEmojis,
   "reason",
+  "additional_message",
+  "lock",
   "duration",
   "attachment",
   "warning",
 ] as const satisfies readonly BotEmojiNameType[];
 
-// A single case must never approach Discord's 4000-char Text Display limit on
-// its own — a max-length, newline-heavy quoted reason can otherwise exceed it,
-// which throws rather than degrading. The head (identifier, type, attribution,
-// timestamp) always survives; only the continuation is truncated to fit.
-const MAX_CASE_LENGTH = TAB_CONTENT_CHAR_BUDGET;
-const TRUNCATION_NOTE = "\n> (truncated)";
+export type HistoryEmojis = EmojiMap<typeof HISTORY_ACTION_EMOJIS>;
 
-function capContinuation(continuation: string, budget: number): string {
-  if (continuation.length <= budget) {
-    return continuation;
+// Only a newline-heavy max-length reason reaches this: quoting adds "> " per
+// line, and one oversized case would make Discord reject the whole page.
+const MAX_CASE_LENGTH = TAB_CONTENT_CHAR_BUDGET;
+const OVERSIZED_NOTE = "\n> -# Too long to show here. Open it with View case.";
+
+const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
+  user_blocked: "they have DMs off or blocked sushii",
+  user_privacy: "they have server DMs off or share no server with sushii",
+  user_cannot_receive: "Discord won't deliver DMs to them",
+  unknown: "the DM failed",
+};
+
+export type ReasonDelivery =
+  | { sent: true }
+  | { sent: false; why: string | null };
+
+/** Whether the user still has the reason in their DMs, and if not, why. */
+export function reasonDelivery(moderationCase: ModerationCase): ReasonDelivery {
+  if (moderationCase.dmDeleted) {
+    const by = moderationCase.dmDeletedBy
+      ? ` by <@${moderationCase.dmDeletedBy}>`
+      : "";
+    return { sent: false, why: `DM deleted${by}` };
   }
 
-  const keep = Math.max(0, budget - TRUNCATION_NOTE.length);
-  return continuation.slice(0, keep) + TRUNCATION_NOTE;
+  const dm = moderationCase.dmResult;
+  if (dm?.channelId && dm.messageId) {
+    return { sent: true };
+  }
+
+  if (dm?.error || moderationCase.dmFailureReason) {
+    const failure =
+      moderationCase.dmFailureReason ?? dm?.failureReason ?? "unknown";
+    return { sent: false, why: DM_FAILURE_TEXT[failure] };
+  }
+
+  if (!actionTypeSupportsDM(moderationCase.actionType)) {
+    return { sent: false, why: null };
+  }
+
+  if (moderationCase.dmNotAttemptedReason === "user_not_in_guild") {
+    return { sent: false, why: "they weren't in the server" };
+  }
+
+  switch (moderationCase.dmIntentSource) {
+    case "executor_no":
+      return { sent: false, why: "the mod chose no DM" };
+    case "guild_default":
+      return {
+        sent: false,
+        why: `${formatActionType(moderationCase.actionType)} DMs are off`,
+      };
+    default:
+      return { sent: false, why: null };
+  }
+}
+
+function prefixed(emoji: string, text: string): string {
+  return emoji ? `${emoji} ${text}` : text;
+}
+
+function reasonLines(
+  moderationCase: ModerationCase,
+  emojis: HistoryEmojis,
+): string {
+  const reason = moderationCase.reason?.value;
+  if (!reason) {
+    return "";
+  }
+
+  if (moderationCase.actionType === ActionType.Note) {
+    return "\n" + quoteMarkdownString(prefixed(emojis.lock, reason));
+  }
+
+  const delivery = reasonDelivery(moderationCase);
+  if (delivery.sent) {
+    return (
+      "\n" + quoteMarkdownString(prefixed(emojis.additional_message, reason))
+    );
+  }
+
+  // Older cases recorded no DM outcome, so with no known cause there's no line.
+  const notSent = delivery.why ? `\n> -# Not sent: ${delivery.why}` : "";
+  return "\n" + quoteMarkdownString(prefixed(emojis.reason, reason)) + notSent;
+}
+
+function proofCountLine(
+  counts: CaseProofCounts | undefined,
+  emojis: HistoryEmojis,
+): string {
+  if (!counts || counts.entries === 0) {
+    return "";
+  }
+
+  let line = prefixed(emojis.lock, `${counts.entries} proof`);
+  if (counts.files > 0) {
+    line += ` · ${prefixed(emojis.attachment, countWithNoun(counts.files, "file"))}`;
+  }
+
+  return `\n> -# ${line}`;
 }
 
 export function formatModerationCase(
   moderationCase: ModerationCase,
-  emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
+  emojis: HistoryEmojis,
   showTargetMention = false,
   // Mod View's History tab drops these prepositions — mention pills already
   // read as people, and the standalone `/history` path never passes `true`.
   dropPrepositions = false,
+  proofCounts?: CaseProofCounts,
 ): string {
   const emojiName = getActionTypeBotEmoji(moderationCase.actionType);
   const emoji = emojis[emojiName];
@@ -77,28 +174,13 @@ export function formatModerationCase(
 
   s += ` · <t:${timestamp}:R>`;
 
-  let continuation = "";
-
-  if (moderationCase.reason) {
-    continuation += `\n` + quoteMarkdownString(moderationCase.reason.value);
+  const proofLine = proofCountLine(proofCounts, emojis);
+  const full = s + reasonLines(moderationCase, emojis) + proofLine;
+  if (full.length <= MAX_CASE_LENGTH) {
+    return full;
   }
 
-  const attachmentCount = caseAttachments(moderationCase).length;
-  if (attachmentCount > 0) {
-    continuation += `\n> ${emojis.attachment} ${countWithNoun(attachmentCount, "attachment")}`;
-  }
-
-  const continuationBudget = Math.max(0, MAX_CASE_LENGTH - s.length);
-
-  return s + capContinuation(continuation, continuationBudget);
-}
-
-/**
- * Attachments open from a picker instead of inline links: signed CDN links
- * expire once opened in a browser, and a gallery per case would swamp the list.
- */
-export function caseAttachments(moderationCase: ModerationCase): string[] {
-  return moderationCase.attachments.filter(Boolean);
+  return s + OVERSIZED_NOTE + proofLine;
 }
 
 export function spansMultipleUsers(cases: ModerationCase[]): boolean {
