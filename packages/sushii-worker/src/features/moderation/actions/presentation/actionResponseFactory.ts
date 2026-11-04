@@ -9,7 +9,9 @@ import type {
 import type { ModerationServices } from "../../setup";
 import { ModerationCommand } from "./commands/ModerationCommand";
 import { ActionResponseButtonHandler } from "./response/ActionResponseButtonHandler";
-import { scheduleResponseExpiry } from "./response/responseExpiry";
+import { createModLogUrlResolver } from "./response/modLogEntryUrl";
+import { createResponseExpiryScheduler } from "./response/responseExpiry";
+import { actionResponseRegistry } from "./response/responseRegistry";
 
 export function createActionResponseHandlers(
   services: ModerationServices,
@@ -18,6 +20,9 @@ export function createActionResponseHandlers(
   commands: SlashCommandHandler[];
   buttonHandlers: ButtonHandler[];
 } {
+  const scheduleExpiry = createResponseExpiryScheduler(actionResponseRegistry, {
+    resolveModLogUrl: createModLogUrlResolver(services),
+  });
   const commands: SlashCommandHandler[] = Object.values(COMMAND_CONFIGS).map(
     (config) =>
       new ModerationCommand(
@@ -28,7 +33,7 @@ export function createActionResponseHandlers(
         services.emojiRepository,
         services.reasonTemplateService,
         logger.child({ commandHandler: config.name }),
-        scheduleResponseExpiry,
+        scheduleExpiry,
         services.moderationMetrics,
       ),
   );

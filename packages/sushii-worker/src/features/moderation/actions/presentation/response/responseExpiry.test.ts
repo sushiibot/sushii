@@ -18,7 +18,10 @@ import {
   expiryDelayMs,
   staleResponse,
 } from "./responseExpiry";
-import { createActionResponseRegistry } from "./responseRegistry";
+import {
+  type LiveActionResponse,
+  createActionResponseRegistry,
+} from "./responseRegistry";
 import {
   GUILD,
   MOD,
@@ -113,7 +116,9 @@ describe("staleness", () => {
   test("markStale edits the reply to the stale state, disabled, once", async () => {
     const now = Date.now();
     const registry = createActionResponseRegistry();
-    const schedule = createResponseExpiryScheduler(registry, () => now);
+    const schedule = createResponseExpiryScheduler(registry, {
+      now: () => now,
+    });
     const live = liveInteraction(now);
 
     schedule(
@@ -141,7 +146,7 @@ describe("staleness", () => {
     const now = Date.now();
     const registry = createActionResponseRegistry();
     const live = liveInteraction(now);
-    createResponseExpiryScheduler(registry, () => now)(
+    createResponseExpiryScheduler(registry, { now: () => now })(
       live.interaction as unknown as ChatInputCommandInteraction,
       pino({ level: "silent" }),
     );
@@ -157,6 +162,7 @@ describe("staleness", () => {
     const marked = await staleResponse(
       live.interaction as unknown as ChatInputCommandInteraction,
       created + 15 * 60 * 1000,
+      null,
     );
     expect(marked).toBe(false);
     expect(live.interaction.fetchReply).not.toHaveBeenCalled();
@@ -168,7 +174,72 @@ describe("staleness", () => {
     const interaction =
       live.interaction as unknown as ChatInputCommandInteraction;
     expect(await expireResponse(interaction)).toBe(true);
-    expect(await staleResponse(interaction, created)).toBe(false);
+    expect(await staleResponse(interaction, created, null)).toBe(false);
     expect(live.editReply).toHaveBeenCalledTimes(1);
+  });
+});
+
+const MOD_LOG_URL =
+  "https://discord.com/channels/187450744427773963/1029384756102938400/1029384756102938499";
+
+describe("staleness with the mod log link", () => {
+  test("the stale line links the entry, resolved when marked", async () => {
+    const now = Date.now();
+    const registry = createActionResponseRegistry();
+    const resolveModLogUrl = mock(async () => MOD_LOG_URL);
+    const live = liveInteraction(now);
+    createResponseExpiryScheduler(registry, {
+      now: () => now,
+      resolveModLogUrl,
+    })(
+      live.interaction as unknown as ChatInputCommandInteraction,
+      pino({ level: "silent" }),
+      { guildId: GUILD, caseIds: ["4822"], messageId: "1029384756102938500" },
+    );
+
+    expect(live.interaction.fetchReply).not.toHaveBeenCalled();
+    expect(resolveModLogUrl).not.toHaveBeenCalled();
+
+    await registry.markStale(GUILD, ["4822"]);
+    expect(resolveModLogUrl).toHaveBeenCalledWith(GUILD, ["4822"]);
+    expect(live.current()).toContain(`Up-to-date entry: ${MOD_LOG_URL}`);
+  });
+
+  test("a failed lookup still marks it stale, without the link", async () => {
+    const now = Date.now();
+    const registry = createActionResponseRegistry();
+    const live = liveInteraction(now);
+    createResponseExpiryScheduler(registry, {
+      now: () => now,
+      resolveModLogUrl: async () => {
+        throw new Error("db down");
+      },
+    })(
+      live.interaction as unknown as ChatInputCommandInteraction,
+      pino({ level: "silent" }),
+      { guildId: GUILD, caseIds: ["4822"], messageId: "1029384756102938500" },
+    );
+
+    await registry.markStale(GUILD, ["4822"]);
+    expect(live.current()).toContain("The mod log entry is up to date.");
+  });
+
+  test("the expiry timer unregisters the entry", async () => {
+    const created = 1_000_000;
+    const unregister = mock((_entry: LiveActionResponse) => undefined);
+    const register = mock((_entry: LiveActionResponse) => undefined);
+    const live = liveInteraction(created);
+    createResponseExpiryScheduler(
+      { register, unregister, markStale: async () => undefined },
+      { now: () => created + 20 * 60 * 1000 },
+    )(
+      live.interaction as unknown as ChatInputCommandInteraction,
+      pino({ level: "silent" }),
+      { guildId: GUILD, caseIds: ["4822"], messageId: "1029384756102938500" },
+    );
+
+    await sleep(5);
+    expect(register).toHaveBeenCalledTimes(1);
+    expect(unregister).toHaveBeenCalledWith(register.mock.calls[0][0]);
   });
 });

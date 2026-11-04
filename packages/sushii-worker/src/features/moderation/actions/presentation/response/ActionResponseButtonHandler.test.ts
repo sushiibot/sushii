@@ -453,6 +453,20 @@ describe("ActionResponseButtonHandler", () => {
       expect(rendered(button.update)).not.toContain("Changed in the mod log");
     });
 
+    test("action-time proof saved after the response doesn't turn it stale", async () => {
+      listByCases.mockImplementation(
+        async () =>
+          new Map([
+            ["4822", [{ ...proofRow("1"), source: "action" as const }]],
+          ]),
+      );
+      const button = await click(
+        makeButton("modAction/dm/delete/4822", postedMessage([makeCase()])),
+      );
+      expect(rendered(button.update)).toContain("modAction/dm/deleteConfirm/");
+      expect(rendered(button.update)).not.toContain("Changed in the mod log");
+    });
+
     test("an old response without a proof section ignores backfilled proof", async () => {
       listByCases.mockImplementation(
         async () => new Map([["4822", [proofRow("1")]]]),
@@ -559,6 +573,23 @@ describe("ActionResponseButtonHandler", () => {
     const button = await click(makeButton("modAction/dm/cancel/4822", message));
     expect(listByCases).toHaveBeenCalledWith(GUILD, ["4822"]);
     expect(rendered(button.update)).toContain("Screenshot from #reports");
+  });
+
+  test("a rebuild links the mod log entry from the overflow line", async () => {
+    const proofs = Array.from({ length: 6 }, (_, i) => ({
+      ...proofRow(`${i}`),
+      content: `${i}`.repeat(1000),
+    }));
+    listByCases.mockImplementation(async () => new Map([["4822", proofs]]));
+    const button = await click(
+      makeButton(
+        "modAction/dm/cancel/4822",
+        postedMessage([makeCase()], false, proofs),
+      ),
+    );
+    expect(rendered(button.update)).toContain(
+      `more on the mod log entry: ${MOD_LOG_URL}`,
+    );
   });
 
   describe("Edit reason", () => {

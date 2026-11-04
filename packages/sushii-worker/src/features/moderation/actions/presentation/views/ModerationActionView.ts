@@ -71,6 +71,7 @@ import { getCleanFilename } from "@/utils/url";
 import {
   buildResponseButtonId,
   encodeCaseIds,
+  parseResponseButtonId,
   toCaseRuns,
 } from "../response/customIds";
 
@@ -124,8 +125,18 @@ export const ACTION_RESPONSE_IDS = {
 export const PROOF_TEXT_ID_BASE = 2100;
 const PROOF_TEXT_ID_MAX_COUNT = 899;
 
-function proofTextId(count: number): number {
+/** Action-time proof is saved after the response is posted, so it isn't counted. */
+function proofTextId(proofs: readonly CaseProof[]): number {
+  const count = proofs.filter((p) => p.source !== "action").length;
   return PROOF_TEXT_ID_BASE + Math.min(count, PROOF_TEXT_ID_MAX_COUNT);
+}
+
+/** The Delete DM button's id is this base plus the live DMs it deletes. */
+export const LIVE_DM_BUTTON_ID_BASE = 2200;
+const LIVE_DM_BUTTON_ID_MAX_COUNT = 99;
+
+function liveDmButtonId(live: number): number {
+  return LIVE_DM_BUTTON_ID_BASE + Math.min(live, LIVE_DM_BUTTON_ID_MAX_COUNT);
 }
 
 function isProofTextId(id: number | undefined): boolean {
@@ -508,6 +519,15 @@ function isStatusLine(line: string): boolean {
   return STATUS_LINE_PATTERNS.some((pattern) => pattern.test(bare));
 }
 
+/** Discord may drop trailing spaces or carriage returns from posted text. */
+function normalizeText(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+}
+
 /** "Template `!spam`", or the no-shortcut variant. */
 export function templateNote(template: TemplateRef): string {
   return template.shortcut
@@ -812,6 +832,7 @@ function reasonControls(
 
   if (mode === "confirmDeleteDm" && live > 0) {
     const confirm = deleteDmConfirm(cases, live, encoded);
+    confirm.row.components[0]?.setId(liveDmButtonId(live));
     return [
       confirm.prompt.setId(ACTION_RESPONSE_IDS.confirm).toJSON(),
       confirm.row.setId(ACTION_RESPONSE_IDS.reasonRow).toJSON(),
@@ -839,7 +860,7 @@ function reasonControls(
         ButtonStyle.Secondary,
         emojis.trash,
         disabled,
-      ),
+      ).setId(liveDmButtonId(live)),
     );
   }
   return [row.toJSON()];
@@ -913,7 +934,7 @@ function overflowLine(count: number, modLogUrl: string | null): string {
 }
 
 const OVERFLOW_LINE_MAX_LENGTH = overflowLine(
-  99,
+  999,
   "x".repeat(MESSAGE_URL_MAX_LENGTH),
 ).length;
 
@@ -1039,7 +1060,7 @@ function assemble(
     ]) -
     reasonText.length;
   const proofContent = text(
-    proofTextId(body.proofs.length),
+    proofTextId(body.proofs),
     proofText(body, gallery !== null, proofRoom),
   );
   const proofSection = encoded
@@ -1294,11 +1315,13 @@ function legacyPostedReason(
 
   const postedReason = findTextById(container, ACTION_RESPONSE_IDS.reason);
   const postedNotes = findTextById(container, ACTION_RESPONSE_IDS.reasonNotes);
-  const fresh = body.cases[0]?.reason?.value ?? "-# No reason given";
+  const fresh = normalizeText(
+    body.cases[0]?.reason?.value ?? "-# No reason given",
+  );
   const old =
     postedReason === null
       ? null
-      : postedReason.slice(postedReason.indexOf("\n") + 1);
+      : normalizeText(postedReason.slice(postedReason.indexOf("\n") + 1));
   // A reason cut to fit can only be compared by its uncut start.
   const unchanged =
     old !== null &&
@@ -1332,13 +1355,13 @@ function postedReason(
   }
 
   const content = findTextById(container, ACTION_RESPONSE_IDS.reason) ?? "";
-  const rest = content.slice(content.indexOf("\n") + 1);
+  const rest = normalizeText(content.slice(content.indexOf("\n") + 1));
   const tail = rest.split("\n");
   const dmTextIncluded = tail.some(
     (line) => isStatusLine(line) && line.startsWith("-# Also included"),
   );
 
-  const fresh = reasonBodyOf(body.cases);
+  const fresh = normalizeText(reasonBodyOf(body.cases));
   let noteLines: string[];
   if (rest === fresh) {
     noteLines = [];
@@ -1383,30 +1406,36 @@ export function postedProofText(
   return findProofText(findContainer(posted))?.content ?? null;
 }
 
-const DELETE_DM_PREFIX = "modAction/dm/delete/";
-const DELETE_DM_CONFIRM_PREFIX = "modAction/dm/deleteConfirm/";
+interface PostedButton {
+  id?: number;
+  custom_id?: string;
+}
 
-/** Live DMs the posted response offers to delete; "confirming" while it asks to. */
-function postedLiveDms(
-  container: APIContainerComponent,
-): number | "confirming" {
-  const buttons = container.components.flatMap(
-    (c): { custom_id?: string; label?: string }[] => {
-      if (c.type === ComponentType.ActionRow) {
-        return c.components as { custom_id?: string; label?: string }[];
-      }
-      if (c.type === ComponentType.Section) {
-        return [c.accessory as { custom_id?: string; label?: string }];
-      }
-      return [];
-    },
-  );
-  for (const { custom_id: customId = "", label = "" } of buttons) {
-    if (customId.startsWith(DELETE_DM_CONFIRM_PREFIX)) {
-      return "confirming";
+/**
+ * Live DMs the posted response offers to delete. Responses from before the
+ * count was carried in the button id only say whether one is offered.
+ */
+function postedLiveDms(container: APIContainerComponent): number | "some" {
+  const buttons = container.components.flatMap((c): PostedButton[] => {
+    if (c.type === ComponentType.ActionRow) {
+      return c.components as PostedButton[];
     }
-    if (customId.startsWith(DELETE_DM_PREFIX)) {
-      return Number(/^Delete (\d+) DMs$/.exec(label)?.[1] ?? 1);
+    if (c.type === ComponentType.Section) {
+      return [c.accessory as PostedButton];
+    }
+    return [];
+  });
+  for (const button of buttons) {
+    const id = button.id ?? 0;
+    if (
+      id >= LIVE_DM_BUTTON_ID_BASE &&
+      id <= LIVE_DM_BUTTON_ID_BASE + LIVE_DM_BUTTON_ID_MAX_COUNT
+    ) {
+      return id - LIVE_DM_BUTTON_ID_BASE;
+    }
+    const kind = parseResponseButtonId(button.custom_id ?? "")?.kind;
+    if (kind === "dmDelete" || kind === "dmDeleteConfirm") {
+      return "some";
     }
   }
   return 0;
@@ -1433,18 +1462,27 @@ export function postedResponseDiffers(
   const { legacyDmText } = postedDetails(
     findById(container, ACTION_RESPONSE_IDS.details),
   );
-  if (postedReason(container, current, legacyDmText).notes === null) {
+  // The response shows one reason for all its cases, which every case must still have.
+  const reasonChanged = current.cases.some(
+    (c) =>
+      postedReason(
+        container,
+        { cases: [c], emojis: current.emojis },
+        legacyDmText,
+      ).notes === null,
+  );
+  if (reasonChanged) {
     return true;
   }
 
   const proofText = findProofText(container);
-  if (proofText && proofText.id !== proofTextId(current.proofs.length)) {
+  if (proofText && proofText.id !== proofTextId(current.proofs)) {
     return true;
   }
 
   const live = current.cases.filter(hasLiveDm).length;
   const shown = postedLiveDms(container);
-  return shown === "confirming" ? live === 0 : shown !== live;
+  return shown === "some" ? live === 0 : shown !== live;
 }
 
 /** Whether the posted response offers Save as template, including while confirming Delete DM. */

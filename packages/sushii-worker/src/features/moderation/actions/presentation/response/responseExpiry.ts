@@ -6,6 +6,7 @@ import {
   expireActionResponse,
   staleActionResponse,
 } from "../views/ModerationActionView";
+import type { ModLogUrlResolver } from "./modLogEntryUrl";
 import {
   type ActionResponseRegistry,
   type LiveActionResponse,
@@ -23,7 +24,12 @@ type ResponseInteraction = Pick<
 export type ResponseExpiryScheduler = (
   interaction: ResponseInteraction,
   logger: Logger,
-  registration?: { guildId: string; caseIds: string[] },
+  registration?: {
+    guildId: string;
+    caseIds: string[];
+    /** The posted response; without it the reply is fetched. */
+    messageId?: string;
+  },
 ) => void;
 
 export function expiryDelayMs(createdTimestamp: number, now: number): number {
@@ -50,6 +56,7 @@ export async function expireResponse(
 export async function staleResponse(
   interaction: ResponseInteraction,
   now: number,
+  modLogUrl: string | null,
 ): Promise<boolean> {
   if (expiryDelayMs(interaction.createdTimestamp, now) === 0) {
     return false;
@@ -58,7 +65,7 @@ export async function staleResponse(
   const reply = await interaction.fetchReply();
   const stale = staleActionResponse(
     reply.components.map((c) => c.toJSON()),
-    null,
+    modLogUrl,
   );
   if (!stale) {
     return false;
@@ -74,8 +81,13 @@ export async function staleResponse(
  */
 export function createResponseExpiryScheduler(
   registry: ActionResponseRegistry,
-  now: () => number = Date.now,
+  options: {
+    now?: () => number;
+    /** Links the mod log entry from the stale line. */
+    resolveModLogUrl?: ModLogUrlResolver;
+  } = {},
 ): ResponseExpiryScheduler {
+  const now = options.now ?? Date.now;
   return (interaction, logger, registration) => {
     let entry: LiveActionResponse | null = null;
 
@@ -99,27 +111,46 @@ export function createResponseExpiryScheduler(
       return;
     }
 
+    const register = (messageId: string): void => {
+      const live: LiveActionResponse = {
+        guildId: registration.guildId,
+        caseIds: [...registration.caseIds],
+        messageId,
+        // Resolved only when marked, since the mod log entry is posted after the response.
+        markStale: async () => {
+          try {
+            const url = options.resolveModLogUrl
+              ? await options
+                  .resolveModLogUrl(registration.guildId, registration.caseIds)
+                  .catch((err: unknown) => {
+                    logger.debug(
+                      { err, interactionId: interaction.id },
+                      "Failed to find the mod log entry for a stale response",
+                    );
+                    return null;
+                  })
+              : null;
+            await staleResponse(interaction, now(), url);
+          } catch (err) {
+            logger.debug(
+              { err, interactionId: interaction.id },
+              "Failed to mark mod action response stale",
+            );
+          }
+        },
+      };
+      entry = live;
+      registry.register(live);
+    };
+
+    if (registration.messageId) {
+      register(registration.messageId);
+      return;
+    }
+
     interaction
       .fetchReply()
-      .then((reply) => {
-        const live: LiveActionResponse = {
-          guildId: registration.guildId,
-          caseIds: [...registration.caseIds],
-          messageId: reply.id,
-          markStale: async () => {
-            try {
-              await staleResponse(interaction, now());
-            } catch (err) {
-              logger.debug(
-                { err, interactionId: interaction.id },
-                "Failed to mark mod action response stale",
-              );
-            }
-          },
-        };
-        entry = live;
-        registry.register(live);
-      })
+      .then((reply) => register(reply.id))
       .catch((err: unknown) => {
         logger.debug(
           { err, interactionId: interaction.id },

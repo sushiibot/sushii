@@ -41,6 +41,7 @@ import {
   ACTION_RESPONSE_IDS,
   type ActionResponseMessage,
   EXPIRED_LINE,
+  LIVE_DM_BUTTON_ID_BASE,
   PROOF_TEXT_ID_BASE,
   buildActionResultMessage,
   editedNote,
@@ -1161,6 +1162,42 @@ describe("rebuildActionResponse", () => {
 });
 
 describe("expiry and staleness", () => {
+  test("expiry disables selects too, keeping their options", () => {
+    const original: APIMessageTopLevelComponent[] = [
+      {
+        type: ComponentType.Container,
+        components: [
+          {
+            type: ComponentType.ActionRow,
+            id: 7,
+            components: [
+              {
+                type: ComponentType.StringSelect,
+                id: 8,
+                custom_id: "modAction/example",
+                options: [{ label: "One", value: "1" }],
+              },
+            ],
+          },
+        ],
+      } as APIMessageTopLevelComponent,
+    ];
+    const expired = json(must(expireActionResponse(original)));
+    expect(expired.components[0]).toEqual({
+      type: ComponentType.ActionRow,
+      id: 7,
+      components: [
+        {
+          type: ComponentType.StringSelect,
+          id: 8,
+          custom_id: "modAction/example",
+          options: [{ label: "One", value: "1" }],
+          disabled: true,
+        },
+      ],
+    });
+  });
+
   function disabledFlags(container: APIContainerComponent): boolean[] {
     return buttons(container).map((b) => b.disabled === true);
   }
@@ -1391,6 +1428,73 @@ describe("postedResponseDiffers", () => {
     });
     expect(differs(confirming, [makeCase()])).toBe(false);
     expect(differs(confirming, [makeCase({ dmDeleted: true })])).toBe(true);
+  });
+
+  test("action-time proof is never counted, saved later or not at all", () => {
+    const action = proof({ source: "action", content: null });
+    const posted = render({ upload: "proof_1.png" });
+    expect(differs(posted, [makeCase()], [action])).toBe(false);
+
+    const withPlaceholder = render({ upload: "proof_1.png", proofs: [action] });
+    expect(differs(withPlaceholder, [makeCase()], [])).toBe(false);
+    expect(differs(withPlaceholder, [makeCase()], [action, proof()])).toBe(
+      true,
+    );
+  });
+
+  test("the Delete DM button id carries the live count, also while confirming", () => {
+    const targets = [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")];
+    const cases = targets.map((t, i) =>
+      makeCase({ caseId: `${4822 + i}`, userId: t.id }),
+    );
+    const original = render({ targets, results: cases.map((c) => Ok(c)) });
+    expect(
+      buttons(json(original)).find((b) => b.label === "Delete 2 DMs")?.id,
+    ).toBe(LIVE_DM_BUTTON_ID_BASE + 2);
+
+    const confirming = rebuild(original, { cases, mode: "confirmDeleteDm" });
+    expect(buttons(json(confirming))[0].id).toBe(LIVE_DM_BUTTON_ID_BASE + 2);
+    expect(differs(confirming, cases)).toBe(false);
+    expect(
+      differs(confirming, [
+        cases[0],
+        makeCase({ caseId: "4823", userId: TARGET_2, dmDeleted: true }),
+      ]),
+    ).toBe(true);
+  });
+
+  test("every case's reason is compared, not just the first", () => {
+    const targets = [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")];
+    const cases = targets.map((t, i) =>
+      makeCase({ caseId: `${4822 + i}`, userId: t.id }),
+    );
+    const original = render({ targets, results: cases.map((c) => Ok(c)) });
+    expect(
+      differs(original, [
+        cases[0],
+        makeCase({ caseId: "4823", userId: TARGET_2, reason: "Changed" }),
+      ]),
+    ).toBe(true);
+  });
+
+  test("trailing spaces and CRLF line ends don't read as a change", () => {
+    const reason = "Spam  \r\nmore text ";
+    const original = posted(
+      render({
+        results: [Ok(makeCase({ reason }))],
+        action: banAction(reason),
+      }),
+    );
+    const container = original[0] as APIContainerComponent;
+    const shown = container.components.find(
+      (c) => c.id === ACTION_RESPONSE_IDS.reason,
+    ) as { content: string };
+    shown.content = shown.content
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .join("\n");
+    expect(differs(original, [makeCase({ reason })])).toBe(false);
   });
 
   test("an old response without a proof section skips the proof comparison", () => {

@@ -87,6 +87,7 @@ import {
   parseResponseButtonId,
   toCaseRuns,
 } from "./customIds";
+import { modLogEntryUrl } from "./modLogEntryUrl";
 
 export const ACTION_RESPONSE_EMOJIS = [
   ...MODERATION_ACTION_EMOJIS,
@@ -409,10 +410,23 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       return null;
     }
     const config = await this.deps.guildConfigRepository.findByGuildId(guildId);
-    const channelId = config.loggingSettings.modLogChannel;
-    return channelId
-      ? `https://discord.com/channels/${guildId}/${channelId}/${moderationCase.msgId}`
-      : null;
+    return modLogEntryUrl(
+      guildId,
+      config.loggingSettings.modLogChannel,
+      moderationCase.msgId,
+    );
+  }
+
+  /** Proof and the mod log link a re-render needs besides the cases. */
+  private async renderData(
+    guildId: string,
+    cases: readonly ModerationCase[],
+  ): Promise<{ proofs: CaseProof[]; modLogUrl: string | null }> {
+    const [proofs, modLogUrl] = await Promise.all([
+      this.loadProofs(guildId, cases),
+      this.modLogUrl(guildId, cases[0]),
+    ]);
+    return { proofs, modLogUrl };
   }
 
   private async replyExpired(
@@ -508,7 +522,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       return rebuildActionResponse(posted, {
         ...body,
         mode: "stale",
-        modLogUrl: staleUrl,
+        modLogUrl: staleUrl ?? body.modLogUrl,
       });
     }
     return rebuildActionResponse(posted, {
@@ -532,13 +546,13 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       await this.replyCasesGone(interaction);
       return button.kind === "dmCancel" ? "dismissed" : "ok";
     }
-    const proofs = await this.loadProofs(interaction.guildId, cases);
+    const data = await this.renderData(interaction.guildId, cases);
 
     const confirming = button.kind === "dmDelete" && cases.some(hasLiveDm);
     await interaction.update(
       this.render(interaction, {
         cases,
-        proofs,
+        ...data,
         emojis,
         savePrompt: await this.keepSavePrompt(interaction, cases),
         mode: confirming ? "confirmDeleteDm" : "buttons",
@@ -598,7 +612,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       const failed = outcomes.filter((o) => o.result === "failed");
       const message = this.render(interaction, {
         cases,
-        proofs: await this.loadProofs(interaction.guildId, cases),
+        ...(await this.renderData(interaction.guildId, cases)),
         emojis,
         savePrompt: await this.keepSavePrompt(interaction, cases),
         dmSuffix:
@@ -815,7 +829,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
           : context.response;
       const message = this.renderOn(current, {
         cases: result.updatedCases,
-        proofs: await this.loadProofs(submission.guildId, result.updatedCases),
+        ...(await this.renderData(submission.guildId, result.updatedCases)),
         emojis,
         reasonNotes: this.editNotes(submission, parsed, result, emojis),
         dmOverride: this.dmOutcome(parsed, result, emojis),
@@ -1045,7 +1059,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
           const shown = reloaded.length > 0 ? reloaded : cases;
           return this.renderOn(submit.message ?? interaction.message, {
             cases: shown,
-            proofs: await this.loadProofs(interaction.guildId, shown),
+            ...(await this.renderData(interaction.guildId, shown)),
             emojis,
             savePrompt: false,
           });
