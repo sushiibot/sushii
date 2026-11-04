@@ -28,6 +28,11 @@ import {
 } from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ExpandResult } from "@/features/moderation/reason-templates/domain/ReasonExpander";
+import {
+  postedFiles,
+  postedFilesOf,
+  uploadedUrls,
+} from "@/features/moderation/shared/application/proofHosting";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
@@ -119,6 +124,24 @@ const ATTACHMENT_REHOST_MAX_BYTES = 25 * 1024 * 1024;
 interface UploadFile {
   name: string;
   data: Buffer;
+}
+
+/**
+ * The signed URL of the one file uploaded with the response. Discord lists a
+ * file a gallery references only in the components, not in `attachments`.
+ */
+export function uploadedFileUrl(
+  reply: Pick<Message, "attachments" | "components">,
+  name: string,
+): string | null {
+  const posted = postedFilesOf(reply);
+  const [byName] = uploadedUrls(posted, [name], new Set());
+  if (byName) {
+    return byName;
+  }
+  // Discord may rename the file; the response carries no other upload.
+  const files = postedFiles(posted);
+  return files.length === 1 ? files[0].url : null;
 }
 
 interface ParsedOptions {
@@ -524,8 +547,13 @@ export class ModerationCommand extends SlashCommandHandler {
     const reply = upload
       ? await this.replyWithUpload(interaction, buildMessage, upload)
       : null;
-    if (reply) {
-      await this.saveUploadedAttachment(reply, action.guildId, cases);
+    if (reply && upload) {
+      await this.saveUploadedAttachment(
+        reply,
+        upload.name,
+        action.guildId,
+        cases,
+      );
     } else {
       await interaction.editReply(buildMessage(null));
     }
@@ -600,10 +628,11 @@ export class ModerationCommand extends SlashCommandHandler {
 
   private async saveUploadedAttachment(
     reply: Message,
+    uploadName: string,
     guildId: string,
     cases: ModerationCase[],
   ): Promise<void> {
-    const uploaded = reply.attachments.first();
+    const uploaded = uploadedFileUrl(reply, uploadName);
     if (!uploaded) {
       this.logger.warn(
         { guildId, messageId: reply.id },
@@ -615,7 +644,7 @@ export class ModerationCommand extends SlashCommandHandler {
     const caseIds = cases.map((c) => c.caseId);
     try {
       await this.moderationService.replaceAttachments(guildId, caseIds, [
-        uploaded.url,
+        uploaded,
       ]);
     } catch (err) {
       this.logger.warn(

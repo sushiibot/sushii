@@ -42,6 +42,27 @@ const PROOF = {
   url: "https://cdn.discordapp.com/ephemeral-attachments/1/2/proof%201.png?ex=a&is=b&hm=c&",
 };
 
+/** A posted response whose only file is referenced by its gallery, as Discord returns it. */
+function galleryOnlyReply(url: string, attachmentId = "910000000000000000") {
+  return {
+    id: "900000000000000000",
+    attachments: new Map(),
+    components: [
+      {
+        toJSON: () => ({
+          type: 17,
+          components: [
+            {
+              type: 12,
+              items: [{ media: { url, attachment_id: attachmentId } }],
+            },
+          ],
+        }),
+      },
+    ],
+  };
+}
+
 function setup(options: {
   configKey?: string;
   strings: Record<string, string | null>;
@@ -87,10 +108,7 @@ function setup(options: {
     },
     reply: mock(async (_o: unknown) => undefined),
     deferReply: mock(async () => undefined),
-    editReply: mock(async (_o: unknown) => ({
-      id: "900000000000000000",
-      attachments: { first: () => ({ url: REHOSTED_URL }) },
-    })),
+    editReply: mock(async (_o: unknown) => galleryOnlyReply(REHOSTED_URL)),
     attachmentSizeLimit: 1000,
   };
 
@@ -321,6 +339,29 @@ describe("ModerationCommand attachment re-hosting", () => {
       GUILD,
       [makeCase().caseId],
       [REHOSTED_URL],
+    );
+  });
+
+  test("reads the URL from the gallery when Discord renamed the file", async () => {
+    spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3])),
+    );
+    const renamed =
+      "https://cdn.discordapp.com/attachments/9/8/proof_1_1.png?ex=a&is=b&hm=c&";
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: PROOF,
+    });
+    ctx.interaction.editReply.mockImplementationOnce(async () =>
+      galleryOnlyReply(renamed),
+    );
+    await ctx.run();
+
+    expect(ctx.replaceAttachments).toHaveBeenCalledWith(
+      GUILD,
+      [makeCase().caseId],
+      [renamed],
     );
   });
 
