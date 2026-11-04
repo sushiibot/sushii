@@ -40,6 +40,7 @@ function message(overrides: Partial<SourceMessage> = {}): SourceMessage {
     authorId: TARGET,
     content: "I'm giving away free nitro, claim here",
     files: [{ contentType: "image/png" }],
+    forwarded: false,
     ...overrides,
   };
 }
@@ -152,6 +153,9 @@ describe("Add as proof picker", () => {
     expect(out).not.toContain('"value":"4822"');
     expect(out).toContain("Someone else's case…");
     expect(out).not.toContain("Showing");
+    expect(out).toContain(
+      "-# Left the server? Use `/proof` with their case number.",
+    );
     expect(payload.allowedMentions).toEqual({ parse: [] });
   });
 

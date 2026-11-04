@@ -44,8 +44,12 @@ function attachments(list: { url: string; name: string; size: number }[]) {
   };
 }
 
-function sourceMessage(content = "I'm giving away free nitro, claim here") {
+function sourceMessage(
+  content = "I'm giving away free nitro, claim here",
+  snapshot?: { content: string; attachments: ReturnType<typeof attachments> },
+) {
   return {
+    messageSnapshots: { first: () => snapshot },
     id: MESSAGE,
     channelId: CHANNEL,
     url: URL,
@@ -81,10 +85,10 @@ function proof(): CaseProof {
 function setup(
   options: {
     cases?: Record<string, ModerationCase[]>;
-    result?: Awaited<
-      ReturnType<AddAsProofButtonHandler["deps"]["caseProofService"]["add"]>
-    >;
+    /** One per add call, in order; the last repeats. */
+    results?: AddResult[];
     permitted?: boolean;
+    canRead?: boolean;
     message?: ReturnType<typeof sourceMessage> | "deleted" | "foreign";
   } = {},
 ) {
@@ -95,14 +99,12 @@ function setup(
   const findNewestByUser = mock(
     async (_g: string, userId: string, _l: number) => casesByUser[userId] ?? [],
   );
+  const results = options.results ?? [
+    Ok<AddProofResult>({ proofs: [proof()], cases: [makeCase()], skipped: [] }),
+  ];
+  let calls = 0;
   const add = mock(
-    async () =>
-      options.result ??
-      Ok<AddProofResult>({
-        proofs: [proof()],
-        cases: [makeCase()],
-        skipped: [],
-      }),
+    async (_input: unknown) => results[Math.min(calls++, results.length - 1)],
   );
   const deps = {
     modLogRepository: { findNewestByUser },
@@ -134,6 +136,7 @@ function setup(
     guildId: message === "foreign" ? "1" : GUILD,
     isDMBased: () => false,
     isTextBased: () => true,
+    permissionsFor: mock(() => ({ has: () => options.canRead ?? true })),
     messages: { fetch: fetchMessage },
   };
 
@@ -142,6 +145,7 @@ function setup(
       customId,
       guildId: GUILD,
       user: { id: MOD },
+      member: { id: MOD },
       attachmentSizeLimit: 10 * 1024 * 1024,
       client: { channels: { fetch: mock(async () => channel) } },
       memberPermissions: { any: () => options.permitted ?? true },
@@ -156,6 +160,18 @@ function setup(
   }
 
   return { deps, add, findNewestByUser, fetchMessage, component };
+}
+
+type AddResult = Awaited<
+  ReturnType<AddAsProofButtonHandler["deps"]["caseProofService"]["add"]>
+>;
+
+function stored(attachments: string[], sourceContent: string | null = "x") {
+  return Ok<AddProofResult>({
+    proofs: [{ ...proof(), attachments, sourceContent }],
+    cases: [makeCase()],
+    skipped: [],
+  });
 }
 
 function json(call: unknown[] | undefined): string {
@@ -206,7 +222,7 @@ describe("Add as proof context menu", () => {
     expect(handler.command).toMatchObject({
       name: "Add as proof",
       type: 3,
-      default_member_permissions: "4",
+      default_member_permissions: "1099511627776",
       contexts: [0],
     });
   });
@@ -220,7 +236,7 @@ describe("Add as proof pick", () => {
       interaction as unknown as ButtonInteraction,
     );
 
-    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
     expect(interaction.client.channels.fetch).toHaveBeenCalledWith(CHANNEL);
     expect(ctx.fetchMessage).toHaveBeenCalledWith(MESSAGE);
     expect(ctx.add).toHaveBeenCalledWith({
@@ -276,18 +292,179 @@ describe("Add as proof pick", () => {
     expect(ctx.add.mock.calls[0]).toMatchObject([{ caseIds: ["4801"] }]);
   });
 
-  test("a refusal is private and leaves the picker", async () => {
-    const ctx = setup({ result: Err("too_many_files") });
+  test("the first click replaces the picker with a state that can't be clicked again", async () => {
+    const ctx = setup();
+    const interaction = ctx.component(ADD_ID);
+    const order: string[] = [];
+    interaction.update.mockImplementation(async () => {
+      order.push("update");
+    });
+    ctx.add.mockImplementation(async () => {
+      order.push("add");
+      return stored(["https://cdn.discordapp.com/attachments/9/9/scam.png"]);
+    });
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(order).toEqual(["update", "add"]);
+    const adding = json(interaction.update.mock.calls[0]);
+    expect(adding).toContain("Adding the message to case #4822…");
+    expect(adding).not.toMatch(/"type":(2|3|5)\b/);
+    expect(adding).not.toContain("proof/ctx/");
+  });
+
+  test("an unrelated refusal replaces the picker with the error", async () => {
+    const ctx = setup({ results: [Err("cases_not_found")] });
     const interaction = ctx.component(ADD_ID);
     await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
       interaction as unknown as ButtonInteraction,
     );
 
-    expect(interaction.editReply).not.toHaveBeenCalled();
-    const [payload] = interaction.followUp.mock.calls[0] as [{ flags: number }];
-    expect(payload.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
-    expect(json(interaction.followUp.mock.calls[0])).toContain(
-      "A case holds up to 10 proof files.",
+    expect(ctx.add).toHaveBeenCalledTimes(1);
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      "This case was deleted",
+    );
+  });
+
+  test("an unexpected failure is shown in the picker, not thrown", async () => {
+    const ctx = setup();
+    ctx.add.mockImplementation(async () => {
+      throw new Error("Discord down");
+    });
+    const interaction = ctx.component(ADD_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(JSON.stringify(interaction.editReply.mock.calls[0])).toContain(
+      "Couldn't add proof",
+    );
+  });
+
+  const fallbacks: [string, AddResult, string][] = [
+    [
+      "no mod log channel",
+      Err({
+        kind: "not_added" as const,
+        skipped: [{ caseId: "4822", reason: "no_mod_log_for_files" as const }],
+      }),
+      "-# Files weren't saved: this server has no mod log channel to keep them. Set one in `/settings`.",
+    ],
+    [
+      "a file over the limit",
+      Err("file_too_large" as const),
+      "-# Files weren't saved: one is over the 10 MB limit.",
+    ],
+    [
+      "too many files",
+      Err("too_many_files" as const),
+      "-# Files weren't saved: a case holds up to 10 proof files.",
+    ],
+  ];
+
+  for (const [name, refusal, note] of fallbacks) {
+    test(`with ${name}, still saves the link and text`, async () => {
+      const ctx = setup({ results: [refusal, stored([])] });
+      const interaction = ctx.component(ADD_ID);
+      await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+        interaction as unknown as ButtonInteraction,
+      );
+
+      expect(ctx.add).toHaveBeenCalledTimes(2);
+      const [first] = ctx.add.mock.calls[0] as [
+        { files: unknown[]; source: unknown },
+      ];
+      const [retry] = ctx.add.mock.calls[1] as [
+        { files: unknown[]; source: unknown },
+      ];
+      expect(first.files).toHaveLength(1);
+      expect(retry.files).toEqual([]);
+      expect(retry.source).toEqual(first.source);
+
+      const out = json(interaction.editReply.mock.calls[0]);
+      expect(out).toContain("✅ Added to case #4822 as proof");
+      expect(out).toContain("-# Message link and text saved");
+      expect(out).not.toContain("image saved");
+      expect(out).toContain(note);
+    });
+  }
+
+  test("a mixed skip isn't retried without files", async () => {
+    const ctx = setup({
+      results: [
+        Err({
+          kind: "not_added" as const,
+          skipped: [{ caseId: "4822", reason: "retry_later" as const }],
+        }),
+      ],
+    });
+    const interaction = ctx.component(ADD_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(ctx.add).toHaveBeenCalledTimes(1);
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      "still being posted",
+    );
+  });
+
+  test("the confirmation counts the stored files, not the message's", async () => {
+    const ctx = setup({
+      results: [
+        stored([
+          "https://cdn.discordapp.com/attachments/9/9/a.png",
+          "https://cdn.discordapp.com/attachments/9/9/b.png",
+        ]),
+      ],
+    });
+    const interaction = ctx.component(ADD_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      "-# Message link, text and 2 images saved",
+    );
+  });
+
+  test("a forwarded message adds the forwarded text and files", async () => {
+    const ctx = setup({
+      message: sourceMessage("", {
+        content: "forwarded scam text",
+        attachments: attachments([
+          {
+            url: "https://cdn.discordapp.com/attachments/1/2/fwd.png",
+            name: "fwd.png",
+            size: 5,
+          },
+        ]),
+      }),
+    });
+    const interaction = ctx.component(ADD_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(ctx.add.mock.calls[0]).toMatchObject([
+      {
+        files: [{ name: "fwd.png" }],
+        source: { url: URL, authorId: TARGET, content: "forwarded scam text" },
+      },
+    ]);
+  });
+
+  test("a clicker who can't read the channel gets the can't-read text", async () => {
+    const ctx = setup({ canRead: false });
+    const interaction = ctx.component(ADD_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      SOURCE_MESSAGE_GONE_TEXT,
     );
   });
 
@@ -300,7 +477,7 @@ describe("Add as proof pick", () => {
       );
 
       expect(ctx.add).not.toHaveBeenCalled();
-      expect(json(interaction.followUp.mock.calls[0])).toContain(
+      expect(json(interaction.editReply.mock.calls[0])).toContain(
         SOURCE_MESSAGE_GONE_TEXT,
       );
     });
@@ -313,7 +490,7 @@ describe("Add as proof pick", () => {
       interaction as unknown as ButtonInteraction,
     );
 
-    expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    expect(interaction.update).not.toHaveBeenCalled();
     expect(ctx.add).not.toHaveBeenCalled();
     expect(json(interaction.reply.mock.calls[0])).toContain(
       "You need **Ban Members, Kick Members, or Timeout Members**",
@@ -331,6 +508,34 @@ describe("Add as proof pick", () => {
 
     expect(interaction.update).not.toHaveBeenCalled();
     expect(ctx.findNewestByUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("Add as proof forwards", () => {
+  test("a forward opens with only the user select, since its author isn't known", async () => {
+    const ctx = setup();
+    const handler = new AddAsProofContextMenuHandler(ctx.deps as never);
+    const reply = mock(async (_o: unknown) => undefined);
+    await handler.handler({
+      guildId: GUILD,
+      inCachedGuild: () => true,
+      isMessageContextMenuCommand: () => true,
+      targetMessage: sourceMessage("", {
+        content: "forwarded scam text",
+        attachments: attachments([]),
+      }),
+      reply,
+    } as unknown as ContextMenuCommandInteraction);
+
+    expect(ctx.findNewestByUser).not.toHaveBeenCalled();
+    const out = json(reply.mock.calls[0]);
+    expect(out).toContain("> forwarded scam text");
+    expect(out).toContain(
+      `-# Forwarded message, sent by <@${TARGET}> in <#${CHANNEL}>`,
+    );
+    expect(out).toContain("Forwards don't say who first wrote them.");
+    expect(out).not.toContain("Add to #");
+    expect(out).toContain("Someone else's case…");
   });
 });
 

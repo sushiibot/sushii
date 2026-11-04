@@ -346,6 +346,8 @@ describe("DrizzleModLogRepository (Integration)", () => {
       expect(await search("spam")).toEqual(["21"]);
       expect(await search("_9")).toEqual(["12"]);
       expect(await search("%")).toEqual([]);
+      expect(await search("012")).toEqual([]);
+      expect(await search("9999")).toEqual([]);
       expect(await search("  ")).toEqual([]);
     });
 
@@ -366,6 +368,13 @@ describe("DrizzleModLogRepository (Integration)", () => {
       expect(
         ids(await repo.searchCases(GUILD_ID, { kind: "text", text: "2" }, 3)),
       ).toEqual(["2", "299", "298"]);
+      // Each digit count is its own range: 1000–1002 come before 100–199.
+      expect(
+        ids(await repo.searchCases(GUILD_ID, { kind: "text", text: "100" }, 5)),
+      ).toEqual(["100", "1002", "1001", "1000"]);
+      expect(
+        ids(await repo.searchCases(GUILD_ID, { kind: "text", text: "99" }, 4)),
+      ).toEqual(["99", "999", "998", "997"]);
     });
   });
 

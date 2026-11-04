@@ -41,6 +41,9 @@ const REASON_COUNT_SCAN_LIMIT = 500;
 // Bounds searchCases' executor and username matches; neither column is indexed.
 export const CASE_SEARCH_SCAN_LIMIT = 1000;
 
+// No leading zero: case numbers start at 1.
+const CASE_NUMBER = /^[1-9]\d{0,17}$/;
+
 function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
@@ -759,27 +762,10 @@ export class DrizzleModLogRepository implements ModLogRepository {
         .orderBy(desc(recent.caseId))
         .limit(limit),
       // Case numbers reach every case: older ones are only found this way.
-      /^\d{1,18}$/.test(text)
-        ? this.db
-            .select()
-            .from(modLogsInAppPublic)
-            .where(
-              and(
-                eq(modLogsInAppPublic.guildId, BigInt(guildId)),
-                eq(modLogsInAppPublic.pending, false),
-                sql`CAST(${modLogsInAppPublic.caseId} AS TEXT) LIKE ${`${text}%`}`,
-              ),
-            )
-            // The exact case first, so an old one isn't crowded out by newer prefixes.
-            .orderBy(
-              desc(sql`${modLogsInAppPublic.caseId} = ${BigInt(text)}`),
-              desc(modLogsInAppPublic.caseId),
-            )
-            .limit(limit)
-        : Promise.resolve([]),
+      this.findByCaseNumberPrefix(guildId, text, limit),
     ]);
 
-    const exact = /^\d{1,18}$/.test(text) ? BigInt(text) : null;
+    const exact = CASE_NUMBER.test(text) ? BigInt(text) : null;
     const byCase = new Map(
       [...byNumber, ...byName].map((row) => [row.caseId, row]),
     );
@@ -792,6 +778,65 @@ export class DrizzleModLogRepository implements ModLogRepository {
       })
       .slice(0, limit)
       .map((row) => this.mapRowToModerationCase(row));
+  }
+
+  /**
+   * The exact case first, then cases whose number starts with `prefix`,
+   * newest first. Each digit count is a contiguous range of the primary key,
+   * e.g. 48 → 480–489, 4800–4899, so nothing scans or sorts the whole guild.
+   */
+  private async findByCaseNumberPrefix(
+    guildId: string,
+    prefix: string,
+    limit: number,
+  ): Promise<(typeof modLogsInAppPublic.$inferSelect)[]> {
+    if (!CASE_NUMBER.test(prefix)) {
+      return [];
+    }
+
+    const guild = eq(modLogsInAppPublic.guildId, BigInt(guildId));
+    const settled = eq(modLogsInAppPublic.pending, false);
+    const [newest] = await this.db
+      .select({ caseId: modLogsInAppPublic.caseId })
+      .from(modLogsInAppPublic)
+      .where(guild)
+      .orderBy(desc(modLogsInAppPublic.caseId))
+      .limit(1);
+    const start = BigInt(prefix);
+    if (!newest || start > newest.caseId) {
+      return [];
+    }
+
+    const ranges: { low: bigint; high: bigint }[] = [];
+    for (let size = 10n; start * size <= newest.caseId; size *= 10n) {
+      ranges.push({ low: start * size, high: start * size + size - 1n });
+    }
+
+    const rows = await this.db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(and(guild, settled, eq(modLogsInAppPublic.caseId, start)));
+    // Longer numbers are always larger, so the widest range comes first.
+    for (const range of ranges.reverse()) {
+      if (rows.length >= limit) {
+        break;
+      }
+      rows.push(
+        ...(await this.db
+          .select()
+          .from(modLogsInAppPublic)
+          .where(
+            and(
+              guild,
+              settled,
+              between(modLogsInAppPublic.caseId, range.low, range.high),
+            ),
+          )
+          .orderBy(desc(modLogsInAppPublic.caseId))
+          .limit(limit - rows.length)),
+      );
+    }
+    return rows;
   }
 
   async updateAttachments(

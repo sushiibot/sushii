@@ -101,6 +101,8 @@ export interface SourceMessage {
   authorId: string;
   content: string;
   files: { contentType: string | null }[];
+  /** A forward: content and files come from its snapshot, and the original author isn't known. */
+  forwarded: boolean;
 }
 
 function collapseBlankLines(text: string): string {
@@ -130,8 +132,11 @@ function fileNoun(files: SourceMessage["files"]): string {
     : "file";
 }
 
-function fileCount(files: SourceMessage["files"]): string {
-  return countWithNoun(files.length, fileNoun(files));
+function fileCount(
+  files: SourceMessage["files"],
+  count: number = files.length,
+): string {
+  return countWithNoun(count, fileNoun(files));
 }
 
 function quoteLines(message: SourceMessage): string {
@@ -143,7 +148,9 @@ function quoteLines(message: SourceMessage): string {
     );
   }
 
-  let from = `-# From <@${message.authorId}> in <#${message.channelId}>`;
+  let from = message.forwarded
+    ? `-# Forwarded message, sent by <@${message.authorId}> in <#${message.channelId}>`
+    : `-# From <@${message.authorId}> in <#${message.channelId}>`;
   if (message.files.length > 0) {
     from += ` · ${fileCount(message.files)}`;
   }
@@ -157,12 +164,13 @@ function quoteLines(message: SourceMessage): string {
 /**
  * - `author`: the message author's cases, shown first
  * - `other`: a user picked in the user select
+ * - `unknown`: a forward, whose original author isn't known; only the user select
  */
 export interface PickerInput {
   message: SourceMessage;
-  /** Whose cases are listed. */
+  /** Whose cases are listed; ignored for `unknown`. */
   user: { id: string; username: string };
-  showing: "author" | "other";
+  showing: "author" | "other" | "unknown";
   /** Newest first. */
   cases: readonly ModerationCase[];
   emojis: AddAsProofEmojis;
@@ -269,14 +277,21 @@ function userSelect(input: PickerInput): UserSelectMenuBuilder {
   return select;
 }
 
+// The user select only lists current members.
+const LEFT_HINT = "-# Left the server? Use `/proof` with their case number.";
+
 export function buildAddAsProofPicker(
   input: PickerInput,
 ): InteractionReplyOptions & MessageEditOptions & { flags: number } {
   const now = input.now ?? new Date();
-  const [newest, ...older] = input.cases.slice(0, PICKER_CASE_LIMIT);
+  const [newest, ...older] =
+    input.showing === "unknown" ? [] : input.cases.slice(0, PICKER_CASE_LIMIT);
 
   let text = quoteLines(input.message);
-  if (!newest) {
+  if (input.showing === "unknown") {
+    text +=
+      "\n-# Forwards don't say who first wrote them. Pick whose case this is for.";
+  } else if (!newest) {
     text += `\n-# <@${input.user.id}> has no cases. Pick whose case this is for, or use \`/note\` to keep a note about them.`;
   } else if (input.showing === "other") {
     text += `\n-# Showing <@${input.user.id}>'s cases`;
@@ -300,11 +315,13 @@ export function buildAddAsProofPicker(
       ),
     );
   }
-  container.addActionRowComponents(
-    new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
-      userSelect(input),
-    ),
-  );
+  container
+    .addActionRowComponents(
+      new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+        userSelect(input),
+      ),
+    )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(LEFT_HINT));
 
   return {
     components: [container],
@@ -321,8 +338,8 @@ function savedParts(proof: CaseProof, files: SourceMessage["files"]): string {
   if (proof.sourceContent) {
     parts.push("text");
   }
-  if (files.length > 0) {
-    parts.push(fileCount(files));
+  if (proof.attachments.length > 0) {
+    parts.push(fileCount(files, proof.attachments.length));
   }
   const last = parts.pop();
   return parts.length > 0 ? `${parts.join(", ")} and ${last}` : `${last}`;
@@ -331,9 +348,11 @@ function savedParts(proof: CaseProof, files: SourceMessage["files"]): string {
 export function buildAddAsProofDone(input: {
   moderationCase: ModerationCase;
   proof: CaseProof;
-  /** The message's files, all re-uploaded with the proof. */
+  /** The message's files; only names images vs. files, the count comes from the proof. */
   files: SourceMessage["files"];
   emojis: AddAsProofEmojis;
+  /** Why the message's files weren't stored, when only its link and text were. */
+  filesNotSaved?: string;
 }): MessageEditOptions & { flags: number } {
   const { moderationCase, proof } = input;
   const emoji = actionEmoji(moderationCase, input.emojis);
@@ -347,6 +366,9 @@ export function buildAddAsProofDone(input: {
   const text = [
     `✅ Added to case #${moderationCase.caseId} as proof · ${emoji ? `${emoji} ` : ""}${action} · <@${moderationCase.userId}>`,
     saved,
+    ...(input.filesNotSaved
+      ? [`-# Files weren't saved: ${input.filesNotSaved}`]
+      : []),
   ].join("\n");
 
   return {
@@ -354,6 +376,25 @@ export function buildAddAsProofDone(input: {
       new ContainerBuilder()
         .setAccentColor(Color.Success)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(text)),
+    ],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+  };
+}
+
+/** Shown in place of the picker while the message is added, so it can't be picked twice. */
+export function buildAddAsProofAdding(
+  caseId: string,
+): MessageEditOptions & { flags: number } {
+  return {
+    components: [
+      new ContainerBuilder()
+        .setAccentColor(Color.Info)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `Adding the message to case #${caseId}…`,
+          ),
+        ),
     ],
     flags: MessageFlags.IsComponentsV2,
     allowedMentions: { parse: [] },

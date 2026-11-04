@@ -20,7 +20,7 @@ export class AddAsProofContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("Add as proof")
     .setType(ApplicationCommandType.Message)
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .toJSON();

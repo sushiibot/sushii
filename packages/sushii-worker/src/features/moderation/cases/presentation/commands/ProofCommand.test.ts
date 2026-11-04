@@ -153,6 +153,10 @@ function setup(options: {
   };
 }
 
+function setupCommand() {
+  return new ProofCommand({} as never);
+}
+
 function payloadJson(call: unknown[] | undefined): string {
   const [payload] = (call ?? []) as [{ components: { toJSON(): unknown }[] }];
   return JSON.stringify(payload.components.map((c) => c.toJSON()));
@@ -276,21 +280,35 @@ describe("/proof", () => {
     });
   }
 
-  test("a refusal after the defer replaces the public reply with a private one", async () => {
+  test("a refusal after the defer: a short public line, private details, then the line is removed", async () => {
     const ctx = setup({
       result: Err({
         kind: "not_added",
         skipped: [{ caseId: "4822", reason: "retry_later" }],
       }),
     });
+    const order: string[] = [];
+    for (const step of ["editReply", "followUp", "deleteReply"] as const) {
+      ctx.interaction[step].mockImplementation(async () => {
+        order.push(step);
+      });
+    }
     await ctx.run();
 
-    expect(ctx.interaction.deleteReply).toHaveBeenCalled();
-    expect(ctx.interaction.editReply).not.toHaveBeenCalled();
+    expect(order).toEqual(["editReply", "followUp", "deleteReply"]);
+    expect(ctx.interaction.editReply).toHaveBeenCalledWith({
+      content: "Couldn't add proof to case #4822.",
+    });
     const call = ctx.interaction.followUp.mock.calls[0];
     expect(flagsOf(call) & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
-    expect(payloadJson(call)).toContain(
-      "The mod log entry is still being posted.",
+    const details = payloadJson(call);
+    expect(details).toContain("The mod log entry is still being posted.");
+    expect(details).toContain("> Same scam DMs sent to two more members");
+  });
+
+  test("defaults to members who can time out", () => {
+    expect(setupCommand().command.default_member_permissions).toBe(
+      "1099511627776",
     );
   });
 
@@ -298,6 +316,9 @@ describe("/proof", () => {
     const ctx = setup({ addThrows: true });
     await ctx.run();
 
+    expect(ctx.interaction.editReply).toHaveBeenCalledWith({
+      content: "Couldn't add proof to case #4822.",
+    });
     expect(ctx.interaction.deleteReply).toHaveBeenCalled();
     const [payload] = ctx.interaction.followUp.mock.calls[0] as [
       { flags: number },

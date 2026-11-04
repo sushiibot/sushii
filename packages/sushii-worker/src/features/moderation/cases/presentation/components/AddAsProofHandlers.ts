@@ -1,25 +1,33 @@
 import type {
   AnySelectMenuInteraction,
   ButtonInteraction,
+  InteractionEditReplyOptions,
   Message,
   MessageComponentInteraction,
   UserSelectMenuInteraction,
 } from "discord.js";
-import { DiscordAPIError, MessageFlags, RESTJSONErrorCodes } from "discord.js";
+import {
+  DiscordAPIError,
+  MessageFlags,
+  PermissionFlagsBits,
+  RESTJSONErrorCodes,
+} from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type {
+  AddProofError,
   CaseProofService,
   ProofFileSource,
 } from "@/features/moderation/cases/application/CaseProofService";
 import { proofFileMaxBytes } from "@/features/moderation/shared/application/proofDownloads";
+import { PROOF_FILES_PER_CASE_MAX } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import {
   proofErrorText,
   proofNotice,
 } from "@/features/moderation/shared/presentation/proof/proofMessages";
-import { getErrorMessage } from "@/interactions/responses/error";
+import { getErrorMessageEdit } from "@/interactions/responses/error";
 import {
   ButtonHandler,
   SelectMenuHandler,
@@ -34,6 +42,7 @@ import {
   PICKER_CASE_LIMIT,
   type SourceMessage,
   type SourceMessageRef,
+  buildAddAsProofAdding,
   buildAddAsProofDone,
   buildAddAsProofPicker,
   parseAddAsProofCustomId,
@@ -54,19 +63,32 @@ const EMPTY_HINT = "Pick a message with text or files.";
 export const SOURCE_MESSAGE_GONE_TEXT =
   "That message was deleted, or sushii can't read its channel, so it can't be added as proof.";
 
+type MessageLike = Pick<Message, "content" | "attachments">;
+
+/** A forward's own content is empty; what was forwarded is in its snapshot. */
+function forwardedSnapshot(message: Message): MessageLike | null {
+  return message.messageSnapshots?.first() ?? null;
+}
+
+function contentOf(message: Message): MessageLike {
+  return forwardedSnapshot(message) ?? message;
+}
+
 export function toSourceMessage(message: Message): SourceMessage {
+  const shown = contentOf(message);
   return {
     id: message.id,
     channelId: message.channelId,
     url: message.url,
     authorId: message.author.id,
-    content: message.content,
-    files: message.attachments.map((a) => ({ contentType: a.contentType })),
+    content: shown.content ?? "",
+    files: shown.attachments.map((a) => ({ contentType: a.contentType })),
+    forwarded: forwardedSnapshot(message) !== null,
   };
 }
 
 function proofFiles(message: Message): ProofFileSource[] {
-  return message.attachments.map((a) => ({
+  return contentOf(message).attachments.map((a) => ({
     url: a.url,
     name: a.name,
     size: a.size,
@@ -81,7 +103,15 @@ const GONE_CODES = new Set<number | string>([
   RESTJSONErrorCodes.MissingPermissions,
 ]);
 
-/** The picker's message, refetched from the ids in its custom id; null when gone or unreadable. */
+const READ_PERMISSIONS = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.ReadMessageHistory,
+];
+
+/**
+ * The picker's message, refetched from the ids in its custom id. null when
+ * it's gone, or when the bot or the clicker can't read its channel.
+ */
 export async function fetchSourceMessage(
   interaction: MessageComponentInteraction<"cached">,
   ref: SourceMessageRef,
@@ -92,7 +122,8 @@ export async function fetchSourceMessage(
       !channel ||
       channel.isDMBased() ||
       channel.guildId !== interaction.guildId ||
-      !channel.isTextBased()
+      !channel.isTextBased() ||
+      !channel.permissionsFor(interaction.member).has(READ_PERMISSIONS)
     ) {
       return null;
     }
@@ -112,60 +143,99 @@ export async function renderAddAsProofPicker(
   message: SourceMessage,
   user: { id: string; username: string },
 ) {
+  const isAuthor = user.id === message.authorId;
+  // A forward's author is whoever forwarded it, rarely whose case it's for.
+  const showing =
+    isAuthor && message.forwarded ? "unknown" : isAuthor ? "author" : "other";
   const [cases, emojis] = await Promise.all([
-    deps.modLogRepository.findNewestByUser(guildId, user.id, PICKER_CASE_LIMIT),
+    showing === "unknown"
+      ? []
+      : deps.modLogRepository.findNewestByUser(
+          guildId,
+          user.id,
+          PICKER_CASE_LIMIT,
+        ),
     deps.emojiRepository.getEmojis(ADD_AS_PROOF_EMOJIS),
   ]);
 
   return buildAddAsProofPicker({
     message,
     user,
-    showing: user.id === message.authorId ? "author" : "other",
+    showing,
     cases,
     emojis,
     now: deps.now?.(),
   });
 }
 
-async function noteAfterDefer(
+const MB = 1024 * 1024;
+
+/** Why the files can't be stored while the link and text still can; null for other errors. */
+export function filesNotSavedReason(
+  error: AddProofError,
+  maxFileBytes: number,
+): string | null {
+  if (error === "file_too_large") {
+    return `one is over the ${Math.floor(maxFileBytes / MB)} MB limit.`;
+  }
+  if (error === "too_many_files") {
+    return `a case holds up to ${PROOF_FILES_PER_CASE_MAX} proof files.`;
+  }
+  if (
+    typeof error !== "string" &&
+    error.skipped.length > 0 &&
+    error.skipped.every((s) => s.reason === "no_mod_log_for_files")
+  ) {
+    return "this server has no mod log channel to keep them. Set one in `/settings`.";
+  }
+  return null;
+}
+
+type AddResult = Awaited<ReturnType<AddAsProofDeps["caseProofService"]["add"]>>;
+
+/** Edits the picker, which this flow already acknowledged with an update. */
+async function showResult(
   interaction: MessageComponentInteraction<"cached">,
   deps: AddAsProofDeps,
-  message: Parameters<MessageComponentInteraction["followUp"]>[0],
+  message: Parameters<MessageComponentInteraction["editReply"]>[0],
 ): Promise<void> {
   try {
-    await interaction.followUp(message);
+    await interaction.editReply(message);
   } catch (err) {
     deps.logger.warn(
       { err, guildId: interaction.guildId },
-      "Failed to send an Add as proof note",
+      "Failed to show the Add as proof result",
     );
   }
 }
 
-/** Adds the picker's message to a case, then turns the picker into the confirmation. */
+function errorEdit(text: string): InteractionEditReplyOptions {
+  const { components, allowedMentions } = proofNotice(text);
+  // An edit can't set Ephemeral; the picker keeps its own flags.
+  return { components, allowedMentions, flags: MessageFlags.IsComponentsV2 };
+}
+
+/**
+ * Adds the picker's message to a case. The picker is first replaced with an
+ * "Adding…" state, so a second click can't add it again.
+ */
 async function addMessageToCase(
   interaction: MessageComponentInteraction<"cached">,
   deps: AddAsProofDeps,
   ref: SourceMessageRef,
   caseId: string,
 ): Promise<void> {
-  // defer: downloads and re-uploads the message's images
-  await interaction.deferUpdate();
+  await interaction.update(buildAddAsProofAdding(caseId));
 
   const message = await fetchSourceMessage(interaction, ref);
   if (!message) {
-    await noteAfterDefer(
-      interaction,
-      deps,
-      proofNotice(SOURCE_MESSAGE_GONE_TEXT),
-    );
+    await showResult(interaction, deps, errorEdit(SOURCE_MESSAGE_GONE_TEXT));
     return;
   }
 
-  const files = proofFiles(message);
-  let result: Awaited<ReturnType<AddAsProofDeps["caseProofService"]["add"]>>;
-  try {
-    result = await deps.caseProofService.add({
+  const maxFileBytes = proofFileMaxBytes(interaction.attachmentSizeLimit);
+  const add = (files: ProofFileSource[]) =>
+    deps.caseProofService.add({
       guildId: interaction.guildId,
       caseIds: [caseId],
       authorId: interaction.user.id,
@@ -175,37 +245,46 @@ async function addMessageToCase(
       source: {
         url: message.url,
         authorId: message.author.id,
-        content: proofSourceContent(message.content),
+        content: proofSourceContent(contentOf(message).content ?? ""),
       },
       uploadLimit: interaction.attachmentSizeLimit,
     });
+
+  let result: AddResult;
+  let filesNotSaved: string | undefined;
+  try {
+    result = await add(proofFiles(message));
+    const reason = result.err
+      ? filesNotSavedReason(result.val, maxFileBytes)
+      : null;
+    if (reason) {
+      // The link and text still count as proof without the files.
+      filesNotSaved = reason;
+      result = await add([]);
+    }
   } catch (err) {
-    // Logged here instead of the router: its error would replace the picker.
+    // Logged here instead of the router, which would answer a second time.
     deps.logger.error(
       { err, guildId: interaction.guildId, caseId, messageId: ref.messageId },
       "Failed to add a message as proof",
     );
-    await noteAfterDefer(
+    await showResult(
       interaction,
       deps,
-      getErrorMessage(
+      getErrorMessageEdit(
         "Couldn't add proof",
-        "Something went wrong. Try again.",
-        true,
+        "Something went wrong. Right-click the message to try again.",
       ),
     );
     return;
   }
 
   if (result.err) {
-    await noteAfterDefer(
+    await showResult(
       interaction,
       deps,
-      proofNotice(
-        proofErrorText(result.val, {
-          emptyHint: EMPTY_HINT,
-          maxFileBytes: proofFileMaxBytes(interaction.attachmentSizeLimit),
-        }),
+      errorEdit(
+        proofErrorText(result.val, { emptyHint: EMPTY_HINT, maxFileBytes }),
       ),
     );
     return;
@@ -214,12 +293,15 @@ async function addMessageToCase(
   const [proof] = result.val.proofs;
   const [moderationCase] = result.val.cases;
   const emojis = await deps.emojiRepository.getEmojis(ADD_AS_PROOF_EMOJIS);
-  await interaction.editReply(
+  await showResult(
+    interaction,
+    deps,
     buildAddAsProofDone({
       moderationCase,
       proof,
       files: toSourceMessage(message).files,
       emojis,
+      filesNotSaved,
     }),
   );
 }
@@ -321,8 +403,10 @@ export class AddAsProofSelectHandler extends SelectMenuHandler {
       return;
     }
 
-    // Clearing the select goes back to the author's cases.
-    const user = interaction.users.first() ?? message.author;
+    const user = interaction.users.first();
+    if (!user) {
+      throw new Error("Add as proof user select without a user");
+    }
     const picker = await renderAddAsProofPicker(
       this.deps,
       interaction.guildId,

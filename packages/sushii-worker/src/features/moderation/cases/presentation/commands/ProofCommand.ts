@@ -33,6 +33,7 @@ import {
   typedBackText,
 } from "@/features/moderation/shared/presentation/proof/proofMessages";
 import { getErrorMessage } from "@/interactions/responses/error";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import {
   AutocompleteHandler,
@@ -68,7 +69,7 @@ export class ProofCommand extends SlashCommandHandler {
   command = new SlashCommandBuilder()
     .setName("proof")
     .setDescription("Add proof to a case. Only mods see it.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
@@ -151,8 +152,9 @@ export class ProofCommand extends SlashCommandHandler {
         { err, guildId: interaction.guildId, caseId: checked.caseId },
         "Failed to add proof",
       );
-      await this.replacePrivately(
+      await this.reportLateError(
         interaction,
+        checked.caseId,
         getErrorMessage(
           "Couldn't add proof",
           `Something went wrong. Try again.${typedBackText(content)}`,
@@ -163,8 +165,9 @@ export class ProofCommand extends SlashCommandHandler {
     }
 
     if (result.err) {
-      await this.replacePrivately(
+      await this.reportLateError(
         interaction,
+        checked.caseId,
         proofNotice(this.errorText(result.val, content, maxFileBytes)),
       );
       return;
@@ -172,10 +175,9 @@ export class ProofCommand extends SlashCommandHandler {
 
     const [proof] = result.val.proofs;
     const [moderationCase] = result.val.cases;
-    const [config, emojis] = await Promise.all([
-      this.deps.guildConfigRepository.findByGuildId(interaction.guildId),
-      this.deps.emojiRepository.getEmojis(PROOF_COMMAND_EMOJIS),
-    ]);
+    const { config } = checked;
+    const emojis =
+      await this.deps.emojiRepository.getEmojis(PROOF_COMMAND_EMOJIS);
 
     await interaction.editReply(
       buildProofAddedMessage({
@@ -200,7 +202,7 @@ export class ProofCommand extends SlashCommandHandler {
     typedCase: string,
     content: string | null,
     files: ProofFileSource[],
-  ): Promise<{ caseId: string } | { refusal: string }> {
+  ): Promise<{ caseId: string; config: GuildConfig } | { refusal: string }> {
     const maxFileBytes = proofFileMaxBytes(interaction.attachmentSizeLimit);
     const caseId = parseProofCaseOption(typedCase);
     if (!caseId) {
@@ -222,25 +224,23 @@ export class ProofCommand extends SlashCommandHandler {
       };
     }
 
-    const [moderationCase] = await this.deps.modLogRepository.findByIds(
-      interaction.guildId,
-      [caseId],
-    );
+    const [[moderationCase], config] = await Promise.all([
+      this.deps.modLogRepository.findByIds(interaction.guildId, [caseId]),
+      this.deps.guildConfigRepository.findByGuildId(interaction.guildId),
+    ]);
     if (!moderationCase) {
       return {
         refusal: `There's no case #${caseId} in this server.${typedBackText(content)}`,
       };
     }
     if (files.length === 0) {
-      return { caseId };
+      return { caseId, config };
     }
 
-    const [counts, config] = await Promise.all([
-      this.deps.caseProofRepository.countsByCases(interaction.guildId, [
-        caseId,
-      ]),
-      this.deps.guildConfigRepository.findByGuildId(interaction.guildId),
-    ]);
+    const counts = await this.deps.caseProofRepository.countsByCases(
+      interaction.guildId,
+      [caseId],
+    );
     const existing = counts.get(caseId)?.files ?? 0;
     if (existing + files.length > PROOF_FILES_PER_CASE_MAX) {
       return {
@@ -250,7 +250,7 @@ export class ProofCommand extends SlashCommandHandler {
     if (!config.loggingSettings.modLogChannel) {
       return { refusal: NO_MOD_LOG_FOR_FILES_TEXT + typedBackText(content) };
     }
-    return { caseId };
+    return { caseId, config };
   }
 
   private errorText(
@@ -266,25 +266,28 @@ export class ProofCommand extends SlashCommandHandler {
   }
 
   /**
-   * The first follow-up after a deferred reply edits it and stays public,
-   * so the deferred reply is deleted first. Both are best effort.
+   * An error after the public defer. The first follow-up after a defer would
+   * edit the deferred reply and stay public, so the reply is edited to a short
+   * public line first, then the details follow privately and the line is
+   * removed. Each step is best effort.
    */
-  private async replacePrivately(
+  private async reportLateError(
     interaction: ChatInputCommandInteraction<"cached">,
-    message: Parameters<ChatInputCommandInteraction["followUp"]>[0],
+    caseId: string,
+    details: Parameters<ChatInputCommandInteraction["followUp"]>[0],
   ): Promise<void> {
-    await interaction.deleteReply().catch((err: unknown) => {
-      this.deps.logger.warn(
-        { err, guildId: interaction.guildId },
-        "Failed to delete the /proof reply before an error",
-      );
-    });
-    await interaction.followUp(message).catch((err: unknown) => {
-      this.deps.logger.warn(
-        { err, guildId: interaction.guildId },
-        "Failed to send a /proof error",
-      );
-    });
+    const warn = (msg: string) => (err: unknown) => {
+      this.deps.logger.warn({ err, guildId: interaction.guildId }, msg);
+    };
+    await interaction
+      .editReply({ content: `Couldn't add proof to case #${caseId}.` })
+      .catch(warn("Failed to show the /proof error line"));
+    await interaction
+      .followUp(details)
+      .catch(warn("Failed to send the /proof error details"));
+    await interaction
+      .deleteReply()
+      .catch(warn("Failed to remove the /proof error line"));
   }
 }
 
