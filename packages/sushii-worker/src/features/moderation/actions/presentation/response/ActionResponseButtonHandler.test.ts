@@ -676,7 +676,7 @@ describe("ActionResponseButtonHandler", () => {
       expect(
         renderedById(submission.update, ACTION_RESPONSE_IDS.reason)?.content,
       ).toStartWith(
-        "**<:dm_sent:1234567890123456789> Reason** · sent to spambot by DM\nRaid\n",
+        "**<:dm_sent:1234567890123456789> Reason** · sent by DM\nRaid\n",
       );
       expect(json).not.toContain("what they received");
     });

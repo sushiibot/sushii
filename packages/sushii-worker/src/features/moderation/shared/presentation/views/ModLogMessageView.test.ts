@@ -320,7 +320,7 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      `**${emojis.dm_sent} Reason** · sent to user by DM\nSpamming in channels (rule 3).`,
+      `**${emojis.dm_sent} Reason** · sent by DM\nSpamming in channels (rule 3).`,
     );
     expect(allText(container)).toContain(
       `-# ${emojis.trash} Deleted messages from the previous hour`,
@@ -554,7 +554,7 @@ describe("buildModLogMessage", () => {
       expect(b.emoji).toBeUndefined();
     }
     expect(allText(container)).toContain("### Banned · Case #4822");
-    expect(allText(container)).toContain("**Reason** · sent to user by DM\nx");
+    expect(allText(container)).toContain("**Reason** · sent by DM\nx");
     expect(allText(container)).toContain("**Proof** · mods only");
     const proofSection = container.components.findLast(
       (c) => c.type === ComponentType.Section,

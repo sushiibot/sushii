@@ -346,7 +346,7 @@ describe("buildActionResultMessage", () => {
       ACTION_RESPONSE_IDS.proofSection,
     ]);
     expect(reasonText(container)).toBe(
-      `**${emojis.dm_sent} Reason** · sent to spambot by DM\nSpamming invite links`,
+      `**${emojis.dm_sent} Reason** · sent by DM\nSpamming invite links`,
     );
     expect(buttons(container).map((b) => [b.label, b.custom_id])).toEqual([
       ["Edit reason", "modAction/reason/edit/4822"],
@@ -507,7 +507,7 @@ describe("buildActionResultMessage", () => {
     );
 
     expect(reasonText(container)).toStartWith(
-      `**${emojis.dm_sent} Reason** · sent to 3 users by DM\n`,
+      `**${emojis.dm_sent} Reason** · sent by DM\n`,
     );
     expect(proofText(container)).toContain(
       "\n-# Added proof goes on all 3 cases",
@@ -543,7 +543,7 @@ describe("buildActionResultMessage", () => {
       "DM failed: they have DMs off or blocked sushii",
     );
     expect(reasonText(container)).toStartWith(
-      `**${emojis.dm_sent} Reason** · sent to 1 of 2 users by DM\n`,
+      `**${emojis.dm_sent} Reason** · sent by DM to 1 of 2\n`,
     );
     expect(reasonText(container)).toContain("\n-# 1 failed");
     expect(buttons(container).map((b) => b.label)).toContain("Delete DM");
@@ -631,7 +631,7 @@ describe("buildActionResultMessage", () => {
     );
     expect(reasonText(container)).toBe(
       [
-        `**${emojis.dm_sent} Reason** · sent to spambot by DM`,
+        `**${emojis.dm_sent} Reason** · sent by DM`,
         "Spamming invite links",
         "-# Template `!spam`",
         `-# ${unknownShortcutNote("x", emojis, true)}`,
@@ -848,7 +848,7 @@ describe("buildActionResultMessage", () => {
     expect(
       buttons(container).every((b) => b.emoji === undefined || b.emoji.id),
     ).toBe(true);
-    expect(reasonText(container)).toStartWith("**Reason** · sent to");
+    expect(reasonText(container)).toStartWith("**Reason** · sent by DM");
   });
 
   test("no variant contains a native emoji, and all serialize", () => {
@@ -1021,7 +1021,7 @@ describe("rebuildActionResponse", () => {
     );
     expect(reasonText(later)).toBe(
       [
-        `**${emojis.dm_sent} Reason** · sent to spambot by DM`,
+        `**${emojis.dm_sent} Reason** · sent by DM`,
         "New reason",
         `-# ${editedNote(MOD, NOW)}`,
       ].join("\n"),
@@ -1147,7 +1147,7 @@ describe("rebuildActionResponse", () => {
     );
     expect(reasonText(rebuilt)).toBe(
       [
-        `**${emojis.dm_sent} Reason** · sent to spambot by DM`,
+        `**${emojis.dm_sent} Reason** · sent by DM`,
         "Spamming invite links",
         "-# Template `!spam`",
         "-# Also included your server's ban message",

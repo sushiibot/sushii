@@ -140,7 +140,7 @@ function reasonText(
   const heading = reasonHeading(
     emojis,
     delivery.sent
-      ? { sent: true, to: "user" }
+      ? { sent: true }
       : { sent: false, why: delivery.why ?? undefined },
   );
 

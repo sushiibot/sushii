@@ -1,5 +1,3 @@
-import { escapeMarkdown } from "discord.js";
-
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
@@ -24,7 +22,8 @@ export const REASON_EMOJIS = [
 export type ReasonEmojis = EmojiMap<typeof REASON_EMOJIS>;
 
 export type ReasonDeliveryState =
-  | { sent: true; to: string }
+  /** `partial` is set only when some DMs of a multi-user action failed, e.g. "2 of 3". */
+  | { sent: true; partial?: string }
   /** `why` is bot-written text and may hold markdown, so it isn't escaped. */
   | { sent: false; why?: string };
 
@@ -38,7 +37,8 @@ export function reasonHeading(
   state: ReasonDeliveryState,
 ): string {
   if (state.sent) {
-    return `**${withEmoji(emojis.dm_sent, "Reason")}** · sent to ${escapeMarkdown(state.to)} by DM`;
+    const to = state.partial ? ` to ${state.partial}` : "";
+    return `**${withEmoji(emojis.dm_sent, "Reason")}** · sent by DM${to}`;
   }
 
   const why = state.why ? ` (${state.why})` : "";

@@ -23,11 +23,11 @@ const EMOJIS: ReasonEmojis = {
 
 describe("reasonHeading", () => {
   test("sent", () => {
-    expect(reasonHeading(EMOJIS, { sent: true, to: "spambot" })).toBe(
-      "**<:dm_sent:1> Reason** · sent to spambot by DM",
+    expect(reasonHeading(EMOJIS, { sent: true })).toBe(
+      "**<:dm_sent:1> Reason** · sent by DM",
     );
-    expect(reasonHeading(EMOJIS, { sent: true, to: "3 users" })).toBe(
-      "**<:dm_sent:1> Reason** · sent to 3 users by DM",
+    expect(reasonHeading(EMOJIS, { sent: true, partial: "2 of 3" })).toBe(
+      "**<:dm_sent:1> Reason** · sent by DM to 2 of 3",
     );
   });
 
@@ -40,10 +40,7 @@ describe("reasonHeading", () => {
     );
   });
 
-  test("escapes markdown in the username only", () => {
-    expect(reasonHeading(EMOJIS, { sent: true, to: "__bold_guy__" })).toBe(
-      "**<:dm_sent:1> Reason** · sent to \\_\\_bold\\_guy\\_\\_ by DM",
-    );
+  test("leaves the bot-written cause unescaped", () => {
     expect(
       reasonHeading(EMOJIS, { sent: false, why: "off in `/settings`" }),
     ).toBe("**<:reason:2> Reason** · not sent (off in `/settings`)");
@@ -53,9 +50,9 @@ describe("reasonHeading", () => {
     expect(
       reasonHeading(
         { dm_sent: "", reason: "" },
-        { sent: true, to: "user" },
+        { sent: true },
       ),
-    ).toBe("**Reason** · sent to user by DM");
+    ).toBe("**Reason** · sent by DM");
   });
 });
 

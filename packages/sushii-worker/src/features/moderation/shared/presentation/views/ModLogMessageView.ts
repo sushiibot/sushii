@@ -364,7 +364,7 @@ function buildReasonHeading(input: ModLogMessageInput): string {
   }
 
   if (hasLiveDm(moderationCase)) {
-    return reasonHeading(emojis, { sent: true, to: "user" });
+    return reasonHeading(emojis, { sent: true });
   }
 
   const delivery = reasonDelivery(moderationCase);

@@ -532,15 +532,12 @@ function reasonDelivery(input: DeliveryInput): ReasonDelivery {
   let heading: string;
   let cause: string | null = null;
   if (live > 0) {
-    let to: string;
-    if (total === 1) {
-      to = escapeMarkdown(dmCases[0].userTag);
-    } else if (live === total) {
-      to = `${total} users`;
-    } else {
-      to = `${live} of ${total} users`;
-    }
-    heading = reasonHeading(emojis, { sent: true, to });
+    heading = reasonHeading(
+      emojis,
+      live === total
+        ? { sent: true }
+        : { sent: true, partial: `${live} of ${total}` },
+    );
 
     const others: string[] = [];
     if (deleted > 0) {
