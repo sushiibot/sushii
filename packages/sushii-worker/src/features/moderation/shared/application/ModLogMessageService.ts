@@ -768,6 +768,11 @@ export class ModLogMessageService {
    * outside an interaction's 3 seconds.
    */
   async adoptUnhosted(moderationCase: ModerationCase): Promise<void> {
+    // Checked first: it runs for every audit log case, and most have nothing to move.
+    if (!(await this.listProofs(moderationCase)).some(isAdoptable)) {
+      return;
+    }
+
     const entry = await this.loadEntry(moderationCase);
     if (!entry.message) {
       return;

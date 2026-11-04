@@ -298,6 +298,7 @@ function setup(
     recordModLogEdit,
     listByCase,
     updateHosting,
+    client,
     service: new ModLogMessageService(
       client,
       guildConfigRepository,
@@ -955,6 +956,24 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
       hostMessageId: LOG_MESSAGE,
     });
     expect(updateHosting).toHaveBeenCalledTimes(1);
+  });
+
+  test("nothing adoptable: no entry fetch at all", async () => {
+    const { service, client } = setup({
+      proofs: [
+        makeProof({
+          id: "7",
+          hostMessageId: LOG_MESSAGE,
+          attachments: [RESPONSE_URL],
+        }),
+        makeProof({ id: "8", source: "backfill", attachments: [RESPONSE_URL] }),
+      ],
+    });
+
+    await service.adoptUnhosted(makeCase());
+
+    expect(client.channels.fetch).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   test("a file Discord no longer serves stays listed and isn't fetched again", async () => {
