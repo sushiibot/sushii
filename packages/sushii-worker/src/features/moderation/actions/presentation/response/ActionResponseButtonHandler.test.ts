@@ -52,7 +52,11 @@ const MOD_LOG_CHANNEL = "1029384756102938400";
 const MOD_LOG_URL = `https://discord.com/channels/${GUILD}/${MOD_LOG_CHANNEL}/1029384756102938499`;
 const CREATED = Date.parse("2026-10-27T11:00:00.000Z");
 
-function postedMessage(cases: ModerationCase[], savePrompt = false) {
+function postedMessage(
+  cases: ModerationCase[],
+  savePrompt = false,
+  proofs: ReturnType<typeof proofRow>[] = [],
+) {
   const message = buildActionResultMessage({
     actionType: ActionType.Ban,
     executor: makeUser(MOD, "tzuyu"),
@@ -68,11 +72,11 @@ function postedMessage(cases: ModerationCase[], savePrompt = false) {
     ),
     emojis: makeEmojis(),
     savePrompt,
+    proofs,
   });
   return {
     id: "1029384756102938500",
     createdTimestamp: CREATED,
-    editedTimestamp: null as number | null,
     components: message.components.map((c) => {
       const json = c.toJSON();
       return { toJSON: () => json };
@@ -90,7 +94,6 @@ function postedFrom(
   return {
     id: "1029384756102938500",
     createdTimestamp,
-    editedTimestamp: null as number | null,
     components: options.components.map((c) => {
       const json = c.toJSON() as APIContainerComponent;
       return { toJSON: () => json };
@@ -225,6 +228,23 @@ function expand(text: string, extra: Partial<ExpandResult> = {}): ExpandResult {
   };
 }
 
+function proofRow(id: string) {
+  return {
+    id,
+    guildId: GUILD,
+    caseId: "4822",
+    authorId: MOD,
+    createdAt: new Date(CREATED),
+    content: "Screenshot from #reports",
+    attachments: [],
+    sourceMessageUrl: null,
+    sourceAuthorId: null,
+    sourceContent: null,
+    hostMessageId: null,
+    source: "button" as const,
+  };
+}
+
 function expectAllDisabled(json: string) {
   const buttons = (json.match(/"type":2,/g) ?? []).length;
   expect(buttons).toBeGreaterThan(0);
@@ -240,7 +260,6 @@ describe("ActionResponseButtonHandler", () => {
   let recordUse: ReturnType<typeof mock>;
   let shouldPromptSave: ReturnType<typeof mock>;
   let listByCases: ReturnType<typeof mock>;
-  let latestCreatedAt: ReturnType<typeof mock>;
   let metrics: {
     recordReasonResolved: ReturnType<typeof mock>;
     recordSavePrompt: ReturnType<typeof mock>;
@@ -282,7 +301,6 @@ describe("ActionResponseButtonHandler", () => {
     recordUse = mock(async () => undefined);
     shouldPromptSave = mock(async () => false);
     listByCases = mock(async () => new Map());
-    latestCreatedAt = mock(async () => null);
     metrics = {
       recordReasonResolved: mock(),
       recordSavePrompt: mock(),
@@ -291,7 +309,7 @@ describe("ActionResponseButtonHandler", () => {
 
     handler = new ActionResponseButtonHandler({
       modLogRepository: { findByIds },
-      caseProofRepository: { listByCases, latestCreatedAt },
+      caseProofRepository: { listByCases },
       guildConfigRepository: {
         findByGuildId: mock(async () => {
           const config = GuildConfig.createDefault(GUILD);
@@ -360,7 +378,7 @@ describe("ActionResponseButtonHandler", () => {
   });
 
   describe("lazy staleness after a restart", () => {
-    test("a case changed after the response turns it stale instead of acting", async () => {
+    test("a reason changed elsewhere turns it stale instead of acting", async () => {
       findByIds.mockImplementation(async (_g: string, ids: string[]) =>
         ids.map((id) =>
           makeCase({
@@ -385,15 +403,12 @@ describe("ActionResponseButtonHandler", () => {
         "changed in the mod log",
       );
       expect(deleteDms).not.toHaveBeenCalled();
-      expect(latestCreatedAt).toHaveBeenCalledWith(GUILD, ["4822"], {
-        excludeSources: ["action"],
-      });
       expectButtonMetric(["delete_dm", "expired"]);
     });
 
-    test("proof added elsewhere also counts", async () => {
-      latestCreatedAt.mockImplementation(
-        async () => new Date(CREATED + 60_000),
+    test("proof added elsewhere turns it stale", async () => {
+      listByCases.mockImplementation(
+        async () => new Map([["4822", [proofRow("1")]]]),
       );
       const button = await click(
         makeButton("modAction/reason/edit/4822", postedMessage([makeCase()])),
@@ -402,17 +417,87 @@ describe("ActionResponseButtonHandler", () => {
       expect(rendered(button.update)).toContain("Changed in the mod log");
     });
 
-    test("changes this response already shows don't count", async () => {
-      latestCreatedAt.mockImplementation(
-        async () => new Date(CREATED + 60_000),
+    test("a DM deleted elsewhere turns it stale", async () => {
+      findByIds.mockImplementation(async (_g: string, ids: string[]) =>
+        ids.map((id) => makeCase({ caseId: id, dmDeleted: true })),
       );
-      const message = postedMessage([makeCase()]);
-      message.editedTimestamp = CREATED + 59_000;
       const button = await click(
-        makeButton("modAction/dm/delete/4822", message),
+        makeButton("modAction/reason/edit/4822", postedMessage([makeCase()])),
+      );
+      expect(button.showModal).not.toHaveBeenCalled();
+      expect(rendered(button.update)).toContain("Changed in the mod log");
+    });
+
+    test("an edit through this response doesn't turn it stale", async () => {
+      const message = postedMessage([makeCase()]);
+      const submission = makeSubmission(message, { text: "Raid" });
+      await click(
+        makeButton("modAction/reason/edit/4822", message, { submission }),
+      );
+      const edited = postedFrom(submission.update);
+
+      findByIds.mockImplementation(async (_g: string, ids: string[]) =>
+        ids.map((id) =>
+          makeCase({
+            caseId: id,
+            reason: "Raid",
+            reasonSetBy: MOD,
+            reasonSetAt: new Date(NOW),
+          }),
+        ),
+      );
+      const button = await click(
+        makeButton("modAction/dm/delete/4822", edited),
       );
       expect(rendered(button.update)).toContain("modAction/dm/deleteConfirm/");
       expect(rendered(button.update)).not.toContain("Changed in the mod log");
+    });
+
+    test("an old response without a proof section ignores backfilled proof", async () => {
+      listByCases.mockImplementation(
+        async () => new Map([["4822", [proofRow("1")]]]),
+      );
+      const old = {
+        createdTimestamp: CREATED,
+        components: [
+          {
+            toJSON: () => ({
+              type: ComponentType.Container,
+              components: [
+                {
+                  type: ComponentType.TextDisplay,
+                  id: ACTION_RESPONSE_IDS.reason,
+                  content: "**Reason**\nSpamming invite links",
+                },
+                {
+                  type: ComponentType.Section,
+                  id: ACTION_RESPONSE_IDS.dmSection,
+                  components: [
+                    {
+                      type: ComponentType.TextDisplay,
+                      id: ACTION_RESPONSE_IDS.dm,
+                      content:
+                        "**DM sent** · what they received:\n> Spamming invite links",
+                    },
+                  ],
+                  accessory: {
+                    type: ComponentType.Button,
+                    style: 2,
+                    label: "Delete DM",
+                    custom_id: "modAction/dm/delete/4822",
+                  },
+                },
+              ],
+            }),
+          },
+        ],
+        edit: mock(async (_o: unknown) => undefined),
+      };
+      const button = await click(
+        makeButton("modAction/reason/edit/4822", old as never),
+      );
+      expect(button.update).not.toHaveBeenCalled();
+      expect(button.showModal).toHaveBeenCalledTimes(1);
     });
 
     test("a click on a stale response only answers privately", async () => {
@@ -466,37 +551,14 @@ describe("ActionResponseButtonHandler", () => {
   });
 
   test("renders the cases' proof on every rebuild", async () => {
-    listByCases.mockImplementation(
-      async () =>
-        new Map([
-          [
-            "4822",
-            [
-              {
-                id: "1",
-                guildId: GUILD,
-                caseId: "4822",
-                authorId: MOD,
-                createdAt: new Date(CREATED),
-                content: "Screenshot from #reports",
-                attachments: [],
-                sourceMessageUrl: null,
-                sourceAuthorId: null,
-                sourceContent: null,
-                hostMessageId: null,
-                source: "action",
-              },
-            ],
-          ],
-        ]),
-    );
-    const button = await click(
-      makeButton("modAction/dm/cancel/4822", postedMessage([makeCase()])),
-    );
+    const proofs = new Map([["4822", [proofRow("1")]]]);
+    const message = postedMessage([makeCase()], false, [
+      { ...proofRow("1"), content: "Posted before an edit elsewhere" },
+    ]);
+    listByCases.mockImplementation(async () => proofs);
+    const button = await click(makeButton("modAction/dm/cancel/4822", message));
     expect(listByCases).toHaveBeenCalledWith(GUILD, ["4822"]);
-    expect(
-      renderedById(button.update, ACTION_RESPONSE_IDS.proof)?.content,
-    ).toContain("Screenshot from #reports");
+    expect(rendered(button.update)).toContain("Screenshot from #reports");
   });
 
   describe("Edit reason", () => {

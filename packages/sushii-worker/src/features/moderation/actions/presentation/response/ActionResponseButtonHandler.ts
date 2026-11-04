@@ -72,6 +72,7 @@ import {
   expireActionResponse,
   hasSavePrompt,
   isResponseExpired,
+  postedResponseDiffers,
   postedStaleUrl,
   rebuildActionResponse,
   showsExpiredLine,
@@ -100,10 +101,7 @@ type MessageInteraction =
 
 export interface ActionResponseDeps {
   modLogRepository: Pick<ModLogRepository, "findByIds">;
-  caseProofRepository: Pick<
-    CaseProofRepository,
-    "listByCases" | "latestCreatedAt"
-  >;
+  caseProofRepository: Pick<CaseProofRepository, "listByCases">;
   /** Links the mod log entry from the stale line; without it the line names the entry. */
   guildConfigRepository?: Pick<GuildConfigRepository, "findByGuildId">;
   reasonUpdateService: Pick<ReasonUpdateService, "updateReasons">;
@@ -145,10 +143,7 @@ function ephemeral(text: string, accent: number): InteractionReplyOptions {
   };
 }
 
-type PostedResponse = Pick<
-  Message,
-  "createdTimestamp" | "editedTimestamp" | "components"
->;
+type PostedResponse = Pick<Message, "createdTimestamp" | "components">;
 type ResponseMessage = PostedResponse & Pick<Message, "edit">;
 
 type RenderBody = Omit<ResponseBodyInput, "reasonNotes" | "mode"> & {
@@ -163,14 +158,6 @@ interface RetryEntry {
 }
 
 const retryIds = buildRetryMatcher("modAction/reasonRetry");
-
-/** Clock skew between the database, the bot and Discord's edit timestamps. */
-const STALE_TOLERANCE_MS = 5 * 1000;
-
-function latest(dates: readonly (Date | null)[]): number | null {
-  const times = dates.flatMap((d) => (d ? [d.getTime()] : []));
-  return times.length > 0 ? Math.max(...times) : null;
-}
 
 // A submit after the window still lands: it renders the expired state.
 const MIN_FORM_TIMEOUT_MS = 5 * 60 * 1000;
@@ -377,29 +364,21 @@ export class ActionResponseButtonHandler extends ButtonHandler {
   }
 
   /**
-   * Falls back for responses the registry lost on a restart: a case changed
-   * after the response's last edit turns it stale instead of acting on it.
-   * Action-time proof is saved after the response is posted, so it doesn't count.
+   * Falls back for responses the registry lost on a restart: when the cases
+   * no longer match what the response shows, it turns stale instead of
+   * acting. Edits through the response re-render it, so they always match.
    */
   private async changedSincePosted(
     interaction: ButtonInteraction<"cached">,
     caseIds: string[],
   ): Promise<boolean> {
-    const [cases, proofAt] = await Promise.all([
-      this.loadCases(interaction.guildId, caseIds),
-      this.deps.caseProofRepository.latestCreatedAt(
-        interaction.guildId,
-        caseIds,
-        { excludeSources: ["action"] },
-      ),
-    ]);
-    const changedAt = latest([
-      ...cases.flatMap((c) => [c.reasonSetAt, c.dmDeletedAt]),
-      proofAt,
+    const cases = await this.loadCases(interaction.guildId, caseIds);
+    const [proofs, emojis] = await Promise.all([
+      this.loadProofs(interaction.guildId, cases),
+      this.getEmojis(),
     ]);
     const { message } = interaction;
-    const postedAt = message.editedTimestamp ?? message.createdTimestamp;
-    if (changedAt === null || changedAt <= postedAt + STALE_TOLERANCE_MS) {
+    if (!postedResponseDiffers(postedOf(message), { cases, proofs, emojis })) {
       return false;
     }
 
@@ -416,7 +395,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     await interaction.update(stale);
     await this.notePrivately(interaction, reply);
     this.deps.logger.info(
-      { guildId: interaction.guildId, caseIds, changedAt, postedAt },
+      { guildId: interaction.guildId, caseIds },
       "Marked mod action response stale on click",
     );
     return true;

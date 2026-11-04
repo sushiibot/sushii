@@ -41,11 +41,13 @@ import {
   ACTION_RESPONSE_IDS,
   type ActionResponseMessage,
   EXPIRED_LINE,
+  PROOF_TEXT_ID_BASE,
   buildActionResultMessage,
   editedNote,
   expireActionResponse,
   hasSavePrompt,
   isResponseExpired,
+  postedResponseDiffers,
   postedStaleUrl,
   rebuildActionResponse,
   showsExpiredLine,
@@ -283,8 +285,26 @@ function reasonText(container: APIContainerComponent): string {
   return must(textById(container, ACTION_RESPONSE_IDS.reason));
 }
 
+function proofTextComponent(container: APIContainerComponent) {
+  for (const c of container.components) {
+    const texts =
+      c.type === ComponentType.Section
+        ? c.components
+        : c.type === ComponentType.TextDisplay
+          ? [c]
+          : [];
+    const found = texts.find(
+      (t) => (t.id ?? 0) >= PROOF_TEXT_ID_BASE && (t.id ?? 0) < 3000,
+    );
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
 function proofText(container: APIContainerComponent): string {
-  return must(textById(container, ACTION_RESPONSE_IDS.proof));
+  return must(proofTextComponent(container)).content;
 }
 
 function topLevelTypes(container: APIContainerComponent): (number | string)[] {
@@ -704,9 +724,7 @@ describe("buildActionResultMessage", () => {
       const container = json(render({ targets, results }));
       expect(buttons(container)).toEqual([]);
       expect(byId(container, ACTION_RESPONSE_IDS.proofSection)).toBeUndefined();
-      expect(textById(container, ACTION_RESPONSE_IDS.proof)).toStartWith(
-        `**${emojis.lock} Proof**`,
-      );
+      expect(proofText(container)).toStartWith(`**${emojis.lock} Proof**`);
       expect(textById(container, ACTION_RESPONSE_IDS.footer)).toContain(
         "too spread out",
       );
@@ -1267,6 +1285,148 @@ describe("expiry and staleness", () => {
     const failed = posted(render({ results: [Err("nope")] }));
     expect(expireActionResponse(failed)).toBeNull();
     expect(staleActionResponse(failed, null)).toBeNull();
+  });
+});
+
+describe("postedResponseDiffers", () => {
+  function differs(
+    from: ActionResponseMessage | APIMessageTopLevelComponent[],
+    cases: ModerationCase[],
+    proofs: CaseProof[] = [],
+  ): boolean {
+    const components = Array.isArray(from) ? from : posted(from);
+    return postedResponseDiffers(components, { cases, proofs, emojis });
+  }
+
+  test("a response matches the cases it was rendered from", () => {
+    expect(
+      differs(render({ proofs: [proof()] }), [makeCase()], [proof()]),
+    ).toBe(false);
+  });
+
+  test("the proof text id carries the entry count", () => {
+    const container = json(render({ proofs: [proof(), proof({ id: "2" })] }));
+    expect(proofTextComponent(container)?.id).toBe(PROOF_TEXT_ID_BASE + 2);
+  });
+
+  test("a reason changed elsewhere differs", () => {
+    expect(
+      differs(render(), [
+        makeCase({
+          reason: "Changed",
+          reasonSetBy: OTHER_MOD,
+          reasonSetAt: NOW,
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  test("a rebuilt response after its own edit matches", () => {
+    const edited = makeCase({
+      reason: "Changed",
+      reasonSetBy: MOD,
+      reasonSetAt: NOW,
+    });
+    const rebuilt = rebuild(render(), {
+      cases: [edited],
+      reasonNotes: [editedNote(MOD, NOW)],
+      dmOverride: `${emojis.message} DM updated with the new reason`,
+    });
+    expect(differs(rebuilt, [edited])).toBe(false);
+  });
+
+  test("proof added elsewhere differs, edited content doesn't", () => {
+    const original = render({ proofs: [proof()] });
+    expect(differs(original, [makeCase()], [proof(), proof({ id: "2" })])).toBe(
+      true,
+    );
+    expect(
+      differs(original, [makeCase()], [proof({ content: "reworded" })]),
+    ).toBe(false);
+  });
+
+  test("entries collapsed into '+N more' still count as shown", () => {
+    const reason = "r".repeat(3000);
+    const proofs = Array.from({ length: 6 }, (_, i) =>
+      proof({ id: `${i}`, content: `${i}`.repeat(100) }),
+    );
+    const original = render({
+      results: [Ok(makeCase({ reason }))],
+      action: banAction(reason),
+      proofs,
+    });
+    expect(proofText(json(original))).toContain("-# +");
+    expect(differs(original, [makeCase({ reason })], proofs)).toBe(false);
+  });
+
+  test("a DM deleted elsewhere differs, one deleted here doesn't", () => {
+    const original = render();
+    expect(differs(original, [makeCase({ dmDeleted: true })])).toBe(true);
+
+    const deletedHere = rebuild(original, {
+      cases: [makeCase({ dmDeleted: true })],
+    });
+    expect(differs(deletedHere, [makeCase({ dmDeleted: true })])).toBe(false);
+  });
+
+  test("one of several DMs deleted elsewhere differs", () => {
+    const targets = [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")];
+    const cases = targets.map((t, i) =>
+      makeCase({ caseId: `${4822 + i}`, userId: t.id }),
+    );
+    const original = render({ targets, results: cases.map((c) => Ok(c)) });
+    expect(differs(original, cases)).toBe(false);
+    expect(
+      differs(original, [
+        cases[0],
+        makeCase({ caseId: "4823", userId: TARGET_2, dmDeleted: true }),
+      ]),
+    ).toBe(true);
+  });
+
+  test("the Delete DM confirm counts as a live DM", () => {
+    const confirming = rebuild(render(), {
+      cases: [makeCase()],
+      mode: "confirmDeleteDm",
+    });
+    expect(differs(confirming, [makeCase()])).toBe(false);
+    expect(differs(confirming, [makeCase({ dmDeleted: true })])).toBe(true);
+  });
+
+  test("an old response without a proof section skips the proof comparison", () => {
+    const old: APIMessageTopLevelComponent[] = [
+      {
+        type: ComponentType.Container,
+        components: [
+          {
+            type: ComponentType.TextDisplay,
+            id: ACTION_RESPONSE_IDS.reason,
+            content: "**Reason**\nSpamming invite…",
+          },
+          {
+            type: ComponentType.Section,
+            id: ACTION_RESPONSE_IDS.dmSection,
+            components: [
+              {
+                type: ComponentType.TextDisplay,
+                id: ACTION_RESPONSE_IDS.dm,
+                content: "**DM sent**",
+              },
+            ],
+            accessory: {
+              type: ComponentType.Button,
+              style: 2,
+              label: "Delete DM",
+              custom_id: "modAction/dm/delete/4822",
+            },
+          },
+        ],
+      } as APIMessageTopLevelComponent,
+    ];
+    expect(differs(old, [makeCase()], [proof({ source: "backfill" })])).toBe(
+      false,
+    );
+    expect(differs(old, [makeCase({ reason: "Other" })])).toBe(true);
   });
 });
 

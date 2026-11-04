@@ -113,9 +113,28 @@ export const ACTION_RESPONSE_IDS = {
   reasonRow: 2012,
   confirm: 2013,
   proofSection: 2014,
-  proof: 2015,
   status: 2016,
 } as const;
+
+/**
+ * The proof text display's id is this base plus the number of proof entries,
+ * shown or behind "+N more", so a click can tell whether proof was added
+ * elsewhere.
+ */
+export const PROOF_TEXT_ID_BASE = 2100;
+const PROOF_TEXT_ID_MAX_COUNT = 899;
+
+function proofTextId(count: number): number {
+  return PROOF_TEXT_ID_BASE + Math.min(count, PROOF_TEXT_ID_MAX_COUNT);
+}
+
+function isProofTextId(id: number | undefined): boolean {
+  return (
+    id !== undefined &&
+    id >= PROOF_TEXT_ID_BASE &&
+    id <= PROOF_TEXT_ID_BASE + PROOF_TEXT_ID_MAX_COUNT
+  );
+}
 
 export const RESPONSE_WINDOW_MS = 15 * 60 * 1000;
 
@@ -1020,7 +1039,7 @@ function assemble(
     ]) -
     reasonText.length;
   const proofContent = text(
-    ACTION_RESPONSE_IDS.proof,
+    proofTextId(body.proofs.length),
     proofText(body, gallery !== null, proofRoom),
   );
   const proofSection = encoded
@@ -1307,7 +1326,7 @@ function postedReason(
 ): PostedReason {
   if (
     findById(container, ACTION_RESPONSE_IDS.reasonRow) === null &&
-    findTextById(container, ACTION_RESPONSE_IDS.proof) === null
+    findProofText(container) === null
   ) {
     return legacyPostedReason(container, body, legacyDmText);
   }
@@ -1335,6 +1354,97 @@ function postedReason(
       .map((line) => line.replace(/^-# /, "")),
     dmTextIncluded,
   };
+}
+
+function findProofText(
+  container: APIContainerComponent | null,
+): APITextDisplayComponent | null {
+  for (const component of container?.components ?? []) {
+    if (
+      component.type === ComponentType.TextDisplay &&
+      isProofTextId(component.id)
+    ) {
+      return component;
+    }
+    if (component.type === ComponentType.Section) {
+      const nested = component.components.find((c) => isProofTextId(c.id));
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+/** The posted proof text, or null on responses from before the proof section. */
+export function postedProofText(
+  posted: readonly APIMessageTopLevelComponent[],
+): string | null {
+  return findProofText(findContainer(posted))?.content ?? null;
+}
+
+const DELETE_DM_PREFIX = "modAction/dm/delete/";
+const DELETE_DM_CONFIRM_PREFIX = "modAction/dm/deleteConfirm/";
+
+/** Live DMs the posted response offers to delete; "confirming" while it asks to. */
+function postedLiveDms(
+  container: APIContainerComponent,
+): number | "confirming" {
+  const buttons = container.components.flatMap(
+    (c): { custom_id?: string; label?: string }[] => {
+      if (c.type === ComponentType.ActionRow) {
+        return c.components as { custom_id?: string; label?: string }[];
+      }
+      if (c.type === ComponentType.Section) {
+        return [c.accessory as { custom_id?: string; label?: string }];
+      }
+      return [];
+    },
+  );
+  for (const { custom_id: customId = "", label = "" } of buttons) {
+    if (customId.startsWith(DELETE_DM_CONFIRM_PREFIX)) {
+      return "confirming";
+    }
+    if (customId.startsWith(DELETE_DM_PREFIX)) {
+      return Number(/^Delete (\d+) DMs$/.exec(label)?.[1] ?? 1);
+    }
+  }
+  return 0;
+}
+
+/**
+ * Whether the cases changed since the response was last rendered: a
+ * different reason, a different number of proof entries, or a DM deleted.
+ * Responses from before the proof section skip the proof comparison.
+ */
+export function postedResponseDiffers(
+  posted: readonly APIMessageTopLevelComponent[],
+  current: {
+    cases: ModerationCase[];
+    proofs: readonly CaseProof[];
+    emojis: ModerationActionEmojis;
+  },
+): boolean {
+  const container = findContainer(posted);
+  if (!container || current.cases.length === 0) {
+    return false;
+  }
+
+  const { legacyDmText } = postedDetails(
+    findById(container, ACTION_RESPONSE_IDS.details),
+  );
+  if (postedReason(container, current, legacyDmText).notes === null) {
+    return true;
+  }
+
+  const proofText = findProofText(container);
+  if (proofText && proofText.id !== proofTextId(current.proofs.length)) {
+    return true;
+  }
+
+  const live = current.cases.filter(hasLiveDm).length;
+  const shown = postedLiveDms(container);
+  return shown === "confirming" ? live === 0 : shown !== live;
 }
 
 /** Whether the posted response offers Save as template, including while confirming Delete DM. */
