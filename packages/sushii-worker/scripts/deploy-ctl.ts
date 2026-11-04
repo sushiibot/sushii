@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { readFileSync } from "node:fs";
+
 const DEFAULT_ENDPOINT = "http://localhost:9090";
 
 interface ShardInfo {
@@ -229,10 +231,26 @@ async function cmdSwitch(
   }
 }
 
+/**
+ * The slot's internal API token, from INTERNAL_API_TOKEN_FILE like the bot itself, else INTERNAL_API_TOKEN.
+ * Standalone on purpose: importing the bot's secret loader would require every other bot secret too.
+ */
+export function internalApiToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const file = env.INTERNAL_API_TOKEN_FILE;
+  if (!file) {
+    return env.INTERNAL_API_TOKEN || undefined;
+  }
+  try {
+    return readFileSync(file, "utf8").trimEnd() || undefined;
+  } catch (err) {
+    fail(`Error: INTERNAL_API_TOKEN_FILE could not be read (${(err as NodeJS.ErrnoException).code}).`);
+  }
+}
+
 export async function main(
   args: string[],
   fetchFn: typeof fetch = fetch,
-  token: string | undefined = process.env.INTERNAL_API_TOKEN,
+  token: string | undefined = internalApiToken(),
 ): Promise<void> {
   const { command, commandArg, endpoint } = parseArgs(args);
 

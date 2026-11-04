@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { main } from "./deploy-ctl";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { internalApiToken, main } from "./deploy-ctl";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -283,5 +287,41 @@ describe("deploy-ctl auth", () => {
     await runCli(["status"], captureHeaders(seen), undefined);
 
     expect(seen[0]?.has("Authorization")).toBe(false);
+  });
+});
+
+describe("internalApiToken", () => {
+  test("reads INTERNAL_API_TOKEN_FILE, trimming the trailing newline", () => {
+    const dir = mkdtempSync(join(tmpdir(), "deploy-ctl-"));
+    try {
+      const file = join(dir, "internal_api_token");
+      writeFileSync(file, "file-token\n");
+      expect(internalApiToken({ INTERNAL_API_TOKEN_FILE: file, INTERNAL_API_TOKEN: "env-token" })).toBe("file-token");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to INTERNAL_API_TOKEN, and treats empty as unset", () => {
+    expect(internalApiToken({ INTERNAL_API_TOKEN: "env-token" })).toBe("env-token");
+    expect(internalApiToken({ INTERNAL_API_TOKEN: "" })).toBeUndefined();
+    expect(internalApiToken({})).toBeUndefined();
+  });
+
+  test("exits with an error when the file can't be read", () => {
+    const origExit = process.exit;
+    const origError = console.error;
+    const errors: string[] = [];
+    console.error = (...a: unknown[]) => errors.push(a.join(" "));
+    process.exit = ((code?: number) => {
+      throw new ExitCalled(code ?? 0);
+    }) as typeof process.exit;
+    try {
+      expect(() => internalApiToken({ INTERNAL_API_TOKEN_FILE: "/nonexistent/token" })).toThrow(ExitCalled);
+      expect(errors[0]).toContain("INTERNAL_API_TOKEN_FILE could not be read (ENOENT)");
+    } finally {
+      process.exit = origExit;
+      console.error = origError;
+    }
   });
 });
