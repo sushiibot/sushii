@@ -116,6 +116,7 @@ export function createMockDiscordClient(): MockDiscordClient {
         Promise.resolve({
           id: channelId,
           isTextBased: () => true,
+          isSendable: () => true,
           send: sendSpy,
         }),
       ),
