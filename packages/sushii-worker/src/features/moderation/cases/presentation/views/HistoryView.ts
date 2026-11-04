@@ -34,7 +34,9 @@ export type HistoryEmojis = EmojiMap<typeof HISTORY_ACTION_EMOJIS>;
 // Only a newline-heavy max-length reason reaches this: quoting adds "> " per
 // line, and one oversized case would make Discord reject the whole page.
 const MAX_CASE_LENGTH = TAB_CONTENT_CHAR_BUDGET;
-const OVERSIZED_NOTE = "\n> -# Too long to show here. Open it with View case.";
+// Overview shows rows too and has no select, so the pointer names the History tab.
+const OVERSIZED_NOTE =
+  "Too long to show here. Open it from History → View case.";
 
 const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
   user_blocked: "they have DMs off or blocked sushii",
@@ -92,29 +94,27 @@ function prefixed(emoji: string, text: string): string {
   return emoji ? `${emoji} ${text}` : text;
 }
 
-function reasonLines(
+/** The reason's emoji and any "Not sent" line; null when there's no reason. */
+function reasonParts(
   moderationCase: ModerationCase,
   emojis: HistoryEmojis,
-): string {
-  const reason = moderationCase.reason?.value;
-  if (!reason) {
-    return "";
+): { emoji: string; notSent: string } | null {
+  if (!moderationCase.reason?.value) {
+    return null;
   }
 
   if (moderationCase.actionType === ActionType.Note) {
-    return "\n" + quoteMarkdownString(prefixed(emojis.lock, reason));
+    return { emoji: emojis.lock, notSent: "" };
   }
 
   const delivery = reasonDelivery(moderationCase);
   if (delivery.sent) {
-    return (
-      "\n" + quoteMarkdownString(prefixed(emojis.additional_message, reason))
-    );
+    return { emoji: emojis.additional_message, notSent: "" };
   }
 
   // Older cases recorded no DM outcome, so with no known cause there's no line.
   const notSent = delivery.why ? `\n> -# Not sent: ${delivery.why}` : "";
-  return "\n" + quoteMarkdownString(prefixed(emojis.reason, reason)) + notSent;
+  return { emoji: emojis.reason, notSent };
 }
 
 function proofCountLine(
@@ -175,12 +175,20 @@ export function formatModerationCase(
   s += ` · <t:${timestamp}:R>`;
 
   const proofLine = proofCountLine(proofCounts, emojis);
-  const full = s + reasonLines(moderationCase, emojis) + proofLine;
+  const parts = reasonParts(moderationCase, emojis);
+  if (!parts || !moderationCase.reason) {
+    return s + proofLine;
+  }
+
+  const quoted = quoteMarkdownString(
+    prefixed(parts.emoji, moderationCase.reason.value),
+  );
+  const full = `${s}\n${quoted}${parts.notSent}${proofLine}`;
   if (full.length <= MAX_CASE_LENGTH) {
     return full;
   }
 
-  return s + OVERSIZED_NOTE + proofLine;
+  return `${s}\n> ${prefixed(parts.emoji, OVERSIZED_NOTE)}${parts.notSent}${proofLine}`;
 }
 
 export function spansMultipleUsers(cases: ModerationCase[]): boolean {

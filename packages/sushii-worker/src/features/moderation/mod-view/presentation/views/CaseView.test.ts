@@ -8,12 +8,14 @@ import { ModerationCase } from "@/features/moderation/shared/domain/entities/Mod
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { Reason } from "@/features/moderation/shared/domain/value-objects/Reason";
 import { buildAddProofCustomId } from "@/features/moderation/shared/presentation/proof/customIds";
+import { proofEntryText } from "@/features/moderation/shared/presentation/proof/proofBlock";
 
 import { MODVIEW_CUSTOM_IDS } from "../customIds";
 import {
   CASE_VIEW_TEXT_MAX,
   buildCaseSelect,
   buildCaseViewMessages,
+  splitAtLines,
 } from "./CaseView";
 
 const GUILD_ID = "111111111111111111";
@@ -292,5 +294,70 @@ describe("buildCaseViewMessages", () => {
       "https://cdn.discordapp.com/attachments/1/3/log.txt",
     );
     expect(texts(json(messages[0])).join("\n")).not.toContain("log.txt");
+  });
+
+  test("splits one oversized entry across follow-ups without losing text", () => {
+    const sourceContent = "a\n".repeat(1000).trimEnd();
+    const content = "c".repeat(1000);
+    const proof = makeProof({ content, sourceContent });
+    const moderationCase = makeCase("7", { reason: "spam" });
+
+    const messages = buildCaseViewMessages(
+      moderationCase,
+      [proof],
+      realEmojis,
+      {
+        serverDmTextIncluded: false,
+      },
+    );
+
+    expect(messages.length).toBeGreaterThan(2);
+    for (const message of messages) {
+      expect(texts(json(message)).join("").length).toBeLessThanOrEqual(
+        CASE_VIEW_TEXT_MAX,
+      );
+    }
+
+    const first = texts(json(messages[0]));
+    expect(first[2]).toBe(
+      `**${realEmojis.lock} Proof** · mods only\n-# Continued below`,
+    );
+
+    const followed = messages
+      .slice(1)
+      .map((m) => texts(json(m))[0].split("\n").slice(1).join("\n"))
+      .join("\n");
+    expect(followed).toBe(proofEntryText(proof, realEmojis));
+  });
+
+  test("says proof continues below when none fits on the first message", () => {
+    const moderationCase = makeCase("7", { reason: "r".repeat(3000) });
+    const [first] = buildCaseViewMessages(
+      moderationCase,
+      [makeProof({ content: "x".repeat(1000) })],
+      emojis,
+      { serverDmTextIncluded: false },
+    );
+
+    expect(texts(json(first))[2]).toBe(
+      "**:lock: Proof** · mods only\n-# Continued below",
+    );
+  });
+});
+
+describe("splitAtLines", () => {
+  test("breaks at newlines and only cuts a line that alone is too long", () => {
+    expect(splitAtLines("aa\nbb\ncc", 5)).toEqual(["aa\nbb", "cc"]);
+    expect(splitAtLines("abcdefghij\nk", 4)).toEqual(["abcd", "efgh", "ij\nk"]);
+  });
+
+  test("never splits a surrogate pair", () => {
+    const pieces = splitAtLines("aaa😀b", 4);
+    expect(pieces).toEqual(["aaa", "😀b"]);
+  });
+
+  test("pieces rejoin to the original when no line was cut", () => {
+    const text = Array.from({ length: 50 }, (_, i) => `line ${i}`).join("\n");
+    expect(splitAtLines(text, 40).join("\n")).toBe(text);
   });
 });

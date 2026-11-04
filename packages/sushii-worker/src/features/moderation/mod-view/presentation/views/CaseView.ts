@@ -47,6 +47,8 @@ const SELECT_TEXT_MAX_LENGTH = 100;
 /** Discord's cap on all Text Display content in one message. */
 export const CASE_VIEW_TEXT_MAX = 4000;
 
+const CONTINUED_LINE = "-# Continued below";
+
 const NO_PROOF_LINE =
   "-# None yet. Add screenshots, message links or context for other mods.";
 
@@ -157,6 +159,48 @@ function packEntries(
   return count;
 }
 
+/**
+ * Cuts text into pieces of at most `max` chars at line breaks, cutting inside
+ * a line only when that line alone is too long. Joining the pieces with "\n"
+ * restores the original except where a line had to be cut.
+ */
+export function splitAtLines(text: string, max: number): string[] {
+  const pieces: string[] = [];
+  let current: string | null = null;
+
+  const pushLongLine = (line: string) => {
+    let rest = line;
+    while (rest.length > max) {
+      let cut = max;
+      // Keep a surrogate pair together.
+      const code = rest.charCodeAt(cut - 1);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        cut--;
+      }
+      pieces.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    return rest;
+  };
+
+  for (const line of text.split("\n")) {
+    if (current !== null && current.length + 1 + line.length <= max) {
+      current += "\n" + line;
+      continue;
+    }
+    if (current !== null) {
+      pieces.push(current);
+    }
+    current = line.length > max ? pushLongLine(line) : line;
+  }
+
+  if (current !== null) {
+    pieces.push(current);
+  }
+
+  return pieces;
+}
+
 function moreProofHeading(
   moderationCase: ModerationCase,
   emojis: HistoryEmojis,
@@ -197,10 +241,14 @@ export function buildCaseViewMessages(
   const shown = packEntries(entries, fixed, CASE_VIEW_TEXT_MAX);
   const spilled = entries.slice(shown);
 
-  const sectionText =
-    entries.length === 0
-      ? `${heading}\n${NO_PROOF_LINE}`
-      : [heading, ...entries.slice(0, shown)].join("\n");
+  let sectionText: string;
+  if (entries.length === 0) {
+    sectionText = `${heading}\n${NO_PROOF_LINE}`;
+  } else if (shown === 0) {
+    sectionText = `${heading}\n${CONTINUED_LINE}`;
+  } else {
+    sectionText = [heading, ...entries.slice(0, shown)].join("\n");
+  }
 
   // Links stay with the gallery unless proof already spilled or they'd overflow.
   const linksOnFirst =
@@ -240,13 +288,16 @@ export function buildCaseViewMessages(
 
   const messages = [caseViewMessage(container)];
 
-  const overflow =
-    linksOnFirst || links.length === 0 ? spilled : [...spilled, linksText];
   const moreHeading = moreProofHeading(moderationCase, emojis);
+  const pieceMax = CASE_VIEW_TEXT_MAX - moreHeading.length - 1;
+  const overflow = (
+    linksOnFirst || links.length === 0 ? spilled : [...spilled, linksText]
+  ).flatMap((entry) =>
+    entry.length > pieceMax ? splitAtLines(entry, pieceMax) : [entry],
+  );
 
   let rest = overflow;
   while (rest.length > 0) {
-    // A lone oversized entry still goes out on its own rather than looping.
     const take = Math.max(
       1,
       packEntries(rest, moreHeading.length, CASE_VIEW_TEXT_MAX),

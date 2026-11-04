@@ -195,7 +195,7 @@ describe("formatModerationCase", () => {
 
   it("falls back to a pointer for a reason too newline-heavy to fit", () => {
     const hugeReason = "a\n".repeat(REASON_MAX_LENGTH / 2);
-    const c = makeReasonCase(hugeReason);
+    const c = makeReasonCase(hugeReason).withDMIntent(false, "executor_no");
 
     const line = formatModerationCase(c, emojis, false, false, {
       entries: 1,
@@ -204,8 +204,21 @@ describe("formatModerationCase", () => {
 
     expect(line.length).toBeLessThanOrEqual(TAB_CONTENT_CHAR_BUDGET);
     expect(line).toContain("`#1`");
-    expect(line).toContain("Open it with View case");
+    expect(line).toContain(
+      "\n> :reason: Too long to show here. Open it from History → View case.\n> -# Not sent: the mod chose no DM",
+    );
     expect(line).toContain(":lock: 1 proof");
+  });
+
+  it("keeps the sent emoji on the pointer", () => {
+    const c = makeReasonCase("a\n".repeat(REASON_MAX_LENGTH / 2)).withDMResult({
+      channelId: "1",
+      messageId: "2",
+    });
+
+    expect(formatModerationCase(c, emojis)).toContain(
+      "\n> :additional_message: Too long to show here.",
+    );
   });
 });
 
@@ -224,6 +237,22 @@ describe("reasonDelivery", () => {
         makeReasonCase("x").withDMIntent(true, "unknown", "user_not_in_guild"),
       ),
     ).toEqual({ sent: false, why: "they weren't in the server" });
+  });
+
+  it("says the DM failed when no failure reason was recorded", () => {
+    expect(
+      reasonDelivery(makeReasonCase("x").withDMResult({ error: "boom" })),
+    ).toEqual({ sent: false, why: "the DM failed" });
+  });
+
+  it("says the DM was deleted when no deleter was recorded", () => {
+    expect(
+      reasonDelivery(
+        makeReasonCase("x")
+          .withDMResult({ channelId: "1", messageId: "2" })
+          .withDmDeleted(),
+      ),
+    ).toEqual({ sent: false, why: "DM deleted" });
   });
 
   it("has no cause for actions that never DM", () => {

@@ -5,6 +5,7 @@ import { pino } from "pino";
 
 import type { EmojiMap } from "@/features/bot-emojis";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
@@ -195,20 +196,38 @@ describe("ModViewSession ephemeral", () => {
 });
 
 describe("ModViewSession View case select", () => {
-  it("clears the pick and sends the picked case privately", async () => {
-    const { interaction, collectorHandlers } = makeInteraction();
-    const data = makeEmptyData();
-    const moderationCase = makeModerationCase({
+  function makeProof(i: number): CaseProof {
+    return {
+      id: `${i}`,
       guildId: GUILD_ID,
       caseId: "7",
-      userId: TARGET_ID,
-      reason: "spam",
-    });
-    data.history.moderationHistory = [moderationCase];
+      authorId: EXECUTOR_ID,
+      createdAt: new Date(),
+      content: `${i}`.repeat(1000),
+      attachments: [],
+      sourceMessageUrl: null,
+      sourceAuthorId: null,
+      sourceContent: null,
+      hostMessageId: null,
+      source: "button",
+    };
+  }
+
+  async function pick(listByCase: () => Promise<CaseProof[]>) {
+    const { interaction, collectorHandlers } = makeInteraction();
+    const data = makeEmptyData();
+    data.history.moderationHistory = [
+      makeModerationCase({
+        guildId: GUILD_ID,
+        caseId: "7",
+        userId: TARGET_ID,
+        reason: "spam",
+      }),
+    ];
     data.history.totalCases = 1;
 
     const caseProofRepository = {
-      listByCase: mock(() => Promise.resolve([])),
+      listByCase: mock(listByCase),
     } as unknown as CaseProofRepository;
 
     const session = new ModViewSession(
@@ -225,22 +244,64 @@ describe("ModViewSession View case select", () => {
     );
     await session.start();
 
+    const order: string[] = [];
     const select = {
       user: { id: EXECUTOR_ID },
       customId: MODVIEW_CUSTOM_IDS.historyCase,
       values: ["7"],
+      replied: false,
+      deferred: false,
       isStringSelectMenu: () => true,
       isButton: () => false,
-      update: mock(() => Promise.resolve()),
-      followUp: mock((_message: { flags: number }) => Promise.resolve()),
+      update: mock(() => {
+        order.push("update");
+        return Promise.resolve();
+      }),
+      followUp: mock((_message: { flags: number }) => {
+        order.push("followUp");
+        return Promise.resolve();
+      }),
+      reply: mock((_message: { flags: number }) => Promise.resolve()),
     };
     await collectorHandlers.collect(select);
 
+    return { select, order, caseProofRepository };
+  }
+
+  it("clears the pick, then sends the picked case privately", async () => {
+    const { select, order, caseProofRepository } = await pick(() =>
+      Promise.resolve([]),
+    );
+
     expect(caseProofRepository.listByCase).toHaveBeenCalledWith(GUILD_ID, "7");
-    expect(select.update).toHaveBeenCalledTimes(1);
-    expect(select.followUp).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["update", "followUp"]);
     const sent = select.followUp.mock.calls[0][0];
     expect(sent.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
     expect(JSON.stringify(sent)).toContain("Case #7");
+  });
+
+  it("sends every message of a split case view in order", async () => {
+    const { select, order } = await pick(() =>
+      Promise.resolve(Array.from({ length: 6 }, (_, i) => makeProof(i))),
+    );
+
+    expect(order[0]).toBe("update");
+    expect(select.followUp.mock.calls.length).toBeGreaterThan(1);
+    expect(order.slice(1).every((o) => o === "followUp")).toBe(true);
+    const all = JSON.stringify(select.followUp.mock.calls);
+    for (let i = 0; i < 6; i++) {
+      expect(all).toContain(`${i}`.repeat(1000));
+    }
+  });
+
+  it("replies with an error, untouched view, when loading proof throws", async () => {
+    const { select } = await pick(() => Promise.reject(new Error("db down")));
+
+    expect(select.update).not.toHaveBeenCalled();
+    expect(select.followUp).not.toHaveBeenCalled();
+    expect(select.reply).toHaveBeenCalledTimes(1);
+    expect(
+      (select.reply.mock.calls[0][0].flags ?? 0) & MessageFlags.Ephemeral,
+    ).toBe(MessageFlags.Ephemeral);
   });
 });

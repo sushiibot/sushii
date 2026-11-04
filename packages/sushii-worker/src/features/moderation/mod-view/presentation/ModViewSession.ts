@@ -267,10 +267,17 @@ export class ModViewSession {
     const moderationCase = this.data.history.moderationHistory.find(
       (c) => c.caseId === i.values[0],
     );
-    const proofs = moderationCase
-      ? await this.caseProofRepository.listByCase(
-          this.interaction.guildId,
-          moderationCase.caseId,
+    // Built before the update so a render failure still gets the error reply.
+    const messages = moderationCase
+      ? buildCaseViewMessages(
+          moderationCase,
+          await this.caseProofRepository.listByCase(
+            this.interaction.guildId,
+            moderationCase.caseId,
+          ),
+          this.emojis,
+          // Guild config isn't in the mod view's deps, so the server DM text note is omitted.
+          { serverDmTextIncluded: false },
         )
       : [];
 
@@ -281,17 +288,6 @@ export class ModViewSession {
         : this.renderScreen({ disabled: false }),
     );
 
-    if (!moderationCase) {
-      return;
-    }
-
-    // Guild config isn't in the mod view's deps, so the server DM text note is omitted.
-    const messages = buildCaseViewMessages(
-      moderationCase,
-      proofs,
-      this.emojis,
-      { serverDmTextIncluded: false },
-    );
     for (const message of messages) {
       await i.followUp(message);
     }
