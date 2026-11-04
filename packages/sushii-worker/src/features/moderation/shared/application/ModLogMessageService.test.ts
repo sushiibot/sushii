@@ -576,6 +576,13 @@ function draft(o: Partial<CaseProof> = {}) {
   return { ...rest, createdAt: PROOF_TIME };
 }
 
+async function waitFor(condition: () => boolean): Promise<void> {
+  for (let i = 0; i < 200 && !condition(); i++) {
+    await sleep(5);
+  }
+  expect(condition()).toBe(true);
+}
+
 function upload(name: string) {
   return { name, data: Buffer.from(name), contentType: "image/png" };
 }
@@ -1045,8 +1052,14 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     expect(updateHosting).not.toHaveBeenCalled();
   });
 
-  test("a new entry is posted first, then gets the unhosted files", async () => {
-    fetchSpy.mockResolvedValue(new Response(Buffer.from("png")));
+  test("postEntry returns once sent; the files follow in the background", async () => {
+    let finish: (response: Response) => void = () => undefined;
+    fetchSpy.mockImplementation(
+      (() =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })) as unknown as typeof fetch,
+    );
     let sentMessage: ReturnType<typeof fakeMessage> | null = null;
     const send = mock(async (payload: never) => {
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -1059,6 +1072,7 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
       ],
     });
 
+    // The download never finishes until released below, so this only resolves if adoption is detached.
     const sent = await service.postEntry(
       { send } as never,
       makeCase({ msgId: null, pending: true }),
@@ -1069,6 +1083,12 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
       files?: unknown[];
     };
     expect(payload.files).toBeUndefined();
+    expect(updateHosting).not.toHaveBeenCalled();
+
+    await waitFor(() => fetchSpy.mock.calls.length > 0);
+    finish(new Response(Buffer.from("png")));
+    await waitFor(() => updateHosting.mock.calls.length > 0);
+
     const upload = editPayload(sentMessage as never);
     expect(upload.files?.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
     expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {

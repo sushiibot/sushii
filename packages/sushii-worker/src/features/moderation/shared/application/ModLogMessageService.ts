@@ -835,8 +835,9 @@ export class ModLogMessageService {
   }
 
   /**
-   * Posts a new entry, then moves proof files not hosted anywhere yet onto
-   * it (or replies), since a refresh may never run for this case.
+   * Posts a new entry and returns once it's sent. Proof files not hosted
+   * anywhere yet then move onto it (or replies) in the background, since a
+   * refresh may never run for this case.
    */
   async postEntry(
     channel: SendableChannels,
@@ -854,15 +855,19 @@ export class ModLogMessageService {
       ),
     );
 
-    // The entry is posted; failing from here would post it twice on retry.
-    try {
-      await this.adoptOnto(sent.id, moderationCase, options, sent);
-    } catch (err) {
-      this.logger.warn(
-        { err, guildId: moderationCase.guildId, caseId: moderationCase.caseId },
-        "Failed to host proof after posting the mod log entry",
-      );
-    }
+    // Detached so the caller can store the message ID now; hostProof waits on it.
+    void this.adoptOnto(sent.id, moderationCase, options, sent).catch(
+      (err: unknown) => {
+        this.logger.warn(
+          {
+            err,
+            guildId: moderationCase.guildId,
+            caseId: moderationCase.caseId,
+          },
+          "Failed to host proof after posting the mod log entry",
+        );
+      },
+    );
 
     return sent;
   }
