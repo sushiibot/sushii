@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import type { Client, Message } from "discord.js";
 import { MessageFlags, Routes } from "discord.js";
 import pino from "pino";
@@ -6,10 +6,17 @@ import pino from "pino";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
+import type { CaseProof } from "../domain/entities/CaseProof";
 import { ModerationCase } from "../domain/entities/ModerationCase";
+import type { CaseProofRepository } from "../domain/repositories/CaseProofRepository";
 import { ActionType } from "../domain/value-objects/ActionType";
+import { Reason } from "../domain/value-objects/Reason";
 import type { ModLogMessage } from "../presentation/views/ModLogMessageView";
-import { MOD_LOG_FACTS_ID } from "../presentation/views/ModLogMessageView";
+import {
+  MESSAGE_TEXT_MAX_LENGTH,
+  MOD_LOG_FACTS_ID,
+  messageTextLength,
+} from "../presentation/views/ModLogMessageView";
 import { ModLogMessageService } from "./ModLogMessageService";
 
 const GUILD = "187450744427773963";
@@ -17,6 +24,8 @@ const TARGET = "912345678901234567";
 const EXECUTOR = "150443906511667200";
 const LOG_CHANNEL = "1029384756102938400";
 const LOG_MESSAGE = "1029384756102938499";
+const LOG_REPLY = "1029384756102938600";
+const MOD = "238381427315195904";
 const DM = {
   channelId: "1029384756102938401",
   messageId: "1029384756102938402",
@@ -76,26 +85,121 @@ function legacyMessage(
     embeds,
     components,
     toJSON: () => ({ embeds, components: components.map((c) => c.toJSON()) }),
+    attachments: new Map(),
     edit: mock(async () => undefined),
   };
 }
 
-function v2Message(facts: string | null) {
-  const container = {
-    type: 17,
-    components: facts
-      ? [{ type: 10, id: MOD_LOG_FACTS_ID, content: facts }]
-      : [],
-  };
-  return {
-    id: LOG_MESSAGE,
+interface FakeFile {
+  id: string;
+  filename: string;
+  url: string;
+}
+
+function cdnUrl(id: string, name: string): string {
+  return `https://cdn.discordapp.com/attachments/${LOG_CHANNEL}/${id}/${name}?ex=1&is=2&hm=3&`;
+}
+
+let nextFileId = 1029384756102939000n;
+
+/**
+ * A posted message built from a send/edit payload the way Discord returns
+ * it: attachment:// refs resolved with an attachment_id, files a component
+ * references left out of `attachments`.
+ */
+function postedFrom(
+  payload: {
+    components?: { toJSON(): unknown }[];
+    files?: { name?: string | null }[];
+    attachments?: { id: string }[];
+  },
+  id: string,
+  previous: FakeFile[] = [],
+) {
+  const kept = previous.filter((f) =>
+    payload.files ? payload.attachments?.some((a) => a.id === f.id) : true,
+  );
+  const added = (payload.files ?? []).map((f) => {
+    const fileId = String(nextFileId++);
+    return {
+      id: fileId,
+      filename: f.name ?? "",
+      url: cdnUrl(fileId, f.name ?? ""),
+    };
+  });
+  const all = [...kept, ...added];
+  const referenced = new Set<string>();
+  const json = JSON.parse(
+    JSON.stringify((payload.components ?? []).map((c) => c.toJSON())),
+    (key, value) => {
+      if (key === "media" && typeof value?.url === "string") {
+        const ref = value.url.startsWith("attachment://")
+          ? value.url.slice("attachment://".length)
+          : null;
+        const file = all.find((f) =>
+          ref ? f.filename === ref : f.url === value.url,
+        );
+        if (file) {
+          referenced.add(file.id);
+          return { url: file.url, attachment_id: file.id };
+        }
+      }
+      return value;
+    },
+  ) as unknown[];
+
+  return fakeMessage(id, json, all, referenced);
+}
+
+function fakeMessage(
+  id: string,
+  components: unknown[],
+  files: FakeFile[] = [],
+  referenced = new Set<string>(),
+) {
+  const message = {
+    id,
     channelId: LOG_CHANNEL,
     flags: flagField(MessageFlags.IsComponentsV2),
     embeds: [],
-    components: [{ toJSON: () => container }],
-    toJSON: () => ({ embeds: [], components: [container] }),
-    edit: mock(async () => undefined),
+    components: components.map((c) => ({ toJSON: () => c })),
+    attachments: new Map(
+      files
+        .filter((f) => !referenced.has(f.id))
+        .map((f) => [f.id, { id: f.id, name: f.filename, url: f.url }]),
+    ),
+    files,
+    toJSON: () => ({ embeds: [], components }),
+    edit: mock(async (payload: never) => postedFrom(payload, id, files)),
+    reply: mock(async (payload: never) => postedFrom(payload, LOG_REPLY, [])),
+    fetch: mock(async () => message),
   };
+  return message;
+}
+
+function v2Message(facts: string | null, files: FakeFile[] = []) {
+  const container = {
+    type: 17,
+    components: [
+      ...(facts ? [{ type: 10, id: MOD_LOG_FACTS_ID, content: facts }] : []),
+      ...(files.length > 0
+        ? [
+            {
+              type: 12,
+              items: files.map((f) => ({
+                media: { url: f.url, attachment_id: f.id },
+              })),
+            },
+          ]
+        : []),
+    ],
+  };
+  return fakeMessage(
+    LOG_MESSAGE,
+    [container],
+    files,
+    new Set(files.map((f) => f.id)),
+  );
 }
 
 function setup(
@@ -104,8 +208,16 @@ function setup(
     posted?: unknown;
     fetchError?: Error;
     userFetch?: ReturnType<typeof mock>;
+    proofs?: CaseProof[];
+    banDmText?: string | null;
   } = {},
 ) {
+  const listByCase = mock(async () => options.proofs ?? []);
+  const updateHosting = mock(async () => undefined);
+  const caseProofRepository = {
+    listByCase,
+    updateHosting,
+  } as unknown as CaseProofRepository;
   const patch = mock(async () => undefined);
   const markDmDeleted = mock(async () => undefined);
   const recordModLogEdit = mock();
@@ -150,6 +262,7 @@ function setup(
             : options.modLogChannel,
         modLogEnabled: true,
       },
+      moderationSettings: { banDmText: options.banDmText ?? null },
     })),
   } as unknown as GuildConfigRepository;
   const emojiRepository = {
@@ -162,12 +275,14 @@ function setup(
     patch,
     markDmDeleted,
     recordModLogEdit,
+    listByCase,
+    updateHosting,
     service: new ModLogMessageService(
       client,
       guildConfigRepository,
       emojiRepository,
       { markDmDeleted },
-      {} as never,
+      caseProofRepository,
       pino({ level: "silent" }),
       { recordModLogEdit },
     ),
@@ -251,7 +366,7 @@ describe("ModLogMessageService.refresh", () => {
         { body: { components: unknown[] } },
       ]
     )[1].body;
-    expect(JSON.stringify(body.components)).toContain("Reason DM deleted");
+    expect(JSON.stringify(body.components)).toContain("not sent (DM deleted)");
     expect(JSON.stringify(body.components)).not.toContain("Delete DM");
   });
 
@@ -404,5 +519,360 @@ describe("ModLogMessageService.updateFromInteraction", () => {
         },
       },
     );
+  });
+});
+
+const PROOF_TIME = new Date("2026-10-27T11:30:00.000Z");
+
+function makeProof(o: Partial<CaseProof> = {}): CaseProof {
+  return {
+    id: "1",
+    guildId: GUILD,
+    caseId: "4822",
+    authorId: MOD,
+    createdAt: PROOF_TIME,
+    content: null,
+    attachments: [],
+    sourceMessageUrl: null,
+    sourceAuthorId: null,
+    sourceContent: null,
+    hostMessageId: null,
+    source: "button",
+    ...o,
+  };
+}
+
+function draft(o: Partial<CaseProof> = {}) {
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    ...rest
+  } = makeProof({
+    content: "Same scam DMs",
+    ...o,
+  });
+  return { ...rest, createdAt: PROOF_TIME };
+}
+
+function upload(name: string) {
+  return { name, data: Buffer.from(name), contentType: "image/png" };
+}
+
+function existingFiles(count: number): FakeFile[] {
+  return Array.from({ length: count }, (_, i) => {
+    const id = String(1029384756102938700n + BigInt(i));
+    return { id, filename: `old${i}.png`, url: cdnUrl(id, `old${i}.png`) };
+  });
+}
+
+function editPayload(message: { edit: ReturnType<typeof mock> }, call = 0) {
+  return message.edit.mock.calls[call]?.[0] as unknown as {
+    components: { toJSON(): unknown }[];
+    files?: { name: string }[];
+    attachments?: { id: string }[];
+  };
+}
+
+function payloadText(payload: { components: { toJSON(): unknown }[] }) {
+  return JSON.stringify(payload.components.map((c) => c.toJSON()));
+}
+
+describe("ModLogMessageService.render with proof", () => {
+  test("shows proof on the entry and links the first overflow reply", async () => {
+    const { service } = setup({
+      banDmText: "Appeal at example.com",
+      proofs: [
+        makeProof({
+          id: "1",
+          content: "on the entry",
+          hostMessageId: LOG_MESSAGE,
+        }),
+        makeProof({ id: "2", content: "not hosted yet" }),
+        makeProof({
+          id: "3",
+          content: "held by the overflow",
+          hostMessageId: LOG_REPLY,
+        }),
+      ],
+    });
+
+    const json = text(
+      await service.render(
+        new ModerationCase(
+          GUILD,
+          "4822",
+          ActionType.Ban,
+          new Date(),
+          TARGET,
+          "spambot",
+          EXECUTOR,
+          null,
+          LOG_MESSAGE,
+          [],
+          DM,
+        ),
+      ),
+    );
+
+    expect(json).toContain("on the entry");
+    expect(json).toContain("not hosted yet");
+    expect(json).not.toContain("held by the overflow");
+    expect(json).toContain(
+      `-# More proof in the reply below: https://discord.com/channels/${GUILD}/${LOG_CHANNEL}/${LOG_REPLY}`,
+    );
+    expect(json).toContain("-# Also included your server's ban message");
+  });
+});
+
+describe("ModLogMessageService.hostProof", () => {
+  test("text proof without an entry is saved unhosted; files are refused", async () => {
+    const { service } = setup({ modLogChannel: null });
+
+    expect(await service.hostProof(makeCase(), draft(), [])).toEqual({
+      kind: "text_only",
+      hostMessageId: null,
+    });
+    expect(
+      await service.hostProof(makeCase(), draft(), [upload("a.png")]),
+    ).toEqual({ kind: "no_mod_log" });
+  });
+
+  test("a fitting proof edits the entry, keeping its files by id", async () => {
+    const old = existingFiles(1);
+    const [kept] = old as [FakeFile];
+    const posted = v2Message(null, old);
+    const { service, recordModLogEdit } = setup({
+      posted,
+      proofs: [
+        makeProof({ attachments: [kept.url], hostMessageId: LOG_MESSAGE }),
+      ],
+    });
+
+    const result = await service.hostProof(makeCase(), draft(), [
+      upload("shot.png"),
+      upload("shot.png"),
+    ]);
+
+    const payload = editPayload(posted);
+    // The kept file is referenced by the gallery, so it's only in components.
+    expect(posted.attachments.size).toBe(0);
+    expect(payload.attachments).toEqual([{ id: kept.id }]);
+    const names = payload.files?.map((f) => f.name) ?? [];
+    expect(new Set(names).size).toBe(2);
+    expect(names).not.toContain(kept.filename);
+    expect(payloadText(payload)).toContain(`attachment://${names[0]}`);
+    expect(payloadText(payload)).toContain("Same scam DMs");
+
+    expect(result).toEqual({
+      kind: "hosted",
+      hostMessageId: LOG_MESSAGE,
+      attachmentUrls: [
+        expect.stringMatching(new RegExp(`/${names[0]}\\?ex=1&is=2&hm=3&$`)),
+        expect.stringMatching(new RegExp(`/${names[1]}\\?ex=1&is=2&hm=3&$`)),
+      ],
+    });
+    expect(recordModLogEdit).toHaveBeenCalledWith("v2", "ok");
+  });
+
+  test("text-only proof that fits is shown on the entry", async () => {
+    const posted = v2Message(null);
+    const { service } = setup({ posted });
+
+    expect(await service.hostProof(makeCase(), draft(), [])).toEqual({
+      kind: "text_only",
+      hostMessageId: LOG_MESSAGE,
+    });
+    expect(payloadText(editPayload(posted))).toContain("Same scam DMs");
+    expect(editPayload(posted).attachments).toEqual([]);
+  });
+
+  test("10 files on the entry fit; an 11th goes to a reply", async () => {
+    const old = existingFiles(9);
+    const proofs = [
+      makeProof({
+        attachments: old.map((f) => f.url),
+        hostMessageId: LOG_MESSAGE,
+      }),
+    ];
+
+    const fitting = v2Message(null, old);
+    const one = setup({ posted: fitting, proofs });
+    const fit = await one.service.hostProof(makeCase(), draft(), [
+      upload("a.png"),
+    ]);
+    expect(fit).toMatchObject({ kind: "hosted", hostMessageId: LOG_MESSAGE });
+    expect(fitting.reply).not.toHaveBeenCalled();
+    expect(editPayload(fitting).attachments).toHaveLength(9);
+
+    const full = v2Message(null, old);
+    const two = setup({ posted: full, proofs });
+    const over = await two.service.hostProof(makeCase(), draft(), [
+      upload("a.png"),
+      upload("b.png"),
+    ]);
+    expect(over).toMatchObject({ kind: "hosted", hostMessageId: LOG_REPLY });
+    expect((over as { attachmentUrls: string[] }).attachmentUrls).toHaveLength(
+      2,
+    );
+  });
+
+  test("overflows at 4000 characters into a reply linked from the entry", async () => {
+    const reason = "r".repeat(3000);
+    const withReason = () =>
+      new ModerationCase(
+        GUILD,
+        "4822",
+        ActionType.Ban,
+        new Date("2026-10-27T11:00:00.000Z"),
+        TARGET,
+        "spambot",
+        EXECUTOR,
+        Reason.create(reason).unwrap(),
+        LOG_MESSAGE,
+        [],
+        DM,
+      );
+
+    // The entry with a one-character proof, as hostProof would render it.
+    const measure = setup({
+      proofs: [makeProof({ content: "a", hostMessageId: LOG_MESSAGE })],
+    });
+    const base = messageTextLength(await measure.service.render(withReason()));
+    // Headroom for the "More proof" link and the Delete DM prompt.
+    const longest = MESSAGE_TEXT_MAX_LENGTH - 270 - base + 1;
+
+    const fitting = v2Message(null);
+    const fits = await setup({ posted: fitting }).service.hostProof(
+      withReason(),
+      draft({ content: "a".repeat(longest) }),
+      [],
+    );
+    expect(fits).toEqual({ kind: "text_only", hostMessageId: LOG_MESSAGE });
+    expect(fitting.reply).not.toHaveBeenCalled();
+
+    const full = v2Message(null);
+    const over = await setup({ posted: full }).service.hostProof(
+      withReason(),
+      draft({ content: "a".repeat(longest + 1) }),
+      [upload("ticket.png")],
+    );
+    expect(over).toMatchObject({ kind: "hosted", hostMessageId: LOG_REPLY });
+
+    const reply = full.reply.mock.calls[0]?.[0] as unknown as {
+      components: { toJSON(): unknown }[];
+      files: { name: string }[];
+      failIfNotExists: boolean;
+    };
+    expect(reply.failIfNotExists).toBe(false);
+    expect(reply.files).toHaveLength(1);
+    expect(payloadText(reply)).toContain(
+      `More proof · Case #4822** · <@${TARGET}>`,
+    );
+    expect(payloadText(reply)).toContain("a".repeat(longest + 1));
+
+    const entryEdit = payloadText(editPayload(full));
+    expect(entryEdit).toContain(
+      `-# More proof in the reply below: https://discord.com/channels/${GUILD}/${LOG_CHANNEL}/${LOG_REPLY}`,
+    );
+    expect(entryEdit).not.toContain("a".repeat(longest + 1));
+    expect(entryEdit).toContain(reason);
+  });
+
+  test("non-media files get their link once Discord returns the URL", async () => {
+    const posted = v2Message(null);
+    const { service } = setup({ posted });
+
+    const result = await service.hostProof(makeCase(), draft(), [
+      upload("log.txt"),
+    ]);
+
+    const [url] = (result as unknown as { attachmentUrls: [string] })
+      .attachmentUrls;
+    expect(url).toMatch(/log\.txt\?ex=1&is=2&hm=3&$/);
+    const edited = (await posted.edit.mock.results[0]?.value) as ReturnType<
+      typeof fakeMessage
+    >;
+    expect(payloadText(editPayload(edited))).toContain(url);
+  });
+});
+
+describe("ModLogMessageService adopting unhosted proof files", () => {
+  const RESPONSE_URL =
+    "https://cdn.discordapp.com/attachments/9/8/dm-screenshot.png?ex=1&is=2&hm=3&";
+  const fetchSpy = spyOn(globalThis, "fetch");
+
+  afterEach(() => {
+    fetchSpy.mockReset();
+  });
+
+  test("refresh re-uploads a response-hosted file onto the entry", async () => {
+    fetchSpy.mockResolvedValue(
+      new Response(Buffer.from("png"), {
+        headers: { "content-type": "image/png" },
+      }),
+    );
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [
+        makeProof({ id: "7", source: "action", attachments: [RESPONSE_URL] }),
+        makeProof({ id: "8", source: "backfill", attachments: [RESPONSE_URL] }),
+      ],
+    });
+
+    expect(await service.refresh(makeCase())).toBe("updated");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const upload = editPayload(posted);
+    expect(upload.files?.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
+      attachments: [expect.stringContaining("/1_dm-screenshot.png?ex=")],
+      hostMessageId: LOG_MESSAGE,
+    });
+    expect(updateHosting).toHaveBeenCalledTimes(1);
+  });
+
+  test("a file that can't be downloaded is skipped and the refresh still runs", async () => {
+    fetchSpy.mockResolvedValue(new Response("gone", { status: 404 }));
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [makeProof({ source: "action", attachments: [RESPONSE_URL] })],
+    });
+
+    expect(await service.refresh(makeCase())).toBe("updated");
+    expect(updateHosting).not.toHaveBeenCalled();
+    expect(posted.edit).toHaveBeenCalledTimes(1);
+    expect(editPayload(posted).files).toBeUndefined();
+    expect(payloadText(editPayload(posted))).toContain(RESPONSE_URL);
+  });
+
+  test("the first post carries unhosted files", async () => {
+    fetchSpy.mockResolvedValue(new Response(Buffer.from("png")));
+    const send = mock(async (payload: never) =>
+      postedFrom(payload, LOG_MESSAGE),
+    );
+    const { service, updateHosting } = setup({
+      proofs: [
+        makeProof({ id: "7", source: "action", attachments: [RESPONSE_URL] }),
+      ],
+    });
+
+    const sent = await service.postEntry(
+      { send } as never,
+      makeCase({ msgId: null, pending: true }),
+    );
+
+    expect(sent.id).toBe(LOG_MESSAGE);
+    const payload = send.mock.calls[0]?.[0] as unknown as {
+      components: { toJSON(): unknown }[];
+      files: { name: string }[];
+    };
+    expect(payload.files.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
+    expect(payloadText(payload)).toContain("attachment://1_dm-screenshot.png");
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
+      attachments: [expect.stringContaining("/1_dm-screenshot.png?ex=")],
+      hostMessageId: LOG_MESSAGE,
+    });
   });
 });

@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  safeAttachmentName,
-  splitCaseAttachments,
-} from "./caseMedia";
+import { safeAttachmentName, splitCaseAttachments } from "./caseMedia";
 
 describe("splitCaseAttachments", () => {
   test("media goes to the gallery, other files stay links", () => {
@@ -20,6 +17,15 @@ describe("splitCaseAttachments", () => {
         "https://cdn.discordapp.com/attachments/1/2/c.MP4",
       ],
       links: ["https://cdn.discordapp.com/attachments/1/2/b.pdf"],
+    });
+  });
+
+  test("attachment:// refs to files in the same request are gallery media", () => {
+    expect(
+      splitCaseAttachments(["attachment://1_a.png", "attachment://2_b.pdf"]),
+    ).toEqual({
+      media: ["attachment://1_a.png"],
+      links: ["attachment://2_b.pdf"],
     });
   });
 

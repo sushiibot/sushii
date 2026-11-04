@@ -15,7 +15,8 @@ import type { AuditLogEvent } from "../domain/entities";
 
 /**
  * Application service for posting mod log messages to Discord channels.
- * Renders the case and posts it to the mod log channel.
+ * Renders the case, with any proof files not hosted yet, and posts it to the
+ * mod log channel.
  */
 export class ModLogPostingService {
   constructor(
@@ -34,21 +35,18 @@ export class ModLogPostingService {
     modLogChannelId: string,
   ): Promise<Result<string, string>> {
     try {
-      // modLogCase.actionType (e.g. TempBan), not the audit log's, which
-      // Discord always reports as Ban for bans
-      const message = await this.modLogMessageService.render(modLogCase, {
-        targetUser,
-        timeoutChange: auditLogEvent.timeoutChange,
-      });
-
-      // Fetch and validate mod log channel
       const channel = await guild.channels.fetch(modLogChannelId);
-      if (!channel?.isTextBased()) {
+      if (!channel?.isSendable()) {
         return Err("Mod log channel not found or not text-based");
       }
 
-      // Send the mod log message
-      const sentMessage = await channel.send(message);
+      // modLogCase.actionType (e.g. TempBan), not the audit log's, which
+      // Discord always reports as Ban for bans
+      const sentMessage = await this.modLogMessageService.postEntry(
+        channel,
+        modLogCase,
+        { targetUser, timeoutChange: auditLogEvent.timeoutChange },
+      );
 
       this.logger.info(
         {

@@ -5,8 +5,13 @@ const MEDIA_EXTENSIONS = /\.(png|jpe?g|gif|webp|avif|mp4|mov|webm)$/i;
 
 export const MEDIA_GALLERY_MAX_ITEMS = 10;
 
+const ATTACHMENT_REF = "attachment://";
+
 export function isGalleryMedia(urlOrFilename: string): boolean {
-  return MEDIA_EXTENSIONS.test(getCleanFilename(urlOrFilename));
+  const name = urlOrFilename.startsWith(ATTACHMENT_REF)
+    ? urlOrFilename.slice(ATTACHMENT_REF.length)
+    : getCleanFilename(urlOrFilename);
+  return MEDIA_EXTENSIONS.test(name);
 }
 
 /**
@@ -23,7 +28,7 @@ export function splitCaseAttachments(attachments: readonly string[]): {
 
   for (const url of attachments.filter(Boolean)) {
     if (
-      /^https?:\/\//.test(url) &&
+      (/^https?:\/\//.test(url) || url.startsWith(ATTACHMENT_REF)) &&
       isGalleryMedia(url) &&
       media.length < MEDIA_GALLERY_MAX_ITEMS
     ) {

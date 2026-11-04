@@ -3,31 +3,74 @@ import type {
   Client,
   Message,
   ModalMessageModalSubmitInteraction,
+  SendableChannels,
   User,
 } from "discord.js";
-import { Routes } from "discord.js";
+import { AttachmentBuilder, Routes } from "discord.js";
 import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
+import { getCleanFilename } from "@/utils/url";
 
+import type { CaseProof, NewCaseProof } from "../domain/entities/CaseProof";
 import type { ModerationCase } from "../domain/entities/ModerationCase";
 import type { ModerationMetrics } from "../domain/metrics/ModerationMetrics";
 import { NOOP_MODERATION_METRICS } from "../domain/metrics/ModerationMetrics";
 import type { CaseProofRepository } from "../domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "../domain/repositories/ModLogRepository";
+import { isGalleryMedia } from "../presentation/caseMedia";
 import {
+  MESSAGE_TEXT_MAX_LENGTH,
   MOD_LOG_EMOJIS,
+  type ModLogEmojis,
   type ModLogMessage,
   type ModLogMessageInput,
+  type ModLogProof,
   type ModLogTarget,
   buildLegacyConversionBody,
   buildModLogMessage,
   extractFactsBlock,
   extractLegacyFacts,
+  galleryItemCount,
+  hasLiveDm,
   isLegacyEntry,
   isLegacyEntryWithDeletedDm,
+  messageTextLength,
 } from "../presentation/views/ModLogMessageView";
+import { buildProofReplyMessage } from "../presentation/views/ModLogProofReplyView";
+import { guildDmText } from "./DMNotificationService";
+import {
+  type ProofUpload,
+  postedFiles,
+  postedFilesOf,
+  uniqueUploadNames,
+  uploadedUrls,
+} from "./proofHosting";
+
+export type { ProofUpload } from "./proofHosting";
+
+/**
+ * - `hosted`: files went on the entry or an overflow reply to it
+ * - `text_only`: no files; hostMessageId is where the text shows, null when there's no entry yet
+ * - `no_mod_log`: files given but there's no entry or channel to hold them
+ */
+export type ProofHostResult =
+  | { kind: "hosted"; hostMessageId: string; attachmentUrls: string[] }
+  | { kind: "text_only"; hostMessageId: string | null }
+  | { kind: "no_mod_log" };
+
+/** A proof as the entry places it: a stored row, or a draft the caller inserts afterwards. */
+type PlacedProof = ModLogProof & Pick<CaseProof, "hostMessageId">;
+
+const MESSAGE_FILES_MAX = 10;
+// Headroom an entry keeps so the later "More proof" link and the Delete DM prompt still fit.
+const MORE_PROOF_LINE_RESERVE = 120;
+const DELETE_DM_PROMPT_RESERVE = 150;
+// A signed CDN link to an uploaded file, shown once its URL is known.
+const FILE_LINK_RESERVE = 300;
+const PROOF_DOWNLOAD_TIMEOUT_MS = 15_000;
+const PROOF_DOWNLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 export type ModLogRenderOptions = Pick<
   ModLogMessageInput,
@@ -38,6 +81,13 @@ export type ModLogRenderOptions = Pick<
   /** The posted entry being replaced, so facts the row can't rebuild are kept. */
   currentMessage?: Message | null;
 };
+
+interface PlaceResult {
+  hostMessageId: string;
+  attachmentUrls: string[];
+  /** The entry after the edit, when it was edited. */
+  entry: Message;
+}
 
 /**
  * - `updated`: the mod log message was edited
@@ -65,6 +115,28 @@ export interface ModLogEntry {
 type MessageInteraction =
   | ButtonInteraction<"cached">
   | ModalMessageModalSubmitInteraction<"cached">;
+
+interface DownloadedProof {
+  files: ProofUpload[];
+  /** URLs that couldn't be downloaded, kept so the row still points at them. */
+  failed: string[];
+}
+
+/**
+ * Files hosted nowhere on the mod log yet. Backfilled rows are skipped: their
+ * links are old slash-command uploads that Discord has already deleted.
+ */
+function isAdoptable(proof: CaseProof): boolean {
+  return (
+    proof.hostMessageId === null &&
+    proof.source !== "backfill" &&
+    proof.attachments.some(Boolean)
+  );
+}
+
+function toAttachment(file: ProofUpload, name: string): AttachmentBuilder {
+  return new AttachmentBuilder(file.data, { name });
+}
 
 function defaultAvatarURL(userId: string): string {
   let index = 0n;
@@ -99,13 +171,27 @@ export class ModLogMessageService {
     moderationCase: ModerationCase,
     options: ModLogRenderOptions = {},
   ): Promise<ModLogMessage> {
+    const proofs = await this.caseProofRepository.listByCase(
+      moderationCase.guildId,
+      moderationCase.caseId,
+    );
+    return this.renderWithProofs(moderationCase, options, proofs);
+  }
+
+  private async renderWithProofs(
+    moderationCase: ModerationCase,
+    options: ModLogRenderOptions,
+    proofs: readonly PlacedProof[],
+    entryId: string | null = moderationCase.msgId,
+  ): Promise<ModLogMessage> {
     const { targetUser, currentMessage, ...viewOptions } = options;
     const executorId = moderationCase.executorId ?? this.client.user?.id;
 
-    const [target, executorTag, emojis] = await Promise.all([
+    const [target, executorTag, emojis, config] = await Promise.all([
       this.resolveTarget(moderationCase, targetUser),
       executorId ? this.resolveTag(executorId) : Promise.resolve(null),
       this.emojiRepository.getEmojis(MOD_LOG_EMOJIS),
+      this.guildConfigRepository.findByGuildId(moderationCase.guildId),
     ]);
 
     let factsBlock: string | null = null;
@@ -121,6 +207,19 @@ export class ModLogMessageService {
       }
     }
 
+    const shown = proofs.filter(
+      (p) => p.hostMessageId === null || p.hostMessageId === entryId,
+    );
+    const overflowHost = proofs.find(
+      (p) => p.hostMessageId !== null && p.hostMessageId !== entryId,
+    )?.hostMessageId;
+    const channelId =
+      currentMessage?.channelId ?? config.loggingSettings.modLogChannel;
+    const moreProofUrl =
+      overflowHost && channelId
+        ? `https://discord.com/channels/${moderationCase.guildId}/${channelId}/${overflowHost}`
+        : null;
+
     return buildModLogMessage({
       moderationCase,
       target,
@@ -129,6 +228,11 @@ export class ModLogMessageService {
       executorTag,
       factsBlock,
       extraFacts,
+      proofs: shown,
+      moreProofUrl,
+      dmIncludedServerText:
+        hasLiveDm(moderationCase) &&
+        !!guildDmText(moderationCase.actionType, config),
       ...viewOptions,
     });
   }
@@ -211,6 +315,7 @@ export class ModLogMessageService {
 
   /**
    * Re-renders a loaded entry. Pass the entry's case or a newer copy of it.
+   * Proof files not hosted anywhere yet are moved onto the entry first.
    * Best effort: failures are logged and returned, never thrown.
    */
   async refreshEntry(
@@ -223,12 +328,23 @@ export class ModLogMessageService {
       return entry.missing ?? "no_message";
     }
 
-    const message = entry.message;
+    const original = entry.message;
+    const stored = await this.caseProofRepository.listByCase(
+      moderationCase.guildId,
+      moderationCase.caseId,
+    );
+    const { proofs, message } = await this.adoptUnhosted(
+      original,
+      moderationCase,
+      stored,
+    );
     const kind = isLegacyEntry(message) ? "legacy_conversion" : "v2";
-    const rendered = await this.render(moderationCase, {
-      ...options,
-      currentMessage: message,
-    });
+    const rendered = await this.renderWithProofs(
+      moderationCase,
+      { ...options, currentMessage: original },
+      proofs,
+      message.id,
+    );
 
     try {
       if (kind === "legacy_conversion") {
@@ -265,6 +381,516 @@ export class ModLogMessageService {
   ): Promise<ModLogRefreshOutcome> {
     const entry = await this.loadEntry(moderationCase);
     return this.refreshEntry(entry, entry.moderationCase, options);
+  }
+
+  /**
+   * Puts a new proof entry on the case's mod log entry, or in a reply to it
+   * when the entry is full. The caller stores the row with the result.
+   * Throws when Discord rejects the edit or reply.
+   */
+  async hostProof(
+    moderationCase: ModerationCase,
+    draft: NewCaseProof,
+    files: ProofUpload[],
+  ): Promise<ProofHostResult> {
+    const entry = await this.loadEntry(moderationCase);
+    if (!entry.message) {
+      return files.length > 0
+        ? { kind: "no_mod_log" }
+        : { kind: "text_only", hostMessageId: null };
+    }
+
+    const existing = await this.caseProofRepository.listByCase(
+      moderationCase.guildId,
+      moderationCase.caseId,
+    );
+    const placed = await this.placeProof(
+      entry.message,
+      entry.moderationCase,
+      existing,
+      { ...draft, createdAt: draft.createdAt ?? new Date() },
+      files,
+    );
+
+    return files.length > 0
+      ? {
+          kind: "hosted",
+          hostMessageId: placed.hostMessageId,
+          attachmentUrls: placed.attachmentUrls,
+        }
+      : { kind: "text_only", hostMessageId: placed.hostMessageId };
+  }
+
+  /**
+   * Posts a new entry. Proof files not hosted anywhere yet go up with it when
+   * they fit, since a refresh may never run for this case.
+   */
+  async postEntry(
+    channel: SendableChannels,
+    moderationCase: ModerationCase,
+    options: Omit<ModLogRenderOptions, "currentMessage"> = {},
+  ): Promise<Message> {
+    const proofs = await this.caseProofRepository.listByCase(
+      moderationCase.guildId,
+      moderationCase.caseId,
+    );
+
+    const uploads: { proof: CaseProof; download: DownloadedProof }[] = [];
+    let fileCount = 0;
+    for (const proof of proofs.filter(isAdoptable)) {
+      const download = await this.downloadProofFiles(proof);
+      const count = download.files.length;
+      if (count === 0 || fileCount + count > MESSAGE_FILES_MAX) {
+        continue;
+      }
+      uploads.push({ proof, download });
+      fileCount += count;
+    }
+
+    const names = uniqueUploadNames(
+      uploads.flatMap((u) => u.download.files),
+      [],
+    );
+    const namesOf = new Map<string, string[]>();
+    let offset = 0;
+    for (const { proof, download } of uploads) {
+      namesOf.set(
+        proof.id,
+        names.slice(offset, offset + download.files.length),
+      );
+      offset += download.files.length;
+    }
+
+    const pending = (urlsOf: (proof: CaseProof) => string[]) =>
+      proofs.map((proof) =>
+        namesOf.has(proof.id)
+          ? { ...proof, attachments: urlsOf(proof) }
+          : proof,
+      );
+    const withRefs = pending((proof) => [
+      ...(namesOf.get(proof.id) ?? []).map((n) => `attachment://${n}`),
+      ...(uploads.find((u) => u.proof.id === proof.id)?.download.failed ?? []),
+    ]);
+
+    const rendered = await this.renderWithProofs(
+      moderationCase,
+      options,
+      withRefs,
+      null,
+    );
+    if (uploads.length === 0) {
+      return channel.send(rendered);
+    }
+    if (!this.fitsOnEntry(rendered, withRefs, null, 0, names)) {
+      // Left unhosted; the next refresh moves them onto the entry or a reply.
+      return channel.send(
+        await this.renderWithProofs(moderationCase, options, proofs, null),
+      );
+    }
+
+    const sent = await channel.send({
+      ...rendered,
+      files: uploads
+        .flatMap((u) => u.download.files)
+        .map((file, i) => toAttachment(file, names[i] ?? file.name)),
+    });
+
+    const urls = uploadedUrls(postedFilesOf(sent), names, new Set());
+    const hosted = new Map<string, string[]>();
+    for (const { proof, download } of uploads) {
+      const own = namesOf.get(proof.id) ?? [];
+      const newUrls = own
+        .map((name) => urls[names.indexOf(name)])
+        .filter((url): url is string => !!url);
+      hosted.set(proof.id, [...newUrls, ...download.failed]);
+      await this.saveHosting(proof, hosted.get(proof.id) ?? [], sent.id);
+    }
+
+    if (names.some((name) => !isGalleryMedia(name))) {
+      const final = pending((proof) => hosted.get(proof.id) ?? []).map(
+        (proof) =>
+          hosted.has(proof.id) ? { ...proof, hostMessageId: sent.id } : proof,
+      );
+      await this.bestEffortEdit(
+        sent,
+        await this.renderWithProofs(moderationCase, options, final, sent.id),
+        moderationCase,
+      );
+    }
+
+    return sent;
+  }
+
+  private fitsOnEntry(
+    rendered: ModLogMessage,
+    proofs: readonly PlacedProof[],
+    entryId: string | null,
+    existingFiles: number,
+    newNames: readonly string[],
+  ): boolean {
+    const hasOverflow = proofs.some(
+      (p) => p.hostMessageId !== null && p.hostMessageId !== entryId,
+    );
+    const pendingLinks = newNames.filter((n) => !isGalleryMedia(n)).length;
+    const text =
+      messageTextLength(rendered) +
+      (hasOverflow ? 0 : MORE_PROOF_LINE_RESERVE) +
+      DELETE_DM_PROMPT_RESERVE +
+      pendingLinks * FILE_LINK_RESERVE;
+    const shown = proofs.filter(
+      (p) => p.hostMessageId === null || p.hostMessageId === entryId,
+    );
+
+    return (
+      text <= MESSAGE_TEXT_MAX_LENGTH &&
+      existingFiles + newNames.length <= MESSAGE_FILES_MAX &&
+      galleryItemCount(shown) <= MESSAGE_FILES_MAX
+    );
+  }
+
+  /**
+   * Adds one proof to the entry, keeping the files already on it, or posts it
+   * as a reply when the entry would go over 4000 characters or 10 files.
+   */
+  private async placeProof(
+    entryMessage: Message,
+    moderationCase: ModerationCase,
+    others: readonly PlacedProof[],
+    proof: ModLogProof,
+    files: readonly ProofUpload[],
+  ): Promise<PlaceResult> {
+    let entry = entryMessage;
+    if (files.length > 0 && isLegacyEntry(entry)) {
+      entry = await this.convertBeforeUpload(entry, moderationCase, others);
+    }
+
+    const existing = postedFiles(postedFilesOf(entry));
+    const existingIds = new Set(existing.map((f) => f.id));
+    const names = uniqueUploadNames(
+      files,
+      existing.map((f) => f.filename),
+    );
+    const refs = names.map((n) => `attachment://${n}`);
+    const onEntry = [
+      ...others,
+      { ...proof, attachments: refs, hostMessageId: entry.id },
+    ];
+    const rendered = await this.renderWithProofs(
+      moderationCase,
+      { currentMessage: entry },
+      onEntry,
+      entry.id,
+    );
+
+    if (this.fitsOnEntry(rendered, onEntry, entry.id, existing.length, names)) {
+      const edited = await this.editEntry(entry, moderationCase, rendered, {
+        keep: [...existingIds],
+        files,
+        names,
+      });
+      const urls = this.collectUrls(edited, names, existingIds, moderationCase);
+      if (names.some((n) => !isGalleryMedia(n))) {
+        await this.bestEffortEdit(
+          edited,
+          await this.renderWithProofs(
+            moderationCase,
+            { currentMessage: edited },
+            [
+              ...others,
+              { ...proof, attachments: urls, hostMessageId: edited.id },
+            ],
+            edited.id,
+          ),
+          moderationCase,
+        );
+      }
+      return { hostMessageId: entry.id, attachmentUrls: urls, entry: edited };
+    }
+
+    const emojis = await this.emojiRepository.getEmojis(MOD_LOG_EMOJIS);
+    const reply = await entry.reply({
+      ...this.renderReply(
+        moderationCase,
+        { ...proof, attachments: refs },
+        emojis,
+      ),
+      files: files.map((file, i) => toAttachment(file, names[i] ?? file.name)),
+      failIfNotExists: false,
+    });
+    const urls = this.collectUrls(reply, names, new Set(), moderationCase);
+    if (names.some((n) => !isGalleryMedia(n))) {
+      await this.bestEffortEdit(
+        reply,
+        this.renderReply(
+          moderationCase,
+          { ...proof, attachments: urls },
+          emojis,
+        ),
+        moderationCase,
+      );
+    }
+
+    const hadOverflow = others.some(
+      (p) => p.hostMessageId !== null && p.hostMessageId !== entry.id,
+    );
+    if (!hadOverflow) {
+      await this.bestEffortEdit(
+        entry,
+        await this.renderWithProofs(
+          moderationCase,
+          { currentMessage: entry },
+          [...others, { ...proof, attachments: urls, hostMessageId: reply.id }],
+          entry.id,
+        ),
+        moderationCase,
+      );
+    }
+
+    return { hostMessageId: reply.id, attachmentUrls: urls, entry };
+  }
+
+  private renderReply(
+    moderationCase: ModerationCase,
+    proof: ModLogProof,
+    emojis: ModLogEmojis,
+  ): ModLogMessage {
+    return buildProofReplyMessage({
+      caseId: moderationCase.caseId,
+      userId: moderationCase.userId,
+      proof,
+      emojis,
+    });
+  }
+
+  private collectUrls(
+    message: Message,
+    names: readonly string[],
+    previousIds: ReadonlySet<string>,
+    moderationCase: ModerationCase,
+  ): string[] {
+    const urls = uploadedUrls(postedFilesOf(message), names, previousIds);
+    const missing = names.filter((_, i) => !urls[i]);
+    if (missing.length > 0) {
+      this.logger.warn(
+        {
+          guildId: moderationCase.guildId,
+          caseId: moderationCase.caseId,
+          messageId: message.id,
+          missing,
+        },
+        "Mod log message is missing uploaded proof files",
+      );
+    }
+
+    return urls.filter((url): url is string => !!url);
+  }
+
+  private async editEntry(
+    entry: Message,
+    moderationCase: ModerationCase,
+    rendered: ModLogMessage,
+    upload: { keep: string[]; files: readonly ProofUpload[]; names: string[] },
+  ): Promise<Message> {
+    const kind = isLegacyEntry(entry) ? "legacy_conversion" : "v2";
+    try {
+      let edited = entry;
+      if (kind === "legacy_conversion") {
+        // Only text-only proof gets here; files convert the entry first.
+        await this.convertLegacyEntry(
+          entry.channelId,
+          entry.id,
+          entry.flags.bitfield,
+          rendered,
+        );
+      } else {
+        edited = await entry.edit({
+          ...rendered,
+          // Discord drops every file an edit doesn't list once it uploads new ones.
+          attachments: upload.keep.map((id) => ({ id })),
+          files: upload.files.map((file, i) =>
+            toAttachment(file, upload.names[i] ?? file.name),
+          ),
+        });
+      }
+      this.metrics.recordModLogEdit(kind, "ok");
+      return edited;
+    } catch (err) {
+      this.metrics.recordModLogEdit(kind, "failed");
+      throw new Error("Failed to add proof to mod log entry", { cause: err });
+    }
+  }
+
+  /** Files can't go up in the REST conversion, so a legacy entry is converted first. */
+  private async convertBeforeUpload(
+    entry: Message,
+    moderationCase: ModerationCase,
+    proofs: readonly PlacedProof[],
+  ): Promise<Message> {
+    const rendered = await this.renderWithProofs(
+      moderationCase,
+      { currentMessage: entry },
+      proofs,
+      entry.id,
+    );
+    await this.convertLegacyEntry(
+      entry.channelId,
+      entry.id,
+      entry.flags.bitfield,
+      rendered,
+    );
+    this.metrics.recordModLogEdit("legacy_conversion", "ok");
+    return entry.fetch(true);
+  }
+
+  private async bestEffortEdit(
+    message: Message,
+    rendered: ModLogMessage,
+    moderationCase: ModerationCase,
+  ): Promise<void> {
+    try {
+      if (isLegacyEntry(message)) {
+        await this.convertLegacyEntry(
+          message.channelId,
+          message.id,
+          message.flags.bitfield,
+          rendered,
+        );
+      } else {
+        await message.edit(rendered);
+      }
+    } catch (err) {
+      this.logger.warn(
+        {
+          err,
+          guildId: moderationCase.guildId,
+          caseId: moderationCase.caseId,
+          messageId: message.id,
+        },
+        "Failed to update mod log message after hosting proof",
+      );
+    }
+  }
+
+  /**
+   * Moves proof files that live elsewhere (the action response) onto the
+   * entry, so the mod log holds every proof file. Best effort.
+   */
+  private async adoptUnhosted(
+    entryMessage: Message,
+    moderationCase: ModerationCase,
+    stored: CaseProof[],
+  ): Promise<{ proofs: CaseProof[]; message: Message }> {
+    let proofs = stored;
+    let message = entryMessage;
+
+    for (const proof of stored.filter(isAdoptable)) {
+      const download = await this.downloadProofFiles(proof);
+      if (download.files.length === 0) {
+        continue;
+      }
+
+      const others = proofs.filter((p) => p.id !== proof.id);
+      let placed: PlaceResult;
+      try {
+        placed = await this.placeProof(
+          message,
+          moderationCase,
+          others,
+          proof,
+          download.files,
+        );
+      } catch (err) {
+        this.logger.warn(
+          {
+            err,
+            guildId: moderationCase.guildId,
+            caseId: moderationCase.caseId,
+            proofId: proof.id,
+          },
+          "Failed to move proof files onto the mod log entry",
+        );
+        continue;
+      }
+
+      const attachments = [...placed.attachmentUrls, ...download.failed];
+      await this.saveHosting(proof, attachments, placed.hostMessageId);
+      message = placed.entry;
+      proofs = proofs.map((p) =>
+        p.id === proof.id
+          ? { ...p, attachments, hostMessageId: placed.hostMessageId }
+          : p,
+      );
+    }
+
+    return { proofs, message };
+  }
+
+  private async saveHosting(
+    proof: CaseProof,
+    attachments: string[],
+    hostMessageId: string,
+  ): Promise<void> {
+    await this.caseProofRepository.updateHosting(proof.guildId, proof.id, {
+      attachments,
+      hostMessageId,
+    });
+  }
+
+  private async downloadProofFiles(proof: CaseProof): Promise<DownloadedProof> {
+    const files: ProofUpload[] = [];
+    const failed: string[] = [];
+
+    for (const url of proof.attachments.filter(Boolean)) {
+      const file = await this.downloadFile(url, proof);
+      if (file) {
+        files.push(file);
+      } else {
+        failed.push(url);
+      }
+    }
+
+    return { files, failed };
+  }
+
+  private async downloadFile(
+    url: string,
+    proof: CaseProof,
+  ): Promise<ProofUpload | null> {
+    const context = {
+      guildId: proof.guildId,
+      caseId: proof.caseId,
+      proofId: proof.id,
+    };
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(PROOF_DOWNLOAD_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(
+          { ...context, status: res.status },
+          "Failed to download proof file",
+        );
+        return null;
+      }
+
+      const data = Buffer.from(await res.arrayBuffer());
+      if (data.length > PROOF_DOWNLOAD_MAX_BYTES) {
+        this.logger.warn(
+          { ...context, bytes: data.length },
+          "Proof file is too large to move onto the mod log entry",
+        );
+        return null;
+      }
+
+      return {
+        name: getCleanFilename(url) || "file",
+        data,
+        contentType: res.headers.get("content-type"),
+      };
+    } catch (err) {
+      this.logger.warn({ ...context, err }, "Failed to download proof file");
+      return null;
+    }
   }
 
   /**

@@ -8,7 +8,10 @@ import type {
 } from "discord.js";
 import { ButtonStyle, ComponentType, MessageFlags } from "discord.js";
 
-import type { DMResult } from "../../domain/entities/ModerationCase";
+import type {
+  DMIntentSource,
+  DMResult,
+} from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import { ActionType } from "../../domain/value-objects/ActionType";
 import { Reason } from "../../domain/value-objects/Reason";
@@ -17,6 +20,7 @@ import {
   MOD_LOG_FACTS_ID,
   type ModLogEmojis,
   type ModLogMessageInput,
+  type ModLogProof,
   buildDeleteDmConfirm,
   buildLegacyConversionBody,
   buildModLogMessage,
@@ -41,6 +45,22 @@ const emojis = Object.fromEntries(
 
 const NATIVE_EMOJI = /\p{Extended_Pictographic}/u;
 
+const PROOF_TIME = new Date("2026-10-27T11:55:00.000Z");
+const PROOF_UNIX = PROOF_TIME.getTime() / 1000;
+
+function proof(o: Partial<ModLogProof> = {}): ModLogProof {
+  return {
+    authorId: SETTER,
+    createdAt: PROOF_TIME,
+    content: "Same scam in DMs",
+    attachments: [],
+    sourceMessageUrl: null,
+    sourceAuthorId: null,
+    sourceContent: null,
+    ...o,
+  };
+}
+
 interface CaseOptions {
   actionType?: ActionType;
   executorId?: string | null;
@@ -50,6 +70,7 @@ interface CaseOptions {
   timeoutDuration?: number | null;
   dmNotAttemptedReason?: "user_not_in_guild" | null;
   dmFailureReason?: "user_blocked" | null;
+  dmIntentSource?: DMIntentSource;
   deleteMessageSeconds?: number | null;
   dmDeleted?: boolean;
   dmDeletedBy?: string | null;
@@ -74,7 +95,7 @@ function makeCase(o: CaseOptions = {}): ModerationCase {
     false,
     o.timeoutDuration ?? null,
     false,
-    "unknown",
+    o.dmIntentSource ?? "unknown",
     false,
     o.dmNotAttemptedReason ?? null,
     o.dmFailureReason ?? null,
@@ -154,16 +175,104 @@ describe("buildModLogMessage", () => {
     expect(buttons(container).map((b) => b.label)).toEqual(["Set note"]);
   });
 
-  test("the timestamp is a footer under the buttons", () => {
-    const container = render(makeCase({ reason: "Raid" }));
-    const last = container.components.at(-1);
-    const beforeLast = container.components.at(-2);
+  test("layout: header, reason with its row, proof section, gallery, links, timestamp last", () => {
+    const container = render(makeCase({ reason: "Raid", dmResult: liveDm }), {
+      proofs: [
+        proof({
+          attachments: [
+            "https://cdn.discordapp.com/attachments/1/2/shot.png?ex=1&is=2&hm=3&",
+            "https://cdn.discordapp.com/attachments/1/2/log.txt?ex=1&is=2&hm=3&",
+          ],
+        }),
+      ],
+    });
 
-    expect(last).toMatchObject({
-      type: ComponentType.TextDisplay,
+    expect(container.components.map((c) => c.type)).toEqual([
+      ComponentType.Section,
+      ComponentType.Separator,
+      ComponentType.TextDisplay,
+      ComponentType.ActionRow,
+      ComponentType.Separator,
+      ComponentType.Section,
+      ComponentType.MediaGallery,
+      ComponentType.TextDisplay,
+      ComponentType.TextDisplay,
+    ]);
+    expect(container.components.at(-1)).toMatchObject({
       content: `-# <t:${ACTION_UNIX}:f>`,
     });
-    expect(beforeLast?.type).toBe(ComponentType.ActionRow);
+    expect(container.components.at(-2)).toMatchObject({
+      content:
+        "https://cdn.discordapp.com/attachments/1/2/log.txt?ex=1&is=2&hm=3&",
+    });
+    const gallery = container.components[6] as APIMediaGalleryComponent;
+    expect(gallery.items).toEqual([
+      {
+        media: {
+          url: "https://cdn.discordapp.com/attachments/1/2/shot.png?ex=1&is=2&hm=3&",
+        },
+      },
+    ]);
+
+    const proofSection = container.components[5] as APISectionComponent;
+    expect(proofSection.accessory).toMatchObject({
+      type: ComponentType.Button,
+      style: ButtonStyle.Primary,
+      label: "Add proof",
+      custom_id: "caseProof/add/4822",
+    });
+    expect(proofSection.components[0]?.content).toBe(
+      `**${emojis.lock} Proof** · mods only\n-# <@${SETTER}> · <t:${PROOF_UNIX}:R> · 2 files\nSame scam in DMs`,
+    );
+  });
+
+  test("no proof yet says so next to Add proof", () => {
+    const container = render(makeCase({ reason: "Raid" }));
+
+    expect(allText(container)).toContain(
+      `**${emojis.lock} Proof** · mods only\n-# None yet. Add screenshots, message links or context for other mods.`,
+    );
+    expect(
+      container.components.some((c) => c.type === ComponentType.MediaGallery),
+    ).toBe(false);
+  });
+
+  test("every proof entry is shown in full, then the overflow link", () => {
+    const long = "p".repeat(1000);
+    const container = render(makeCase({ reason: "Raid" }), {
+      proofs: [
+        proof({ content: long }),
+        proof({
+          content: null,
+          sourceAuthorId: TARGET,
+          sourceContent: "free nitro here",
+          sourceMessageUrl: `https://discord.com/channels/${GUILD}/1/2`,
+        }),
+      ],
+      moreProofUrl: `https://discord.com/channels/${GUILD}/3/4`,
+    });
+
+    const text = allText(container);
+    expect(text).toContain(long);
+    expect(text).toContain(
+      `-# <@${SETTER}> · <t:${PROOF_UNIX}:R> · message from <@${TARGET}>\n> free nitro here\nhttps://discord.com/channels/${GUILD}/1/2\n-# More proof in the reply below: https://discord.com/channels/${GUILD}/3/4`,
+    );
+  });
+
+  test("files waiting for upload go in the gallery; their links wait for a URL", () => {
+    const container = render(makeCase(), {
+      proofs: [
+        proof({
+          attachments: ["attachment://1_a.png", "attachment://2_b.pdf"],
+        }),
+      ],
+    });
+
+    const gallery = container.components.find(
+      (c) => c.type === ComponentType.MediaGallery,
+    ) as APIMediaGalleryComponent;
+    expect(gallery.items).toEqual([{ media: { url: "attachment://1_a.png" } }]);
+    expect(allText(container)).not.toContain("attachment://");
   });
 
   test("native ban without a reason offers Set reason only", () => {
@@ -183,7 +292,7 @@ describe("buildModLogMessage", () => {
       "-# No reason yet. Set one so the case history explains this action.",
     );
     expect(allText(container)).toContain(
-      `-# ${emojis.message} No DM sent\n-# <t:${ACTION_UNIX}:f>`,
+      `**${emojis.reason} Reason** · not sent\n-# No reason yet.`,
     );
 
     expect(buttons(container)).toEqual([
@@ -211,12 +320,20 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      "**Reason**\nSpamming in channels (rule 3).",
+      `**${emojis.additional_message} Reason** · sent to user by DM\nSpamming in channels (rule 3).`,
     );
     expect(allText(container)).toContain(
       `-# ${emojis.trash} Deleted messages from the previous hour`,
     );
-    expect(allText(container)).toContain(`-# ${emojis.message} Reason DM sent`);
+    expect(allText(container)).not.toContain("server's ban message");
+
+    const withServerText = render(
+      makeCase({ reason: "Spam", dmResult: liveDm }),
+      { dmIncludedServerText: true },
+    );
+    expect(allText(withServerText)).toContain(
+      "Spam\n-# Also included your server's ban message",
+    );
 
     const [edit, deleteDm] = buttons(container);
     expect(edit).toMatchObject({
@@ -245,8 +362,11 @@ describe("buildModLogMessage", () => {
     });
     const at = new Date("2026-10-27T11:59:40.000Z");
 
-    const plain = render(moderationCase);
-    expect(allText(plain)).toContain(`-# ${emojis.message} Reason DM deleted`);
+    const plain = render(moderationCase, { dmIncludedServerText: true });
+    expect(allText(plain)).toContain(
+      `**${emojis.reason} Reason** · not sent (DM deleted)\nSpam`,
+    );
+    expect(allText(plain)).not.toContain("server's ban message");
     expect(buttons(plain).map((b) => b.label)).toEqual(["Edit reason"]);
 
     const withWho = render(
@@ -259,7 +379,7 @@ describe("buildModLogMessage", () => {
       }),
     );
     expect(allText(withWho)).toContain(
-      `Reason DM deleted by <@${SETTER}> <t:${at.getTime() / 1000}:R>`,
+      `**${emojis.reason} Reason** · not sent (DM deleted by <@${SETTER}>)`,
     );
   });
 
@@ -277,7 +397,7 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      `-# ${emojis.fail} Reason DM failed: they have DMs off or blocked sushii`,
+      `**${emojis.reason} Reason** · not sent (DM failed: they have DMs off or blocked sushii)\nArguing with mods`,
     );
     expect(allText(container)).toContain(`### ${emojis.warn} Warned`);
   });
@@ -288,8 +408,24 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      "No DM sent: they weren't in the server",
+      "Reason** · not sent (they weren't in the server)",
     );
+  });
+
+  test("DMs left off by the server or the mod say why", () => {
+    expect(
+      allText(render(makeCase({ dmIntentSource: "guild_default" }))),
+    ).toContain("· not sent (ban DMs are off)");
+    expect(
+      allText(
+        render(
+          makeCase({
+            actionType: ActionType.Timeout,
+            dmIntentSource: "executor_no",
+          }),
+        ),
+      ),
+    ).toContain("· not sent (the mod chose no DM)");
   });
 
   test("notes and unbans have no DM line but still get a set button", () => {
@@ -299,6 +435,7 @@ describe("buildModLogMessage", () => {
     ] as const) {
       const container = render(makeCase({ actionType }));
       expect(allText(container)).not.toContain("DM");
+      expect(allText(container)).not.toContain("(");
       expect(buttons(container).map((b) => b.label)).toEqual([label]);
     }
   });
@@ -368,29 +505,16 @@ describe("buildModLogMessage", () => {
     expect(allText(container)).toContain("-# No messages deleted");
   });
 
-  test("image attachments go in a gallery, other files as links", () => {
+  test("the case's old attachments column is not shown; proof replaces it", () => {
     const container = render(
       makeCase({
-        attachments: [
-          "https://cdn.discordapp.com/attachments/1/2/evidence.png?ex=abc",
-          "https://cdn.discordapp.com/attachments/1/2/log.txt",
-        ],
+        attachments: ["https://cdn.discordapp.com/attachments/1/2/old.png"],
       }),
+      { factsBlock: "-# Attachments: [old.png](https://x)\n-# kept" },
     );
 
-    const gallery = container.components.find(
-      (c) => c.type === ComponentType.MediaGallery,
-    ) as APIMediaGalleryComponent;
-    expect(gallery.items).toEqual([
-      {
-        media: {
-          url: "https://cdn.discordapp.com/attachments/1/2/evidence.png?ex=abc",
-        },
-      },
-    ]);
-    expect(allText(container)).toContain(
-      "-# Attachments: [log.txt](https://cdn.discordapp.com/attachments/1/2/log.txt)",
-    );
+    expect(JSON.stringify(container)).not.toContain("old.png");
+    expect(allText(container)).toContain("-# kept");
   });
 
   test("confirm state swaps the buttons for Delete DM / Cancel", () => {
@@ -400,6 +524,10 @@ describe("buildModLogMessage", () => {
 
     expect(allText(container)).toContain(
       "**Delete the DM sent to spambot?** They won't see the reason anymore. The case and its reason stay.",
+    );
+    const types = container.components.map((c) => c.type);
+    expect(types.indexOf(ComponentType.ActionRow)).toBeLessThan(
+      types.lastIndexOf(ComponentType.Section),
     );
     const [confirm, cancel] = buttons(container);
     expect(confirm).toMatchObject({
@@ -426,7 +554,14 @@ describe("buildModLogMessage", () => {
       expect(b.emoji).toBeUndefined();
     }
     expect(allText(container)).toContain("### Banned · Case #4822");
-    expect(allText(container)).toContain("**Reason**\nx");
+    expect(allText(container)).toContain("**Reason** · sent to user by DM\nx");
+    expect(allText(container)).toContain("**Proof** · mods only");
+    const proofSection = container.components.findLast(
+      (c) => c.type === ComponentType.Section,
+    ) as APISectionComponent;
+    expect(
+      (proofSection.accessory as { emoji?: unknown }).emoji,
+    ).toBeUndefined();
   });
 
   test("never uses native emoji", () => {
@@ -447,35 +582,21 @@ describe("buildModLogMessage", () => {
     }
   });
 
-  test("stays within Discord's 4000 character text limit", () => {
+  test("never truncates a long reason or proof", () => {
+    const reason = "r".repeat(3000);
+    const note = "n".repeat(1000);
     const container = render(
       makeCase({
         actionType: ActionType.Timeout,
-        reason: "r".repeat(3000),
+        reason,
         timeoutDuration: 86400,
-        dmResult: { error: "x" },
-        dmFailureReason: "user_blocked",
-        reasonSetBy: SETTER,
-        reasonSetAt: ACTION_TIME,
-        attachments: Array.from(
-          { length: 20 },
-          (_, i) =>
-            `https://cdn.discordapp.com/attachments/1/2/${"f".repeat(60)}${i}.txt`,
-        ),
       }),
-      {
-        target: {
-          id: TARGET,
-          username: "_".repeat(32),
-          avatarURL: "https://cdn.discordapp.com/embed/avatars/4.png",
-        },
-        confirmDeleteDm: true,
-      },
+      { proofs: [proof({ content: note })] },
     );
 
-    const total = texts(container).reduce((sum, t) => sum + t.length, 0);
-    expect(total).toBeLessThanOrEqual(4000);
-    expect(allText(container)).toContain("…");
+    expect(allText(container)).toContain(`${reason}\n`);
+    expect(allText(container)).toContain(note);
+    expect(allText(container)).not.toContain("…");
   });
 
   test("escapes markdown in the target name", () => {

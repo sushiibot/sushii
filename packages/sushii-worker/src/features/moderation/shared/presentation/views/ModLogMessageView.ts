@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ComponentType,
   ContainerBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
@@ -18,9 +19,8 @@ import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { TimeoutChange } from "@/features/moderation/audit-logs/domain/value-objects/TimeoutChange";
 import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
-import { truncateText } from "@/utils/truncateText";
-import { getCleanFilename } from "@/utils/url";
 
+import type { CaseProof } from "../../domain/entities/CaseProof";
 import type {
   DMFailureReason,
   ModerationCase,
@@ -30,12 +30,21 @@ import {
   ActionTypeBotEmojis,
   actionTypeSupportsDM,
 } from "../../domain/value-objects/ActionType";
+import { isGalleryMedia } from "../caseMedia";
+import {
+  PROOF_EMOJIS,
+  addProofButton,
+  proofEntryText,
+  proofFileLinks,
+  proofHeading,
+  proofMediaUrls,
+} from "../proof/proofBlock";
+import { REASON_EMOJIS, reasonHeading } from "../proof/reasonBlock";
 import {
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
   getActionTypeColor,
 } from "./ActionTypeFormatter";
-import { splitCaseAttachments } from "../caseMedia";
 import {
   buildModLogDeleteDmButtonId,
   buildModLogDmConfirmId,
@@ -44,8 +53,8 @@ import {
 
 export const MOD_LOG_EMOJIS = [
   ...ActionTypeBotEmojis,
-  "message",
-  "fail",
+  ...PROOF_EMOJIS,
+  ...REASON_EMOJIS,
   "duration",
   "trash",
   "message_edit",
@@ -54,9 +63,20 @@ export const MOD_LOG_EMOJIS = [
 export type ModLogEmojis = EmojiMap<typeof MOD_LOG_EMOJIS>;
 
 /** Discord's cap on text across all text displays in one message. */
-const MESSAGE_TEXT_MAX_LENGTH = 4000;
+export const MESSAGE_TEXT_MAX_LENGTH = 4000;
 const LEGACY_DM_DELETED_LABEL = "Reason DM deleted";
-const ATTACHMENT_LINKS_MAX_LENGTH = 600;
+
+/** What the entry needs of a proof; attachments may be `attachment://` refs to files in the same request. */
+export type ModLogProof = Pick<
+  CaseProof,
+  | "authorId"
+  | "createdAt"
+  | "content"
+  | "attachments"
+  | "sourceMessageUrl"
+  | "sourceAuthorId"
+  | "sourceContent"
+>;
 
 export interface ModLogTarget {
   id: string;
@@ -80,7 +100,13 @@ export interface ModLogMessageInput {
   factsBlock?: string | null;
   /** Lines carried over from a legacy embed, added after the computed facts. */
   extraFacts?: readonly string[];
-  /** Swaps the button row for the in-place Delete DM confirmation. */
+  /** Proof shown on this entry, oldest first. Proof hosted on overflow replies is left out. */
+  proofs?: readonly ModLogProof[];
+  /** Raw link to the first overflow reply, when any proof lives there. */
+  moreProofUrl?: string | null;
+  /** The DM carried the server's custom text for this action from `/settings`. */
+  dmIncludedServerText?: boolean;
+  /** Swaps the reason's button row for the in-place Delete DM confirmation. */
   confirmDeleteDm?: boolean;
   /** Shown as the executor when the case has none, e.g. the bot's own ID. */
   fallbackExecutorId?: string | null;
@@ -215,42 +241,57 @@ function buildFacts(input: ModLogMessageInput): string[] {
   return facts;
 }
 
-function dmStatusLine(input: ModLogMessageInput): string | null {
-  const { moderationCase, emojis } = input;
-  const dm = moderationCase.dmResult;
+/** Action word for the guild's DM settings, e.g. "ban DMs are off". */
+function dmKind(type: ActionType): string | null {
+  switch (type) {
+    case ActionType.Ban:
+    case ActionType.TempBan:
+    case ActionType.Softban:
+      return "ban";
+    case ActionType.Kick:
+      return "kick";
+    case ActionType.Timeout:
+    case ActionType.TimeoutAdjust:
+      return "timeout";
+    case ActionType.Warn:
+      return "warn";
+    default:
+      return null;
+  }
+}
 
+function reasonNotSentWhy(moderationCase: ModerationCase): string | undefined {
   if (moderationCase.dmDeleted) {
-    const by = moderationCase.dmDeletedBy
-      ? ` by <@${moderationCase.dmDeletedBy}>`
-      : "";
-    const at = moderationCase.dmDeletedAt
-      ? ` <t:${unix(moderationCase.dmDeletedAt)}:R>`
-      : "";
-    return withEmoji(emojis.message, `Reason DM deleted${by}${at}`);
+    return moderationCase.dmDeletedBy
+      ? `DM deleted by <@${moderationCase.dmDeletedBy}>`
+      : "DM deleted";
   }
 
-  if (dm?.channelId && dm.messageId) {
-    return withEmoji(emojis.message, "Reason DM sent");
-  }
-
+  const dm = moderationCase.dmResult;
   if (dm?.error || moderationCase.dmFailureReason) {
     const reason =
       moderationCase.dmFailureReason ?? dm?.failureReason ?? "unknown";
-    return withEmoji(
-      emojis.fail,
-      `Reason DM failed: ${DM_FAILURE_TEXT[reason]}`,
-    );
+    return `DM failed: ${DM_FAILURE_TEXT[reason]}`;
   }
 
   if (!actionTypeSupportsDM(moderationCase.actionType)) {
-    return null;
+    return undefined;
   }
 
   if (moderationCase.dmNotAttemptedReason === "user_not_in_guild") {
-    return withEmoji(emojis.message, "No DM sent: they weren't in the server");
+    return "they weren't in the server";
   }
 
-  return withEmoji(emojis.message, "No DM sent");
+  if (moderationCase.dmIntentSource === "executor_no") {
+    return "the mod chose no DM";
+  }
+
+  if (moderationCase.dmIntentSource === "guild_default") {
+    const kind = dmKind(moderationCase.actionType);
+    return kind ? `${kind} DMs are off` : "DMs are off";
+  }
+
+  return undefined;
 }
 
 export function hasLiveDm(moderationCase: ModerationCase): boolean {
@@ -281,23 +322,6 @@ export function isLegacyEntryWithDeletedDm(message: PostedMessage): boolean {
       (c) => c.label === LEGACY_DM_DELETED_LABEL,
     );
   });
-}
-
-function attachmentLinks(links: string[]): string {
-  const shown: string[] = [];
-  let length = 0;
-  for (const url of links) {
-    const link = `[${escapeMarkdown(getCleanFilename(url) || "file")}](${url})`;
-    if (length + link.length > ATTACHMENT_LINKS_MAX_LENGTH) {
-      break;
-    }
-    shown.push(link);
-    length += link.length + 2;
-  }
-
-  const hidden = links.length - shown.length;
-  const more = hidden > 0 ? `${shown.length ? ", " : ""}${hidden} more` : "";
-  return `Attachments: ${shown.join(", ")}${more}`;
 }
 
 function button(
@@ -363,7 +387,7 @@ function reasonLabel(type: ActionType): "reason" | "note" {
   return type === ActionType.Note ? "note" : "reason";
 }
 
-function buildButtonRow(
+function buildReasonRow(
   input: ModLogMessageInput,
 ): ActionRowBuilder<ButtonBuilder> {
   const { moderationCase, emojis } = input;
@@ -397,6 +421,85 @@ function buildButtonRow(
   return row;
 }
 
+function buildReasonHeading(input: ModLogMessageInput): string {
+  const { moderationCase, emojis } = input;
+  if (moderationCase.actionType === ActionType.Note) {
+    return "**Note**";
+  }
+
+  if (hasLiveDm(moderationCase)) {
+    return reasonHeading(emojis, { sent: true, to: "user" });
+  }
+
+  return reasonHeading(emojis, {
+    sent: false,
+    why: reasonNotSentWhy(moderationCase),
+  });
+}
+
+function buildReasonText(input: ModLogMessageInput): string {
+  const { moderationCase } = input;
+  const executorId =
+    moderationCase.executorId ?? input.fallbackExecutorId ?? null;
+  const label = reasonLabel(moderationCase.actionType);
+  const lines = [
+    buildReasonHeading(input),
+    moderationCase.reason
+      ? moderationCase.reason.value
+      : `-# No ${label} yet. Set one so the case history explains this action.`,
+  ];
+
+  // Only worth showing when someone other than the moderator wrote the reason.
+  if (
+    moderationCase.reasonSetBy &&
+    moderationCase.reasonSetAt &&
+    moderationCase.reasonSetBy !== executorId
+  ) {
+    lines.push(
+      `-# Set by <@${moderationCase.reasonSetBy}> <t:${unix(moderationCase.reasonSetAt)}:R>`,
+    );
+  }
+
+  const kind = dmKind(moderationCase.actionType);
+  if (input.dmIncludedServerText && hasLiveDm(moderationCase) && kind) {
+    lines.push(`-# Also included your server's ${kind} message`);
+  }
+
+  return lines.join("\n");
+}
+
+/** Pending uploads are `attachment://` refs; a link to one would be dead text. */
+function isPendingUpload(url: string): boolean {
+  return url.startsWith("attachment://");
+}
+
+function buildProofText(input: ModLogMessageInput): string {
+  const { emojis } = input;
+  const proofs = input.proofs ?? [];
+  const lines = [proofHeading(emojis)];
+  if (proofs.length === 0 && !input.moreProofUrl) {
+    lines.push(
+      "-# None yet. Add screenshots, message links or context for other mods.",
+    );
+  }
+  for (const proof of proofs) {
+    lines.push(proofEntryText(proof, emojis));
+  }
+  if (input.moreProofUrl) {
+    lines.push(`-# More proof in the reply below: ${input.moreProofUrl}`);
+  }
+
+  return lines.join("\n");
+}
+
+/** Lines a copied facts block had for the attachments column, now shown as proof. */
+function withoutAttachmentFacts(factsBlock: string): string | null {
+  const kept = factsBlock
+    .split("\n")
+    .filter((line) => !line.startsWith("-# Attachments: "));
+  return kept.length > 0 ? kept.join("\n") : null;
+}
+
 export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   const { moderationCase, target, emojis } = input;
   const type = moderationCase.actionType;
@@ -422,33 +525,14 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     ...moderatorLines,
   ].join("\n");
 
-  const { media, links } = splitCaseAttachments(moderationCase.attachments);
   let factsText: string | null;
   if (input.factsBlock && !input.timeoutChange) {
-    factsText = input.factsBlock;
+    factsText = withoutAttachmentFacts(input.factsBlock);
   } else {
     const facts = [...buildFacts(input), ...(input.extraFacts ?? [])];
-    if (links.length > 0) {
-      facts.push(attachmentLinks(links));
-    }
     factsText =
       facts.length > 0 ? facts.map((fact) => `-# ${fact}`).join("\n") : null;
   }
-
-  const dmLine = dmStatusLine(input);
-  const dmText = dmLine ? `-# ${dmLine}` : null;
-  // Timestamps render as a full-size pill even in small text, so it sits under the buttons like a footer.
-  const timestampText = `-# <t:${unix(moderationCase.actionTime)}:f>`;
-
-  // Only worth showing when someone other than the moderator wrote the reason.
-  const reasonSetNote =
-    moderationCase.reasonSetBy &&
-    moderationCase.reasonSetAt &&
-    moderationCase.reasonSetBy !== executorId
-      ? `\n-# Set by <@${moderationCase.reasonSetBy}> <t:${unix(moderationCase.reasonSetAt)}:R>`
-      : "";
-  const label = reasonLabel(type);
-  const reasonHeading = `**${label === "note" ? "Note" : "Reason"}**\n`;
 
   const confirm = input.confirmDeleteDm
     ? buildDeleteDmConfirm({
@@ -460,21 +544,6 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
         cancelCustomId: buildModLogDmConfirmId("cancel", moderationCase.caseId),
       })
     : null;
-
-  const fixedLength =
-    header.length +
-    (factsText?.length ?? 0) +
-    (dmText?.length ?? 0) +
-    timestampText.length +
-    (confirm?.prompt.data.content?.length ?? 0) +
-    reasonHeading.length +
-    reasonSetNote.length;
-  const reasonBody = moderationCase.reason
-    ? truncateText(
-        moderationCase.reason.value,
-        MESSAGE_TEXT_MAX_LENGTH - fixedLength,
-      )
-    : `-# No ${label} yet. Set one so the case history explains this action.`;
 
   const container = new ContainerBuilder()
     .setAccentColor(getActionTypeColor(type) ?? Color.Info)
@@ -491,17 +560,31 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   }
 
   container
-    .addSeparatorComponents(
-      new SeparatorBuilder()
-        .setDivider(true)
-        .setSpacing(SeparatorSpacingSize.Small),
-    )
+    .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        reasonHeading + reasonBody + reasonSetNote,
-      ),
+      new TextDisplayBuilder().setContent(buildReasonText(input)),
     );
 
+  if (confirm) {
+    container
+      .addTextDisplayComponents(confirm.prompt)
+      .addActionRowComponents(confirm.row);
+  } else {
+    container.addActionRowComponents(buildReasonRow(input));
+  }
+
+  const proofs = input.proofs ?? [];
+  container
+    .addSeparatorComponents(separator())
+    .addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(buildProofText(input)),
+        )
+        .setButtonAccessory(addProofButton([moderationCase.caseId], emojis)),
+    );
+
+  const media = proofMediaUrls(proofs);
   if (media.length > 0) {
     container.addMediaGalleryComponents(
       new MediaGalleryBuilder().addItems(
@@ -510,28 +593,18 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     );
   }
 
-  if (dmText) {
+  const links = proofFileLinks(proofs).filter((url) => !isPendingUpload(url));
+  if (links.length > 0) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(dmText),
+      new TextDisplayBuilder().setContent(links.join("\n")),
     );
   }
 
-  container.addSeparatorComponents(
-    new SeparatorBuilder()
-      .setDivider(true)
-      .setSpacing(SeparatorSpacingSize.Small),
-  );
-
-  if (confirm) {
-    container
-      .addTextDisplayComponents(confirm.prompt)
-      .addActionRowComponents(confirm.row);
-  } else {
-    container.addActionRowComponents(buildButtonRow(input));
-  }
-
+  // Timestamps render as a full-size pill even in small text, so it sits last like a footer.
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(timestampText),
+    new TextDisplayBuilder().setContent(
+      `-# <t:${unix(moderationCase.actionTime)}:f>`,
+    ),
   );
 
   return {
@@ -539,6 +612,48 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
     flags: MessageFlags.IsComponentsV2,
     allowedMentions: { parse: [] },
   };
+}
+
+function separator(): SeparatorBuilder {
+  return new SeparatorBuilder()
+    .setDivider(true)
+    .setSpacing(SeparatorSpacingSize.Small);
+}
+
+/** Text Discord counts toward its 4000-character limit: every text display. */
+export function messageTextLength(message: {
+  components: readonly { toJSON(): unknown }[];
+}): number {
+  let total = 0;
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    const component = node as {
+      type?: number;
+      content?: string;
+      components?: unknown[];
+    };
+    if (component.type === ComponentType.TextDisplay && component.content) {
+      total += component.content.length;
+    }
+    for (const child of component.components ?? []) {
+      walk(child);
+    }
+  };
+  for (const component of message.components) {
+    walk(component.toJSON());
+  }
+
+  return total;
+}
+
+/** Gallery items the entry would show, so a fit check can keep uploads visible. */
+export function galleryItemCount(proofs: readonly ModLogProof[]): number {
+  return proofs
+    .flatMap((proof) => proof.attachments)
+    .filter(Boolean)
+    .filter(isGalleryMedia).length;
 }
 
 interface EntryJSON {

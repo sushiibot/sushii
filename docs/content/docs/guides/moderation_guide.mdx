@@ -33,7 +33,7 @@ reason, sushii copies it into the case.
 Every action creates a **case** with a sequential number (e.g. "case #42"),
 posted to your mod log channel.
 
-{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildButtonRow @621b07a9, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#hasLiveDm @81d8fe11 */}
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildReasonRow @f3f8b352, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#hasLiveDm @81d8fe11 */}
 
 ```
 /history user:@member
@@ -122,7 +122,7 @@ Otherwise, Discord's built-in tools work fine.
 /untimeout users:@member reason:Resolved
 ```
 
-{/* source: packages/sushii-worker/src/features/moderation/actions/application/DMPolicyService.ts#DMPolicyService.shouldSendDM @5b16f90a, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#dmStatusLine @d557526e */}
+{/* source: packages/sushii-worker/src/features/moderation/actions/application/DMPolicyService.ts#DMPolicyService.shouldSendDM @5b16f90a, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#reasonNotSentWhy @3616052b */}
 
 `/warn` always DMs the member — if the DM fails because they have DMs
 closed, it's noted in the mod log.

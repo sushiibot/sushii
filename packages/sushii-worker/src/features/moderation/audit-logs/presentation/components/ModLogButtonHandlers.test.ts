@@ -603,14 +603,19 @@ describe("legacy entry whose REST conversion fails (real ModLogMessageService)",
     };
     const service = new ModLogMessageService(
       client as never,
-      {} as never,
+      {
+        findByGuildId: mock(async () => ({
+          loggingSettings: { modLogChannel: null, modLogEnabled: false },
+          moderationSettings: {},
+        })),
+      } as never,
       {
         getEmojis: mock(async (names: readonly string[]) =>
           Object.fromEntries(names.map((n) => [n, ""])),
         ),
       } as never,
       { markDmDeleted: mock(async () => undefined) },
-      {} as never,
+      { listByCase: mock(async () => []) } as never,
       pino({ level: "silent" }),
     );
     return { service, patch };
