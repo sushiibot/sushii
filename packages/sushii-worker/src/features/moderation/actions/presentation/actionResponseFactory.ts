@@ -37,6 +37,7 @@ export function createActionResponseHandlers(
     new ActionResponseButtonHandler({
       modLogRepository: services.modLogRepository,
       caseProofRepository: services.caseProofRepository,
+      guildConfigRepository: services.guildConfigRepository,
       reasonUpdateService: services.reasonUpdateService,
       caseDmDeletionService: services.caseDmDeletionService,
       reasonTemplateService: services.reasonTemplateService,

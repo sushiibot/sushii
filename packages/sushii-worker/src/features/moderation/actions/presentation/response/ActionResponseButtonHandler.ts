@@ -25,6 +25,7 @@ import type {
 import { showSaveTemplateModal } from "@/features/moderation/reason-templates/presentation/showSaveTemplateModal";
 import type { CaseDmDeletionService } from "@/features/moderation/shared/application/CaseDmDeletionService";
 import type { ModLogRefreshOutcome } from "@/features/moderation/shared/application/ModLogMessageService";
+import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type {
   ActionResponseButtonKind,
@@ -39,6 +40,7 @@ import {
   parseReasonFields,
 } from "@/features/moderation/shared/presentation/reasonFields";
 import { hasLiveDm } from "@/features/moderation/shared/presentation/views/ModLogMessageView";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import { ButtonHandler } from "@/shared/presentation/handlers";
 import {
   ANY_MOD_PERMISSION,
@@ -65,12 +67,15 @@ import {
   RESPONSE_WINDOW_MS,
   type ResponseBodyInput,
   type ResponseMode,
+  STALE_CLICK_MESSAGE,
   editedNote,
   expireActionResponse,
   hasSavePrompt,
   isResponseExpired,
+  postedStaleUrl,
   rebuildActionResponse,
   showsExpiredLine,
+  staleActionResponse,
   templateNote,
   unknownShortcutNote,
 } from "../views/ModerationActionView";
@@ -95,7 +100,12 @@ type MessageInteraction =
 
 export interface ActionResponseDeps {
   modLogRepository: Pick<ModLogRepository, "findByIds">;
-  caseProofRepository: CaseProofRepository;
+  caseProofRepository: Pick<
+    CaseProofRepository,
+    "listByCases" | "latestCreatedAt"
+  >;
+  /** Links the mod log entry from the stale line; without it the line names the entry. */
+  guildConfigRepository?: Pick<GuildConfigRepository, "findByGuildId">;
   reasonUpdateService: Pick<ReasonUpdateService, "updateReasons">;
   caseDmDeletionService: Pick<CaseDmDeletionService, "deleteDms">;
   reasonTemplateService: Pick<
@@ -135,7 +145,10 @@ function ephemeral(text: string, accent: number): InteractionReplyOptions {
   };
 }
 
-type PostedResponse = Pick<Message, "createdTimestamp" | "components">;
+type PostedResponse = Pick<
+  Message,
+  "createdTimestamp" | "editedTimestamp" | "components"
+>;
 type ResponseMessage = PostedResponse & Pick<Message, "edit">;
 
 type RenderBody = Omit<ResponseBodyInput, "reasonNotes" | "mode"> & {
@@ -150,6 +163,14 @@ interface RetryEntry {
 }
 
 const retryIds = buildRetryMatcher("modAction/reasonRetry");
+
+/** Clock skew between the database, the bot and Discord's edit timestamps. */
+const STALE_TOLERANCE_MS = 5 * 1000;
+
+function latest(dates: readonly (Date | null)[]): number | null {
+  const times = dates.flatMap((d) => (d ? [d.getTime()] : []));
+  return times.length > 0 ? Math.max(...times) : null;
+}
 
 // A submit after the window still lands: it renders the expired state.
 const MIN_FORM_TIMEOUT_MS = 5 * 60 * 1000;
@@ -286,6 +307,10 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       return "expired";
     }
 
+    if (await this.changedSincePosted(interaction, button.caseIds)) {
+      return "expired";
+    }
+
     switch (button.kind) {
       case "edit":
         return this.editReason(
@@ -351,9 +376,76 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     );
   }
 
+  /**
+   * Falls back for responses the registry lost on a restart: a case changed
+   * after the response's last edit turns it stale instead of acting on it.
+   * Action-time proof is saved after the response is posted, so it doesn't count.
+   */
+  private async changedSincePosted(
+    interaction: ButtonInteraction<"cached">,
+    caseIds: string[],
+  ): Promise<boolean> {
+    const [cases, proofAt] = await Promise.all([
+      this.loadCases(interaction.guildId, caseIds),
+      this.deps.caseProofRepository.latestCreatedAt(
+        interaction.guildId,
+        caseIds,
+        { excludeSources: ["action"] },
+      ),
+    ]);
+    const changedAt = latest([
+      ...cases.flatMap((c) => [c.reasonSetAt, c.dmDeletedAt]),
+      proofAt,
+    ]);
+    const { message } = interaction;
+    const postedAt = message.editedTimestamp ?? message.createdTimestamp;
+    if (changedAt === null || changedAt <= postedAt + STALE_TOLERANCE_MS) {
+      return false;
+    }
+
+    const stale = staleActionResponse(
+      postedOf(message),
+      await this.modLogUrl(interaction.guildId, cases[0]),
+    );
+    const reply = ephemeral(STALE_CLICK_MESSAGE, Color.DiscordGrey);
+    if (!stale) {
+      await interaction.reply(reply);
+      return true;
+    }
+
+    await interaction.update(stale);
+    await this.notePrivately(interaction, reply);
+    this.deps.logger.info(
+      { guildId: interaction.guildId, caseIds, changedAt, postedAt },
+      "Marked mod action response stale on click",
+    );
+    return true;
+  }
+
+  private async modLogUrl(
+    guildId: string,
+    moderationCase: ModerationCase | undefined,
+  ): Promise<string | null> {
+    if (!moderationCase?.msgId || !this.deps.guildConfigRepository) {
+      return null;
+    }
+    const config = await this.deps.guildConfigRepository.findByGuildId(guildId);
+    const channelId = config.loggingSettings.modLogChannel;
+    return channelId
+      ? `https://discord.com/channels/${guildId}/${channelId}/${moderationCase.msgId}`
+      : null;
+  }
+
   private async replyExpired(
     interaction: ButtonInteraction<"cached">,
   ): Promise<void> {
+    if (postedStaleUrl(postedComponents(interaction)) !== undefined) {
+      await interaction.reply(
+        ephemeral(STALE_CLICK_MESSAGE, Color.DiscordGrey),
+      );
+      return;
+    }
+
     const reply = ephemeral(EXPIRED_CLICK_MESSAGE, Color.DiscordGrey);
     const expired = expireActionResponse(postedComponents(interaction));
     if (!expired) {
@@ -377,6 +469,21 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       const c = byId.get(id);
       return c ? [c] : [];
     });
+  }
+
+  /** Cases of one action share their proof, so the first case's list stands for all. */
+  private async loadProofs(
+    guildId: string,
+    cases: readonly ModerationCase[],
+  ): Promise<CaseProof[]> {
+    const first = cases[0];
+    if (!first) {
+      return [];
+    }
+    const byCase = await this.deps.caseProofRepository.listByCases(guildId, [
+      first.caseId,
+    ]);
+    return byCase.get(first.caseId) ?? [];
   }
 
   private async getEmojis(): Promise<Emojis> {
@@ -414,9 +521,18 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       : rebuildActionResponse([], { ...body, mode: body.mode ?? "buttons" });
   }
 
-  /** Expired once the window has passed, whatever mode was asked for. */
+  /** Stale or expired once the response is, whatever mode was asked for. */
   private renderOn(message: PostedResponse, body: RenderBody) {
-    return rebuildActionResponse(postedOf(message), {
+    const posted = postedOf(message);
+    const staleUrl = postedStaleUrl(posted);
+    if (staleUrl !== undefined) {
+      return rebuildActionResponse(posted, {
+        ...body,
+        mode: "stale",
+        modLogUrl: staleUrl,
+      });
+    }
+    return rebuildActionResponse(posted, {
       ...body,
       mode: this.isExpiredMessage(message)
         ? "expired"
@@ -437,11 +553,13 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       await this.replyCasesGone(interaction);
       return button.kind === "dmCancel" ? "dismissed" : "ok";
     }
+    const proofs = await this.loadProofs(interaction.guildId, cases);
 
     const confirming = button.kind === "dmDelete" && cases.some(hasLiveDm);
     await interaction.update(
       this.render(interaction, {
         cases,
+        proofs,
         emojis,
         savePrompt: await this.keepSavePrompt(interaction, cases),
         mode: confirming ? "confirmDeleteDm" : "buttons",
@@ -501,6 +619,7 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       const failed = outcomes.filter((o) => o.result === "failed");
       const message = this.render(interaction, {
         cases,
+        proofs: await this.loadProofs(interaction.guildId, cases),
         emojis,
         savePrompt: await this.keepSavePrompt(interaction, cases),
         dmSuffix:
@@ -717,10 +836,10 @@ export class ActionResponseButtonHandler extends ButtonHandler {
           : context.response;
       const message = this.renderOn(current, {
         cases: result.updatedCases,
+        proofs: await this.loadProofs(submission.guildId, result.updatedCases),
         emojis,
         reasonNotes: this.editNotes(submission, parsed, result, emojis),
         dmOverride: this.dmOutcome(parsed, result, emojis),
-        dmReasonUpdated: result.dmUpdates.some((u) => u.outcome === "updated"),
         savePrompt:
           !parsed.template &&
           !parsed.saveAsTemplate &&
@@ -944,8 +1063,10 @@ export class ActionResponseButtonHandler extends ButtonHandler {
             this.getEmojis(),
           ]);
           // The submit carries the response as it is now; the timer may have expired it.
+          const shown = reloaded.length > 0 ? reloaded : cases;
           return this.renderOn(submit.message ?? interaction.message, {
-            cases: reloaded.length > 0 ? reloaded : cases,
+            cases: shown,
+            proofs: await this.loadProofs(interaction.guildId, shown),
             emojis,
             savePrompt: false,
           });

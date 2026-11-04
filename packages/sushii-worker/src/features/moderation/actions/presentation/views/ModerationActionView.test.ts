@@ -11,6 +11,7 @@ import { ComponentType } from "discord.js";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
+import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import {
   BanAction,
   NoteAction,
@@ -45,8 +46,11 @@ import {
   expireActionResponse,
   hasSavePrompt,
   isResponseExpired,
+  postedStaleUrl,
   rebuildActionResponse,
   showsExpiredLine,
+  staleActionResponse,
+  staleLine,
   templateNote,
   unknownShortcutNote,
 } from "./ModerationActionView";
@@ -82,6 +86,7 @@ function render(
     savePrompt?: boolean;
     upload?: string;
     guildConfig?: GuildConfig;
+    proofs?: CaseProof[];
   } = {},
 ): ActionResponseMessage {
   return buildActionResultMessage({
@@ -95,6 +100,7 @@ function render(
     reasonNotes: options.reasonNotes,
     savePrompt: options.savePrompt,
     upload: options.upload,
+    proofs: options.proofs,
     now: NOW,
   });
 }
@@ -242,9 +248,6 @@ function withBanDmText(text: string): GuildConfig {
   return guildConfig;
 }
 
-const SETTINGS_LINE =
-  "-# Extra DM text is set in `/settings` → Moderation → DMs sent to members";
-
 function noteAction() {
   return new NoteAction(
     GUILD,
@@ -255,444 +258,322 @@ function noteAction() {
   );
 }
 
+const MOD_LOG_URL =
+  "https://discord.com/channels/187450744427773963/1029384756102938400/1029384756102938499";
+
+function proof(overrides: Partial<CaseProof> = {}): CaseProof {
+  return {
+    id: "1",
+    guildId: GUILD,
+    caseId: "4822",
+    authorId: MOD,
+    createdAt: new Date("2026-10-27T11:00:00.000Z"),
+    content: "Reported in #reports",
+    attachments: [],
+    sourceMessageUrl: null,
+    sourceAuthorId: null,
+    sourceContent: null,
+    hostMessageId: null,
+    source: "button",
+    ...overrides,
+  };
+}
+
+function reasonText(container: APIContainerComponent): string {
+  return must(textById(container, ACTION_RESPONSE_IDS.reason));
+}
+
+function proofText(container: APIContainerComponent): string {
+  return must(textById(container, ACTION_RESPONSE_IDS.proof));
+}
+
+function topLevelTypes(container: APIContainerComponent): (number | string)[] {
+  return container.components.map((c) => c.id ?? c.type);
+}
+
+function manyTargets(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    makeTarget(`9123456789012345${String(i).padStart(2, "0")}`, `user_${i}`),
+  );
+}
+
+function rebuild(
+  from: ActionResponseMessage,
+  body: Partial<Parameters<typeof rebuildActionResponse>[1]> & {
+    cases: ModerationCase[];
+  },
+) {
+  return rebuildActionResponse(posted(from), {
+    proofs: [],
+    emojis,
+    savePrompt: false,
+    mode: "buttons",
+    ...body,
+  });
+}
+
 describe("buildActionResultMessage", () => {
-  test("single target: header, reason section with Edit reason, DM section with Delete DM", () => {
-    const container = json(
-      render({
-        reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-        guildConfig: withBanDmText("You can appeal at https://appeal.example"),
-      }),
-    );
+  test("single target: reason block, its row, then the proof section", () => {
+    const container = json(render({ proofs: [proof()] }));
 
-    const header = byId(container, ACTION_RESPONSE_IDS.header);
-    expect(header?.type).toBe(ComponentType.Section);
-    if (header?.type === ComponentType.Section) {
-      expect(header.accessory.type).toBe(ComponentType.Thumbnail);
-    }
-    const text = headerText(container);
-    expect(text).toContain(`### ${emojis.ban} Banned spambot`);
-    expect(text).toContain(`<@${TARGET}> · \`${TARGET}\``);
-    expect(text).toContain(`-# Case #4822 · by <@${MOD}> (tzuyu) · <t:`);
-
-    expect(container.components.map((c) => [c.type, c.id ?? null])).toEqual([
-      [ComponentType.Section, ACTION_RESPONSE_IDS.header],
-      [ComponentType.Separator, null],
-      [ComponentType.Section, ACTION_RESPONSE_IDS.reasonSection],
-      [ComponentType.Separator, null],
-      [ComponentType.Section, ACTION_RESPONSE_IDS.dmSection],
+    expect(topLevelTypes(container)).toEqual([
+      ACTION_RESPONSE_IDS.header,
+      ComponentType.Separator,
+      ACTION_RESPONSE_IDS.reason,
+      ACTION_RESPONSE_IDS.reasonRow,
+      ComponentType.Separator,
+      ACTION_RESPONSE_IDS.proofSection,
     ]);
-
-    expect(textById(container, ACTION_RESPONSE_IDS.reason)).toBe(
-      "**Reason**\nSpamming invite links",
+    expect(reasonText(container)).toBe(
+      `**${emojis.additional_message} Reason** · sent to spambot by DM\nSpamming invite links`,
     );
-    expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      "-# Template `!spam`",
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · what they received:\n> Spamming invite links\n> You can appeal at https://appeal.example",
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dmFooter)).toBe(
-      SETTINGS_LINE,
-    );
-
-    const edit = must(
-      sectionButton(container, ACTION_RESPONSE_IDS.reasonSection),
-    );
-    expect([edit.label, edit.custom_id, edit.style]).toEqual([
-      "Edit reason",
-      "modAction/reason/edit/4822",
-      2,
+    expect(buttons(container).map((b) => [b.label, b.custom_id])).toEqual([
+      ["Edit reason", "modAction/reason/edit/4822"],
+      ["Delete DM", "modAction/dm/delete/4822"],
+      ["Add proof", "caseProof/add/4822"],
     ]);
-    const del = must(sectionButton(container, ACTION_RESPONSE_IDS.dmSection));
-    expect([del.label, del.custom_id, del.style]).toEqual([
-      "Delete DM",
-      "modAction/dm/delete/4822",
-      2,
-    ]);
+    expect(
+      sectionButton(container, ACTION_RESPONSE_IDS.proofSection)?.label,
+    ).toBe("Add proof");
     expectWithinLimits(container);
   });
 
-  test("without extra DM text the quote is the reason only", () => {
-    const container = json(render());
-
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · what they received:\n> Spamming invite links",
+  test("there is no DM preview and the extra DM text is never quoted", () => {
+    const container = json(
+      render({ guildConfig: withBanDmText("Appeal at example.com") }),
     );
-    const dm = byId(container, ACTION_RESPONSE_IDS.dmSection);
-    expect(dm?.type === ComponentType.Section && dm.components.length).toBe(2);
+    const all = allText(container);
+
+    expect(all).not.toContain("what they received");
+    expect(all).not.toContain("Appeal at example.com");
+    expect(all).not.toContain("\n> ");
+    expect(reasonText(container)).toEndWith(
+      "\n-# Also included your server's ban message",
+    );
   });
 
-  test("a long reason shows only its cut first line in the DM quote", () => {
-    const reason =
-      "Repeated harassment of other members after two prior warnings:\n- Sent unsolicited DMs to 4 members";
+  test("without extra DM text there is no 'also included' line", () => {
+    expect(reasonText(json(render()))).not.toContain("Also included");
+  });
+
+  test("kick and timeout name their own DM text", () => {
+    const guildConfig = GuildConfig.createDefault(GUILD);
+    Object.assign(guildConfig.moderationSettings, {
+      kickDmText: "Bye",
+      timeoutDmText: "Cool off",
+    });
+    const kick = json(
+      render({
+        actionType: ActionType.Kick,
+        results: [Ok(makeCase({ actionType: ActionType.Kick }))],
+        guildConfig,
+      }),
+    );
+    expect(reasonText(kick)).toContain(
+      "-# Also included your server's kick message",
+    );
+
+    const adjusted = json(
+      render({
+        actionType: ActionType.TimeoutAdjust,
+        results: [Ok(makeCase({ actionType: ActionType.TimeoutAdjust }))],
+        guildConfig,
+      }),
+    );
+    expect(reasonText(adjusted)).toContain(
+      "-# Also included your server's timeout message",
+    );
+  });
+
+  test("a 3,000 character reason is shown once, in full", () => {
+    const reason = `${"Line one of a long reason.\n".repeat(20)}${"x".repeat(2460)}`;
+    expect(reason.length).toBe(3000);
     const container = json(
       render({
         results: [Ok(makeCase({ reason }))],
         action: banAction(reason),
+        guildConfig: withBanDmText("z".repeat(2000)),
       }),
     );
 
-    expect(textById(container, ACTION_RESPONSE_IDS.reason)).toBe(
-      `**Reason**\n${reason}`,
-    );
-    const quote = must(textById(container, ACTION_RESPONSE_IDS.dm)).split("\n");
-    expect(quote).toHaveLength(2);
-    expect(quote[1]).toStartWith("> Repeated harassment of other members");
-    expect(quote[1]).toEndWith("…");
-    expect(quote[1].length).toBeLessThanOrEqual(2 + 60);
+    expect(reasonText(container)).toContain(`\n${reason}\n`);
+    expect(allText(container).split(reason)).toHaveLength(2);
+    expectWithinLimits(container);
   });
 
-  test("a short multi-line reason still marks the DM quote as cut", () => {
-    const reason = "Spam\nmore detail";
-    const container = json(
-      render({
-        results: [Ok(makeCase({ reason }))],
-        action: banAction(reason),
-      }),
-    );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toEndWith("\n> Spam…");
-  });
-
-  test("the DM quote escapes markdown", () => {
-    const reason = "# __big__ spam";
-    const container = json(
-      render({
-        results: [Ok(makeCase({ reason }))],
-        action: banAction(reason),
-      }),
-    );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toContain(
-      "> \\# \\_\\_big\\_\\_ spam",
-    );
-  });
-
-  test("files a gallery can't show share the notes line", () => {
-    const withFiles = makeCase();
-    Object.assign(withFiles, {
-      _attachments: ["https://cdn.example/proof-1.pdf"],
-    });
-    const container = json(
-      render({
-        results: [Ok(withFiles)],
-        reasonNotes: [templateNote({ id: "1", shortcut: "invites" })],
-      }),
-    );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# Template \`!invites\` · ${emojis.attachment} [proof-1.pdf](https://cdn.example/proof-1.pdf)`,
-    );
-    expect(byId(container, ACTION_RESPONSE_IDS.details)).toBeUndefined();
-    expect(byId(container, ACTION_RESPONSE_IDS.media)).toBeUndefined();
-  });
-
-  test("media renders in a gallery instead of a link", () => {
-    const withMedia = makeCase();
-    Object.assign(withMedia, {
-      _attachments: ["https://cdn.example/proof-1.png"],
-    });
-    const container = json(render({ results: [Ok(withMedia)] }));
-
-    expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBeNull();
-    expect(byId(container, ACTION_RESPONSE_IDS.media)).toMatchObject({
-      type: ComponentType.MediaGallery,
-      items: [{ media: { url: "https://cdn.example/proof-1.png" } }],
-    });
-  });
-
-  test("an uploaded file is referenced by attachment name", () => {
-    const withMedia = makeCase();
-    Object.assign(withMedia, {
-      _attachments: [
-        "https://cdn.discordapp.com/ephemeral-attachments/1/2/proof.png",
-      ],
-    });
-    const container = json(
-      render({ results: [Ok(withMedia)], upload: "proof.png" }),
-    );
-
-    expect(byId(container, ACTION_RESPONSE_IDS.media)).toMatchObject({
-      items: [{ media: { url: "attachment://proof.png" } }],
-    });
-  });
-
-  test("expiry keeps the gallery with its signed URL", () => {
-    const withMedia = makeCase();
-    Object.assign(withMedia, {
-      _attachments: ["https://cdn.discordapp.com/attachments/1/2/proof.png"],
-    });
-    const message = posted(render({ results: [Ok(withMedia)] }));
-    const gallery = (message[0] as APIContainerComponent).components.find(
-      (c) => c.id === ACTION_RESPONSE_IDS.media,
-    );
-    Object.assign(gallery ?? {}, {
-      items: [
-        {
-          media: {
-            url: "https://cdn.discordapp.com/attachments/1/2/proof.png?ex=1&is=2&hm=3&",
-          },
-        },
-      ],
-    });
-
-    const expired = json(must(expireActionResponse(message)));
-
-    expect(byId(expired, ACTION_RESPONSE_IDS.media)).toMatchObject({
-      items: [
-        {
-          media: {
-            url: "https://cdn.discordapp.com/attachments/1/2/proof.png?ex=1&is=2&hm=3&",
-          },
-        },
-      ],
-    });
-  });
-
-  test("no reason: Add reason is primary and the DM says no reason was included", () => {
+  test("no reason: Add reason is primary", () => {
     const container = json(
       render({
         results: [Ok(makeCase({ reason: null }))],
         action: banAction(null),
       }),
     );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.reason)).toBe(
-      "**Reason**\n-# No reason given",
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · no reason was included",
-    );
-    const add = must(
-      sectionButton(container, ACTION_RESPONSE_IDS.reasonSection),
-    );
-    expect(add.label).toBe("Add reason");
-    expect(add.style).toBe(1);
-    expect(sectionButton(container, ACTION_RESPONSE_IDS.dmSection)?.label).toBe(
-      "Delete DM",
-    );
+    expect(reasonText(container)).toContain("\n-# No reason given");
+    expect(buttons(container)[0]).toMatchObject({
+      label: "Add reason",
+      style: 1,
+    });
   });
 
-  test("DM not sent: plain text, no Delete DM", () => {
+  test("not sent: the cause goes on a line under the reason, and only Edit reason", () => {
+    const container = json(render({ results: [Ok(makeCase({ dm: null }))] }));
+
+    expect(reasonText(container)).toBe(
+      `**${emojis.reason} Reason** · not sent\nSpamming invite links\n-# Ban DMs are off in \`/settings\``,
+    );
+    expect(buttons(container).map((b) => b.label)).toEqual([
+      "Edit reason",
+      "Add proof",
+    ]);
+  });
+
+  test("not sent because the mod chose no DM", () => {
     const container = json(
       render({
         results: [Ok(makeCase({ dm: null, dmIntentSource: "executor_no" }))],
       }),
     );
-
-    const dm = byId(container, ACTION_RESPONSE_IDS.dm);
-    expect(dm?.type).toBe(ComponentType.TextDisplay);
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM not sent** · you chose no DM",
-    );
-    expect(byId(container, ACTION_RESPONSE_IDS.dmSection)).toBeUndefined();
-    expect(buttons(container).map((b) => b.label)).toEqual(["Edit reason"]);
-  });
-
-  test("DM off in /settings", () => {
-    const container = json(
-      render({
-        results: [Ok(makeCase({ dm: null, dmIntentSource: "guild_default" }))],
-      }),
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM not sent** · off in `/settings`",
+    expect(reasonText(container)).toEndWith(
+      "\n-# DM not sent: you chose no DM",
     );
   });
 
-  test("DM failed: plain text with the reason", () => {
+  test("a failed DM says why", () => {
     const container = json(
       render({
         results: [
-          Ok(
-            makeCase({
-              dm: {
-                error: "Cannot send",
-                failureReason: "user_cannot_receive",
-              },
-            }),
-          ),
+          Ok(makeCase({ dm: { error: "x", failureReason: "user_blocked" } })),
         ],
       }),
     );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM failed** · they have DMs off or blocked sushii",
+    expect(reasonText(container)).toStartWith(
+      `**${emojis.reason} Reason** · not sent\n`,
     );
-    expect(buttons(container).map((b) => b.label)).toEqual(["Edit reason"]);
-  });
-
-  test("DM deleted: who and when, no button", () => {
-    const container = json(
-      render({ results: [Ok(makeCase({ dmDeleted: true }))] }),
-    );
-
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toMatch(
-      new RegExp(`^\\*\\*DM deleted\\*\\* by <@${OTHER_MOD}> <t:\\d+:R>$`),
-    );
-    expect(buttons(container).map((b) => b.label)).toEqual(["Edit reason"]);
-  });
-
-  test("unknown shortcut note points at Edit reason", () => {
-    const note = unknownShortcutNote("spma", emojis, true);
-    const container = json(render({ reasonNotes: [note] }));
-
-    expect(textById(container, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${emojis.warning} No template \`!spma\`, so the text was used as typed and DMed like that. Fix it with Edit reason; you can update the DM there too.`,
+    expect(reasonText(container)).toEndWith(
+      "\n-# DM failed: they blocked sushii",
     );
   });
 
-  test("save prompt adds the hint and only a Save as template row", () => {
-    const container = json(render({ savePrompt: true }));
-
-    expect(textById(container, ACTION_RESPONSE_IDS.prompt)).toContain(
-      emojis.tip,
-    );
-    const rows = container.components.filter(
-      (c) => c.type === ComponentType.ActionRow,
-    );
-    expect(rows).toHaveLength(1);
-    const save = buttons(container).at(-1);
-    expect(save?.label).toBe("Save as template");
-    expect(save?.custom_id).toBe("modAction/save/4822");
-    expect(save?.style).toBe(2);
-    expect(hasSavePrompt(posted(render({ savePrompt: true })))).toBe(true);
-  });
-
-  test("no save prompt: no action row at all", () => {
-    const container = json(render());
-    expect(
-      container.components.some((c) => c.type === ComponentType.ActionRow),
-    ).toBe(false);
-  });
-
-  test("notes: Edit note, no DM part and no save prompt", () => {
+  test("a deleted DM says who deleted it, without Delete DM", () => {
     const container = json(
       render({
-        actionType: ActionType.Note,
-        action: noteAction(),
-        results: [Ok(makeCase({ actionType: ActionType.Note, dm: null }))],
-        savePrompt: true,
+        results: [Ok(makeCase({ dmDeleted: true }))],
+        guildConfig: withBanDmText("Appeal"),
       }),
     );
-
-    expect(byId(container, ACTION_RESPONSE_IDS.prompt)).toBeUndefined();
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBeNull();
-    expect(textById(container, ACTION_RESPONSE_IDS.reason)).toStartWith(
-      "**Note**\n",
+    expect(reasonText(container)).toEndWith(
+      `\n-# DM deleted by <@${OTHER_MOD}> <t:1793099100:R>`,
     );
-    expect(buttons(container).map((b) => b.label)).toEqual(["Edit note"]);
-    expect(
-      container.components.filter((c) => c.type === ComponentType.Separator),
-    ).toHaveLength(1);
+    expect(reasonText(container)).not.toContain("Also included");
+    expect(buttons(container).map((b) => b.label)).not.toContain("Delete DM");
   });
 
-  test("a note without text gets Add note", () => {
-    const container = json(
-      render({
-        actionType: ActionType.Note,
-        action: noteAction(),
-        results: [
-          Ok(makeCase({ actionType: ActionType.Note, dm: null, reason: null })),
-        ],
+  test("several targets: N users, a shared proof note and Delete N DMs", () => {
+    const targets = [
+      makeTarget(TARGET, "a"),
+      makeTarget(TARGET_2, "b"),
+      makeTarget(TARGET_3, "c"),
+    ];
+    const cases = targets.map((t, i) =>
+      makeCase({
+        caseId: `${4822 + i}`,
+        userId: t.id,
+        userTag: t.user.username,
       }),
     );
-    expect(buttons(container).map((b) => b.label)).toEqual(["Add note"]);
-  });
-
-  test("several targets with a partial failure", () => {
     const container = json(
-      render({
-        targets: [
-          makeTarget(TARGET, "spambot"),
-          makeTarget(TARGET_2, "spambot2"),
-          makeTarget(TARGET_3, "raider_99"),
-        ],
-        results: [
-          Ok(makeCase({ caseId: "4822" })),
-          Ok(makeCase({ caseId: "4823", userId: TARGET_2 })),
-          Err("their highest role is above sushii's"),
-        ],
-      }),
+      render({ targets, results: cases.map((c) => Ok(c)) }),
     );
 
-    const text = headerText(container);
-    expect(byId(container, ACTION_RESPONSE_IDS.header)?.type).toBe(
-      ComponentType.TextDisplay,
+    expect(reasonText(container)).toStartWith(
+      `**${emojis.additional_message} Reason** · sent to 3 users by DM\n`,
     );
-    expect(text).toContain(`### ${emojis.warning} Banned 2 of 3 users`);
-    expect(text).toContain(`${emojis.success} <@${TARGET}> · \`${TARGET}\``);
-    expect(text).toContain(
-      `${emojis.fail} <@${TARGET_3}> · \`${TARGET_3}\`\n-# ↳ Couldn't ban raider\\_99: their highest role is above sushii's`,
-    );
-    expect(text).toContain("Cases #4822–#4823");
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent** to 2 of 2 · what they received:",
+    expect(proofText(container)).toContain(
+      "\n-# Added proof goes on all 3 cases",
     );
     expect(buttons(container).map((b) => [b.label, b.custom_id])).toEqual([
-      ["Edit reason", "modAction/reason/edit/4822-4823"],
-      ["Delete 2 DMs", "modAction/dm/delete/4822-4823"],
+      ["Edit reason", "modAction/reason/edit/4822-4824"],
+      ["Delete 3 DMs", "modAction/dm/delete/4822-4824"],
+      ["Add proof", "caseProof/add/4822-4824"],
     ]);
   });
 
-  test("several targets: a failed DM stays under its user", () => {
-    const container = json(
-      render({
-        targets: [
-          makeTarget(TARGET, "spambot"),
-          makeTarget(TARGET_2, "spambot2"),
-        ],
-        results: [
-          Ok(makeCase()),
-          Ok(
-            makeCase({
-              caseId: "4823",
-              userId: TARGET_2,
-              dm: { error: "Cannot send", failureReason: "user_blocked" },
-            }),
-          ),
-        ],
-      }),
-    );
+  test("several targets with some DMs failed: N of M users", () => {
+    const targets = [
+      makeTarget(TARGET, "a"),
+      makeTarget(TARGET_2, "b"),
+      makeTarget(TARGET_3, "c"),
+    ];
+    const results = [
+      Ok(makeCase({ caseId: "4822", userId: TARGET })),
+      Ok(
+        makeCase({
+          caseId: "4823",
+          userId: TARGET_2,
+          dm: { error: "x", failureReason: "user_blocked" },
+        }),
+      ),
+      Err("their highest role is above sushii's"),
+    ];
+    const container = json(render({ targets, results }));
 
-    expect(headerText(container)).toContain(
-      `${emojis.success} <@${TARGET_2}> · \`${TARGET_2}\`\n-# ↳ DM failed: they blocked sushii`,
+    expect(headerText(container)).toContain("Banned 2 of 3 users");
+    expect(headerText(container)).toContain("DM failed: they blocked sushii");
+    expect(reasonText(container)).toStartWith(
+      `**${emojis.additional_message} Reason** · sent to 1 of 2 users by DM\n`,
     );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent** to 1 of 2 · what they received:",
-    );
-    expect(sectionButton(container, ACTION_RESPONSE_IDS.dmSection)?.label).toBe(
-      "Delete DM",
-    );
+    expect(reasonText(container)).toContain("\n-# 1 failed");
+    expect(buttons(container).map((b) => b.label)).toContain("Delete DM");
   });
 
   test("several targets, every DM deleted", () => {
+    const cases = ["4822", "4823"].map((caseId, i) =>
+      makeCase({ caseId, userId: i ? TARGET_2 : TARGET, dmDeleted: true }),
+    );
     const container = json(
       render({
-        targets: [
-          makeTarget(TARGET, "spambot"),
-          makeTarget(TARGET_2, "spambot2"),
-        ],
-        results: [
-          Ok(makeCase({ dmDeleted: true })),
-          Ok(makeCase({ caseId: "4823", userId: TARGET_2, dmDeleted: true })),
-        ],
+        targets: [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")],
+        results: cases.map((c) => Ok(c)),
       }),
     );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toMatch(
-      /^\*\*2 DMs deleted\*\* by/,
+    expect(reasonText(container)).toContain(
+      `\n-# 2 DMs deleted by <@${OTHER_MOD}>`,
     );
   });
 
   test("every target failed: header only, no buttons", () => {
-    const container = json(render({ results: [Err("Missing permissions")] }));
-
+    const container = json(render({ results: [Err("nope")] }));
     expect(container.components).toHaveLength(1);
-    expect(headerText(container)).toContain("Couldn't ban spambot");
     expect(buttons(container)).toEqual([]);
   });
 
-  test("timeout shows the duration and end time above the separator", () => {
+  test("notes: Note heading, no DM and no Delete DM", () => {
+    const container = json(
+      render({
+        actionType: ActionType.Note,
+        action: noteAction(),
+        results: [
+          Ok(
+            makeCase({
+              actionType: ActionType.Note,
+              reason: "watch",
+              dm: null,
+            }),
+          ),
+        ],
+        savePrompt: true,
+      }),
+    );
+    expect(reasonText(container)).toBe(
+      `**${emojis.reason} Note** · mods only\nwatch`,
+    );
+    expect(buttons(container).map((b) => b.label)).toEqual([
+      "Edit note",
+      "Add proof",
+    ]);
+  });
+
+  test("timeout shows the duration under the header", () => {
     const action = new TimeoutAction(
       GUILD,
       executor,
@@ -709,154 +590,133 @@ describe("buildActionResultMessage", () => {
         results: [Ok(makeCase({ actionType: ActionType.Timeout }))],
       }),
     );
-
-    expect(headerText(container)).toContain("Timed out spambot");
     expect(textById(container, ACTION_RESPONSE_IDS.details)).toMatch(
       new RegExp(`^-# ${emojis.duration} 1d · ends <t:\\d+:f>$`),
     );
     expect(container.components[1].id).toBe(ACTION_RESPONSE_IDS.details);
   });
 
-  test("kick shows the kick DM text", () => {
-    const guildConfig = GuildConfig.createDefault(GUILD);
-    Object.assign(guildConfig.moderationSettings, { kickDmText: "Bye" });
+  test("reason notes go under the reason", () => {
     const container = json(
       render({
-        actionType: ActionType.Kick,
-        guildConfig,
-        results: [Ok(makeCase({ actionType: ActionType.Kick }))],
+        reasonNotes: [
+          templateNote({ id: "1", shortcut: "spam" }),
+          unknownShortcutNote("x", emojis, true),
+        ],
+        guildConfig: withBanDmText("Appeal"),
       }),
     );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n> Spamming invite links\n> Bye",
+    expect(reasonText(container)).toBe(
+      [
+        `**${emojis.additional_message} Reason** · sent to spambot by DM`,
+        "Spamming invite links",
+        "-# Template `!spam`",
+        `-# ${unknownShortcutNote("x", emojis, true)}`,
+        "-# Also included your server's ban message",
+      ].join("\n"),
     );
   });
 
-  test("an adjusted timeout quotes the timeout DM text", () => {
-    const guildConfig = GuildConfig.createDefault(GUILD);
-    Object.assign(guildConfig.moderationSettings, { timeoutDmText: "Muted" });
-    const container = json(
-      render({
-        actionType: ActionType.TimeoutAdjust,
-        guildConfig,
-        results: [Ok(makeCase({ actionType: ActionType.TimeoutAdjust }))],
-      }),
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toEndWith("\n> Muted");
-    expect(textById(container, ACTION_RESPONSE_IDS.dmFooter)).toBe(
-      SETTINGS_LINE,
-    );
+  test("save prompt adds the hint and a Save as template row at the end", () => {
+    const container = json(render({ savePrompt: true }));
+    expect(hasSavePrompt(posted(render({ savePrompt: true })))).toBe(true);
+    expect(buttons(container).at(-1)?.label).toBe("Save as template");
+    expect(hasSavePrompt(posted(render()))).toBe(false);
   });
 
-  test("the /settings hint only shows for actions with a DM text setting", () => {
-    const untimeout = json(
-      render({
-        actionType: ActionType.TimeoutRemove,
-        results: [Ok(makeCase({ actionType: ActionType.TimeoutRemove }))],
-      }),
-    );
-    expect(textById(untimeout, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent**",
-    );
-    expect(textById(untimeout, ACTION_RESPONSE_IDS.dmFooter)).toBeNull();
-    expect(allText(untimeout)).not.toContain("/settings");
-    expectWithinLimits(untimeout);
+  describe("proof", () => {
+    test("without entries: a hint and the Add proof button", () => {
+      const text = proofText(json(render()));
+      expect(text).toBe(
+        `**${emojis.lock} Proof** · mods only\n-# None yet. Add screenshots, message links or context for other mods.`,
+      );
+    });
 
-    const unban = json(
-      render({
-        actionType: ActionType.BanRemove,
-        results: [Ok(makeCase({ actionType: ActionType.BanRemove }))],
-      }),
-    );
-    expect(textById(unban, ACTION_RESPONSE_IDS.dm)).toBeNull();
-    expect(allText(unban)).not.toContain("/settings");
-
-    for (const actionType of [
-      ActionType.Warn,
-      ActionType.Timeout,
-      ActionType.TempBan,
-      ActionType.Softban,
-      ActionType.Kick,
-    ]) {
+    test("entries oldest first, media in a gallery, other files as raw links", () => {
       const container = json(
-        render({ actionType, results: [Ok(makeCase({ actionType }))] }),
-      );
-      expect(textById(container, ACTION_RESPONSE_IDS.dmFooter)).toBe(
-        SETTINGS_LINE,
-      );
-    }
-  });
-
-  test("a reason starting with a blank line quotes its first non-empty line", () => {
-    const reason = "\n  \nSpam links\nmore";
-    const container = json(
-      render({
-        results: [Ok(makeCase({ reason }))],
-        action: banAction(reason),
-      }),
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · what they received:\n> Spam links…",
-    );
-
-    const padded = "\nSpam links";
-    const single = json(
-      render({
-        results: [Ok(makeCase({ reason: padded }))],
-        action: banAction(padded),
-      }),
-    );
-    expect(textById(single, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n> Spam links",
-    );
-  });
-
-  test("mixed DMs where none went out and none were deleted say none were sent", () => {
-    const container = json(
-      render({
-        targets: [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")],
-        results: [
-          Ok(makeCase({ dm: { error: "x", failureReason: "user_blocked" } })),
-          Ok(
-            makeCase({
-              caseId: "4823",
-              userId: TARGET_2,
-              dm: null,
-              dmIntentSource: "executor_no",
+        render({
+          proofs: [
+            proof({
+              attachments: [
+                "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1",
+                "https://cdn.discordapp.com/attachments/1/2/log.txt",
+              ],
             }),
-          ),
-        ],
-      }),
-    );
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**No DMs sent** · 1 failed · 1 not sent",
-    );
-
-    const withDeleted = json(
-      render({
-        targets: [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")],
-        results: [
-          Ok(makeCase({ dmDeleted: true })),
-          Ok(
-            makeCase({
-              caseId: "4823",
-              userId: TARGET_2,
-              dm: { error: "x", failureReason: "user_blocked" },
+            proof({
+              id: "2",
+              authorId: OTHER_MOD,
+              content: null,
+              sourceAuthorId: TARGET,
+              sourceContent: "free nitro",
+              sourceMessageUrl: MOD_LOG_URL,
             }),
-          ),
+          ],
+        }),
+      );
+
+      expect(proofText(container)).toBe(
+        [
+          `**${emojis.lock} Proof** · mods only`,
+          `-# <@${MOD}> · <t:1793098800:R> · 2 files`,
+          "Reported in #reports",
+          "https://cdn.discordapp.com/attachments/1/2/log.txt",
+          `-# <@${OTHER_MOD}> · <t:1793098800:R> · message from <@${TARGET}>`,
+          "> free nitro",
+          MOD_LOG_URL,
+        ].join("\n"),
+      );
+      const gallery = byId(container, ACTION_RESPONSE_IDS.media);
+      expect(gallery).toMatchObject({
+        items: [
+          {
+            media: {
+              url: "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1",
+            },
+          },
         ],
-      }),
-    );
-    expect(textById(withDeleted, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**No DMs left** · 1 deleted",
-    );
+      });
+    });
+
+    test("the file uploaded with the response is referenced by name", () => {
+      const container = json(
+        render({
+          upload: "proof_1.png",
+          proofs: [
+            proof({
+              source: "action",
+              content: null,
+              attachments: ["https://cdn.discordapp.com/ephemeral/proof_1.png"],
+            }),
+          ],
+        }),
+      );
+      expect(byId(container, ACTION_RESPONSE_IDS.media)).toMatchObject({
+        items: [{ media: { url: "attachment://proof_1.png" } }],
+      });
+      expect(proofText(container)).not.toContain("None yet");
+    });
+
+    test("too spread out for buttons: plain proof text, no rows", () => {
+      const targets = manyTargets(25);
+      const results = targets.map((t, i) =>
+        Ok(makeCase({ caseId: `${10000 + i * 3}`, userId: t.id })),
+      );
+      const container = json(render({ targets, results }));
+      expect(buttons(container)).toEqual([]);
+      expect(byId(container, ACTION_RESPONSE_IDS.proofSection)).toBeUndefined();
+      expect(textById(container, ACTION_RESPONSE_IDS.proof)).toStartWith(
+        `**${emojis.lock} Proof**`,
+      );
+      expect(textById(container, ACTION_RESPONSE_IDS.footer)).toContain(
+        "too spread out",
+      );
+      expectWithinLimits(container);
+    });
   });
 
-  test("25 consecutive targets with a max-length reason fit in every mode", () => {
-    const reason = "x".repeat(3000);
-    const targets = Array.from({ length: 25 }, (_, i) =>
-      makeTarget(`9123456789012345${String(i).padStart(2, "0")}`, `user_${i}`),
-    );
+  test("25 targets, a 3,000 character reason and long proof fit in every mode", () => {
+    const reason = "r".repeat(3000);
+    const targets = manyTargets(25);
     const cases = targets.map((t, i) =>
       makeCase({
         caseId: `${10000 + i}`,
@@ -865,6 +725,9 @@ describe("buildActionResultMessage", () => {
         reason,
       }),
     );
+    const proofs = Array.from({ length: 4 }, (_, i) =>
+      proof({ id: `${i}`, content: `${i}`.repeat(1000) }),
+    );
     const full = render({
       targets,
       results: cases.map((c) => Ok(c)),
@@ -872,98 +735,70 @@ describe("buildActionResultMessage", () => {
       guildConfig: withBanDmText("z".repeat(2000)),
       reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
       savePrompt: true,
+      proofs,
     });
-    const buttonsMode = json(full);
-    expect(buttons(buttonsMode).length).toBeGreaterThan(0);
-    expectWithinLimits(buttonsMode);
+    const container = json(full);
+    expect(reasonText(container)).toContain(`\n${reason}\n`);
+    expect(proofText(container)).toContain("-# +4 more on the mod log entry");
+    expect(headerText(container)).toContain("more");
+    expectWithinLimits(container);
 
-    const confirming = rebuildActionResponse(posted(full), {
+    const confirming = rebuild(full, {
       cases,
-      emojis,
+      proofs,
       savePrompt: true,
       mode: "confirmDeleteDm",
     });
     expect(buttons(json(confirming)).map((b) => b.label)).toContain("Cancel");
     expectWithinLimits(json(confirming));
 
-    const expiredRebuild = rebuildActionResponse(posted(full), {
-      cases,
-      emojis,
-      savePrompt: true,
-      mode: "expired",
-    });
-    expectWithinLimits(json(expiredRebuild));
+    for (const mode of ["expired", "stale"] as const) {
+      const rebuilt = rebuild(full, {
+        cases,
+        proofs,
+        savePrompt: true,
+        mode,
+        modLogUrl: MOD_LOG_URL,
+      });
+      expectWithinLimits(json(rebuilt));
+    }
 
     for (const from of [full, confirming]) {
-      const expired = json(must(expireActionResponse(posted(from))));
-      expect(textById(expired, ACTION_RESPONSE_IDS.footer)).toBe(EXPIRED_LINE);
-      expectWithinLimits(expired);
+      expectWithinLimits(json(must(expireActionResponse(posted(from)))));
+      expectWithinLimits(
+        json(must(staleActionResponse(posted(from), MOD_LOG_URL))),
+      );
     }
   });
 
-  test("a single target at the limit still fits once expired or confirming", () => {
-    const reason = "x".repeat(3000);
-    const message = render({
-      results: [Ok(makeCase({ reason }))],
-      action: banAction(reason),
-      guildConfig: withBanDmText("z".repeat(2000)),
-      reasonNotes: ["n".repeat(600)],
-    });
-    expect(textChars(json(message))).toBeGreaterThan(3900);
-    expectWithinLimits(json(must(expireActionResponse(posted(message)))));
-    expectWithinLimits(
-      json(
-        rebuildActionResponse(posted(message), {
-          cases: [makeCase({ reason })],
-          emojis,
-          savePrompt: false,
-          mode: "confirmDeleteDm",
-        }),
-      ),
+  test("a single target shows proof until the budget, then points at the mod log", () => {
+    const reason = "r".repeat(3000);
+    const proofs = Array.from({ length: 6 }, (_, i) =>
+      proof({ id: `${i}`, content: `${i}`.repeat(100) }),
     );
-  });
-
-  test("long extra DM text is bounded", () => {
     const container = json(
-      render({ guildConfig: withBanDmText("y".repeat(2000)) }),
+      render({
+        results: [Ok(makeCase({ reason }))],
+        action: banAction(reason),
+        proofs,
+      }),
     );
-    const [, , extra] = must(textById(container, ACTION_RESPONSE_IDS.dm)).split(
-      "\n",
-    );
-    expect(extra).toStartWith("> yyy");
-    expect(extra.length).toBeLessThanOrEqual(500);
-  });
-
-  test("25 targets with a max-length reason stay under 4,000 characters", () => {
-    const reason = "x".repeat(3000);
-    const targets = Array.from({ length: 25 }, (_, i) =>
-      makeTarget(`9123456789012345${String(i).padStart(2, "0")}`, `user_${i}`),
-    );
-    const results = targets.map((t, i) =>
-      i % 2 === 0
-        ? Ok(makeCase({ caseId: `${10000 + i * 3}`, userId: t.id, reason }))
-        : Err(
-            "their highest role is above sushii's and some more detail here to pad",
-          ),
-    );
-    const message = render({
-      targets,
-      results,
-      action: banAction(reason),
-      guildConfig: withBanDmText("z".repeat(2000)),
-    });
-    const container = json(message);
-
+    const text = proofText(container);
+    expect(text).toContain("0".repeat(100));
+    expect(text).not.toContain("5".repeat(100));
+    expect(text).toContain("-# +");
     expectWithinLimits(container);
-    // Too many separate cases for button custom IDs.
-    expect(buttons(container)).toEqual([]);
-    expect(byId(container, ACTION_RESPONSE_IDS.reasonSection)).toBeUndefined();
-    expect(byId(container, ACTION_RESPONSE_IDS.dmSection)).toBeUndefined();
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent** to 13 of 13",
+
+    const linked = rebuild(
+      render({ results: [Ok(makeCase({ reason }))], proofs }),
+      {
+        cases: [makeCase({ reason })],
+        proofs,
+        modLogUrl: MOD_LOG_URL,
+      },
     );
-    expect(textById(container, ACTION_RESPONSE_IDS.footer)).toContain(
-      "too spread out",
+    expect(proofText(json(linked))).toContain(
+      `more on the mod log entry: ${MOD_LOG_URL}`,
     );
   });
 
@@ -975,15 +810,24 @@ describe("buildActionResultMessage", () => {
       results: [Ok(makeCase())],
       guildConfig: GuildConfig.createDefault(GUILD),
       action: banAction(),
-      emojis: { ...emojis, message_edit: "", trash: "", save: "" },
+      emojis: {
+        ...emojis,
+        message_edit: "",
+        trash: "",
+        save: "",
+        attachment: "",
+        lock: "",
+        additional_message: "",
+      },
       savePrompt: true,
       now: NOW,
     }).components[0].toJSON();
 
-    expect(buttons(container)).toHaveLength(3);
+    expect(buttons(container)).toHaveLength(4);
     expect(
       buttons(container).every((b) => b.emoji === undefined || b.emoji.id),
     ).toBe(true);
+    expect(reasonText(container)).toStartWith("**Reason** · sent to");
   });
 
   test("no variant contains a native emoji, and all serialize", () => {
@@ -993,6 +837,7 @@ describe("buildActionResultMessage", () => {
         savePrompt: true,
         reasonNotes: [unknownShortcutNote("x", emojis, true)],
         guildConfig: withBanDmText("Appeal"),
+        proofs: [proof()],
       }),
       render({ results: [Err("nope")] }),
       render({
@@ -1010,432 +855,219 @@ describe("buildActionResultMessage", () => {
 });
 
 describe("rebuildActionResponse", () => {
-  const original = render({
-    targets: [
-      makeTarget(TARGET, "spambot"),
-      makeTarget(TARGET_2, "spambot2"),
-      makeTarget(TARGET_3, "raider_99"),
-    ],
-    results: [
-      Ok(makeCase({ caseId: "4822" })),
-      Ok(makeCase({ caseId: "4823", userId: TARGET_2 })),
-      Err("their highest role is above sushii's"),
-    ],
-    reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-    guildConfig: withBanDmText("Appeal at example.com"),
-  });
-  const originalJSON = json(original);
-  const reloaded = [
-    makeCase({ caseId: "4822" }),
-    makeCase({ caseId: "4823", userId: TARGET_2 }),
-  ];
+  test("confirm mode swaps the reason row for the confirm in place", () => {
+    const original = render({ savePrompt: true });
+    const confirmingMessage = rebuild(original, {
+      cases: [makeCase()],
+      savePrompt: true,
+      mode: "confirmDeleteDm",
+    });
+    const confirming = json(confirmingMessage);
+    expect(topLevelTypes(confirming).slice(0, 5)).toEqual([
+      ACTION_RESPONSE_IDS.header,
+      ComponentType.Separator,
+      ACTION_RESPONSE_IDS.reason,
+      ACTION_RESPONSE_IDS.confirm,
+      ACTION_RESPONSE_IDS.reasonRow,
+    ]);
+    expect(buttons(confirming).map((b) => b.label)).toEqual([
+      "Delete DM",
+      "Cancel",
+      "Add proof",
+      "Save as template",
+    ]);
 
-  test("confirm mode keeps the header, notes and DM text, without Delete DM", () => {
-    const rebuilt = json(
-      rebuildActionResponse(posted(original), {
-        cases: reloaded,
-        emojis,
-        savePrompt: false,
+    const cancelled = json(
+      rebuild(confirmingMessage, {
+        cases: [makeCase()],
+        savePrompt: true,
+      }),
+    );
+    expect(cancelled).toEqual(json(original));
+  });
+
+  test("keeps the single-target header and its thumbnail", () => {
+    const original = render();
+    const rebuilt = json(rebuild(original, { cases: [makeCase()] }));
+    expect(byId(rebuilt, ACTION_RESPONSE_IDS.header)).toEqual(
+      byId(json(original), ACTION_RESPONSE_IDS.header),
+    );
+  });
+
+  test("notes stay while the reason is unchanged, and status lines aren't taken for notes", () => {
+    const original = render({
+      reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
+      guildConfig: withBanDmText("Appeal"),
+    });
+    const deleted = json(
+      rebuild(original, {
+        cases: [makeCase({ dmDeleted: true })],
+        dmSuffix: " · mod log updated",
+      }),
+    );
+    expect(reasonText(deleted)).toBe(
+      [
+        `**${emojis.reason} Reason** · not sent`,
+        "Spamming invite links",
+        "-# Template `!spam`",
+        `-# DM deleted by <@${OTHER_MOD}> <t:1793099100:R> · mod log updated`,
+      ].join("\n"),
+    );
+
+    const again = json(
+      rebuildActionResponse(
+        [deleted as unknown as APIMessageTopLevelComponent],
+        {
+          cases: [makeCase({ dmDeleted: true })],
+          proofs: [],
+          emojis,
+          savePrompt: false,
+          mode: "buttons",
+        },
+      ),
+    );
+    expect(reasonText(again)).toBe(
+      [
+        `**${emojis.reason} Reason** · not sent`,
+        "Spamming invite links",
+        "-# Template `!spam`",
+        `-# DM deleted by <@${OTHER_MOD}> <t:1793099100:R>`,
+      ].join("\n"),
+    );
+  });
+
+  test("the 'also included' line survives rebuilds without the guild config", () => {
+    const original = render({ guildConfig: withBanDmText("Appeal") });
+    const rebuilt = json(rebuild(original, { cases: [makeCase()] }));
+    expect(reasonText(rebuilt)).toBe(reasonText(json(original)));
+  });
+
+  test("each DM state round-trips without doubling its line", () => {
+    const states = [
+      makeCase(),
+      makeCase({ dm: null }),
+      makeCase({ dm: null, dmIntentSource: "executor_no" }),
+      makeCase({ dm: { error: "x", failureReason: "user_privacy" } }),
+      makeCase({ dmDeleted: true }),
+    ];
+    for (const moderationCase of states) {
+      const original = render({
+        results: [Ok(moderationCase)],
+        reasonNotes: ["Template `!spam`"],
+        guildConfig: withBanDmText("Appeal"),
+      });
+      const rebuilt = json(rebuild(original, { cases: [moderationCase] }));
+      expect(reasonText(rebuilt)).toBe(reasonText(json(original)));
+    }
+  });
+
+  test("a reason ending in small-text lines is compared whole", () => {
+    const reason = "Spam\n-# DM failed: not a real status\n-# 3 deleted";
+    const moderationCase = makeCase({ reason });
+    const original = render({
+      results: [Ok(moderationCase)],
+      action: banAction(reason),
+      reasonNotes: ["Template `!spam`"],
+    });
+    const rebuilt = json(rebuild(original, { cases: [moderationCase] }));
+    expect(reasonText(rebuilt)).toBe(reasonText(json(original)));
+  });
+
+  test("a DM outcome line goes away on the next rebuild", () => {
+    const original = render();
+    const edited = rebuild(original, {
+      cases: [
+        makeCase({ reason: "New reason", reasonSetBy: MOD, reasonSetAt: NOW }),
+      ],
+      reasonNotes: [editedNote(MOD, NOW)],
+      dmOverride: `${emojis.message} DM updated with the new reason`,
+    });
+    expect(reasonText(json(edited))).toContain(
+      `-# ${emojis.message} DM updated with the new reason`,
+    );
+
+    const later = json(
+      rebuild(edited, {
+        cases: [
+          makeCase({
+            reason: "New reason",
+            reasonSetBy: MOD,
+            reasonSetAt: NOW,
+          }),
+        ],
         mode: "confirmDeleteDm",
       }),
     );
-
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.header)).toBe(
-      textById(originalJSON, ACTION_RESPONSE_IDS.header),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      "-# Template `!spam`",
-    );
-    expect(rebuilt.accent_color).toBe(originalJSON.accent_color);
-    expect(byId(rebuilt, ACTION_RESPONSE_IDS.dmSection)).toBeUndefined();
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBe(
-      textById(originalJSON, ACTION_RESPONSE_IDS.dm),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n> Appeal at example.com",
-    );
-    expect(
-      buttons(rebuilt).map((b) => [b.label, b.custom_id, b.style]),
-    ).toEqual([
-      ["Edit reason", "modAction/reason/edit/4822-4823", 2],
-      ["Delete 2 DMs", "modAction/dm/deleteConfirm/4822-4823", 4],
-      ["Cancel", "modAction/dm/cancel/4822-4823", 2],
-    ]);
-    expectWithinLimits(rebuilt);
-  });
-
-  test("Cancel restores the DM section", () => {
-    const confirming = rebuildActionResponse(posted(original), {
-      cases: reloaded,
-      emojis,
-      savePrompt: false,
-      mode: "confirmDeleteDm",
-    });
-    const restored = json(
-      rebuildActionResponse(posted(confirming), {
-        cases: reloaded,
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-
-    expect(restored.components).toEqual(originalJSON.components);
-  });
-
-  test("keeps the single-target section header and its thumbnail", () => {
-    const single = render();
-    const rebuilt = json(
-      rebuildActionResponse(posted(single), {
-        cases: [makeCase()],
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-
-    expect(byId(rebuilt, ACTION_RESPONSE_IDS.header)).toEqual(
-      byId(json(single), ACTION_RESPONSE_IDS.header),
+    expect(reasonText(later)).toBe(
+      [
+        `**${emojis.additional_message} Reason** · sent to spambot by DM`,
+        "New reason",
+        `-# ${editedNote(MOD, NOW)}`,
+      ].join("\n"),
     );
   });
 
   test("a reason changed elsewhere drops the old notes for Edited by", () => {
-    const at = new Date("2026-10-27T11:03:00.000Z");
+    const original = render({ reasonNotes: ["Template `!spam`"] });
     const rebuilt = json(
-      rebuildActionResponse(posted(original), {
-        cases: reloaded.map(() =>
-          makeCase({ reason: "Raid", reasonSetBy: OTHER_MOD, reasonSetAt: at }),
-        ),
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reason)).toBe(
-      "**Reason**\nRaid",
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${editedNote(OTHER_MOD, at)}`,
-    );
-  });
-
-  test("a reason edited elsewhere into a longer version drops the old notes", () => {
-    const single = render({
-      reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-    });
-    const at = new Date("2026-10-27T11:03:00.000Z");
-    const rebuilt = json(
-      rebuildActionResponse(posted(single), {
+      rebuild(original, {
         cases: [
           makeCase({
-            reason: "Spamming invite links in #general too",
+            reason: "Changed",
             reasonSetBy: OTHER_MOD,
-            reasonSetAt: at,
+            reasonSetAt: NOW,
           }),
         ],
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
       }),
     );
-
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${editedNote(OTHER_MOD, at)}`,
+    expect(reasonText(rebuilt)).toContain(
+      `Changed\n-# ${editedNote(OTHER_MOD, NOW)}`,
     );
+    expect(reasonText(rebuilt)).not.toContain("Template");
   });
 
-  test("an edit that left the DM alone keeps quoting what was sent", () => {
-    const edited = rebuildActionResponse(posted(original), {
-      cases: reloaded.map((c) =>
-        makeCase({ caseId: c.caseId, userId: c.userId, reason: "New reason" }),
-      ),
-      emojis,
-      reasonNotes: [editedNote(OTHER_MOD, NOW)],
-      dmOverride: "DMs not updated: the users still see the original reason",
-      savePrompt: false,
-      mode: "buttons",
-    });
-    const editedJSON = json(edited);
-    expect(textById(editedJSON, ACTION_RESPONSE_IDS.reason)).toBe(
-      "**Reason**\nNew reason",
+  test("a short reason edited to 3,000 characters shrinks the posted header", () => {
+    const targets = manyTargets(25);
+    const cases = targets.map((t, i) =>
+      makeCase({
+        caseId: `${10000 + i}`,
+        userId: t.id,
+        userTag: t.user.username,
+      }),
     );
-    expect(textById(editedJSON, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n> Spamming invite links\n> Appeal at example.com",
+    const original = render({ targets, results: cases.map((c) => Ok(c)) });
+    const reason = "r".repeat(3000);
+    const edited = cases.map((c) =>
+      makeCase({
+        caseId: c.caseId,
+        userId: c.userId,
+        userTag: c.userTag,
+        reason,
+      }),
     );
-    expect(textById(editedJSON, ACTION_RESPONSE_IDS.dmFooter)).toBe(
-      `-# DMs not updated: the users still see the original reason\n${SETTINGS_LINE}`,
+    const rebuilt = json(
+      rebuild(original, {
+        cases: edited,
+        proofs: [proof({ content: "p".repeat(1000) })],
+        reasonNotes: [editedNote(MOD, NOW)],
+      }),
     );
-
-    // A later click rebuilds from that message and still quotes the old DM.
-    const clicked = json(
-      rebuildActionResponse(posted(edited), {
-        cases: reloaded.map((c) =>
-          makeCase({
-            caseId: c.caseId,
-            userId: c.userId,
-            reason: "New reason",
-          }),
+    expect(reasonText(rebuilt)).toContain(`\n${reason}\n`);
+    expect(headerText(rebuilt)).toStartWith(
+      must(headerText(json(original)).split("\n")[0]),
+    );
+    expect(headerText(rebuilt)).toContain("-# …and more");
+    expectWithinLimits(rebuilt);
+    expectWithinLimits(
+      json(
+        must(
+          staleActionResponse(
+            posted(render({ targets, results: cases.map((c) => Ok(c)) })),
+            MOD_LOG_URL,
+          ),
         ),
-        emojis,
-        savePrompt: false,
-        mode: "confirmDeleteDm",
-      }),
-    );
-    expect(textById(clicked, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n> Spamming invite links\n> Appeal at example.com",
-    );
-    expect(textById(clicked, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${editedNote(OTHER_MOD, NOW)}`,
-    );
-  });
-
-  test("an edit that updated the DM quotes the new reason", () => {
-    const rebuilt = json(
-      rebuildActionResponse(posted(original), {
-        cases: reloaded.map((c) =>
-          makeCase({
-            caseId: c.caseId,
-            userId: c.userId,
-            reason: "New reason",
-          }),
-        ),
-        emojis,
-        reasonNotes: [],
-        dmOverride: "DMs updated with the new reason",
-        dmReasonUpdated: true,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** to 2 of 2 · what they received:\n> New reason\n> Appeal at example.com",
-    );
-  });
-
-  test("adding a reason to a DM sent without one", () => {
-    const bare = render({
-      results: [Ok(makeCase({ reason: null }))],
-      action: banAction(null),
-    });
-    const notUpdated = json(
-      rebuildActionResponse(posted(bare), {
-        cases: [makeCase({ reason: "Late reason" })],
-        emojis,
-        reasonNotes: [],
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(notUpdated, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · no reason was included",
-    );
-    expect(buttons(notUpdated)[0].label).toBe("Edit reason");
-
-    const updated = json(
-      rebuildActionResponse(posted(bare), {
-        cases: [makeCase({ reason: "Late reason" })],
-        emojis,
-        reasonNotes: [],
-        dmReasonUpdated: true,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(updated, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · what they received:\n> Late reason",
-    );
-  });
-
-  test("a DM without a reason keeps its extra DM text across rebuilds", () => {
-    const bare = render({
-      results: [Ok(makeCase({ reason: null }))],
-      action: banAction(null),
-      guildConfig: withBanDmText("Appeal"),
-    });
-    const expected = "**DM sent** · no reason was included\n> Appeal";
-    expect(textById(json(bare), ACTION_RESPONSE_IDS.dm)).toBe(expected);
-
-    const rebuilt = json(
-      rebuildActionResponse(posted(bare), {
-        cases: [makeCase({ reason: "Late reason" })],
-        emojis,
-        reasonNotes: [],
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBe(expected);
-  });
-
-  test("notes with attachments round-trip without doubling the attachments", () => {
-    const withFiles = () => {
-      const c = makeCase();
-      Object.assign(c, { _attachments: ["https://cdn.example/proof-1.pdf"] });
-      return c;
-    };
-    const first = render({
-      results: [Ok(withFiles())],
-      reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-    });
-    const rebuilt = json(
-      rebuildActionResponse(posted(first), {
-        cases: [withFiles()],
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      textById(json(first), ACTION_RESPONSE_IDS.reasonNotes),
-    );
-
-    const attachmentsOnly = render({ results: [Ok(withFiles())] });
-    const again = json(
-      rebuildActionResponse(posted(attachmentsOnly), {
-        cases: [withFiles()],
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(again, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      `-# ${emojis.attachment} [proof-1.pdf](https://cdn.example/proof-1.pdf)`,
-    );
-  });
-
-  test("a posted media link from before galleries is dropped from the notes", () => {
-    const withMedia = () => {
-      const c = makeCase();
-      Object.assign(c, { _attachments: ["https://cdn.example/proof-1.png"] });
-      return c;
-    };
-    const message = posted(
-      render({
-        results: [Ok(withMedia())],
-        reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-      }),
-    );
-    const container = message[0] as APIContainerComponent;
-    const notes = container.components
-      .flatMap((c) => (c.type === ComponentType.Section ? c.components : [c]))
-      .find((c) => c.id === ACTION_RESPONSE_IDS.reasonNotes);
-    Object.assign(notes ?? {}, {
-      content: `-# Template \`!spam\` · ${emojis.attachment} [proof-1.png](https://cdn.example/proof-1.png)`,
-    });
-
-    const rebuilt = json(
-      rebuildActionResponse(message, {
-        cases: [withMedia()],
-        emojis,
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      "-# Template `!spam`",
-    );
-    expect(byId(rebuilt, ACTION_RESPONSE_IDS.media)).toBeDefined();
-  });
-
-  test("Delete DM after an edit keeps the edit notes and drops the section button", () => {
-    const edited = rebuildActionResponse(posted(original), {
-      cases: reloaded,
-      emojis,
-      reasonNotes: [editedNote(OTHER_MOD, NOW, " · mod log updated")],
-      savePrompt: false,
-      mode: "buttons",
-    });
-    const deleted = json(
-      rebuildActionResponse(posted(edited), {
-        cases: reloaded.map((c) =>
-          makeCase({ caseId: c.caseId, dmDeleted: true }),
-        ),
-        emojis,
-        savePrompt: false,
-        dmSuffix: " · mod log updated",
-        mode: "buttons",
-      }),
-    );
-
-    expect(textById(deleted, ACTION_RESPONSE_IDS.reasonNotes)).toContain(
-      "Edited by",
-    );
-    expect(textById(deleted, ACTION_RESPONSE_IDS.dm)).toMatch(
-      /^\*\*2 DMs deleted\*\* by .* · mod log updated$/,
-    );
-    expect(byId(deleted, ACTION_RESPONSE_IDS.dm)?.type).toBe(
-      ComponentType.TextDisplay,
-    );
-    expect(buttons(deleted).map((b) => b.label)).toEqual(["Edit reason"]);
-  });
-
-  test("a partial delete keeps Delete DM for the rest and notes the deleted one", () => {
-    const rebuilt = json(
-      rebuildActionResponse(posted(original), {
-        cases: [
-          makeCase({ caseId: "4822", dmDeleted: true }),
-          makeCase({ caseId: "4823", userId: TARGET_2 }),
-        ],
-        emojis,
-        savePrompt: false,
-        dmSuffix: " · mod log updated",
-        mode: "buttons",
-      }),
-    );
-
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent** to 1 of 2 · what they received:",
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dmFooter)).toMatch(
-      new RegExp(
-        `^-# 1 deleted by <@${OTHER_MOD}> <t:\\d+:R> · mod log updated\n`,
       ),
     );
-    expect(sectionButton(rebuilt, ACTION_RESPONSE_IDS.dmSection)?.label).toBe(
-      "Delete DM",
-    );
-  });
-
-  test("an override on a gone DM goes under the DM line", () => {
-    const rebuilt = json(
-      rebuildActionResponse(posted(render()), {
-        cases: [makeCase({ dmDeleted: true })],
-        emojis,
-        reasonNotes: [],
-        dmOverride: "Couldn't update the DM",
-        savePrompt: false,
-        mode: "buttons",
-      }),
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toEndWith(
-      "\n-# Couldn't update the DM",
-    );
-  });
-
-  test("Delete DM confirm keeps the save prompt line, Cancel restores the button", () => {
-    const withPrompt = render({ savePrompt: true });
-    const confirming = rebuildActionResponse(posted(withPrompt), {
-      cases: [makeCase()],
-      emojis,
-      savePrompt: true,
-      mode: "confirmDeleteDm",
-    });
-    expect(hasSavePrompt(posted(confirming))).toBe(true);
-    expect(buttons(json(confirming)).map((b) => b.label)).toEqual([
-      "Edit reason",
-      "Delete DM",
-      "Cancel",
-    ]);
-
-    const cancelled = rebuildActionResponse(posted(confirming), {
-      cases: [makeCase()],
-      emojis,
-      savePrompt: true,
-      mode: "buttons",
-    });
-    expect(json(cancelled).components).toEqual(json(withPrompt).components);
   });
 
   test("an old-layout response rebuilds into the new layout", () => {
@@ -1451,38 +1083,33 @@ describe("rebuildActionResponse", () => {
           },
           { type: ComponentType.Separator, id: 1 },
           {
-            type: ComponentType.TextDisplay,
-            id: ACTION_RESPONSE_IDS.reason,
-            content: `**${emojis.message} Reason**\nSpamming invite links`,
-          },
-          {
-            type: ComponentType.TextDisplay,
-            id: ACTION_RESPONSE_IDS.reasonNotes,
-            content: "-# Used template `!spam`",
-          },
-          {
-            type: ComponentType.TextDisplay,
-            id: ACTION_RESPONSE_IDS.details,
-            content: `-# ${emojis.duration} 1d · ends <t:1793098804:f>\n-# Additional DM text, from \`/settings\`:\n> Appeal here\n-# [proof.png](https://cdn.example/proof.png)`,
-          },
-          {
-            type: ComponentType.TextDisplay,
-            id: ACTION_RESPONSE_IDS.dm,
-            content: `-# ${emojis.message} DM sent`,
+            type: ComponentType.Section,
+            id: ACTION_RESPONSE_IDS.reasonSection,
+            components: [
+              {
+                type: ComponentType.TextDisplay,
+                id: ACTION_RESPONSE_IDS.reason,
+                content: "**Reason**\nSpamming invite links",
+              },
+              {
+                type: ComponentType.TextDisplay,
+                id: ACTION_RESPONSE_IDS.reasonNotes,
+                content: "-# Template `!spam`",
+              },
+            ],
+            accessory: {
+              type: ComponentType.Button,
+              style: 2,
+              label: "Edit reason",
+              custom_id: "modAction/reason/edit/4822",
+            },
           },
           { type: ComponentType.Separator, id: 2 },
           {
-            type: ComponentType.ActionRow,
-            id: 3,
-            components: [
-              {
-                type: ComponentType.Button,
-                id: 4,
-                style: 2,
-                label: "Edit reason",
-                custom_id: "modAction/reason/edit/4822",
-              },
-            ],
+            type: ComponentType.TextDisplay,
+            id: ACTION_RESPONSE_IDS.dm,
+            content:
+              "**DM sent** · what they received:\n> Spamming invite links\n> Appeal here",
           },
         ],
       } as APIMessageTopLevelComponent,
@@ -1491,169 +1118,178 @@ describe("rebuildActionResponse", () => {
     const rebuilt = json(
       rebuildActionResponse(old, {
         cases: [makeCase()],
+        proofs: [],
         emojis,
         savePrompt: false,
         mode: "buttons",
       }),
     );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.details)).toBe(
-      `-# ${emojis.duration} 1d · ends <t:1793098804:f>`,
+    expect(reasonText(rebuilt)).toBe(
+      [
+        `**${emojis.additional_message} Reason** · sent to spambot by DM`,
+        "Spamming invite links",
+        "-# Template `!spam`",
+        "-# Also included your server's ban message",
+      ].join("\n"),
     );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reason)).toBe(
-      "**Reason**\nSpamming invite links",
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      "-# Used template `!spam`",
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBe(
-      "**DM sent** · what they received:\n> Spamming invite links\n> Appeal here",
-    );
+    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBeNull();
     expect(buttons(rebuilt).map((b) => b.label)).toEqual([
       "Edit reason",
       "Delete DM",
+      "Add proof",
     ]);
     expectWithinLimits(rebuilt);
-
-    expect(
-      json(must(expireActionResponse(old))).components.some(
-        (c) => c.type === ComponentType.ActionRow,
-      ),
-    ).toBe(false);
   });
 });
 
-describe("expiry", () => {
+describe("expiry and staleness", () => {
+  function disabledFlags(container: APIContainerComponent): boolean[] {
+    return buttons(container).map((b) => b.disabled === true);
+  }
+
   test("window is 15 minutes", () => {
-    const created = NOW.getTime();
+    const created = Date.parse("2026-10-27T11:00:00.000Z");
     expect(isResponseExpired(created, created + 14 * 60 * 1000)).toBe(false);
     expect(isResponseExpired(created, created + 15 * 60 * 1000)).toBe(true);
   });
 
-  test("a response without a save prompt still expires and loses both accessories", () => {
-    const message = render({ guildConfig: withBanDmText("Appeal") });
-    const expired = expireActionResponse(posted(message));
-    expect(expired).not.toBeNull();
+  test("expiry keeps every button, disabled, plus the expired line, once", () => {
+    const original = posted(render({ savePrompt: true, proofs: [proof()] }));
+    const expired = json(must(expireActionResponse(original)));
 
-    const container = json(must(expired));
-    expect(buttons(container)).toEqual([]);
-    expect(
-      container.components.some(
-        (c) =>
-          c.type === ComponentType.Section &&
-          c.id !== ACTION_RESPONSE_IDS.header,
-      ),
-    ).toBe(false);
-    for (const id of [
-      ACTION_RESPONSE_IDS.reason,
-      ACTION_RESPONSE_IDS.dm,
-      ACTION_RESPONSE_IDS.dmFooter,
-    ]) {
-      expect(byId(container, id)?.type).toBe(ComponentType.TextDisplay);
-      expect(textById(container, id)).toBe(textById(json(message), id));
-    }
-    expect(container.components.at(-2)?.type).toBe(ComponentType.Separator);
-    expect(textById(container, ACTION_RESPONSE_IDS.footer)).toBe(EXPIRED_LINE);
-    expect(showsExpiredLine(posted(must(expired)))).toBe(true);
-    expect(expireActionResponse(posted(must(expired)))).toBeNull();
+    expect(buttons(expired).map((b) => b.label)).toEqual([
+      "Edit reason",
+      "Delete DM",
+      "Add proof",
+      "Save as template",
+    ]);
+    expect(disabledFlags(expired).every(Boolean)).toBe(true);
+    expect(lastText(expired)).toBe(EXPIRED_LINE);
+    expect(showsExpiredLine(posted(expireMessage(original)))).toBe(true);
+    expect(expireActionResponse(posted(expireMessage(original)))).toBeNull();
+    expect(showsExpiredLine(original)).toBe(false);
   });
 
-  test("expired render strips buttons and the save prompt, once", () => {
-    const message = render({ savePrompt: true });
-    const expired = expireActionResponse(posted(message));
-    expect(expired).not.toBeNull();
-
-    const container = json(must(expired));
-    expect(buttons(container)).toEqual([]);
-    expect(byId(container, ACTION_RESPONSE_IDS.prompt)).toBeUndefined();
-    expect(textById(container, ACTION_RESPONSE_IDS.footer)).toBe(EXPIRED_LINE);
-    expect(textById(container, ACTION_RESPONSE_IDS.header)).toBe(
-      textById(json(message), ACTION_RESPONSE_IDS.header),
-    );
-    expect(
-      container.components.filter((c) => c.type === ComponentType.Separator),
-    ).toHaveLength(3);
-  });
-
-  test("expired rebuild matches the timer's expired render", () => {
-    const message = render({ savePrompt: true });
+  test("the expired rebuild matches the timer's render", () => {
+    const original = render({ savePrompt: true, proofs: [proof()] });
+    const timer = json(must(expireActionResponse(posted(original))));
     const rebuilt = json(
-      rebuildActionResponse(posted(message), {
+      rebuild(original, {
         cases: [makeCase()],
-        emojis,
+        proofs: [proof()],
         savePrompt: true,
         mode: "expired",
       }),
     );
-    expect(rebuilt.components).toEqual(
-      json(must(expireActionResponse(posted(message)))).components,
-    );
+    expect(rebuilt).toEqual(timer);
   });
 
-  test("the confirm prompt goes away too", () => {
-    const confirming = rebuildActionResponse(posted(render()), {
-      cases: [makeCase()],
-      emojis,
-      savePrompt: false,
-      mode: "confirmDeleteDm",
-    });
-    const container = json(must(expireActionResponse(posted(confirming))));
-    expect(allText(container)).not.toContain("Delete the DM");
-    expect(buttons(container)).toEqual([]);
-    expect(textById(container, ACTION_RESPONSE_IDS.dm)).toStartWith(
-      "**DM sent**",
-    );
-  });
-
-  test("an expired response still rebuilds from its text displays", () => {
-    const message = render({
-      reasonNotes: [templateNote({ id: "1", shortcut: "spam" })],
-    });
-    const expired = must(expireActionResponse(posted(message)));
-    const rebuilt = json(
-      rebuildActionResponse(posted(expired), {
-        cases: [makeCase()],
-        emojis,
-        savePrompt: false,
-        mode: "expired",
+  test("expiry drops Discord's extra media fields", () => {
+    const original = posted(
+      render({
+        proofs: [
+          proof({
+            attachments: [
+              "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1",
+            ],
+          }),
+        ],
       }),
     );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.reasonNotes)).toBe(
-      "-# Template `!spam`",
-    );
-    expect(textById(rebuilt, ACTION_RESPONSE_IDS.dm)).toBe(
-      textById(json(message), ACTION_RESPONSE_IDS.dm),
-    );
+    const container = original[0] as APIContainerComponent;
+    const gallery = container.components.find(
+      (c) => c.id === ACTION_RESPONSE_IDS.media,
+    ) as unknown as { items: { media: Record<string, unknown> }[] };
+    gallery.items[0].media.proxy_url = "https://media.discordapp.net/x";
+    gallery.items[0].media.width = 10;
+
+    const expired = json(must(expireActionResponse(original)));
+    expect(byId(expired, ACTION_RESPONSE_IDS.media)).toEqual({
+      type: ComponentType.MediaGallery,
+      id: ACTION_RESPONSE_IDS.media,
+      items: [
+        {
+          media: {
+            url: "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1",
+          },
+        },
+      ],
+    });
   });
 
-  test("a response without buttons never gets the expired line", () => {
-    const targets = Array.from({ length: 13 }, (_, i) =>
-      makeTarget(`9123456789012345${String(i).padStart(2, "0")}`, `u${i}`),
+  test("stale keeps buttons disabled and links the mod log entry", () => {
+    const original = posted(render());
+    const stale = json(must(staleActionResponse(original, MOD_LOG_URL)));
+    expect(disabledFlags(stale).every(Boolean)).toBe(true);
+    expect(lastText(stale)).toBe(
+      `-# Changed in the mod log after this was posted. Up-to-date entry: ${MOD_LOG_URL}`,
     );
-    const message = render({
-      targets,
-      results: targets.map((t, i) =>
-        Ok(makeCase({ caseId: `${10000 + i * 3}`, userId: t.id })),
-      ),
-    });
+    expect(postedStaleUrl(posted(staleMessage(original, MOD_LOG_URL)))).toBe(
+      MOD_LOG_URL,
+    );
+    expect(showsExpiredLine(posted(staleMessage(original, MOD_LOG_URL)))).toBe(
+      true,
+    );
+    expect(
+      staleActionResponse(posted(staleMessage(original, MOD_LOG_URL)), null),
+    ).toBeNull();
+    expect(
+      expireActionResponse(posted(staleMessage(original, MOD_LOG_URL))),
+    ).toBeNull();
+  });
 
-    expect(expireActionResponse(posted(message))).toBeNull();
+  test("stale without a known entry says the entry is up to date", () => {
+    expect(staleLine(null)).toBe(
+      "-# Changed in the mod log after this was posted. The mod log entry is up to date.",
+    );
+    const stale = staleMessage(posted(render()), null);
+    expect(postedStaleUrl(posted(stale))).toBeNull();
+    expect(postedStaleUrl(posted(render()))).toBeUndefined();
+  });
+
+  test("an old response with the expired line in the footer counts as expired", () => {
+    const old: APIMessageTopLevelComponent[] = [
+      {
+        type: ComponentType.Container,
+        components: [
+          {
+            type: ComponentType.TextDisplay,
+            id: ACTION_RESPONSE_IDS.footer,
+            content: EXPIRED_LINE,
+          },
+        ],
+      } as APIMessageTopLevelComponent,
+    ];
+    expect(showsExpiredLine(old)).toBe(true);
+  });
+
+  test("a response without buttons never gets the terminal line", () => {
+    const failed = posted(render({ results: [Err("nope")] }));
+    expect(expireActionResponse(failed)).toBeNull();
+    expect(staleActionResponse(failed, null)).toBeNull();
   });
 });
 
 describe("byline", () => {
   test("uses the executor's username", () => {
-    const container = buildActionResultMessage({
-      actionType: ActionType.Ban,
-      executor: { ...makeUser(MOD, "tzuyu"), tag: "tzuyu#0001" } as User,
-      targets: [makeTarget(TARGET, "spambot")],
-      results: [Ok(makeCase())],
-      guildConfig: GuildConfig.createDefault(GUILD),
-      action: banAction(),
-      emojis,
-      now: NOW,
-    }).components[0].toJSON();
-
-    expect(headerText(container)).toContain("(tzuyu)");
-    expect(headerText(container)).not.toContain("#0001");
+    expect(headerText(json(render()))).toContain(`by <@${MOD}> (tzuyu)`);
   });
 });
+
+function lastText(container: APIContainerComponent): string | null {
+  const last = container.components.at(-1);
+  return last?.type === ComponentType.TextDisplay ? last.content : null;
+}
+
+function expireMessage(
+  original: APIMessageTopLevelComponent[],
+): ActionResponseMessage {
+  return must(expireActionResponse(original));
+}
+
+function staleMessage(
+  original: APIMessageTopLevelComponent[],
+  url: string | null,
+): ActionResponseMessage {
+  return must(staleActionResponse(original, url));
+}
