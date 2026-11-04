@@ -141,7 +141,7 @@ export function buildHelpIndex(
       command.type === ApplicationCommandType.ChatInput
         ? command.options
         : undefined;
-    const description = "description" in command ? command.description : "";
+    const description = "description" in command ? (command.description ?? "") : "";
 
     return [
       {
