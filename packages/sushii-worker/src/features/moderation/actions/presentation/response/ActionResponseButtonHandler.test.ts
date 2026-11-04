@@ -403,7 +403,7 @@ describe("ActionResponseButtonHandler", () => {
         "changed in the mod log",
       );
       expect(deleteDms).not.toHaveBeenCalled();
-      expectButtonMetric(["delete_dm", "expired"]);
+      expectButtonMetric(["delete_dm", "stale"]);
     });
 
     test("proof added elsewhere turns it stale", async () => {
@@ -535,6 +535,7 @@ describe("ActionResponseButtonHandler", () => {
         "changed in the mod log",
       );
       expect(findByIds).not.toHaveBeenCalled();
+      expectButtonMetric(["edit_reason", "stale"]);
     });
 
     test("a form submitted after the response went stale keeps the stale line", async () => {

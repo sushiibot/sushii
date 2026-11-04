@@ -7,6 +7,8 @@ import type {
   ModLogEditKind,
   ModLogEditOutcome,
   ModerationMetrics,
+  ProofAddOutcome,
+  ProofAddSource,
   ReasonSource,
   ReasonSurface,
   SavePromptEvent,
@@ -29,6 +31,7 @@ export class OtelModerationMetrics implements ModerationMetrics {
   private readonly savePrompt: Counter;
   private readonly actionResponseButton: Counter;
   private readonly modLogEdit: Counter;
+  private readonly proofAdded: Counter;
 
   constructor(meter: Meter = moderationMeter()) {
     this.reasonResolved = meter.createCounter("moderation.reason.resolved", {
@@ -58,6 +61,11 @@ export class OtelModerationMetrics implements ModerationMetrics {
     );
     this.modLogEdit = meter.createCounter("moderation.modlog.edit", {
       description: "Mod log entry and moderation DM edits, by outcome",
+      valueType: ValueType.INT,
+    });
+
+    this.proofAdded = meter.createCounter("moderation.proof.added", {
+      description: "Attempts to add proof to cases, by source and outcome",
       valueType: ValueType.INT,
     });
 
@@ -92,5 +100,9 @@ export class OtelModerationMetrics implements ModerationMetrics {
 
   recordModLogEdit(kind: ModLogEditKind, outcome: ModLogEditOutcome): void {
     this.modLogEdit.add(1, { kind, outcome });
+  }
+
+  recordProofAdded(source: ProofAddSource, outcome: ProofAddOutcome): void {
+    this.proofAdded.add(1, { source, outcome });
   }
 }

@@ -291,12 +291,11 @@ export class ActionResponseButtonHandler extends ButtonHandler {
     }
 
     if (this.isExpired(interaction)) {
-      await this.replyExpired(interaction);
-      return "expired";
+      return this.replyExpired(interaction);
     }
 
     if (await this.changedSincePosted(interaction, button.caseIds)) {
-      return "expired";
+      return "stale";
     }
 
     switch (button.kind) {
@@ -342,7 +341,9 @@ export class ActionResponseButtonHandler extends ButtonHandler {
       await interaction.reply(
         ephemeral(EXPIRED_CLICK_MESSAGE, Color.DiscordGrey),
       );
-      return "expired";
+      return postedStaleUrl(postedOf(retry.response)) === undefined
+        ? "expired"
+        : "stale";
     }
 
     return this.editReason(interaction, retry.caseIds, retry.response, {
@@ -431,23 +432,24 @@ export class ActionResponseButtonHandler extends ButtonHandler {
 
   private async replyExpired(
     interaction: ButtonInteraction<"cached">,
-  ): Promise<void> {
+  ): Promise<"expired" | "stale"> {
     if (postedStaleUrl(postedComponents(interaction)) !== undefined) {
       await interaction.reply(
         ephemeral(STALE_CLICK_MESSAGE, Color.DiscordGrey),
       );
-      return;
+      return "stale";
     }
 
     const reply = ephemeral(EXPIRED_CLICK_MESSAGE, Color.DiscordGrey);
     const expired = expireActionResponse(postedComponents(interaction));
     if (!expired) {
       await interaction.reply(reply);
-      return;
+      return "expired";
     }
 
     await interaction.update(expired);
     await this.notePrivately(interaction, reply);
+    return "expired";
   }
 
   private async loadCases(

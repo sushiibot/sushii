@@ -28,6 +28,7 @@ export type ActionResponseButtonKind =
 export type ActionResponseButtonOutcome =
   | "ok"
   | "expired"
+  | "stale"
   | "denied"
   | "dismissed"
   | "failed";
@@ -47,6 +48,19 @@ export const MOD_LOG_EDIT_KINDS: readonly ModLogEditKind[] = [
 
 export type ModLogEditOutcome = "ok" | "failed";
 
+export type ProofAddSource = "action" | "button" | "command" | "context_menu";
+export type ProofAddOutcome =
+  | "ok"
+  | "partial"
+  | "empty"
+  | "content_too_long"
+  | "too_many_files"
+  | "file_too_large"
+  | "no_mod_log_for_files"
+  | "retry_later"
+  | "cases_not_found"
+  | "failed";
+
 /** Recording is synchronous and must never throw into the feature. */
 export interface ModerationMetrics {
   recordReasonResolved(surface: ReasonSurface, source: ReasonSource): void;
@@ -61,6 +75,7 @@ export interface ModerationMetrics {
     outcome: ActionResponseButtonOutcome,
   ): void;
   recordModLogEdit(kind: ModLogEditKind, outcome: ModLogEditOutcome): void;
+  recordProofAdded(source: ProofAddSource, outcome: ProofAddOutcome): void;
 }
 
 export const NOOP_MODERATION_METRICS: ModerationMetrics = {
@@ -69,6 +84,7 @@ export const NOOP_MODERATION_METRICS: ModerationMetrics = {
   recordSavePrompt: () => undefined,
   recordActionResponseButton: () => undefined,
   recordModLogEdit: () => undefined,
+  recordProofAdded: () => undefined,
 };
 
 export interface ReasonTracking {
