@@ -24,6 +24,7 @@ import {
   TargetResolutionService,
 } from "./actions/application";
 import { createActionResponseHandlers } from "./actions/presentation/actionResponseFactory";
+import { actionResponseRegistry } from "./actions/presentation/response/responseRegistry";
 import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
 import { AuditLogEventHandler } from "./audit-logs";
 // Audit logs sub-feature
@@ -41,6 +42,7 @@ import {
   NamesUserService,
   ReasonUpdateService,
 } from "./cases/application";
+import { CaseProofService } from "./cases/application/CaseProofService";
 import { DrizzleUserLookupRepository } from "./cases/infrastructure/repositories/DrizzleUserLookupRepository";
 import {
   HistoryCommand,
@@ -48,6 +50,7 @@ import {
   NamesCommand,
   UncaseCommand,
 } from "./cases/presentation";
+import { AddProofButtonHandler } from "./cases/presentation/components/AddProofButtonHandler";
 import { createReasonEditingHandlers } from "./cases/presentation/reasonEditingFactory";
 // Tasks
 import { TempbanTask } from "./infrastructure/tasks/TempbanTask";
@@ -198,6 +201,8 @@ export function createModerationServices({
     softbanSuppressionSet,
     permissionUsageRecorder,
     modLogMessageService,
+    caseProofRepository,
+    moderationMetrics,
   );
 
   const moderationService = new ModerationService(
@@ -270,6 +275,15 @@ export function createModerationServices({
     moderationMetrics,
   );
 
+  const caseProofService = new CaseProofService({
+    modLogRepository,
+    caseProofRepository,
+    modLogMessageService,
+    responseRegistry: actionResponseRegistry,
+    metrics: moderationMetrics,
+    logger: logger.child({ module: "caseProofService" }),
+  });
+
   const caseRangeAutocompleteService = new CaseRangeAutocompleteService(
     modLogRepository,
     logger.child({ module: "caseRangeAutocompleteService" }),
@@ -301,6 +315,7 @@ export function createModerationServices({
   return {
     modLogRepository,
     caseProofRepository,
+    caseProofService,
     guildConfigRepository,
     tempBanRepository,
     timeoutDetectionService,
@@ -403,6 +418,14 @@ export function createModerationCommands(
       logger.child({ buttonHandler: "automodAlertRemoveTimeout" }),
     ),
     ...actionResponse.buttonHandlers,
+    new AddProofButtonHandler({
+      modLogRepository: services.modLogRepository,
+      caseProofRepository: services.caseProofRepository,
+      guildConfigRepository: services.guildConfigRepository,
+      caseProofService: services.caseProofService,
+      emojiRepository: services.emojiRepository,
+      logger: logger.child({ buttonHandler: "addProof" }),
+    }),
     ...reasonTemplates.buttonHandlers,
   ];
 

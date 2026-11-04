@@ -17,6 +17,10 @@ import {
   retryRefusedReply,
   tooLongMessage,
 } from "@/features/moderation/actions/presentation/components/reasonFormSubmit";
+import {
+  type ActionResponseRegistry,
+  actionResponseRegistry,
+} from "@/features/moderation/actions/presentation/response/responseRegistry";
 import type { ReasonUpdateService } from "@/features/moderation/cases/application/ReasonUpdateService";
 import {
   buildReasonEditModal,
@@ -98,6 +102,10 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
       ModerationMetrics,
       "recordReasonResolved"
     > = NOOP_MODERATION_METRICS,
+    private readonly responseRegistry: Pick<
+      ActionResponseRegistry,
+      "markStale"
+    > = actionResponseRegistry,
   ) {
     super();
   }
@@ -313,6 +321,9 @@ export class ModLogReasonButtonHandler extends ButtonHandler {
         flags: MessageFlags.Ephemeral,
       });
     }
+
+    // After the reply: marking stale edits other messages.
+    await this.responseRegistry.markStale(submission.guildId, [caseId]);
 
     const dmFailed = updateResult.val.dmUpdates.some(
       (u) => u.outcome === "failed" || u.outcome === "skipped_unverified",

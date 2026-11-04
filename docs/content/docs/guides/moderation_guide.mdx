@@ -33,7 +33,7 @@ reason, sushii copies it into the case.
 Every action creates a **case** with a sequential number (e.g. "case #42"),
 posted to your mod log channel.
 
-{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @7899f89e, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildReasonRow @f3f8b352, packages/sushii-worker/src/features/moderation/shared/presentation/proof/reasonBlock.ts#hasLiveDm @81d8fe11 */}
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.NOTE @90a29186, packages/sushii-worker/src/features/moderation/shared/domain/value-objects/ActionType.ts#actionTypeSupportsDM @03fc6736, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/shared/presentation/views/ModLogMessageView.ts#buildReasonRow @f3f8b352, packages/sushii-worker/src/features/moderation/shared/presentation/proof/reasonBlock.ts#hasLiveDm @81d8fe11 */}
 
 ```
 /history user:@member
@@ -114,7 +114,7 @@ Otherwise, Discord's built-in tools work fine.
 
 ### Warnings and timeouts
 
-{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.WARN @c00db9ec, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TIMEOUT @88ebe3be, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNTIMEOUT @a9ae46ae */}
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.WARN @a3090693, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TIMEOUT @38de530c, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNTIMEOUT @9424f431 */}
 
 ```
 /warn users:@member reason:Spamming in #general
@@ -129,7 +129,7 @@ closed, it's noted in the mod log.
 
 ### Kicks and bans
 
-{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.KICK @5ed8e8de, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.BAN @8739ce97, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNBAN @54808107, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TEMPBAN @4109a0f0, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addDmReasonOption @e5b7f27e, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc */}
+{/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.KICK @aedf051c, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.BAN @bdb8d5f1, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.UNBAN @f8ff964b, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_CONFIGS.TEMPBAN @c8dc90cb, packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandOptions.ts#addDmReasonOption @e5b7f27e, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc */}
 
 ```
 /kick users:@member reason:Trolling

@@ -90,6 +90,7 @@ function makeButton(
 }
 
 describe("ModLogDeleteDMButtonHandler", () => {
+  let markStale: ReturnType<typeof mock>;
   let findById: ReturnType<typeof mock>;
   let deleteDms: ReturnType<typeof mock>;
   let render: ReturnType<typeof mock>;
@@ -110,11 +111,13 @@ describe("ModLogDeleteDMButtonHandler", () => {
     );
     service = makeService();
     render = service.render;
+    markStale = mock(async () => undefined);
     handler = new ModLogDeleteDMButtonHandler(
       { findById },
       { deleteDms },
       service,
       pino({ level: "silent" }),
+      { markStale },
     );
   });
 
@@ -168,6 +171,7 @@ describe("ModLogDeleteDMButtonHandler", () => {
       rendered,
     );
     expect(interaction.followUp).not.toHaveBeenCalled();
+    expect(markStale).toHaveBeenCalledWith(GUILD, ["4822"]);
   });
 
   test("a failed legacy conversion after the ack becomes a private note", async () => {
@@ -302,8 +306,10 @@ describe("ModLogReasonButtonHandler", () => {
   let service: ReturnType<typeof makeService>;
   let templateCreate: ReturnType<typeof mock>;
   let handler: ModLogReasonButtonHandler;
+  let reasonMarkStale: ReturnType<typeof mock>;
 
   beforeEach(() => {
+    reasonMarkStale = mock(async () => undefined);
     findById = mock(async () => makeCase({ reason: null }));
     updateReasons = mock(async () =>
       Ok({
@@ -350,6 +356,8 @@ describe("ModLogReasonButtonHandler", () => {
         })),
       } as never,
       pino({ level: "silent" }),
+      undefined,
+      { markStale: reasonMarkStale },
     );
   });
 
@@ -517,6 +525,7 @@ describe("ModLogReasonButtonHandler", () => {
     const [renderedCase] = render.mock.calls[0] as unknown as [ModerationCase];
     expect(renderedCase.executorId).toBe(MOD);
     expect(renderedCase.reason?.value).toBe("Raid");
+    expect(reasonMarkStale).toHaveBeenCalledWith(GUILD, ["4822"]);
   });
 
   test("a failed legacy conversion still finishes the form and notes it privately", async () => {

@@ -9,6 +9,10 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import {
+  type ActionResponseRegistry,
+  actionResponseRegistry,
+} from "@/features/moderation/actions/presentation/response/responseRegistry";
 import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
@@ -75,6 +79,10 @@ export class ReasonCommand extends SlashCommandHandler {
       ModerationMetrics,
       "recordReasonResolved"
     > = NOOP_MODERATION_METRICS,
+    private readonly responseRegistry: Pick<
+      ActionResponseRegistry,
+      "markStale"
+    > = actionResponseRegistry,
   ) {
     super();
   }
@@ -285,6 +293,8 @@ export class ReasonCommand extends SlashCommandHandler {
           return;
         }
 
+        await this.markResponsesStale(interaction.guildId, result);
+
         await this.recordTemplateUse(interaction.guildId, update);
 
         await buttonInteraction.editReply({
@@ -365,12 +375,24 @@ export class ReasonCommand extends SlashCommandHandler {
       return;
     }
 
+    await this.markResponsesStale(interaction.guildId, result);
+
     await this.recordTemplateUse(interaction.guildId, update);
 
     const successEmbed = reasonSuccessView(result, reason, caseRangeStr);
     await interaction.editReply({
       embeds: [successEmbed],
     });
+  }
+
+  private async markResponsesStale(
+    guildId: string,
+    result: { updatedCases: { caseId: string }[] },
+  ): Promise<void> {
+    await this.responseRegistry.markStale(
+      guildId,
+      result.updatedCases.map((c) => c.caseId),
+    );
   }
 
   private async recordTemplateUse(

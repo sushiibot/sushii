@@ -5,11 +5,11 @@ import type { ModerationCommandConfig } from "@/features/moderation/actions/pres
 
 import { ActionType } from "../../domain/value-objects/ActionType";
 import {
-  addAttachmentOption,
   addDaysToDeleteOption,
   addDmReasonOption,
   addDurationOption,
   addNoteOption,
+  addProofOption,
   addReasonOption,
   addSoftbanDeleteOption,
   addUsersOption,
@@ -18,7 +18,7 @@ import {
 export const OPTION_NAMES = {
   USERS: "users",
   REASON: "reason",
-  ATTACHMENT: "attachment",
+  PROOF: "proof",
   DM_REASON: "dm_reason",
   DAYS_TO_DELETE: "days_to_delete",
   DURATION: "duration",
@@ -78,7 +78,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         .addStringOption(addUsersOption)
         .addStringOption(addReasonOption)
         .addIntegerOption(addDaysToDeleteOption)
-        .addAttachmentOption(addAttachmentOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
   WARN: {
@@ -93,7 +93,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         // Required for warn commands
         .addStringOption((o) => addReasonOption(o, true))
         // No DM option for warn command, as doesn't make sense to not DM warning
-        .addAttachmentOption(addAttachmentOption),
+        .addAttachmentOption(addProofOption),
   },
   TEMPBAN: {
     actionType: ActionType.TempBan,
@@ -105,7 +105,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         .addStringOption(addUsersOption)
         .addStringOption(addDurationOption)
         .addStringOption(addReasonOption)
-        .addAttachmentOption(addAttachmentOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
   KICK: {
@@ -117,7 +117,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
       builder
         .addStringOption(addUsersOption)
         .addStringOption(addReasonOption)
-        .addAttachmentOption(addAttachmentOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
   TIMEOUT: {
@@ -130,7 +130,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         .addStringOption(addUsersOption)
         .addStringOption(addDurationOption)
         .addStringOption(addReasonOption)
-        .addAttachmentOption(addAttachmentOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
   UNBAN: {
@@ -139,7 +139,10 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
     description: COMMAND_METADATA.UNBAN.description,
     permissions: PermissionFlagsBits.BanMembers,
     options: (builder: SlashCommandBuilder) =>
-      builder.addStringOption(addUsersOption).addStringOption(addReasonOption),
+      builder
+        .addStringOption(addUsersOption)
+        .addStringOption(addReasonOption)
+        .addAttachmentOption(addProofOption),
   },
   UNTIMEOUT: {
     actionType: ActionType.TimeoutRemove,
@@ -150,6 +153,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
       builder
         .addStringOption(addUsersOption)
         .addStringOption(addReasonOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
   NOTE: {
@@ -161,7 +165,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
       builder
         .addStringOption(addUsersOption)
         .addStringOption(addNoteOption)
-        .addAttachmentOption(addAttachmentOption),
+        .addAttachmentOption(addProofOption),
   },
   SOFTBAN: {
     actionType: ActionType.Softban,
@@ -173,7 +177,7 @@ export const COMMAND_CONFIGS: Record<string, ModerationCommandConfig> = {
         .addStringOption(addUsersOption)
         .addIntegerOption(addSoftbanDeleteOption)
         .addStringOption(addReasonOption)
-        .addAttachmentOption(addAttachmentOption)
+        .addAttachmentOption(addProofOption)
         .addStringOption(addDmReasonOption),
   },
 };

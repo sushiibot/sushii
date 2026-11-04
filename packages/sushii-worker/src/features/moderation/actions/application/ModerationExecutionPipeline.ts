@@ -19,6 +19,12 @@ import {
 } from "../../shared/domain/entities/ModerationCase";
 import type { ModerationTarget } from "../../shared/domain/entities/ModerationTarget";
 import { TempBan } from "../../shared/domain/entities/TempBan";
+import type {
+  ModerationMetrics,
+  ProofAddOutcome,
+} from "../../shared/domain/metrics/ModerationMetrics";
+import { NOOP_MODERATION_METRICS } from "../../shared/domain/metrics/ModerationMetrics";
+import type { CaseProofRepository } from "../../shared/domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "../../shared/domain/repositories/ModLogRepository";
 import type { TempBanRepository } from "../../shared/domain/repositories/TempBanRepository";
 import type { ModLogService } from "../../shared/domain/services/ModLogService";
@@ -96,8 +102,13 @@ export class ModerationExecutionPipeline {
     private readonly permissionUsageRecorder: PermissionUsageRecorder,
     private readonly modLogMessageService: Pick<
       ModLogMessageService,
-      "refresh"
+      "refresh" | "adoptUnhosted"
     >,
+    private readonly caseProofRepository: Pick<CaseProofRepository, "add">,
+    private readonly metrics: Pick<
+      ModerationMetrics,
+      "recordProofAdded"
+    > = NOOP_MODERATION_METRICS,
   ) {}
 
   /**
@@ -296,7 +307,8 @@ export class ModerationExecutionPipeline {
           action.executor.id,
           action.reason,
           undefined,
-          action.attachment ? [action.attachment.url] : [],
+          // Proof files live in mod_log_proofs; see addActionProof.
+          [],
           timeoutDuration,
           deleteMessageSeconds,
         )
@@ -526,21 +538,62 @@ export class ModerationExecutionPipeline {
   }
 
   /**
-   * Points the cases at a re-hosted copy of their attachment. Mod log entries
-   * already posted with the old URL are re-rendered.
+   * Saves the file given with the command as each case's first proof, then
+   * moves it onto any mod log entry already posted. Entries posted later
+   * pick it up when they're posted. Call it after the response is sent.
    */
-  async replaceAttachments(
-    guildId: string,
-    caseIds: string[],
-    attachments: string[],
+  async addActionProof(
+    cases: readonly ModerationCase[],
+    executorId: string,
+    url: string,
   ): Promise<void> {
-    await this.modLogRepository.updateAttachments(
-      guildId,
-      caseIds,
-      attachments,
-    );
-    for (const caseId of caseIds) {
-      await this.refreshPostedEntry(guildId, caseId);
+    if (cases.length === 0) {
+      return;
+    }
+
+    let outcome: ProofAddOutcome = "failed";
+    try {
+      await this.caseProofRepository.add(
+        cases.map((c) => ({
+          guildId: c.guildId,
+          caseId: c.caseId,
+          authorId: executorId,
+          content: null,
+          attachments: [url],
+          sourceMessageUrl: null,
+          sourceAuthorId: null,
+          sourceContent: null,
+          hostMessageId: null,
+          source: "action",
+        })),
+      );
+      outcome = "ok";
+    } finally {
+      this.metrics.recordProofAdded("action", outcome);
+    }
+
+    for (const moderationCase of cases) {
+      await this.hostActionProof(moderationCase.guildId, moderationCase.caseId);
+    }
+  }
+
+  /** Best effort: the action and its proof row are already saved. */
+  private async hostActionProof(
+    guildId: string,
+    caseId: string,
+  ): Promise<void> {
+    try {
+      const current = await this.modLogRepository.findById(guildId, caseId);
+      if (!current?.msgId) {
+        return;
+      }
+      await this.modLogMessageService.refresh(current);
+      await this.modLogMessageService.adoptUnhosted(current);
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId, caseId },
+        "Failed to move action proof onto the mod log entry",
+      );
     }
   }
 

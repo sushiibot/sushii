@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { DMChannel } from "discord.js";
+import type { Attachment, DMChannel } from "discord.js";
 import {
   type Client,
   DiscordAPIError,
@@ -163,7 +163,11 @@ describe("ModerationExecutionPipeline", () => {
   let mockGuildConfigRepository: GuildConfigRepository;
   let mockClient: Client;
   let mockPermissionUsageRecorder: PermissionUsageRecorder;
-  let mockModLogMessageService: { refresh: ReturnType<typeof mock> };
+  let mockModLogMessageService: {
+    refresh: ReturnType<typeof mock>;
+    adoptUnhosted: ReturnType<typeof mock>;
+  };
+  let mockCaseProofRepository: { add: ReturnType<typeof mock> };
 
   beforeEach(() => {
     // Create fresh mocks for each test
@@ -270,7 +274,11 @@ describe("ModerationExecutionPipeline", () => {
       recordSushiiAction: mock(() => Promise.resolve()),
     } as unknown as PermissionUsageRecorder;
 
-    mockModLogMessageService = { refresh: mock(async () => "updated") };
+    mockModLogMessageService = {
+      refresh: mock(async () => "updated"),
+      adoptUnhosted: mock(async () => undefined),
+    };
+    mockCaseProofRepository = { add: mock(async () => []) };
 
     pipeline = new ModerationExecutionPipeline(
       mockDb,
@@ -285,6 +293,7 @@ describe("ModerationExecutionPipeline", () => {
       new SoftbanSuppressionSet(),
       mockPermissionUsageRecorder,
       mockModLogMessageService,
+      mockCaseProofRepository,
     );
   });
 
@@ -460,6 +469,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new BanAction(
@@ -768,6 +778,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new SoftbanAction(
@@ -831,6 +842,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new BanAction(
@@ -886,6 +898,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new BanAction(
@@ -1069,6 +1082,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new BanAction(
@@ -1129,6 +1143,7 @@ describe("ModerationExecutionPipeline", () => {
         new SoftbanSuppressionSet(),
         mockPermissionUsageRecorder,
         mockModLogMessageService,
+        mockCaseProofRepository,
       );
 
       const action = new BanAction(
@@ -1149,6 +1164,80 @@ describe("ModerationExecutionPipeline", () => {
         ),
       ).rejects.toThrow("Discord API error");
       expect(mockModLogRepository.delete).toHaveBeenCalled();
+    });
+  });
+
+  describe("action-time proof", () => {
+    const URL = "https://cdn.discordapp.com/attachments/9/8/proof.png?ex=a";
+
+    test("the case row no longer stores the file", async () => {
+      const action = new WarnAction(
+        mockGuildId,
+        createMockUser(),
+        null,
+        createMockReason(),
+        "unspecified",
+        { url: URL } as Attachment,
+      );
+      await pipeline.execute(
+        action,
+        ActionType.Warn,
+        createMockTarget(),
+        createMockGuildConfig(),
+      );
+
+      const [created] = (
+        mockModLogRepository.createCase as ReturnType<typeof mock>
+      ).mock.calls[0] as [ModerationCase];
+      expect(created.attachments).toEqual([]);
+    });
+
+    test("saves one unhosted proof row per case, then moves it onto posted entries", async () => {
+      const posted = { msgId: "1029384756102938499" } as ModerationCase;
+      mockModLogRepository.findById = mock((_g: string, caseId: string) =>
+        Promise.resolve(caseId === "1" ? posted : null),
+      );
+      const cases = ["1", "2"].map(
+        (caseId) => ({ guildId: mockGuildId, caseId }) as ModerationCase,
+      );
+
+      await pipeline.addActionProof(cases, "mod-1", URL);
+
+      expect(mockCaseProofRepository.add).toHaveBeenCalledWith(
+        ["1", "2"].map((caseId) => ({
+          guildId: mockGuildId,
+          caseId,
+          authorId: "mod-1",
+          content: null,
+          attachments: [URL],
+          sourceMessageUrl: null,
+          sourceAuthorId: null,
+          sourceContent: null,
+          hostMessageId: null,
+          source: "action",
+        })),
+      );
+      expect(mockModLogMessageService.refresh).toHaveBeenCalledWith(posted);
+      expect(mockModLogMessageService.adoptUnhosted).toHaveBeenCalledTimes(1);
+      expect(mockModLogMessageService.adoptUnhosted).toHaveBeenCalledWith(
+        posted,
+      );
+    });
+
+    test("a failed move onto the entry is only logged", async () => {
+      mockModLogRepository.findById = mock(() =>
+        Promise.resolve({ msgId: "1" } as ModerationCase),
+      );
+      mockModLogMessageService.adoptUnhosted = mock(() =>
+        Promise.reject(new Error("Missing Access")),
+      );
+
+      await pipeline.addActionProof(
+        [{ guildId: mockGuildId, caseId: "1" } as ModerationCase],
+        "mod-1",
+        URL,
+      );
+      expect(mockCaseProofRepository.add).toHaveBeenCalledTimes(1);
     });
   });
 

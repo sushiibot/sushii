@@ -7,6 +7,7 @@ import { ScamHashReportButtonHandler } from "@/features/automod/presentation/han
 import { GiveawayButtonHandler } from "@/features/giveaways/presentation/components/GiveawayButtonHandler";
 import { AutomodAlertActionButtonHandler } from "@/features/moderation/actions/presentation/components/AutomodAlertActionButtonHandler";
 import { AutomodAlertRemoveTimeoutButtonHandler } from "@/features/moderation/actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
+import { AddProofButtonHandler } from "@/features/moderation/cases/presentation/components/AddProofButtonHandler";
 import { ModLogDeleteDMButtonHandler } from "@/features/moderation/audit-logs/presentation/components/ModLogDeleteDMButtonHandler";
 import { ModLogReasonButtonHandler } from "@/features/moderation/audit-logs/presentation/components/ModLogReasonButtonHandler";
 import { PromptButtonHandler } from "@/features/prompts/presentation/handlers/PromptButtonHandler";
@@ -48,6 +49,7 @@ function buildRegisteredHandlers(): (
     new GiveawayButtonHandler(dep, dep, dep, dep, dep),
     new AutomodAlertActionButtonHandler(dep, dep, dep),
     new AutomodAlertRemoveTimeoutButtonHandler(dep, dep),
+    new AddProofButtonHandler(dep),
     new ModLogDeleteDMButtonHandler(dep, dep, dep, dep),
     new ModLogReasonButtonHandler(dep, dep, dep, dep, dep, dep),
     new PromptButtonHandler(dep, dep),

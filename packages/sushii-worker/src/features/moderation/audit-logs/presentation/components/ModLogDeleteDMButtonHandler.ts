@@ -2,6 +2,10 @@ import type { ButtonInteraction } from "discord.js";
 import { MessageFlags } from "discord.js";
 import type { Logger } from "pino";
 
+import {
+  type ActionResponseRegistry,
+  actionResponseRegistry,
+} from "@/features/moderation/actions/presentation/response/responseRegistry";
 import type { CaseDmDeletionService } from "@/features/moderation/shared/application/CaseDmDeletionService";
 import type {
   ModLogMessageService,
@@ -39,6 +43,10 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
       "render" | "syncLegacyDeletedDm" | "updateFromInteraction"
     >,
     private readonly logger: Logger,
+    private readonly responseRegistry: Pick<
+      ActionResponseRegistry,
+      "markStale"
+    > = actionResponseRegistry,
   ) {
     super();
   }
@@ -129,6 +137,10 @@ export class ModLogDeleteDMButtonHandler extends ButtonHandler {
         ? "Deleted the DM, but this mod log entry couldn't be updated."
         : "Couldn't update this mod log entry.",
     );
+
+    if (outcome.result === "deleted") {
+      await this.responseRegistry.markStale(interaction.guildId, [caseId]);
+    }
 
     if (outcome.result === "failed") {
       await this.notePrivately(

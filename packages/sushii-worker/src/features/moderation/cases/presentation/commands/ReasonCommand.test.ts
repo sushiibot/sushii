@@ -72,6 +72,7 @@ describe("ReasonCommand", () => {
   let recordUse: ReturnType<typeof mock>;
   let recordReasonResolved: ReturnType<typeof mock>;
   let command: ReasonCommand;
+  let markStale: ReturnType<typeof mock>;
 
   beforeEach(() => {
     checkExistingReasons = mock(async () =>
@@ -87,11 +88,13 @@ describe("ReasonCommand", () => {
     }));
     recordUse = mock(async () => undefined);
     recordReasonResolved = mock();
+    markStale = mock(async () => undefined);
     command = new ReasonCommand(
       { checkExistingReasons, updateReasons } as unknown as ReasonUpdateService,
       { resolve, recordUse },
       pino({ level: "silent" }),
       { recordReasonResolved },
+      { markStale },
     );
   });
 
@@ -127,6 +130,7 @@ describe("ReasonCommand", () => {
       updateDm: true,
     });
     expect(recordUse).toHaveBeenCalledWith(GUILD, "11");
+    expect(markStale).toHaveBeenCalledWith(GUILD, ["4822"]);
     expect(recordReasonResolved.mock.calls).toEqual([
       ["reason_cmd", "shortcut"],
     ]);

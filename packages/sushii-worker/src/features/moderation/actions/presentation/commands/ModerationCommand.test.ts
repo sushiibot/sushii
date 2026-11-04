@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import type { AttachmentBuilder, ChatInputCommandInteraction } from "discord.js";
+import type {
+  AttachmentBuilder,
+  ChatInputCommandInteraction,
+} from "discord.js";
 import pino from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -71,7 +74,7 @@ function setup(options: {
   attachment?: { id: string; name: string; size: number; url: string };
 }) {
   const executeAction = mock(async () => options.results ?? [Ok(makeCase())]);
-  const replaceAttachments = mock(async () => undefined);
+  const addActionProof = mock(async () => undefined);
   const resolve = mock(async () => options.expansion);
   const recordUse = mock(async () => undefined);
   const shouldPromptSave = mock(async () => false);
@@ -83,7 +86,7 @@ function setup(options: {
 
   const command = new ModerationCommand(
     COMMAND_CONFIGS[options.configKey ?? "BAN"],
-    { executeAction, replaceAttachments } as never,
+    { executeAction, addActionProof } as never,
     {
       fetchTargets: mock(async () => Ok([makeTarget(TARGET, "spambot")])),
     } as never,
@@ -117,7 +120,7 @@ function setup(options: {
       command.handler(interaction as unknown as ChatInputCommandInteraction),
     interaction,
     executeAction,
-    replaceAttachments,
+    addActionProof,
     resolve,
     recordUse,
     shouldPromptSave,
@@ -335,10 +338,10 @@ describe("ModerationCommand attachment re-hosting", () => {
     ];
     expect(reply.files?.map((f) => f.name)).toEqual(["proof_1.png"]);
     expect(JSON.stringify(reply)).toContain("attachment://proof_1.png");
-    expect(ctx.replaceAttachments).toHaveBeenCalledWith(
-      GUILD,
-      [makeCase().caseId],
-      [REHOSTED_URL],
+    expect(ctx.addActionProof).toHaveBeenCalledWith(
+      [makeCase()],
+      MOD,
+      REHOSTED_URL,
     );
   });
 
@@ -358,11 +361,7 @@ describe("ModerationCommand attachment re-hosting", () => {
     );
     await ctx.run();
 
-    expect(ctx.replaceAttachments).toHaveBeenCalledWith(
-      GUILD,
-      [makeCase().caseId],
-      [renamed],
-    );
+    expect(ctx.addActionProof).toHaveBeenCalledWith([makeCase()], MOD, renamed);
   });
 
   test("a file over the upload limit keeps the original link", async () => {
@@ -379,7 +378,11 @@ describe("ModerationCommand attachment re-hosting", () => {
       { files?: unknown },
     ];
     expect(reply.files).toBeUndefined();
-    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+    expect(ctx.addActionProof).toHaveBeenCalledWith(
+      [makeCase()],
+      MOD,
+      PROOF.url,
+    );
   });
 
   test("a failed download still sends the response", async () => {
@@ -395,7 +398,11 @@ describe("ModerationCommand attachment re-hosting", () => {
       { files?: unknown },
     ];
     expect(reply.files).toBeUndefined();
-    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+    expect(ctx.addActionProof).toHaveBeenCalledWith(
+      [makeCase()],
+      MOD,
+      PROOF.url,
+    );
   });
 
   test("a failed upload falls back to the response without the file", async () => {
@@ -418,7 +425,11 @@ describe("ModerationCommand attachment re-hosting", () => {
     ];
     expect(fallback.files).toBeUndefined();
     expect(JSON.stringify(fallback)).not.toContain("attachment://");
-    expect(ctx.replaceAttachments).not.toHaveBeenCalled();
+    expect(ctx.addActionProof).toHaveBeenCalledWith(
+      [makeCase()],
+      MOD,
+      PROOF.url,
+    );
   });
 
   test("files a gallery can't show aren't re-hosted", async () => {
@@ -431,5 +442,102 @@ describe("ModerationCommand attachment re-hosting", () => {
     await ctx.run();
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("ModerationCommand action-time proof", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test("the first response shows the file as proof and registers for staleness", async () => {
+    spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3])),
+    );
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: PROOF,
+    });
+    await ctx.run();
+
+    const sent = JSON.stringify(ctx.interaction.editReply.mock.calls[0]);
+    expect(sent).toContain(`<@${MOD}>`);
+    expect(sent).toContain("1 file");
+    expect(sent).not.toContain("None yet");
+    expect(ctx.scheduleExpiry).toHaveBeenCalledWith(
+      ctx.interaction,
+      expect.anything(),
+      {
+        guildId: GUILD,
+        caseIds: [makeCase().caseId],
+        messageId: "900000000000000000",
+      },
+    );
+  });
+
+  test("a file a gallery can't show is linked from the proof entry", async () => {
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: {
+        ...PROOF,
+        name: "log.txt",
+        url: "https://cdn.discordapp.com/x/log.txt",
+      },
+    });
+    await ctx.run();
+
+    expect(JSON.stringify(ctx.interaction.editReply.mock.calls[0])).toContain(
+      "https://cdn.discordapp.com/x/log.txt",
+    );
+    expect(ctx.addActionProof).toHaveBeenCalledWith(
+      [makeCase()],
+      MOD,
+      "https://cdn.discordapp.com/x/log.txt",
+    );
+  });
+
+  test("no file, no proof row", async () => {
+    const ctx = setup({ strings: { users: TARGET }, expansion: null });
+    await ctx.run();
+    expect(ctx.addActionProof).not.toHaveBeenCalled();
+    expect(ctx.scheduleExpiry).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failed proof save never fails the response", async () => {
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: { ...PROOF, name: "log.txt" },
+    });
+    ctx.addActionProof.mockImplementationOnce(async () => {
+      throw new Error("db down");
+    });
+    await ctx.run();
+    expect(ctx.interaction.editReply).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("proof option", () => {
+  test("every case command has it, described as never sent", () => {
+    for (const config of Object.values(COMMAND_CONFIGS)) {
+      const json = new ModerationCommand(
+        config,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        pino({ level: "silent" }),
+      ).command as { options?: { name: string; description: string }[] };
+      const names = json.options?.map((o) => o.name) ?? [];
+      expect(names).toContain("proof");
+      expect(names).not.toContain("attachment");
+      expect(json.options?.find((o) => o.name === "proof")?.description).toBe(
+        "Screenshot for mods. Never sent to the user.",
+      );
+    }
+    expect(Object.keys(COMMAND_CONFIGS)).toHaveLength(9);
   });
 });

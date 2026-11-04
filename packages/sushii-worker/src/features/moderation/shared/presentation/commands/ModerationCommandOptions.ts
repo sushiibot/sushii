@@ -30,10 +30,10 @@ export function addReasonOption(
     .setRequired(required);
 }
 
-export function addAttachmentOption(option: SlashCommandAttachmentOption) {
+export function addProofOption(option: SlashCommandAttachmentOption) {
   return option
-    .setName(OPTION_NAMES.ATTACHMENT)
-    .setDescription("Mod-only attachment.")
+    .setName(OPTION_NAMES.PROOF)
+    .setDescription("Screenshot for mods. Never sent to the user.")
     .setRequired(false);
 }
 

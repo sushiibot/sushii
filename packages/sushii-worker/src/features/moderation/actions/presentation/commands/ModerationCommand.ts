@@ -29,10 +29,15 @@ import {
 import type { ReasonTemplateService } from "@/features/moderation/reason-templates/application/ReasonTemplateService";
 import type { ExpandResult } from "@/features/moderation/reason-templates/domain/ReasonExpander";
 import {
+  downloadProofSource,
+  proofFileMaxBytes,
+} from "@/features/moderation/shared/application/proofDownloads";
+import {
   postedFiles,
   postedFilesOf,
   uploadedUrls,
 } from "@/features/moderation/shared/application/proofHosting";
+import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import {
   BanAction,
@@ -115,12 +120,6 @@ export function expandedTooLongMessage(
   return `**Nothing was done.** The reason is ${number.format(length)} characters after ${what}; the limit is ${number.format(REASON_MAX_LENGTH)}. Shorten the extra text by ${number.format(length - REASON_MAX_LENGTH)} characters.`;
 }
 
-/** Upper bound on fetching the attachment before the response goes out without it. */
-const ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 10_000;
-
-/** Larger files are buffered in memory and slow the response, so they keep their original link. */
-const ATTACHMENT_REHOST_MAX_BYTES = 25 * 1024 * 1024;
-
 interface UploadFile {
   name: string;
   data: Buffer;
@@ -142,6 +141,39 @@ export function uploadedFileUrl(
   // Discord may rename the file; the response carries no other upload.
   const files = postedFiles(posted);
   return files.length === 1 ? files[0].url : null;
+}
+
+/**
+ * The file given with the command, shown as proof on the first response.
+ * Its row is saved once the response holds the file.
+ */
+export function firstResponseProof(
+  cases: readonly ModerationCase[],
+  executorId: string,
+  attachment: Pick<Attachment, "url"> | null,
+  uploadName: string | null,
+  now: Date,
+): CaseProof[] {
+  const first = cases[0];
+  if (!first || !attachment) {
+    return [];
+  }
+  return [
+    {
+      id: "action",
+      guildId: first.guildId,
+      caseId: first.caseId,
+      authorId: executorId,
+      createdAt: now,
+      content: null,
+      attachments: [uploadName ? `attachment://${uploadName}` : attachment.url],
+      sourceMessageUrl: null,
+      sourceAuthorId: null,
+      sourceContent: null,
+      hostMessageId: null,
+      source: "action",
+    },
+  ];
 }
 
 interface ParsedOptions {
@@ -194,7 +226,7 @@ export class ModerationCommand extends SlashCommandHandler {
 
     return Ok({
       reason: reasonResult.val,
-      attachment: interaction.options.getAttachment(OPTION_NAMES.ATTACHMENT),
+      attachment: interaction.options.getAttachment(OPTION_NAMES.PROOF),
       dmChoice: this.parseDmChoice(interaction),
       deleteMessageDays: interaction.options.getInteger(
         OPTION_NAMES.DAYS_TO_DELETE,
@@ -526,44 +558,68 @@ export class ModerationCommand extends SlashCommandHandler {
     const upload = cases.length > 0 ? await download : null;
 
     const reasonNotes = this.reasonNotes(expansion, cases, emojis);
+    const now = new Date();
     const buildMessage = (uploadName: string | null) =>
       buildActionResultMessage({
-      actionType: this.config.actionType,
-      executor: interaction.user,
-      targets,
-      results: executeResults,
-      guildConfig: guildConfig || GuildConfig.createDefault(action.guildId),
-      action,
-      emojis,
-      reasonNotes,
-      savePrompt,
-      upload: uploadName,
-    });
+        actionType: this.config.actionType,
+        executor: interaction.user,
+        targets,
+        results: executeResults,
+        guildConfig: guildConfig || GuildConfig.createDefault(action.guildId),
+        action,
+        emojis,
+        reasonNotes,
+        savePrompt,
+        upload: uploadName,
+        proofs: firstResponseProof(
+          cases,
+          interaction.user.id,
+          options.attachment,
+          uploadName,
+          now,
+        ),
+        now,
+      });
 
     if (template && cases.length > 0) {
       await this.recordTemplateUse(action.guildId, template.id);
     }
 
-    const reply = upload
+    let reply = upload
       ? await this.replyWithUpload(interaction, buildMessage, upload)
       : null;
+    let proofUrl: string | null = null;
     if (reply && upload) {
-      await this.saveUploadedAttachment(
-        reply,
-        upload.name,
-        action.guildId,
-        cases,
-      );
-    } else {
-      await interaction.editReply(buildMessage(null));
+      proofUrl = uploadedFileUrl(reply, upload.name);
+      if (!proofUrl) {
+        this.logger.warn(
+          { guildId: action.guildId, messageId: reply.id },
+          "Response is missing the re-uploaded case attachment",
+        );
+      }
+    }
+    if (!reply) {
+      reply = await interaction.editReply(buildMessage(null));
     }
 
     if (savePrompt) {
       this.metrics.recordSavePrompt("shown");
     }
 
-    if (cases.length > 0) {
-      this.scheduleExpiry(interaction, this.logger);
+    if (cases.length === 0) {
+      return;
+    }
+
+    this.scheduleExpiry(interaction, this.logger, {
+      guildId: action.guildId,
+      caseIds: cases.map((c) => c.caseId),
+      messageId: reply.id,
+    });
+
+    // Without a re-upload the original link is kept, which Discord expires.
+    proofUrl ??= options.attachment?.url ?? null;
+    if (proofUrl) {
+      await this.saveActionProof(cases, interaction.user.id, proofUrl);
     }
   }
 
@@ -572,35 +628,33 @@ export class ModerationCommand extends SlashCommandHandler {
     attachment: Attachment,
     sizeLimit: number,
   ): Promise<UploadFile | null> {
-    if (
-      !isGalleryMedia(attachment.name) ||
-      attachment.size > Math.min(sizeLimit, ATTACHMENT_REHOST_MAX_BYTES)
-    ) {
+    if (!isGalleryMedia(attachment.name)) {
       return null;
     }
 
-    try {
-      const res = await fetch(attachment.url, {
-        signal: AbortSignal.timeout(ATTACHMENT_DOWNLOAD_TIMEOUT_MS),
-      });
-      if (!res.ok) {
+    const download = await downloadProofSource(
+      {
+        url: attachment.url,
+        name: attachment.name,
+        size: attachment.size,
+        contentType: attachment.contentType,
+      },
+      proofFileMaxBytes(sizeLimit),
+    );
+    if (download.kind !== "ok") {
+      if (download.kind !== "too_large") {
         this.logger.warn(
-          { status: res.status, attachmentId: attachment.id },
+          { download, attachmentId: attachment.id },
           "Failed to download case attachment",
         );
-        return null;
       }
-      return {
-        name: safeAttachmentName(attachment.name),
-        data: Buffer.from(await res.arrayBuffer()),
-      };
-    } catch (err) {
-      this.logger.warn(
-        { err, attachmentId: attachment.id },
-        "Failed to download case attachment",
-      );
       return null;
     }
+
+    return {
+      name: safeAttachmentName(attachment.name),
+      data: download.file.data,
+    };
   }
 
   /**
@@ -626,30 +680,22 @@ export class ModerationCommand extends SlashCommandHandler {
     }
   }
 
-  private async saveUploadedAttachment(
-    reply: Message,
-    uploadName: string,
-    guildId: string,
+  /** The action already happened, so a failure here never fails the response. */
+  private async saveActionProof(
     cases: ModerationCase[],
+    executorId: string,
+    url: string,
   ): Promise<void> {
-    const uploaded = uploadedFileUrl(reply, uploadName);
-    if (!uploaded) {
-      this.logger.warn(
-        { guildId, messageId: reply.id },
-        "Response is missing the re-uploaded case attachment",
-      );
-      return;
-    }
-
-    const caseIds = cases.map((c) => c.caseId);
     try {
-      await this.moderationService.replaceAttachments(guildId, caseIds, [
-        uploaded,
-      ]);
+      await this.moderationService.addActionProof(cases, executorId, url);
     } catch (err) {
       this.logger.warn(
-        { err, guildId, caseIds },
-        "Failed to save re-uploaded case attachment",
+        {
+          err,
+          guildId: cases[0]?.guildId,
+          caseIds: cases.map((c) => c.caseId),
+        },
+        "Failed to save the action's proof file",
       );
     }
   }

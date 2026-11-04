@@ -27,16 +27,12 @@ export class ModerationService {
     private readonly logger: Logger,
   ) {}
 
-  async replaceAttachments(
-    guildId: string,
-    caseIds: string[],
-    attachments: string[],
+  async addActionProof(
+    cases: readonly ModerationCase[],
+    executorId: string,
+    url: string,
   ): Promise<void> {
-    await this.executionPipeline.replaceAttachments(
-      guildId,
-      caseIds,
-      attachments,
-    );
+    await this.executionPipeline.addActionProof(cases, executorId, url);
   }
 
   /**
