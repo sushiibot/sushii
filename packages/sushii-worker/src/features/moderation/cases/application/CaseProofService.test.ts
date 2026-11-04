@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, spyOn, test } from "bun:test";
 import pino from "pino";
 
 import {
@@ -91,13 +91,14 @@ function setup(
       },
   );
 
+  const logger = pino({ level: "silent" });
   const service = new CaseProofService({
     modLogRepository: { findByIds },
     caseProofRepository: { add, countsByCases },
     modLogMessageService: { hostProof },
     responseRegistry: { markStale },
     metrics: { recordProofAdded },
-    logger: pino({ level: "silent" }),
+    logger,
     download,
   });
 
@@ -121,6 +122,7 @@ function setup(
     markStale,
     recordProofAdded,
     download,
+    logger,
   };
 }
 
@@ -238,7 +240,10 @@ describe("CaseProofService hosting", () => {
   test("files without a mod log channel", async () => {
     const ctx = setup({ host: () => ({ kind: "no_mod_log" }) });
     const result = await ctx.service.add(ctx.input({ files: [FILE] }));
-    expect(result.val).toBe("no_mod_log_for_files");
+    expect(result.val).toEqual({
+      kind: "not_added",
+      skipped: [{ caseId: "4822", reason: "no_mod_log_for_files" }],
+    });
     expect(ctx.add).not.toHaveBeenCalled();
     expect(ctx.markStale).not.toHaveBeenCalled();
     expect(ctx.recordProofAdded).toHaveBeenCalledWith(
@@ -250,7 +255,62 @@ describe("CaseProofService hosting", () => {
   test("an entry still being posted", async () => {
     const ctx = setup({ host: () => ({ kind: "retry_later" }) });
     const result = await ctx.service.add(ctx.input({ files: [FILE] }));
-    expect(result.val).toBe("retry_later");
+    expect(result.val).toEqual({
+      kind: "not_added",
+      skipped: [{ caseId: "4822", reason: "retry_later" }],
+    });
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("button", "retry_later");
+  });
+
+  test("every case skipped reports every case and reason", async () => {
+    const ctx = setup({
+      caseIds: ["4822", "4823"],
+      host: (caseId) =>
+        caseId === "4822" ? { kind: "retry_later" } : { kind: "no_mod_log" },
+    });
+    const result = await ctx.service.add(ctx.input({ files: [FILE] }));
+    expect(result.val).toEqual({
+      kind: "not_added",
+      skipped: [
+        { caseId: "4822", reason: "retry_later" },
+        { caseId: "4823", reason: "no_mod_log_for_files" },
+      ],
+    });
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("button", "not_added");
+  });
+
+  test("a failure partway keeps the cases already added", async () => {
+    const ctx = setup({ caseIds: ["4822", "4823", "4824"] });
+    ctx.hostProof.mockImplementation(async (moderationCase) => {
+      if (moderationCase.caseId === "4823") {
+        throw new Error("Missing Access");
+      }
+      return { kind: "text_only", hostMessageId: "m" };
+    });
+    const error = spyOn(ctx.logger, "error");
+
+    const result = (await ctx.service.add(ctx.input())).unwrap();
+
+    expect(result.proofs.map((p) => p.caseId)).toEqual(["4822", "4824"]);
+    expect(result.skipped).toEqual([{ caseId: "4823", reason: "failed" }]);
+    expect(ctx.markStale).toHaveBeenCalledWith(GUILD, ["4822", "4824"], {
+      exceptMessageId: undefined,
+    });
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("button", "partial");
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0][0]).toMatchObject({ caseId: "4823" });
+  });
+
+  test("a failure on every case is rethrown", async () => {
+    const ctx = setup({ caseIds: ["4822", "4823"] });
+    ctx.hostProof.mockImplementation(async () => {
+      throw new Error("Missing Access");
+    });
+    await expect(ctx.service.add(ctx.input())).rejects.toThrow(
+      "Missing Access",
+    );
+    expect(ctx.markStale).not.toHaveBeenCalled();
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("button", "failed");
   });
 
   test("a case still being posted is skipped while the others get it", async () => {

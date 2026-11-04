@@ -7,9 +7,9 @@ import { ScamHashReportButtonHandler } from "@/features/automod/presentation/han
 import { GiveawayButtonHandler } from "@/features/giveaways/presentation/components/GiveawayButtonHandler";
 import { AutomodAlertActionButtonHandler } from "@/features/moderation/actions/presentation/components/AutomodAlertActionButtonHandler";
 import { AutomodAlertRemoveTimeoutButtonHandler } from "@/features/moderation/actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
-import { AddProofButtonHandler } from "@/features/moderation/cases/presentation/components/AddProofButtonHandler";
 import { ModLogDeleteDMButtonHandler } from "@/features/moderation/audit-logs/presentation/components/ModLogDeleteDMButtonHandler";
 import { ModLogReasonButtonHandler } from "@/features/moderation/audit-logs/presentation/components/ModLogReasonButtonHandler";
+import { AddProofButtonHandler } from "@/features/moderation/cases/presentation/components/AddProofButtonHandler";
 import { PromptButtonHandler } from "@/features/prompts/presentation/handlers/PromptButtonHandler";
 import { RoleMenuButtonHandler } from "@/features/role-menu/presentation/handlers/RoleMenuButtonHandler";
 import { RoleMenuSelectMenuHandler } from "@/features/role-menu/presentation/handlers/RoleMenuSelectMenuHandler";

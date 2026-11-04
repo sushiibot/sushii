@@ -103,7 +103,15 @@ export function buildCaseSelect(
 export interface CaseViewOptions {
   /** Whether the DM carried the server's custom text for this action. */
   serverDmTextIncluded: boolean;
+  /**
+   * Shown on the first message instead of sending the rest, for an edit
+   * that can't post the continuation messages again.
+   */
+  firstOnly?: boolean;
 }
+
+export const REOPEN_CASE_VIEW_LINE =
+  "-# Reopen the case view for the full proof";
 
 function headerText(moderationCase: ModerationCase, emojis: HistoryEmojis) {
   const emoji = emojis[getActionTypeBotEmoji(moderationCase.actionType)];
@@ -268,8 +276,11 @@ export function buildCaseViewMessages(
   const links = proofFileLinks(proofs);
   const linksText = links.join("\n");
 
+  const firstMax = opts.firstOnly
+    ? CASE_VIEW_TEXT_MAX - REOPEN_CASE_VIEW_LINE.length
+    : CASE_VIEW_TEXT_MAX;
   const fixed = header.length + reason.length + heading.length;
-  const shown = packEntries(entries, fixed, CASE_VIEW_TEXT_MAX);
+  const shown = packEntries(entries, fixed, firstMax);
   const spilled = entries.slice(shown);
 
   let sectionText: string;
@@ -286,7 +297,7 @@ export function buildCaseViewMessages(
     links.length > 0 &&
     spilled.length === 0 &&
     fixed + (sectionText.length - heading.length) + linksText.length <=
-      CASE_VIEW_TEXT_MAX;
+      firstMax;
 
   const accent = getActionTypeColor(moderationCase.actionType) ?? Color.Info;
   const container = new ContainerBuilder()
@@ -319,6 +330,15 @@ export function buildCaseViewMessages(
   }
 
   const messages = [caseViewMessage(container)];
+  const overflowing = spilled.length > 0 || (links.length > 0 && !linksOnFirst);
+  if (opts.firstOnly) {
+    if (overflowing) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(REOPEN_CASE_VIEW_LINE),
+      );
+    }
+    return messages;
+  }
 
   const moreHeading = moreProofHeading(moderationCase, emojis);
   const pieceMax = CASE_VIEW_TEXT_MAX - moreHeading.length - 1;
@@ -358,6 +378,7 @@ export async function loadCaseViewMessages(
   moderationCase: ModerationCase,
   emojis: HistoryEmojis,
   sources: CaseViewSources,
+  opts: Pick<CaseViewOptions, "firstOnly"> = {},
 ): Promise<CaseViewMessage[]> {
   const [proofs, guildConfig] = await Promise.all([
     sources.caseProofRepository.listByCase(
@@ -367,6 +388,7 @@ export async function loadCaseViewMessages(
     sources.guildConfigRepository.findByGuildId(moderationCase.guildId),
   ]);
   return buildCaseViewMessages(moderationCase, proofs, emojis, {
+    ...opts,
     serverDmTextIncluded: serverDmTextIncluded(moderationCase, guildConfig),
   });
 }

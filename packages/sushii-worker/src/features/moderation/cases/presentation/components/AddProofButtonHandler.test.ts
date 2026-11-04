@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, spyOn, test } from "bun:test";
 import type { ButtonInteraction } from "discord.js";
 import { ComponentType, MessageFlags } from "discord.js";
 import pino from "pino";
@@ -132,6 +132,7 @@ function setup(options: {
   );
   const listByCases = mock(async () => new Map([["4822", [proof()]]]));
   const listByCase = mock(async () => [proof()]);
+  const logger = pino({ level: "silent" });
   const deps = {
     modLogRepository: { findByIds: mock(async () => cases) },
     caseProofRepository: {
@@ -149,7 +150,7 @@ function setup(options: {
     },
     caseProofService: { add },
     emojiRepository: { getEmojis: mock(async () => makeAllEmojis()) },
-    logger: pino({ level: "silent" }),
+    logger,
     now: () => options.now ?? CREATED + 60_000,
   };
   const handler = new AddProofButtonHandler(deps as never);
@@ -189,6 +190,8 @@ function setup(options: {
     interaction,
     submission,
     add,
+    listByCase,
+    logger,
   };
 }
 
@@ -314,7 +317,10 @@ describe("Add proof submit", () => {
   test("an expected refusal is told privately and changes nothing", async () => {
     const ctx = setup({
       message: responseMessage(),
-      result: Err("retry_later"),
+      result: Err({
+        kind: "not_added",
+        skipped: [{ caseId: "4822", reason: "retry_later" }],
+      }),
     });
     await ctx.run();
 
@@ -326,15 +332,49 @@ describe("Add proof submit", () => {
     );
   });
 
-  test("files without a mod log channel", async () => {
+  test("files without a mod log channel: the typed text comes back", async () => {
     const ctx = setup({
       message: responseMessage(),
-      result: Err("no_mod_log_for_files"),
+      result: Err({
+        kind: "not_added",
+        skipped: [{ caseId: "4822", reason: "no_mod_log_for_files" }],
+      }),
+    });
+    await ctx.run();
+    const note = JSON.stringify(ctx.submission.followUp.mock.calls[0]);
+    expect(note).toContain(
+      "this server has no mod log channel. Set one in `/settings`.",
+    );
+    expect(note).toContain("Nothing was saved. What you typed:");
+    expect(note).toContain("> Reported in #reports");
+  });
+
+  test("a file too large states the limit", async () => {
+    const ctx = setup({
+      message: responseMessage(),
+      result: Err("file_too_large"),
     });
     await ctx.run();
     expect(JSON.stringify(ctx.submission.followUp.mock.calls[0])).toContain(
-      "this server has no mod log channel. Set one in `/settings`.",
+      "The limit here is 10 MB.",
     );
+  });
+
+  test("every case skipped names each reason", async () => {
+    const ctx = setup({
+      message: responseMessage(),
+      result: Err({
+        kind: "not_added",
+        skipped: [
+          { caseId: "4822", reason: "retry_later" },
+          { caseId: "4823", reason: "no_mod_log_for_files" },
+        ],
+      }),
+    });
+    await ctx.run();
+    const note = JSON.stringify(ctx.submission.followUp.mock.calls[0]);
+    expect(note).toContain("still being posted");
+    expect(note).toContain("no mod log channel");
   });
 
   test("an empty form", async () => {
@@ -360,14 +400,43 @@ describe("Add proof submit", () => {
     );
   });
 
-  test("an unexpected failure is told privately and rethrown", async () => {
+  test("an unexpected failure is told privately once and logged, not rethrown", async () => {
     const ctx = setup({ message: responseMessage() });
+    const error = spyOn(ctx.logger, "error");
     ctx.add.mockImplementationOnce(async () => {
       throw new Error("Missing Access");
     });
-    await expect(ctx.run()).rejects.toThrow("Missing Access");
+    await ctx.run();
+    expect(ctx.submission.followUp).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(ctx.submission.followUp.mock.calls[0])).toContain(
       "Couldn't add proof",
+    );
+    expect(error).toHaveBeenCalledTimes(1);
+  });
+
+  test("a split case view edits only its first message and points to the rest", async () => {
+    const ctx = setup({ message: caseViewMessage() });
+    ctx.listByCase.mockImplementation(async () =>
+      Array.from({ length: 6 }, (_, i) =>
+        proof({ id: `${i}`, content: `${i}`.repeat(1000) }),
+      ),
+    );
+    await ctx.run();
+
+    expect(ctx.submission.editReply).toHaveBeenCalledTimes(1);
+    expect(ctx.submission.followUp).not.toHaveBeenCalled();
+    expect(JSON.stringify(ctx.submission.editReply.mock.calls[0])).toContain(
+      "Reopen the case view for the full proof",
+    );
+  });
+
+  test("needs a mod permission", async () => {
+    const ctx = setup({ message: responseMessage() });
+    ctx.interaction.memberPermissions.any = () => false;
+    await ctx.run();
+    expect(ctx.interaction.showModal).not.toHaveBeenCalled();
+    expect(JSON.stringify(ctx.interaction.reply.mock.calls[0])).toContain(
+      "You need **Ban Members, Kick Members, or Timeout Members**",
     );
   });
 

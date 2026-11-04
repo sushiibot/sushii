@@ -47,16 +47,30 @@ export interface AddProofInput {
 /**
  * - `retry_later`: a mod log entry is still being posted
  * - `no_mod_log_for_files`: files need a mod log entry and there's none
+ * - `failed`: Discord or the database failed for this case; others went ahead
  */
-export type CaseSkipReason = "retry_later" | "no_mod_log_for_files";
+export type CaseSkipReason = "retry_later" | "no_mod_log_for_files" | "failed";
 
-export type AddProofError =
+export interface CaseSkip {
+  caseId: string;
+  reason: CaseSkipReason;
+}
+
+/** Refused before anything was uploaded. */
+export type AddProofRefusal =
   | "empty"
   | "content_too_long"
   | "too_many_files"
   | "file_too_large"
-  | "cases_not_found"
-  | CaseSkipReason;
+  | "cases_not_found";
+
+/** No case got the proof; every case and why. */
+export interface ProofNotAdded {
+  kind: "not_added";
+  skipped: CaseSkip[];
+}
+
+export type AddProofError = AddProofRefusal | ProofNotAdded;
 
 export interface AddProofResult {
   /** The inserted rows, one per case that got the proof. */
@@ -64,7 +78,16 @@ export interface AddProofResult {
   /** Cases as loaded before adding, in the order given. */
   cases: ModerationCase[];
   /** Cases left without the proof when others got it. */
-  skipped: { caseId: string; reason: CaseSkipReason }[];
+  skipped: CaseSkip[];
+}
+
+function errorOutcome(error: AddProofError): ProofAddOutcome {
+  if (typeof error === "string") {
+    return error;
+  }
+  const reasons = new Set(error.skipped.map((s) => s.reason));
+  const [only] = reasons;
+  return reasons.size === 1 ? only : "not_added";
 }
 
 export interface CaseProofServiceDeps {
@@ -97,7 +120,7 @@ export class CaseProofService {
       if (result.ok) {
         outcome = result.val.skipped.length > 0 ? "partial" : "ok";
       } else {
-        outcome = result.val;
+        outcome = errorOutcome(result.val);
       }
       return result;
     } finally {
@@ -142,7 +165,8 @@ export class CaseProofService {
     }
 
     const proofs: CaseProof[] = [];
-    const skipped: AddProofResult["skipped"] = [];
+    const skipped: CaseSkip[] = [];
+    const failures: { caseId: string; err: unknown }[] = [];
     for (const moderationCase of cases) {
       const draft: NewCaseProof = {
         guildId: input.guildId,
@@ -157,35 +181,31 @@ export class CaseProofService {
         source: input.kind,
       };
 
-      // Discord failures throw: the row is only stored once its files are on the entry.
-      const hosted = await this.deps.modLogMessageService.hostProof(
-        moderationCase,
-        draft,
-        uploads.val,
-      );
-      if (hosted.kind === "retry_later" || hosted.kind === "no_mod_log") {
-        skipped.push({
-          caseId: moderationCase.caseId,
-          reason:
-            hosted.kind === "retry_later"
-              ? "retry_later"
-              : "no_mod_log_for_files",
-        });
-        continue;
+      try {
+        const added = await this.addToCase(moderationCase, draft, uploads.val);
+        if (typeof added === "string") {
+          skipped.push({ caseId: moderationCase.caseId, reason: added });
+        } else {
+          proofs.push(added);
+        }
+      } catch (err) {
+        // Isolated so a failure on one case doesn't strand the rows already added.
+        failures.push({ caseId: moderationCase.caseId, err });
+        skipped.push({ caseId: moderationCase.caseId, reason: "failed" });
       }
-
-      const [row] = await this.deps.caseProofRepository.add([
-        {
-          ...draft,
-          attachments: hosted.kind === "hosted" ? hosted.attachmentUrls : [],
-          hostMessageId: hosted.hostMessageId,
-        },
-      ]);
-      proofs.push(row);
     }
 
+    if (proofs.length === 0 && failures.length > 0) {
+      throw failures[0].err;
+    }
+    for (const failure of failures) {
+      this.deps.logger.error(
+        { err: failure.err, guildId: input.guildId, caseId: failure.caseId },
+        "Failed to add proof to a case",
+      );
+    }
     if (proofs.length === 0) {
-      return Err(skipped[0].reason);
+      return Err({ kind: "not_added", skipped });
     }
 
     await this.deps.responseRegistry.markStale(
@@ -206,6 +226,37 @@ export class CaseProofService {
     );
 
     return Ok({ proofs, cases, skipped });
+  }
+
+  /**
+   * Hosts the files on the case's entry, then stores the row with where they
+   * landed. Discord failures throw before the row is stored.
+   */
+  private async addToCase(
+    moderationCase: ModerationCase,
+    draft: NewCaseProof,
+    uploads: ProofUpload[],
+  ): Promise<CaseProof | Exclude<CaseSkipReason, "failed">> {
+    const hosted = await this.deps.modLogMessageService.hostProof(
+      moderationCase,
+      draft,
+      uploads,
+    );
+    if (hosted.kind === "retry_later") {
+      return "retry_later";
+    }
+    if (hosted.kind === "no_mod_log") {
+      return "no_mod_log_for_files";
+    }
+
+    const [row] = await this.deps.caseProofRepository.add([
+      {
+        ...draft,
+        attachments: hosted.kind === "hosted" ? hosted.attachmentUrls : [],
+        hostMessageId: hosted.hostMessageId,
+      },
+    ]);
+    return row;
   }
 
   /** null when any case is gone. */

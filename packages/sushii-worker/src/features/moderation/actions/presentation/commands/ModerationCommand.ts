@@ -689,7 +689,8 @@ export class ModerationCommand extends SlashCommandHandler {
     try {
       await this.moderationService.addActionProof(cases, executorId, url);
     } catch (err) {
-      this.logger.warn(
+      // The proof file is lost, so this is an error even though the action stands.
+      this.logger.error(
         {
           err,
           guildId: cases[0]?.guildId,

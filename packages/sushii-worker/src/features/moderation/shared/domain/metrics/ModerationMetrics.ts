@@ -59,6 +59,7 @@ export type ProofAddOutcome =
   | "no_mod_log_for_files"
   | "retry_later"
   | "cases_not_found"
+  | "not_added"
   | "failed";
 
 /** Recording is synchronous and must never throw into the feature. */

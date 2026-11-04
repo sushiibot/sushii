@@ -27,6 +27,7 @@ import {
   isCaseViewMessage,
   loadCaseViewMessages,
 } from "@/features/moderation/mod-view/presentation/views/CaseView";
+import { proofFileMaxBytes } from "@/features/moderation/shared/application/proofDownloads";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
@@ -149,7 +150,12 @@ export class AddProofButtonHandler extends ButtonHandler {
     ]);
     if (cases.length === 0) {
       await interaction.reply(
-        proofNotice(proofErrorText("cases_not_found", ADD_PROOF_EMPTY_HINT)),
+        proofNotice(
+          proofErrorText("cases_not_found", {
+            emptyHint: ADD_PROOF_EMPTY_HINT,
+            maxFileBytes: proofFileMaxBytes(interaction.attachmentSizeLimit),
+          }),
+        ),
       );
       return;
     }
@@ -202,7 +208,11 @@ export class AddProofButtonHandler extends ButtonHandler {
     try {
       await this.addAndRefresh(submission, caseIds, origin, content, files);
     } catch (err) {
-      // The deferred update shows nothing, so say so privately; the router logs it.
+      // Logged here instead of the router: its reply would be a second error message.
+      this.deps.logger.error(
+        { err, guildId: submission.guildId, caseIds, origin },
+        "Failed to add proof",
+      );
       await submission
         .followUp(
           getErrorMessage(
@@ -217,7 +227,6 @@ export class AddProofButtonHandler extends ButtonHandler {
             "Failed to tell the mod adding proof failed",
           );
         });
-      throw err;
     }
   }
 
@@ -241,7 +250,13 @@ export class AddProofButtonHandler extends ButtonHandler {
     });
     if (result.err) {
       await submission.followUp(
-        proofNotice(proofErrorText(result.val, ADD_PROOF_EMPTY_HINT)),
+        proofNotice(
+          proofErrorText(result.val, {
+            emptyHint: ADD_PROOF_EMPTY_HINT,
+            typed: content,
+            maxFileBytes: proofFileMaxBytes(submission.attachmentSizeLimit),
+          }),
+        ),
       );
       return;
     }
@@ -328,10 +343,13 @@ export class AddProofButtonHandler extends ButtonHandler {
     const emojis = await this.deps.emojiRepository.getEmojis(
       HISTORY_ACTION_EMOJIS,
     );
-    const [first, ...rest] = await loadCaseViewMessages(
+    const [first] = await loadCaseViewMessages(
       moderationCase,
       emojis,
       sources,
+      {
+        firstOnly: true,
+      },
     );
 
     // An edit can't set Ephemeral; the message keeps its own flags.
@@ -339,8 +357,5 @@ export class AddProofButtonHandler extends ButtonHandler {
       ...first,
       flags: MessageFlags.IsComponentsV2,
     });
-    for (const message of rest) {
-      await submission.followUp(message);
-    }
   }
 }
