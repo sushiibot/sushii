@@ -50,10 +50,6 @@ export class DiscordModLogService implements ModLogService {
         return Err("Mod log not enabled or channel not configured");
       }
 
-      const message = await this.modLogMessageService.render(moderationCase, {
-        targetUser: target.user,
-      });
-
       // Fetch and send to mod log channel
       const guild = this.client.guilds.cache.get(guildId);
       if (!guild) {
@@ -63,11 +59,16 @@ export class DiscordModLogService implements ModLogService {
       const modLogChannel = await guild.channels.fetch(
         guildConfig.loggingSettings.modLogChannel,
       );
-      if (!modLogChannel || !modLogChannel.isTextBased()) {
+      if (!modLogChannel?.isSendable()) {
         return Err("Mod log channel not found or not text-based");
       }
 
-      const sentMessage = await modLogChannel.send(message);
+      // Carries proof files not hosted anywhere yet, e.g. from the action.
+      const sentMessage = await this.modLogMessageService.postEntry(
+        modLogChannel,
+        moderationCase,
+        { targetUser: target.user },
+      );
 
       this.logger.info(
         {

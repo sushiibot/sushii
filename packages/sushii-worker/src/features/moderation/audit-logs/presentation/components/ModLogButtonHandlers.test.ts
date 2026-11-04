@@ -614,7 +614,7 @@ describe("legacy entry whose REST conversion fails (real ModLogMessageService)",
           Object.fromEntries(names.map((n) => [n, ""])),
         ),
       } as never,
-      { markDmDeleted: mock(async () => undefined) },
+      { markDmDeleted: mock(async () => undefined) } as never,
       { listByCase: mock(async () => []) } as never,
       pino({ level: "silent" }),
     );

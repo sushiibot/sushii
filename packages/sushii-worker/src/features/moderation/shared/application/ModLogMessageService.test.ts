@@ -23,6 +23,7 @@ import {
   MORE_PROOF_LINE_RESERVE,
   ModLogMessageService,
 } from "./ModLogMessageService";
+import { postedFiles, postedFilesOf } from "./proofHosting";
 
 const GUILD = "187450744427773963";
 const TARGET = "912345678901234567";
@@ -178,6 +179,7 @@ function fakeMessage(
     edit: mock(async (payload: never) => postedFrom(payload, id, files)),
     reply: mock(async (payload: never) => postedFrom(payload, LOG_REPLY, [])),
     fetch: mock(async () => message),
+    delete: mock(async () => undefined),
   };
   return message;
 }
@@ -215,6 +217,9 @@ function setup(
     userFetch?: ReturnType<typeof mock>;
     proofs?: CaseProof[];
     banDmText?: string | null;
+    /** Called on every message fetch, so a test can serve the entry's latest state. */
+    current?: () => unknown;
+    findById?: ReturnType<typeof mock>;
   } = {},
 ) {
   const listByCase = mock(async () => options.proofs ?? []);
@@ -225,6 +230,7 @@ function setup(
   } as unknown as CaseProofRepository;
   const patch = mock(async () => undefined);
   const markDmDeleted = mock(async () => undefined);
+  const findById = options.findById ?? mock(async () => null);
   const recordModLogEdit = mock();
   const users = new Map([
     [
@@ -253,7 +259,10 @@ function setup(
             ? mock(async () => {
                 throw options.fetchError;
               })
-            : mock(async () => options.posted ?? v2Message(null)),
+            : mock(
+                async () =>
+                  options.current?.() ?? options.posted ?? v2Message(null),
+              ),
         },
       })),
     },
@@ -286,10 +295,11 @@ function setup(
       client,
       guildConfigRepository,
       emojiRepository,
-      { markDmDeleted },
+      { markDmDeleted, findById } as never,
       caseProofRepository,
       pino({ level: "silent" }),
       { recordModLogEdit },
+      { totalMs: 30, pollMs: 10 },
     ),
   };
 }
@@ -679,16 +689,99 @@ describe("ModLogMessageService.hostProof", () => {
     expect(recordModLogEdit).toHaveBeenCalledWith("v2", "ok");
   });
 
-  test("text-only proof that fits is shown on the entry", async () => {
-    const posted = v2Message(null);
-    const { service } = setup({ posted });
+  test("text-only proof edits the entry without touching its files", async () => {
+    const old = existingFiles(2);
+    const posted = v2Message(null, old);
+    const { service } = setup({
+      posted,
+      proofs: [
+        makeProof({
+          attachments: old.map((f) => f.url),
+          hostMessageId: LOG_MESSAGE,
+        }),
+      ],
+    });
 
     expect(await service.hostProof(makeCase(), draft(), [])).toEqual({
       kind: "text_only",
       hostMessageId: LOG_MESSAGE,
     });
-    expect(payloadText(editPayload(posted))).toContain("Same scam DMs");
-    expect(editPayload(posted).attachments).toEqual([]);
+    const payload = editPayload(posted);
+    expect(payloadText(payload)).toContain("Same scam DMs");
+    // Omitted, so Discord keeps every file; an empty list would drop them.
+    expect(payload.attachments).toBeUndefined();
+    expect(payload.files).toBeUndefined();
+  });
+
+  test("files for an entry still being posted wait for it, then retry later", async () => {
+    const pendingCase = makeCase({ msgId: null, pending: true });
+    const posted = v2Message(null);
+    const appears = setup({
+      posted,
+      findById: mock(async () => makeCase()),
+    });
+    expect(
+      await appears.service.hostProof(pendingCase, draft(), [upload("a.png")]),
+    ).toMatchObject({ kind: "hosted", hostMessageId: LOG_MESSAGE });
+
+    const stillPending = setup({ findById: mock(async () => pendingCase) });
+    expect(
+      await stillPending.service.hostProof(pendingCase, draft(), [
+        upload("a.png"),
+      ]),
+    ).toEqual({ kind: "retry_later" });
+
+    const unfetchable = setup({ fetchError: new Error("Unknown Message") });
+    expect(
+      await unfetchable.service.hostProof(makeCase(), draft(), [
+        upload("a.png"),
+      ]),
+    ).toEqual({ kind: "retry_later" });
+  });
+
+  test("two proofs added at once both keep every file", async () => {
+    let latest = v2Message(null);
+    const track = <T extends ReturnType<typeof fakeMessage>>(message: T): T => {
+      const edit = message.edit;
+      message.edit = mock(async (payload: never) => {
+        const next = track(
+          (await edit(payload)) as ReturnType<typeof fakeMessage>,
+        );
+        latest = next as typeof latest;
+        return next;
+      }) as typeof message.edit;
+      return message;
+    };
+    track(latest);
+    const stored: CaseProof[] = [];
+    const { service, updateHosting } = setup({
+      current: () => latest,
+      proofs: stored,
+    });
+    updateHosting.mockImplementation(async () => undefined);
+
+    const results = await Promise.all(
+      ["a.png", "b.png"].map(async (name, i) => {
+        const result = await service.hostProof(makeCase(), draft(), [
+          upload(name),
+        ]);
+        const urls = (result as { attachmentUrls: string[] }).attachmentUrls;
+        stored.push(
+          makeProof({
+            id: String(i + 1),
+            attachments: urls,
+            hostMessageId: LOG_MESSAGE,
+          }),
+        );
+        return urls;
+      }),
+    );
+
+    const onEntry = postedFiles(postedFilesOf(latest as never)).map(
+      (f) => f.url,
+    );
+    expect(onEntry.sort()).toEqual(results.flat().sort());
+    expect(onEntry).toHaveLength(2);
   });
 
   test("10 files on the entry fit; an 11th goes to a reply", async () => {
@@ -741,11 +834,12 @@ describe("ModLogMessageService.hostProof", () => {
     // The entry without proof, plus what the draft's lines add, as hostProof measures it.
     const base = messageTextLength(await setup().service.render(withReason()));
     const meta = proofEntryText(
-      { ...draft(), content: null },
       {
-        lock: "",
-        attachment: "",
+        ...draft(),
+        content: null,
+        attachments: ["attachment://1_ticket.png"],
       },
+      { lock: "", attachment: "" },
     );
     const longest =
       MESSAGE_TEXT_MAX_LENGTH -
@@ -758,9 +852,9 @@ describe("ModLogMessageService.hostProof", () => {
     const fits = await setup({ posted: fitting }).service.hostProof(
       withReason(),
       draft({ content: "a".repeat(longest) }),
-      [],
+      [upload("ticket.png")],
     );
-    expect(fits).toEqual({ kind: "text_only", hostMessageId: LOG_MESSAGE });
+    expect(fits).toMatchObject({ kind: "hosted", hostMessageId: LOG_MESSAGE });
     expect(fitting.reply).not.toHaveBeenCalled();
 
     const full = v2Message(null);
@@ -818,7 +912,7 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     fetchSpy.mockReset();
   });
 
-  test("refresh re-uploads a response-hosted file onto the entry", async () => {
+  test("adoption re-uploads a response-hosted file onto the entry; refresh never downloads", async () => {
     fetchSpy.mockResolvedValue(
       new Response(Buffer.from("png"), {
         headers: { "content-type": "image/png" },
@@ -834,9 +928,13 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     });
 
     expect(await service.refresh(makeCase())).toBe("updated");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(editPayload(posted).files).toBeUndefined();
+
+    await service.adoptUnhosted(makeCase());
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const upload = editPayload(posted);
+    const upload = editPayload(posted, 1);
     expect(upload.files?.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
     expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
       attachments: [expect.stringContaining("/1_dm-screenshot.png?ex=")],
@@ -845,19 +943,66 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     expect(updateHosting).toHaveBeenCalledTimes(1);
   });
 
-  test("a file that can't be downloaded is skipped and the refresh still runs", async () => {
+  test("a file Discord no longer serves is dropped from the row, not hosted", async () => {
     fetchSpy.mockResolvedValue(new Response("gone", { status: 404 }));
     const posted = v2Message(null);
     const { service, updateHosting } = setup({
       posted,
-      proofs: [makeProof({ source: "action", attachments: [RESPONSE_URL] })],
+      proofs: [
+        makeProof({ id: "7", source: "action", attachments: [RESPONSE_URL] }),
+      ],
     });
 
-    expect(await service.refresh(makeCase())).toBe("updated");
-    expect(updateHosting).not.toHaveBeenCalled();
-    expect(posted.edit).toHaveBeenCalledTimes(1);
+    await service.adoptUnhosted(makeCase());
+
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
+      attachments: [],
+      hostMessageId: null,
+    });
     expect(editPayload(posted).files).toBeUndefined();
-    expect(payloadText(editPayload(posted))).toContain(RESPONSE_URL);
+  });
+
+  test("a download that may work later leaves the proof for the next try", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(Buffer.from("png")));
+    fetchSpy.mockResolvedValueOnce(new Response("busy", { status: 503 }));
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [
+        makeProof({
+          id: "7",
+          source: "action",
+          attachments: [RESPONSE_URL, RESPONSE_URL.replace("dm-", "b-")],
+        }),
+      ],
+    });
+
+    await service.adoptUnhosted(makeCase());
+
+    expect(updateHosting).not.toHaveBeenCalled();
+    expect(posted.edit).not.toHaveBeenCalled();
+  });
+
+  test("files over the size cap and other hosts stay where they are", async () => {
+    fetchSpy.mockResolvedValue(
+      new Response("x", {
+        headers: { "content-length": String(50 * 1024 * 1024) },
+      }),
+    );
+    const { service, updateHosting } = setup({
+      proofs: [
+        makeProof({
+          id: "7",
+          source: "action",
+          attachments: [RESPONSE_URL, "https://example.com/a.png"],
+        }),
+      ],
+    });
+
+    await service.adoptUnhosted(makeCase());
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(updateHosting).not.toHaveBeenCalled();
   });
 
   test("the first post carries unhosted files", async () => {
@@ -969,5 +1114,104 @@ describe("ModLogMessageService oversized proof", () => {
       attachments: [],
       hostMessageId: LOG_REPLY,
     });
+  });
+});
+
+describe("ModLogMessageService keeping the entry within limits", () => {
+  test("a reason edited after proof moves proof that no longer fits into replies", async () => {
+    const proofs = ["x", "y", "z"].map((c, i) =>
+      makeProof({
+        id: String(i + 1),
+        content: c.repeat(i === 0 ? 200 : 1000),
+        hostMessageId: LOG_MESSAGE,
+      }),
+    );
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({ posted, proofs });
+    const withReason = (reason: string) =>
+      new ModerationCase(
+        GUILD,
+        "4822",
+        ActionType.Ban,
+        new Date("2026-10-27T11:00:00.000Z"),
+        TARGET,
+        "spambot",
+        EXECUTOR,
+        Reason.create(reason).unwrap(),
+        LOG_MESSAGE,
+        [],
+        DM,
+      );
+
+    expect(await service.refresh(withReason("short"))).toBe("updated");
+    expect(posted.reply).not.toHaveBeenCalled();
+
+    expect(await service.refresh(withReason("r".repeat(3000)))).toBe("updated");
+
+    // Newest first until it fits; the oldest, short one stays.
+    expect(updateHosting).toHaveBeenCalledTimes(2);
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "2", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "3", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    const entry = editPayload(posted, 1);
+    expect(messageTextLength(entry)).toBeLessThanOrEqual(4000);
+    expect(payloadText(entry)).toContain("r".repeat(3000));
+    expect(payloadText(entry)).toContain("x".repeat(200));
+    expect(payloadText(entry)).not.toContain("y".repeat(1000));
+    expect(payloadText(entry)).toContain("More proof in the reply below");
+    const replies = posted.reply.mock.calls.map((call) =>
+      payloadText(call[0] as never),
+    );
+    expect(replies[0]).toContain("y".repeat(1000));
+    expect(replies[1]).toContain("z".repeat(1000));
+  });
+
+  test("a legacy embed entry is converted before it gets files", async () => {
+    const legacy = legacyMessage([]);
+    const converted = v2Message(null);
+    const withFetch = Object.assign(legacy, {
+      fetch: mock(async () => converted),
+    });
+    const { service, patch } = setup({ posted: withFetch });
+
+    const result = await service.hostProof(makeCase(), draft(), [
+      upload("shot.png"),
+    ]);
+
+    expect(patch).toHaveBeenCalledTimes(1);
+    expect(withFetch.fetch).toHaveBeenCalledWith(true);
+    expect(legacy.edit).not.toHaveBeenCalled();
+    expect(editPayload(converted).files?.map((f) => f.name)).toEqual([
+      "1_shot.png",
+    ]);
+    expect(result).toMatchObject({
+      kind: "hosted",
+      hostMessageId: LOG_MESSAGE,
+    });
+  });
+
+  test("a reply that fails partway deletes the parts already posted", async () => {
+    const posted = v2Message(null);
+    const first = fakeMessage(LOG_REPLY, []);
+    first.reply.mockRejectedValueOnce(new Error("Missing Permissions"));
+    posted.reply.mockResolvedValueOnce(first as never);
+    const { service } = setup({ posted });
+
+    await expect(
+      service.hostProof(
+        makeCase(),
+        draft({
+          content: "c".repeat(1000),
+          sourceContent: "a\n".repeat(1000),
+        }),
+        [],
+      ),
+    ).rejects.toThrow("Failed to post proof replies");
+    expect(first.delete).toHaveBeenCalledTimes(1);
   });
 });

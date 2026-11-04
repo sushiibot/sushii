@@ -1,3 +1,4 @@
+import { sleep } from "bun";
 import type {
   ButtonInteraction,
   Client,
@@ -11,7 +12,6 @@ import type { Logger } from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
-import { getCleanFilename } from "@/utils/url";
 
 import type { CaseProof, NewCaseProof } from "../domain/entities/CaseProof";
 import type { ModerationCase } from "../domain/entities/ModerationCase";
@@ -46,8 +46,11 @@ import {
   proofReplyParts,
 } from "../presentation/views/ModLogProofReplyView";
 import { guildDmText } from "./DMNotificationService";
+import { KeyedMutex } from "./KeyedMutex";
 import {
   type ProofUpload,
+  downloadProofFile,
+  isDownloadableProofUrl,
   postedFiles,
   postedFilesOf,
   uniqueUploadNames,
@@ -59,11 +62,13 @@ export type { ProofUpload } from "./proofHosting";
 /**
  * - `hosted`: files went on the entry or an overflow reply to it
  * - `text_only`: no files; hostMessageId is where the text shows, null when there's no entry yet
- * - `no_mod_log`: files given but there's no entry or channel to hold them
+ * - `retry_later`: files given, but the entry is still being posted or couldn't be fetched
+ * - `no_mod_log`: files given, but there's no mod log channel or the case never got an entry
  */
 export type ProofHostResult =
   | { kind: "hosted"; hostMessageId: string; attachmentUrls: string[] }
   | { kind: "text_only"; hostMessageId: string | null }
+  | { kind: "retry_later" }
   | { kind: "no_mod_log" };
 
 /** A proof as the entry places it: a stored row, or a draft the caller inserts afterwards. */
@@ -77,8 +82,15 @@ export const MORE_PROOF_LINE_RESERVE = 130;
 export const DELETE_DM_PROMPT_RESERVE = 170;
 // A signed CDN link to an uploaded file, shown once its URL is known.
 const FILE_LINK_RESERVE = 300;
-const PROOF_DOWNLOAD_TIMEOUT_MS = 15_000;
+const PROOF_DOWNLOAD_TOTAL_MS = 20_000;
 const PROOF_DOWNLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+export interface PendingEntryWait {
+  totalMs: number;
+  pollMs: number;
+}
+
+const PENDING_ENTRY_WAIT: PendingEntryWait = { totalMs: 5_000, pollMs: 1_000 };
 
 export type ModLogRenderOptions = Pick<
   ModLogMessageInput,
@@ -95,6 +107,15 @@ interface PlaceResult {
   attachmentUrls: string[];
   /** The entry after the edit, when it was edited. */
   entry: Message;
+}
+
+interface EntryPlan<P> {
+  message: ModLogMessage;
+  /** Unhosted proof left off because the entry is full. */
+  omitted: P[];
+  /** Entry-hosted proof that no longer fits, e.g. after a longer reason, newest first. */
+  moved: P[];
+  textLength: number;
 }
 
 /**
@@ -124,10 +145,17 @@ type MessageInteraction =
   | ButtonInteraction<"cached">
   | ModalMessageModalSubmitInteraction<"cached">;
 
+/**
+ * - `files`: downloaded, ready to upload
+ * - `kept`: URLs that stay as they are (other hosts, too large)
+ * - `dead`: URLs Discord no longer serves
+ * - `retry`: a download failed in a way worth retrying, so nothing moves this time
+ */
 interface DownloadedProof {
   files: ProofUpload[];
-  /** URLs that couldn't be downloaded, kept so the row still points at them. */
-  failed: string[];
+  kept: string[];
+  dead: string[];
+  retry: boolean;
 }
 
 /**
@@ -138,7 +166,7 @@ function isAdoptable(proof: CaseProof): boolean {
   return (
     proof.hostMessageId === null &&
     proof.source !== "backfill" &&
-    proof.attachments.some(Boolean)
+    proof.attachments.some(isDownloadableProofUrl)
   );
 }
 
@@ -161,6 +189,10 @@ function toAttachment(file: ProofUpload, name: string): AttachmentBuilder {
   return new AttachmentBuilder(file.data, { name });
 }
 
+function caseKey(moderationCase: ModerationCase): string {
+  return `${moderationCase.guildId}:${moderationCase.caseId}`;
+}
+
 function defaultAvatarURL(userId: string): string {
   let index = 0n;
   try {
@@ -175,30 +207,62 @@ function defaultAvatarURL(userId: string): string {
  * Renders mod log entries from a case and keeps posted entries in sync with
  * the database row. Every edit goes through here so legacy embed entries are
  * converted the same way.
+ *
+ * Work that reads an entry's files and then edits it is serialised per case,
+ * so no edit is built from a stale list of the files to keep.
  */
 export class ModLogMessageService {
+  private readonly caseLock = new KeyedMutex();
+
   constructor(
     private readonly client: Client,
     private readonly guildConfigRepository: GuildConfigRepository,
     private readonly emojiRepository: BotEmojiRepository,
-    private readonly modLogRepository: Pick<ModLogRepository, "markDmDeleted">,
+    private readonly modLogRepository: Pick<
+      ModLogRepository,
+      "markDmDeleted" | "findById"
+    >,
     private readonly caseProofRepository: CaseProofRepository,
     private readonly logger: Logger,
     private readonly metrics: Pick<
       ModerationMetrics,
       "recordModLogEdit"
     > = NOOP_MODERATION_METRICS,
+    private readonly pendingEntryWait: PendingEntryWait = PENDING_ENTRY_WAIT,
   ) {}
 
+  /**
+   * Renders the case's entry. Given the posted entry, proof that no longer
+   * fits on it is moved into replies first, so nothing is left off.
+   */
   async render(
     moderationCase: ModerationCase,
     options: ModLogRenderOptions = {},
   ): Promise<ModLogMessage> {
-    const proofs = await this.caseProofRepository.listByCase(
+    const entry = options.currentMessage;
+    if (!entry || entry.id !== moderationCase.msgId) {
+      return this.renderWithProofs(
+        moderationCase,
+        options,
+        await this.listProofs(moderationCase),
+      );
+    }
+
+    return this.caseLock.run(caseKey(moderationCase), async () => {
+      const proofs = await this.relocateOverflow(
+        entry,
+        moderationCase,
+        await this.listProofs(moderationCase),
+      );
+      return this.renderWithProofs(moderationCase, options, proofs, entry.id);
+    });
+  }
+
+  private listProofs(moderationCase: ModerationCase): Promise<CaseProof[]> {
+    return this.caseProofRepository.listByCase(
       moderationCase.guildId,
       moderationCase.caseId,
     );
-    return this.renderWithProofs(moderationCase, options, proofs);
   }
 
   private async renderWithProofs(
@@ -211,13 +275,17 @@ export class ModLogMessageService {
       .message;
   }
 
-  /** Renders the entry, plus the unhosted proof that didn't fit on it. */
+  /**
+   * Renders the entry with as much proof as fits. Entry-hosted proof stays
+   * unless it no longer fits (newest goes first); unhosted proof is added
+   * while it fits.
+   */
   private async planEntry<P extends PlacedProof>(
     moderationCase: ModerationCase,
     options: ModLogRenderOptions,
     proofs: readonly P[],
     entryId: string | null,
-  ): Promise<{ message: ModLogMessage; omitted: P[]; textLength: number }> {
+  ): Promise<EntryPlan<P>> {
     const { targetUser, currentMessage, ...viewOptions } = options;
     const executorId = moderationCase.executorId ?? this.client.user?.id;
 
@@ -268,24 +336,39 @@ export class ModLogMessageService {
         ...viewOptions,
       });
 
-    // Proof hosted on the entry always fits; unhosted proof is shown while it
-    // fits and otherwise waits for adoption to move it into a reply.
-    const shown = new Set(
-      proofs.filter((p) => entryId !== null && p.hostMessageId === entryId),
+    // A shown confirm prompt is already in the text; otherwise keep room for it.
+    const limit =
+      MESSAGE_TEXT_MAX_LENGTH -
+      (viewOptions.confirmDeleteDm ? 0 : DELETE_DM_PROMPT_RESERVE);
+    const base = messageTextLength(build([]));
+
+    const onEntry = proofs.filter(
+      (p) => entryId !== null && p.hostMessageId === entryId,
     );
-    let length = messageTextLength(build([...shown]));
+    const moved: P[] = [];
+    let length = base + onEntry.reduce((n, p) => n + proofTextLength(p), 0);
+    if (length > limit) {
+      const linkLine = overflowHost ? 0 : MORE_PROOF_LINE_RESERVE;
+      while (onEntry.length > 0 && length + linkLine > limit) {
+        const newest = onEntry.pop() as P;
+        moved.push(newest);
+        length -= proofTextLength(newest);
+      }
+    }
+
+    const shown = new Set<P>(onEntry);
     for (const proof of proofs.filter((p) => p.hostMessageId === null)) {
       const added = proofTextLength(proof);
-      if (length + added <= MESSAGE_TEXT_MAX_LENGTH) {
+      if (length + added <= limit) {
         shown.add(proof);
         length += added;
       }
     }
 
-    const ordered = proofs.filter((p) => shown.has(p));
     return {
-      message: build(ordered),
+      message: build(proofs.filter((p) => shown.has(p))),
       omitted: proofs.filter((p) => p.hostMessageId === null && !shown.has(p)),
+      moved,
       textLength: length,
     };
   }
@@ -316,8 +399,15 @@ export class ModLogMessageService {
     return moderationCase.withDmDeleted();
   }
 
-  /** Fetches the case's posted entry and syncs a legacy DM deletion. */
-  async loadEntry(moderationCase: ModerationCase): Promise<ModLogEntry> {
+  /**
+   * Fetches the case's posted entry and syncs a legacy DM deletion. `fresh`
+   * skips the message cache, which an edit doesn't update until the gateway
+   * echoes it.
+   */
+  async loadEntry(
+    moderationCase: ModerationCase,
+    options: { fresh?: boolean } = {},
+  ): Promise<ModLogEntry> {
     if (!moderationCase.msgId) {
       return {
         moderationCase,
@@ -344,7 +434,12 @@ export class ModLogMessageService {
         );
         return { moderationCase, message: null, missing: "failed" };
       }
-      message = await channel.messages.fetch(moderationCase.msgId);
+      message = options.fresh
+        ? await channel.messages.fetch({
+            message: moderationCase.msgId,
+            force: true,
+          })
+        : await channel.messages.fetch(moderationCase.msgId);
     } catch (err) {
       this.logger.warn(
         {
@@ -368,8 +463,9 @@ export class ModLogMessageService {
 
   /**
    * Re-renders a loaded entry. Pass the entry's case or a newer copy of it.
-   * Proof files not hosted anywhere yet are moved onto the entry first.
-   * Best effort: failures are logged and returned, never thrown.
+   * Proof text that no longer fits moves into replies; files are never
+   * downloaded or uploaded here (see adoptUnhosted). Discord failures are
+   * logged and returned; repository errors throw.
    */
   async refreshEntry(
     entry: Pick<ModLogEntry, "message" | "missing">,
@@ -377,28 +473,33 @@ export class ModLogMessageService {
     options: Omit<ModLogRenderOptions, "currentMessage"> = {},
   ): Promise<ModLogRefreshOutcome> {
     // A deleted or inaccessible entry isn't an edit failure.
-    if (!entry.message) {
+    const message = entry.message;
+    if (!message) {
       return entry.missing ?? "no_message";
     }
 
-    const original = entry.message;
-    const stored = await this.caseProofRepository.listByCase(
-      moderationCase.guildId,
-      moderationCase.caseId,
-    );
-    const { proofs, message } = await this.adoptUnhosted(
-      original,
-      moderationCase,
-      stored,
-    );
-    const kind = isLegacyEntry(message) ? "legacy_conversion" : "v2";
-    const rendered = await this.renderWithProofs(
-      moderationCase,
-      { ...options, currentMessage: original },
-      proofs,
-      message.id,
-    );
+    return this.caseLock.run(caseKey(moderationCase), async () => {
+      const proofs = await this.relocateOverflow(
+        message,
+        moderationCase,
+        await this.listProofs(moderationCase),
+      );
+      const rendered = await this.renderWithProofs(
+        moderationCase,
+        { ...options, currentMessage: message },
+        proofs,
+        message.id,
+      );
+      return this.applyRefresh(message, moderationCase, rendered);
+    });
+  }
 
+  private async applyRefresh(
+    message: Message,
+    moderationCase: ModerationCase,
+    rendered: ModLogMessage,
+  ): Promise<ModLogRefreshOutcome> {
+    const kind = isLegacyEntry(message) ? "legacy_conversion" : "v2";
     try {
       if (kind === "legacy_conversion") {
         await this.convertLegacyEntry(
@@ -427,7 +528,7 @@ export class ModLogMessageService {
     }
   }
 
-  /** loadEntry then refreshEntry. Best effort, never throws for Discord failures. */
+  /** loadEntry then refreshEntry. Discord failures are returned, not thrown. */
   async refresh(
     moderationCase: ModerationCase,
     options: Omit<ModLogRenderOptions, "currentMessage"> = {},
@@ -437,69 +538,139 @@ export class ModLogMessageService {
   }
 
   /**
-   * Puts a new proof entry on the case's mod log entry, or in a reply to it
+   * Puts a new proof entry on the case's mod log entry, or in replies to it
    * when the entry is full. The caller stores the row with the result.
-   * Throws when Discord rejects the edit or reply.
+   * Waits a few seconds for an entry that's still being posted. Throws when
+   * Discord rejects the edit or reply.
    */
   async hostProof(
     moderationCase: ModerationCase,
     draft: NewCaseProof,
     files: ProofUpload[],
   ): Promise<ProofHostResult> {
-    const entry = await this.loadEntry(moderationCase);
-    if (!entry.message) {
+    return this.caseLock.run(caseKey(moderationCase), async () => {
+      const entry = await this.awaitEntry(moderationCase, files.length > 0);
+      if (!entry.message) {
+        if (files.length === 0) {
+          return { kind: "text_only", hostMessageId: null };
+        }
+        return entry.missing === "pending" || entry.missing === "failed"
+          ? { kind: "retry_later" }
+          : { kind: "no_mod_log" };
+      }
+
+      const proofs = await this.relocateOverflow(
+        entry.message,
+        entry.moderationCase,
+        await this.listProofs(moderationCase),
+      );
+      const placed = await this.placeProof(
+        entry.message,
+        entry.moderationCase,
+        proofs,
+        { ...draft, createdAt: draft.createdAt ?? new Date() },
+        files,
+      );
+
       return files.length > 0
-        ? { kind: "no_mod_log" }
-        : { kind: "text_only", hostMessageId: null };
+        ? {
+            kind: "hosted",
+            hostMessageId: placed.hostMessageId,
+            attachmentUrls: placed.attachmentUrls,
+          }
+        : { kind: "text_only", hostMessageId: placed.hostMessageId };
+    });
+  }
+
+  /** The case's entry, waiting briefly while the audit log post is still pending. */
+  private async awaitEntry(
+    moderationCase: ModerationCase,
+    wait: boolean,
+  ): Promise<ModLogEntry> {
+    let entry = await this.loadEntry(moderationCase, { fresh: true });
+    const deadline = Date.now() + this.pendingEntryWait.totalMs;
+    while (wait && entry.missing === "pending" && Date.now() < deadline) {
+      await sleep(this.pendingEntryWait.pollMs);
+      const current = await this.modLogRepository.findById(
+        moderationCase.guildId,
+        moderationCase.caseId,
+      );
+      if (!current) {
+        break;
+      }
+      entry = await this.loadEntry(current, { fresh: true });
     }
 
-    const stored = await this.caseProofRepository.listByCase(
-      moderationCase.guildId,
-      moderationCase.caseId,
-    );
-    // Files already waiting go first, so the entry's files are all real attachments.
-    const adopted = await this.adoptUnhosted(
-      entry.message,
-      entry.moderationCase,
-      stored,
-    );
-    const placed = await this.placeProof(
-      adopted.message,
-      entry.moderationCase,
-      adopted.proofs,
-      { ...draft, createdAt: draft.createdAt ?? new Date() },
-      files,
-    );
+    return entry;
+  }
 
-    return files.length > 0
-      ? {
-          kind: "hosted",
-          hostMessageId: placed.hostMessageId,
-          attachmentUrls: placed.attachmentUrls,
-        }
-      : { kind: "text_only", hostMessageId: placed.hostMessageId };
+  /**
+   * Moves proof files that live elsewhere (the action response) onto the
+   * case's entry or replies to it, so the mod log holds every proof file.
+   * Downloads and uploads, so call it outside an interaction's 3 seconds.
+   */
+  async adoptUnhosted(moderationCase: ModerationCase): Promise<void> {
+    await this.caseLock.run(caseKey(moderationCase), async () => {
+      const entry = await this.loadEntry(moderationCase, { fresh: true });
+      if (!entry.message) {
+        return;
+      }
+
+      const adopted = await this.adoptInto(
+        entry.message,
+        entry.moderationCase,
+        await this.listProofs(moderationCase),
+      );
+      if (adopted.changed) {
+        await this.applyRefresh(
+          adopted.message,
+          entry.moderationCase,
+          await this.renderWithProofs(
+            entry.moderationCase,
+            { currentMessage: adopted.message },
+            adopted.proofs,
+            adopted.message.id,
+          ),
+        );
+      }
+    });
   }
 
   /**
    * Posts a new entry. Proof files not hosted anywhere yet go up with it when
-   * they fit, since a refresh may never run for this case.
+   * they fit, since a refresh may never run for this case; the rest go into
+   * replies right after.
    */
   async postEntry(
     channel: SendableChannels,
     moderationCase: ModerationCase,
     options: Omit<ModLogRenderOptions, "currentMessage"> = {},
   ): Promise<Message> {
-    const proofs = await this.caseProofRepository.listByCase(
-      moderationCase.guildId,
-      moderationCase.caseId,
+    return this.caseLock.run(caseKey(moderationCase), () =>
+      this.postEntryLocked(channel, moderationCase, options),
     );
+  }
+
+  private async postEntryLocked(
+    channel: SendableChannels,
+    moderationCase: ModerationCase,
+    options: Omit<ModLogRenderOptions, "currentMessage">,
+  ): Promise<Message> {
+    const proofs = await this.listProofs(moderationCase);
+    const downloads = new Map<string, DownloadedProof>();
+    const deadline = Date.now() + PROOF_DOWNLOAD_TOTAL_MS;
 
     const uploads: { proof: CaseProof; download: DownloadedProof }[] = [];
     let fileCount = 0;
     for (const proof of proofs.filter(isAdoptable)) {
-      const download = await this.downloadProofFiles(proof);
+      const download = await this.downloadProofFiles(proof, deadline);
+      downloads.set(proof.id, download);
       const count = download.files.length;
-      if (count === 0 || fileCount + count > MESSAGE_FILES_MAX) {
+      if (
+        download.retry ||
+        count === 0 ||
+        fileCount + count > MESSAGE_FILES_MAX
+      ) {
         continue;
       }
       uploads.push({ proof, download });
@@ -519,18 +690,20 @@ export class ModLogMessageService {
       );
       offset += download.files.length;
     }
+    const keptOf = (proof: CaseProof) =>
+      uploads.find((u) => u.proof.id === proof.id)?.download.kept ?? [];
 
-    const pending = (urlsOf: (proof: CaseProof) => string[]) =>
-      proofs.map((proof) =>
-        namesOf.has(proof.id)
-          ? { ...proof, attachments: urlsOf(proof) }
-          : proof,
-      );
-    const withRefs = pending((proof) => [
-      ...(namesOf.get(proof.id) ?? []).map((n) => `attachment://${n}`),
-      ...(uploads.find((u) => u.proof.id === proof.id)?.download.failed ?? []),
-    ]);
-
+    const withRefs = proofs.map((proof) =>
+      namesOf.has(proof.id)
+        ? {
+            ...proof,
+            attachments: [
+              ...(namesOf.get(proof.id) ?? []).map((n) => `attachment://${n}`),
+              ...keptOf(proof),
+            ],
+          }
+        : proof,
+    );
     const plan = await this.planEntry(moderationCase, options, withRefs, null);
     const uploadIds = new Set(uploads.map((u) => u.proof.id));
     const carriesUploads =
@@ -538,70 +711,52 @@ export class ModLogMessageService {
       !plan.omitted.some((p) => uploadIds.has(p.id)) &&
       this.fitsOnEntry(plan.textLength, withRefs, null, 0, names);
 
+    let sent: Message;
+    let current: CaseProof[] = proofs;
     if (!carriesUploads) {
-      const sent = await channel.send(
+      sent = await channel.send(
         await this.renderWithProofs(moderationCase, options, proofs, null),
       );
-      await this.adoptAfterPost(sent, moderationCase, proofs, options);
-      return sent;
-    }
-
-    const sent = await channel.send({
-      ...plan.message,
-      files: uploads
-        .flatMap((u) => u.download.files)
-        .map((file, i) => toAttachment(file, names[i] ?? file.name)),
-    });
-
-    const urls = uploadedUrls(postedFilesOf(sent), names, new Set());
-    const hosted = new Map<string, string[]>();
-    for (const { proof, download } of uploads) {
-      const own = namesOf.get(proof.id) ?? [];
-      const newUrls = own
-        .map((name) => urls[names.indexOf(name)])
-        .filter((url): url is string => !!url);
-      hosted.set(proof.id, [...newUrls, ...download.failed]);
-    }
-    const current = pending((proof) => hosted.get(proof.id) ?? []).map(
-      (proof) =>
-        hosted.has(proof.id) ? { ...proof, hostMessageId: sent.id } : proof,
-    );
-
-    try {
+    } else {
+      sent = await channel.send({
+        ...plan.message,
+        files: uploads
+          .flatMap((u) => u.download.files)
+          .map((file, i) => toAttachment(file, names[i] ?? file.name)),
+      });
+      const urls = uploadedUrls(postedFilesOf(sent), names, new Set());
+      const hosted = new Map<string, string[]>();
       for (const { proof } of uploads) {
-        await this.saveHosting(proof, hosted.get(proof.id) ?? [], sent.id);
+        const own = (namesOf.get(proof.id) ?? [])
+          .map((name) => urls[names.indexOf(name)])
+          .filter((url): url is string => !!url);
+        hosted.set(proof.id, [...own, ...keptOf(proof)]);
       }
-    } catch (err) {
-      // The entry is already posted; failing here would post it twice on retry.
-      this.logger.warn(
-        { err, guildId: moderationCase.guildId, caseId: moderationCase.caseId },
-        "Failed to save proof hosting after posting the mod log entry",
-      );
-      return sent;
+      current = proofs.map((proof) => {
+        const attachments = hosted.get(proof.id);
+        return attachments
+          ? { ...proof, attachments, hostMessageId: sent.id }
+          : proof;
+      });
     }
 
-    if (names.some((name) => !isGalleryMedia(name))) {
-      await this.bestEffortEdit(
-        sent,
-        await this.renderWithProofs(moderationCase, options, current, sent.id),
-        moderationCase,
-      );
-    }
-    await this.adoptAfterPost(sent, moderationCase, current, options);
-
-    return sent;
-  }
-
-  /** Moves proof the first post couldn't hold into replies. Best effort. */
-  private async adoptAfterPost(
-    sent: Message,
-    moderationCase: ModerationCase,
-    proofs: CaseProof[],
-    options: Omit<ModLogRenderOptions, "currentMessage">,
-  ): Promise<void> {
+    // The entry is posted; failing from here would post it twice on retry.
     try {
-      const adopted = await this.adoptUnhosted(sent, moderationCase, proofs);
-      if (adopted.changed) {
+      for (const proof of current) {
+        if (uploadIds.has(proof.id) && carriesUploads) {
+          await this.saveHosting(proof, proof.attachments, sent.id);
+        }
+      }
+
+      const adopted = await this.adoptInto(
+        sent,
+        moderationCase,
+        current,
+        downloads,
+      );
+      const needsEdit =
+        adopted.changed || names.some((name) => !isGalleryMedia(name));
+      if (needsEdit) {
         await this.bestEffortEdit(
           adopted.message,
           await this.renderWithProofs(
@@ -614,12 +769,13 @@ export class ModLogMessageService {
         );
       }
     } catch (err) {
-      // The entry is already posted; failing here would post it twice on retry.
       this.logger.warn(
         { err, guildId: moderationCase.guildId, caseId: moderationCase.caseId },
-        "Failed to move unhosted proof after posting the mod log entry",
+        "Failed to host proof after posting the mod log entry",
       );
     }
+
+    return sent;
   }
 
   private fitsOnEntry(
@@ -652,7 +808,6 @@ export class ModLogMessageService {
   /**
    * Adds one proof to the entry, keeping the files already on it, or posts it
    * as replies when the entry would go over 4000 characters or 10 files.
-   * `others` must all fit on the entry already.
    */
   private async placeProof(
     entryMessage: Message,
@@ -673,7 +828,11 @@ export class ModLogMessageService {
       existing.map((f) => f.filename),
     );
     const refs = names.map((n) => `attachment://${n}`);
-    const draft = { ...proof, attachments: refs, hostMessageId: entry.id };
+    const draft = {
+      ...proof,
+      attachments: [...refs, ...proof.attachments],
+      hostMessageId: entry.id,
+    };
     const onEntry = [...others, draft];
     // Measured without the draft, so an oversized draft never reaches a builder.
     const base = await this.planEntry(
@@ -711,7 +870,11 @@ export class ModLogMessageService {
             { currentMessage: edited },
             [
               ...others,
-              { ...proof, attachments: urls, hostMessageId: edited.id },
+              {
+                ...draft,
+                attachments: [...urls, ...proof.attachments],
+                hostMessageId: edited.id,
+              },
             ],
             edited.id,
           ),
@@ -740,7 +903,11 @@ export class ModLogMessageService {
           { currentMessage: entry },
           [
             ...others,
-            { ...proof, attachments: urls, hostMessageId: firstReplyId },
+            {
+              ...proof,
+              attachments: [...urls, ...proof.attachments],
+              hostMessageId: firstReplyId,
+            },
           ],
           entry.id,
         ),
@@ -753,7 +920,8 @@ export class ModLogMessageService {
 
   /**
    * Posts a proof as a chain of replies to the entry, split at line breaks so
-   * no reply passes 4000 characters. The last reply holds the files.
+   * no reply passes 4000 characters. The last reply holds the files. If a
+   * reply fails, the ones already posted are deleted.
    */
   private async postReplies(
     entry: Message,
@@ -765,7 +933,10 @@ export class ModLogMessageService {
     const emojis = await this.emojiRepository.getEmojis(MOD_LOG_EMOJIS);
     const pending = {
       ...proof,
-      attachments: names.map((n) => `attachment://${n}`),
+      attachments: [
+        ...names.map((n) => `attachment://${n}`),
+        ...proof.attachments,
+      ],
     };
     const parts = proofReplyParts(
       pending,
@@ -781,34 +952,123 @@ export class ModLogMessageService {
         part,
       });
 
+    const posted: Message[] = [];
     let previous = entry;
-    let firstReplyId: string | null = null;
     let urls: string[] = [];
-    for (const part of parts) {
-      const isLast = part.index === parts.length - 1;
-      const reply = await previous.reply({
-        ...render(part),
-        files: isLast
-          ? files.map((file, i) => toAttachment(file, names[i] ?? file.name))
-          : [],
-        failIfNotExists: false,
-      });
-      firstReplyId ??= reply.id;
-      previous = reply;
+    try {
+      for (const part of parts) {
+        const isLast = part.index === parts.length - 1;
+        const reply = await previous.reply({
+          ...render(part),
+          files: isLast
+            ? files.map((file, i) => toAttachment(file, names[i] ?? file.name))
+            : [],
+          failIfNotExists: false,
+        });
+        posted.push(reply);
+        previous = reply;
 
-      if (isLast) {
-        urls = this.collectUrls(reply, names, new Set(), moderationCase);
-        if (names.some((n) => !isGalleryMedia(n))) {
-          await this.bestEffortEdit(
-            reply,
-            render({ ...part, proof: { ...proof, attachments: urls } }),
-            moderationCase,
-          );
+        if (isLast) {
+          urls = this.collectUrls(reply, names, new Set(), moderationCase);
         }
       }
+    } catch (err) {
+      await this.deleteReplies(posted, moderationCase);
+      throw new Error("Failed to post proof replies", { cause: err });
     }
 
-    return { firstReplyId: firstReplyId ?? previous.id, urls };
+    const last = posted.at(-1);
+    const lastPart = parts.at(-1);
+    if (last && lastPart && names.some((n) => !isGalleryMedia(n))) {
+      await this.bestEffortEdit(
+        last,
+        render({
+          ...lastPart,
+          proof: { ...proof, attachments: [...urls, ...proof.attachments] },
+        }),
+        moderationCase,
+      );
+    }
+
+    return { firstReplyId: posted[0]?.id ?? entry.id, urls };
+  }
+
+  private async deleteReplies(
+    replies: readonly Message[],
+    moderationCase: ModerationCase,
+  ): Promise<void> {
+    for (const reply of replies) {
+      try {
+        await reply.delete();
+      } catch (err) {
+        this.logger.warn(
+          {
+            err,
+            guildId: moderationCase.guildId,
+            caseId: moderationCase.caseId,
+            messageId: reply.id,
+          },
+          "Failed to delete a partly posted proof reply",
+        );
+      }
+    }
+  }
+
+  /**
+   * Moves proof text the entry can no longer hold into replies: entry-hosted
+   * proof after the entry grew, and unhosted text-only proof. Files stay
+   * where they are. Best effort: stops at the first failure.
+   */
+  private async relocateOverflow(
+    entry: Message,
+    moderationCase: ModerationCase,
+    stored: CaseProof[],
+  ): Promise<CaseProof[]> {
+    const plan = await this.planEntry(
+      moderationCase,
+      { currentMessage: entry },
+      stored,
+      entry.id,
+    );
+    const movable = new Set<CaseProof>([
+      ...plan.moved,
+      ...plan.omitted.filter((p) => !p.attachments.some(Boolean)),
+    ]);
+    if (movable.size === 0) {
+      return stored;
+    }
+
+    let proofs = stored;
+    for (const proof of stored.filter((p) => movable.has(p))) {
+      let firstReplyId: string;
+      try {
+        ({ firstReplyId } = await this.postReplies(
+          entry,
+          moderationCase,
+          proof,
+          [],
+          [],
+        ));
+      } catch (err) {
+        this.logger.warn(
+          {
+            err,
+            guildId: moderationCase.guildId,
+            caseId: moderationCase.caseId,
+            proofId: proof.id,
+          },
+          "Failed to move proof that no longer fits into a reply",
+        );
+        break;
+      }
+
+      await this.saveHosting(proof, proof.attachments, firstReplyId);
+      proofs = proofs.map((p) =>
+        p.id === proof.id ? { ...p, hostMessageId: firstReplyId } : p,
+      );
+    }
+
+    return proofs;
   }
 
   private collectUrls(
@@ -851,6 +1111,8 @@ export class ModLogMessageService {
           entry.flags.bitfield,
           rendered,
         );
+      } else if (upload.files.length === 0) {
+        edited = await entry.edit(rendered);
       } else {
         edited = await entry.edit({
           ...rendered,
@@ -921,73 +1183,53 @@ export class ModLogMessageService {
   }
 
   /**
-   * Moves proof files that live elsewhere (the action response) onto the
-   * entry, so the mod log holds every proof file, and moves unhosted text
-   * that no longer fits on the entry into replies. Best effort per proof.
+   * Uploads unhosted proof files onto the entry or into replies, one proof
+   * at a time. A proof whose downloads might work later is left for the next
+   * try; files Discord no longer serves are dropped from the row.
    */
-  private async adoptUnhosted(
+  private async adoptInto(
     entryMessage: Message,
     moderationCase: ModerationCase,
     stored: CaseProof[],
+    downloaded: ReadonlyMap<string, DownloadedProof> = new Map(),
   ): Promise<{ proofs: CaseProof[]; message: Message; changed: boolean }> {
     let proofs = stored;
     let message = entryMessage;
     let changed = false;
+    const deadline = Date.now() + PROOF_DOWNLOAD_TOTAL_MS;
 
-    const { omitted } = await this.planEntry(
-      moderationCase,
-      { currentMessage: message },
-      stored,
-      message.id,
-    );
-    const work = stored.filter(
-      (p) =>
-        p.hostMessageId === null &&
-        p.source !== "backfill" &&
-        (isAdoptable(p) || omitted.includes(p)),
-    );
-
+    const work = stored.filter(isAdoptable);
     for (const [index, proof] of work.entries()) {
+      const download =
+        downloaded.get(proof.id) ??
+        (await this.downloadProofFiles(proof, deadline));
+      if (download.retry) {
+        continue;
+      }
+
+      if (download.files.length === 0) {
+        if (download.dead.length > 0) {
+          await this.dropDeadFiles(proof, download);
+          proofs = proofs.map((p) =>
+            p.id === proof.id ? { ...p, attachments: download.kept } : p,
+          );
+          changed = true;
+        }
+        continue;
+      }
+
       const later = new Set(work.slice(index + 1).map((p) => p.id));
       const others = proofs.filter(
         (p) => p.id !== proof.id && !later.has(p.id),
       );
-
-      let files: ProofUpload[] = [];
-      let kept = proof.attachments.filter(Boolean);
-      if (isAdoptable(proof)) {
-        const download = await this.downloadProofFiles(proof);
-        files = download.files;
-        kept = download.failed;
-      }
-
-      if (files.length === 0) {
-        const base = await this.planEntry(
-          moderationCase,
-          { currentMessage: message },
-          others,
-          message.id,
-        );
-        const fits = this.fitsOnEntry(
-          base.textLength + proofTextLength(proof),
-          [...others, proof],
-          message.id,
-          0,
-          [],
-        );
-        if (fits) {
-          continue;
-        }
-      }
-
       let placed: PlaceResult;
       try {
         placed = await this.placeProof(
           message,
           moderationCase,
           others,
-          proof,
-          files,
+          { ...proof, attachments: download.kept },
+          download.files,
         );
       } catch (err) {
         this.logger.warn(
@@ -997,12 +1239,15 @@ export class ModLogMessageService {
             caseId: moderationCase.caseId,
             proofId: proof.id,
           },
-          "Failed to move proof onto the mod log",
+          "Failed to move proof files onto the mod log",
         );
         continue;
       }
 
-      const attachments = [...placed.attachmentUrls, ...kept];
+      if (download.dead.length > 0) {
+        this.logDeadFiles(proof, download);
+      }
+      const attachments = [...placed.attachmentUrls, ...download.kept];
       await this.saveHosting(proof, attachments, placed.hostMessageId);
       changed = true;
       message = placed.entry;
@@ -1013,7 +1258,35 @@ export class ModLogMessageService {
       );
     }
 
-    return { proofs, message, changed };
+    return {
+      proofs: await this.relocateOverflow(message, moderationCase, proofs),
+      message,
+      changed,
+    };
+  }
+
+  /** Stops retrying files Discord says are gone; the URLs stay in the log. */
+  private async dropDeadFiles(
+    proof: CaseProof,
+    download: DownloadedProof,
+  ): Promise<void> {
+    this.logDeadFiles(proof, download);
+    await this.caseProofRepository.updateHosting(proof.guildId, proof.id, {
+      attachments: download.kept,
+      hostMessageId: null,
+    });
+  }
+
+  private logDeadFiles(proof: CaseProof, download: DownloadedProof): void {
+    this.logger.warn(
+      {
+        guildId: proof.guildId,
+        caseId: proof.caseId,
+        proofId: proof.id,
+        urls: download.dead,
+      },
+      "Dropped proof files Discord no longer serves",
+    );
   }
 
   private async saveHosting(
@@ -1027,61 +1300,62 @@ export class ModLogMessageService {
     });
   }
 
-  private async downloadProofFiles(proof: CaseProof): Promise<DownloadedProof> {
-    const files: ProofUpload[] = [];
-    const failed: string[] = [];
-
-    for (const url of proof.attachments.filter(Boolean)) {
-      const file = await this.downloadFile(url, proof);
-      if (file) {
-        files.push(file);
-      } else {
-        failed.push(url);
-      }
-    }
-
-    return { files, failed };
-  }
-
-  private async downloadFile(
-    url: string,
+  private async downloadProofFiles(
     proof: CaseProof,
-  ): Promise<ProofUpload | null> {
+    deadline: number,
+  ): Promise<DownloadedProof> {
+    const result: DownloadedProof = {
+      files: [],
+      kept: [],
+      dead: [],
+      retry: false,
+    };
     const context = {
       guildId: proof.guildId,
       caseId: proof.caseId,
       proofId: proof.id,
     };
-    try {
-      const res = await fetch(url, {
-        signal: AbortSignal.timeout(PROOF_DOWNLOAD_TIMEOUT_MS),
+
+    for (const url of proof.attachments.filter(Boolean)) {
+      if (!isDownloadableProofUrl(url)) {
+        result.kept.push(url);
+        continue;
+      }
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        this.logger.warn(context, "Ran out of time downloading proof files");
+        return { ...result, retry: true };
+      }
+
+      const download = await downloadProofFile(url, {
+        signal: AbortSignal.timeout(remaining),
+        maxBytes: PROOF_DOWNLOAD_MAX_BYTES,
       });
-      if (!res.ok) {
-        this.logger.warn(
-          { ...context, status: res.status },
-          "Failed to download proof file",
-        );
-        return null;
+      switch (download.kind) {
+        case "ok":
+          result.files.push(download.file);
+          break;
+        case "dead":
+          result.dead.push(url);
+          break;
+        case "too_large":
+          this.logger.warn(
+            { ...context, bytes: download.bytes },
+            "Proof file is too large to move onto the mod log",
+          );
+          result.kept.push(url);
+          break;
+        case "transient":
+          this.logger.warn(
+            { ...context, err: download.err, status: download.status },
+            "Failed to download proof file",
+          );
+          return { ...result, retry: true };
       }
-
-      const data = Buffer.from(await res.arrayBuffer());
-      if (data.length > PROOF_DOWNLOAD_MAX_BYTES) {
-        this.logger.warn(
-          { ...context, bytes: data.length },
-          "Proof file is too large to move onto the mod log entry",
-        );
-        return null;
-      }
-
-      return {
-        name: getCleanFilename(url) || "file",
-        data,
-        contentType: res.headers.get("content-type"),
-      };
-    } catch (err) {
-      this.logger.warn({ ...context, err }, "Failed to download proof file");
-      return null;
     }
+
+    return result;
   }
 
   /**

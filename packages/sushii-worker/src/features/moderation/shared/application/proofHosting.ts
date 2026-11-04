@@ -136,3 +136,83 @@ export function uploadedUrls(
 
   return names.map((name) => byName.get(name.toLowerCase()) ?? null);
 }
+
+/** Hosts sushii stores proof files on; anything else is left where it is. */
+const DOWNLOAD_HOSTS = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
+
+export function isDownloadableProofUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && DOWNLOAD_HOSTS.has(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * - `ok`: downloaded
+ * - `dead`: Discord says the file is gone; retrying won't help
+ * - `too_large`: over the cap; it stays where it is
+ * - `transient`: timeout or other error; worth retrying later
+ */
+export type ProofDownload =
+  | { kind: "ok"; file: ProofUpload }
+  | { kind: "dead"; status: number }
+  | { kind: "too_large"; bytes: number }
+  | { kind: "transient"; status?: number; err?: unknown };
+
+const DEAD_STATUSES = new Set([403, 404, 410]);
+
+export async function downloadProofFile(
+  url: string,
+  options: { signal: AbortSignal; maxBytes: number },
+): Promise<ProofDownload> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: options.signal });
+  } catch (err) {
+    return { kind: "transient", err };
+  }
+
+  if (!res.ok) {
+    await res.body?.cancel();
+    return DEAD_STATUSES.has(res.status)
+      ? { kind: "dead", status: res.status }
+      : { kind: "transient", status: res.status };
+  }
+
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > options.maxBytes) {
+    await res.body?.cancel();
+    return { kind: "too_large", bytes: declared };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    const reader = res.body?.getReader();
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      bytes += value.length;
+      if (bytes > options.maxBytes) {
+        await reader.cancel();
+        return { kind: "too_large", bytes };
+      }
+      chunks.push(value);
+    }
+  } catch (err) {
+    return { kind: "transient", err };
+  }
+
+  return {
+    kind: "ok",
+    file: {
+      name: getCleanFilename(url) || "file",
+      data: Buffer.concat(chunks),
+      contentType: res.headers.get("content-type"),
+    },
+  };
+}
