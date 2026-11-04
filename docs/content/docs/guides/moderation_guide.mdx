@@ -48,6 +48,16 @@ posted to your mod log channel.
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
 
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/ProofCommand.ts#ProofCommand.command @bef49dd6, packages/sushii-worker/src/features/moderation/cases/presentation/commands/AddAsProofContextMenuHandler.ts#AddAsProofContextMenuHandler.command @98f602b3, packages/sushii-worker/src/features/moderation/cases/presentation/views/AddAsProofView.ts#PICKER_CASE_LIMIT @d065ccf1 */}
+
+Proof is mod-only context on a case: screenshots, message links, notes for
+other mods. It's never sent to the member and shows on the mod log entry.
+
+- `/proof case: text: file:` — add proof to any case. Find the case by number
+  or by the member's username. The reply is visible in the channel
+- **Apps → Add as proof** on a message adds its link, text and images to one of
+  the author's 10 newest cases, or to anyone else's. Only you see it
+
 {/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#DrizzleModLogRepository.deleteRange @4eb2af4b */}
 
 <Callout type="warn" title="Uncase is permanent">

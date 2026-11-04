@@ -257,6 +257,118 @@ describe("DrizzleModLogRepository (Integration)", () => {
     });
   });
 
+  describe("case pickers", () => {
+    const OTHER_USER_ID = "666666666666666666";
+    const base = new Date("2026-01-01T00:00:00Z").getTime();
+
+    async function insertRows(
+      rows: {
+        caseId: number;
+        userId?: string;
+        userTag?: string;
+        executorId?: string | null;
+        pending?: boolean;
+        guildId?: string;
+      }[],
+    ): Promise<void> {
+      await db.insert(modLogsInAppPublic).values(
+        rows.map((row) => ({
+          guildId: BigInt(row.guildId ?? GUILD_ID),
+          caseId: BigInt(row.caseId),
+          action: "warn",
+          actionTime: new Date(base + row.caseId * 1000),
+          pending: row.pending ?? false,
+          userId: BigInt(row.userId ?? USER_ID),
+          userTag: row.userTag ?? "spambot",
+          executorId:
+            row.executorId === null
+              ? null
+              : BigInt(row.executorId ?? EXECUTOR_ID),
+        })),
+      );
+    }
+
+    const ids = (cases: ModerationCase[]) => cases.map((c) => c.caseId);
+
+    test("findNewestByUser lists a user's settled cases, newest first", async () => {
+      await insertRows([
+        { caseId: 1 },
+        { caseId: 2 },
+        { caseId: 3, pending: true },
+        { caseId: 4, userId: OTHER_USER_ID },
+        { caseId: 5 },
+        { caseId: 6, guildId: OTHER_GUILD_ID },
+      ]);
+
+      expect(ids(await repo.findNewestByUser(GUILD_ID, USER_ID, 10))).toEqual([
+        "5",
+        "2",
+        "1",
+      ]);
+      expect(ids(await repo.findNewestByUser(GUILD_ID, USER_ID, 2))).toEqual([
+        "5",
+        "2",
+      ]);
+    });
+
+    test("searchCases by executor lists the mod's own cases", async () => {
+      await insertRows([
+        { caseId: 1 },
+        { caseId: 2, executorId: SETTER_ID },
+        { caseId: 3, executorId: null },
+        { caseId: 4, pending: true },
+        { caseId: 5 },
+      ]);
+
+      expect(
+        ids(
+          await repo.searchCases(
+            GUILD_ID,
+            { kind: "executor", executorId: EXECUTOR_ID },
+            25,
+          ),
+        ),
+      ).toEqual(["5", "1"]);
+    });
+
+    test("searchCases by text matches case number prefixes and usernames", async () => {
+      await insertRows([
+        { caseId: 12, userTag: "raider_99" },
+        { caseId: 21, userTag: "Spambot" },
+        { caseId: 120, userTag: "someone" },
+        { caseId: 13, userTag: "other", guildId: OTHER_GUILD_ID },
+      ]);
+
+      const search = async (text: string) =>
+        ids(await repo.searchCases(GUILD_ID, { kind: "text", text }, 25));
+
+      expect(await search("12")).toEqual(["12", "120"]);
+      expect(await search("spam")).toEqual(["21"]);
+      expect(await search("_9")).toEqual(["12"]);
+      expect(await search("%")).toEqual([]);
+      expect(await search("  ")).toEqual([]);
+    });
+
+    test("searchCases only matches usernames among the newest cases, case numbers anywhere", async () => {
+      await insertRows(
+        Array.from({ length: 1002 }, (_, i) => ({
+          caseId: i + 1,
+          userTag: i < 2 ? "olduser" : "newuser",
+        })),
+      );
+
+      expect(
+        await repo.searchCases(GUILD_ID, { kind: "text", text: "olduser" }, 25),
+      ).toEqual([]);
+      expect(
+        ids(await repo.searchCases(GUILD_ID, { kind: "text", text: "10" }, 3)),
+      ).toEqual(["10", "1002", "1001"]);
+      expect(
+        ids(await repo.searchCases(GUILD_ID, { kind: "text", text: "2" }, 3)),
+      ).toEqual(["2", "299", "298"]);
+    });
+  });
+
   describe("case updates", () => {
     test("updateReasonBulk sets reason and setter without touching executor", async () => {
       await repo.createCase(

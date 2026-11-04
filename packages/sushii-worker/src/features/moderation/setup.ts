@@ -13,6 +13,7 @@ import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
+import type { SelectMenuHandler } from "@/shared/presentation/handlers";
 import type ContextMenuHandler from "@/shared/presentation/handlers/ContextMenuHandler";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
@@ -24,8 +25,8 @@ import {
   TargetResolutionService,
 } from "./actions/application";
 import { createActionResponseHandlers } from "./actions/presentation/actionResponseFactory";
-import { actionResponseRegistry } from "./actions/presentation/response/responseRegistry";
 import { AutomodAlertRemoveTimeoutButtonHandler } from "./actions/presentation/components/AutomodAlertRemoveTimeoutButtonHandler";
+import { actionResponseRegistry } from "./actions/presentation/response/responseRegistry";
 import { AuditLogEventHandler } from "./audit-logs";
 // Audit logs sub-feature
 import {
@@ -50,6 +51,16 @@ import {
   NamesCommand,
   UncaseCommand,
 } from "./cases/presentation";
+import { AddAsProofContextMenuHandler } from "./cases/presentation/commands/AddAsProofContextMenuHandler";
+import {
+  ProofCaseAutocomplete,
+  ProofCommand,
+} from "./cases/presentation/commands/ProofCommand";
+import {
+  AddAsProofButtonHandler,
+  type AddAsProofDeps,
+  AddAsProofSelectHandler,
+} from "./cases/presentation/components/AddAsProofHandlers";
 import { AddProofButtonHandler } from "./cases/presentation/components/AddProofButtonHandler";
 import { createReasonEditingHandlers } from "./cases/presentation/reasonEditingFactory";
 // Tasks
@@ -405,11 +416,38 @@ export function createModerationCommands(
       logger.child({ commandHandler: "names" }),
     ),
     ...reasonTemplates.commands,
+    new ProofCommand({
+      modLogRepository: services.modLogRepository,
+      caseProofRepository: services.caseProofRepository,
+      guildConfigRepository: services.guildConfigRepository,
+      caseProofService: services.caseProofService,
+      emojiRepository: services.emojiRepository,
+      logger: logger.child({ commandHandler: "proof" }),
+    }),
   ];
 
-  const autocompletes = [...reasonTemplates.autocompletes];
+  const autocompletes = [
+    ...reasonTemplates.autocompletes,
+    new ProofCaseAutocomplete({
+      modLogRepository: services.modLogRepository,
+      logger: logger.child({ autocompleteHandler: "proof" }),
+    }),
+  ];
 
-  const contextMenuHandlers: ContextMenuHandler[] = [];
+  const addAsProof: AddAsProofDeps = {
+    modLogRepository: services.modLogRepository,
+    caseProofService: services.caseProofService,
+    emojiRepository: services.emojiRepository,
+    logger: logger.child({ module: "addAsProof" }),
+  };
+
+  const contextMenuHandlers: ContextMenuHandler[] = [
+    new AddAsProofContextMenuHandler(addAsProof),
+  ];
+
+  const selectMenuHandlers: SelectMenuHandler[] = [
+    new AddAsProofSelectHandler(addAsProof),
+  ];
 
   const buttonHandlers = [
     ...reasonEditing.buttonHandlers,
@@ -426,6 +464,7 @@ export function createModerationCommands(
       emojiRepository: services.emojiRepository,
       logger: logger.child({ buttonHandler: "addProof" }),
     }),
+    new AddAsProofButtonHandler(addAsProof),
     ...reasonTemplates.buttonHandlers,
   ];
 
@@ -434,6 +473,7 @@ export function createModerationCommands(
     autocompletes,
     contextMenuHandlers,
     buttonHandlers,
+    selectMenuHandlers,
   };
 }
 
@@ -484,7 +524,7 @@ export function setupModerationFeature({
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
   }
-> {
+> & { selectMenuHandlers: SelectMenuHandler[] } {
   const services = createModerationServices({
     db,
     client,
@@ -540,6 +580,7 @@ export function setupModerationFeature({
       ...modView.contextMenuHandlers,
     ],
     buttonHandlers: commands.buttonHandlers,
+    selectMenuHandlers: commands.selectMenuHandlers,
     eventHandlers: events.eventHandlers,
     tasks: tasks.tasks,
   };

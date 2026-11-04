@@ -534,6 +534,7 @@ export function registerFeatures(
 
   // Select menu handlers
   interactionRouter.addSelectMenus(
+    ...moderationFeature.selectMenuHandlers,
     ...roleMenuFeature.selectMenuHandlers,
     ...levelingFeature.selectMenuHandlers,
     ...memberScreeningFeature.selectMenuHandlers,

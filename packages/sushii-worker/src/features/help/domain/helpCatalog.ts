@@ -150,6 +150,11 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
         keywords: ["cases", "warnings"],
       },
       { name: "reason", summary: "Set the reason for cases" },
+      {
+        name: "proof",
+        summary: "Add mod-only proof to a case",
+        keywords: ["evidence", "screenshots"],
+      },
       { name: "modview", summary: "Full moderation view for a user" },
       { name: "uncase", summary: "Delete cases" },
       { name: "names", summary: "A user's name history" },
@@ -161,6 +166,7 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
         summary: "How message verification works",
       },
     ],
+    apps: ["Add as proof"],
   },
   {
     key: "setup",

@@ -26,6 +26,7 @@ const APP_TYPES: Record<string, ApplicationCommandType> = {
   "Submit to Mods": ApplicationCommandType.Message,
   "Mod View": ApplicationCommandType.User,
   "View Reaction Starters": ApplicationCommandType.Message,
+  "Add as proof": ApplicationCommandType.Message,
 };
 
 export function catalogCommandList(): RESTPostAPIApplicationCommandsJSONBody[] {

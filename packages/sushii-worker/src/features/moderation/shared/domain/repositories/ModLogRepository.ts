@@ -146,6 +146,23 @@ export interface ModLogCaseOperations {
 
   findByIds(guildId: string, caseIds: string[]): Promise<ModerationCase[]>;
 
+  /** A user's newest cases, excluding pending ones. */
+  findNewestByUser(
+    guildId: string,
+    userId: string,
+    limit: number,
+  ): Promise<ModerationCase[]>;
+
+  /**
+   * Cases to pick from by hand, newest first, excluding pending ones.
+   * Executor and username matches only look at the guild's newest cases.
+   */
+  searchCases(
+    guildId: string,
+    query: CaseSearchQuery,
+    limit: number,
+  ): Promise<ModerationCase[]>;
+
   updateAttachments(
     guildId: string,
     caseIds: string[],
@@ -160,6 +177,14 @@ export interface ModLogCaseOperations {
     deletedAt: Date | null,
   ): Promise<void>;
 }
+
+/**
+ * - `executor`: cases the mod made
+ * - `text`: a case number prefix or part of the target's username
+ */
+export type CaseSearchQuery =
+  | { kind: "executor"; executorId: string }
+  | { kind: "text"; text: string };
 
 export interface LastReason {
   caseId: string;

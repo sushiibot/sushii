@@ -1,4 +1,7 @@
-import type { ButtonInteraction, PermissionResolvable } from "discord.js";
+import type {
+  MessageComponentInteraction,
+  PermissionResolvable,
+} from "discord.js";
 import {
   ContainerBuilder,
   MessageFlags,
@@ -18,7 +21,7 @@ export const ANY_MOD_PERMISSION = {
 };
 
 /**
- * Checks the clicker's permissions on a guild button. Buttons on mod-only
+ * Checks the clicker's permissions on a guild button or select. Buttons on mod-only
  * messages are usable by anyone who can see the channel, so channel placement
  * alone can't gate bot-authority actions.
  *
@@ -26,7 +29,7 @@ export const ANY_MOD_PERMISSION = {
  * ephemeral error and returns false otherwise.
  */
 export async function requireMemberPermission(
-  interaction: ButtonInteraction<"cached">,
+  interaction: MessageComponentInteraction<"cached">,
   permission: PermissionResolvable,
   permissionName: string,
 ): Promise<boolean> {

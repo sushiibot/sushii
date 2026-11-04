@@ -24,6 +24,7 @@ import type {
 } from "../../domain/entities/ModerationCase";
 import { ModerationCase } from "../../domain/entities/ModerationCase";
 import type {
+  CaseSearchQuery,
   LastReason,
   ModLogRepository,
   RecentReason,
@@ -37,6 +38,12 @@ import { normalizeReason } from "../../domain/value-objects/normalizeReason";
 const RECENT_REASON_SCAN_LIMIT = 200;
 // Bounds countByNormalizedReason to the guild's newest cases.
 const REASON_COUNT_SCAN_LIMIT = 500;
+// Bounds searchCases' executor and username matches; neither column is indexed.
+export const CASE_SEARCH_SCAN_LIMIT = 1000;
+
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
 
 const hasReason = sql`${modLogsInAppPublic.reason} ~ '[^[:space:]]'`;
 
@@ -685,6 +692,106 @@ export class DrizzleModLogRepository implements ModLogRepository {
       .orderBy(asc(modLogsInAppPublic.caseId));
 
     return results.map((row) => this.mapRowToModerationCase(row));
+  }
+
+  async findNewestByUser(
+    guildId: string,
+    userId: string,
+    limit: number,
+  ): Promise<ModerationCase[]> {
+    const results = await this.db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.userId, BigInt(userId)),
+          eq(modLogsInAppPublic.pending, false),
+        ),
+      )
+      .orderBy(
+        desc(modLogsInAppPublic.actionTime),
+        desc(modLogsInAppPublic.caseId),
+      )
+      .limit(limit);
+
+    return results.map((row) => this.mapRowToModerationCase(row));
+  }
+
+  async searchCases(
+    guildId: string,
+    query: CaseSearchQuery,
+    limit: number,
+  ): Promise<ModerationCase[]> {
+    const recent = this.db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.pending, false),
+        ),
+      )
+      .orderBy(desc(modLogsInAppPublic.caseId))
+      .limit(CASE_SEARCH_SCAN_LIMIT)
+      .as("recent");
+
+    if (query.kind === "executor") {
+      const rows = await this.db
+        .select()
+        .from(recent)
+        .where(eq(recent.executorId, BigInt(query.executorId)))
+        .orderBy(desc(recent.caseId))
+        .limit(limit);
+      return rows.map((row) => this.mapRowToModerationCase(row));
+    }
+
+    const text = query.text.trim();
+    if (!text) {
+      return [];
+    }
+
+    const [byName, byNumber] = await Promise.all([
+      this.db
+        .select()
+        .from(recent)
+        .where(sql`${recent.userTag} ILIKE ${`%${escapeLike(text)}%`}`)
+        .orderBy(desc(recent.caseId))
+        .limit(limit),
+      // Case numbers reach every case: older ones are only found this way.
+      /^\d{1,18}$/.test(text)
+        ? this.db
+            .select()
+            .from(modLogsInAppPublic)
+            .where(
+              and(
+                eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+                eq(modLogsInAppPublic.pending, false),
+                sql`CAST(${modLogsInAppPublic.caseId} AS TEXT) LIKE ${`${text}%`}`,
+              ),
+            )
+            // The exact case first, so an old one isn't crowded out by newer prefixes.
+            .orderBy(
+              desc(sql`${modLogsInAppPublic.caseId} = ${BigInt(text)}`),
+              desc(modLogsInAppPublic.caseId),
+            )
+            .limit(limit)
+        : Promise.resolve([]),
+    ]);
+
+    const exact = /^\d{1,18}$/.test(text) ? BigInt(text) : null;
+    const byCase = new Map(
+      [...byNumber, ...byName].map((row) => [row.caseId, row]),
+    );
+    return [...byCase.values()]
+      .sort((a, b) => {
+        if ((a.caseId === exact) !== (b.caseId === exact)) {
+          return a.caseId === exact ? -1 : 1;
+        }
+        return a.caseId < b.caseId ? 1 : a.caseId > b.caseId ? -1 : 0;
+      })
+      .slice(0, limit)
+      .map((row) => this.mapRowToModerationCase(row));
   }
 
   async updateAttachments(
