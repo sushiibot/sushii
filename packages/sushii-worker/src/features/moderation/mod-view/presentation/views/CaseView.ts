@@ -159,29 +159,50 @@ function packEntries(
   return count;
 }
 
+const QUOTE_PREFIX = "> ";
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+/** Cuts one line into pieces of at most `max` chars, re-quoting quoted lines. */
+function cutLongLine(line: string, max: number): string[] {
+  const quoted = line.startsWith(QUOTE_PREFIX) && max > QUOTE_PREFIX.length + 1;
+  const minCut = quoted ? QUOTE_PREFIX.length + 1 : 1;
+  const pieces: string[] = [];
+
+  let rest = line;
+  while (rest.length > max) {
+    let cut = max;
+    for (let i = max - 1; i >= minCut; i--) {
+      if (/\s/.test(rest[i])) {
+        cut = i + 1;
+        break;
+      }
+    }
+    if (cut === max && isHighSurrogate(rest.charCodeAt(cut - 1))) {
+      cut--;
+    }
+
+    pieces.push(rest.slice(0, cut));
+    rest = (quoted ? QUOTE_PREFIX : "") + rest.slice(cut);
+  }
+
+  pieces.push(rest);
+  return pieces;
+}
+
 /**
  * Cuts text into pieces of at most `max` chars at line breaks, cutting inside
- * a line only when that line alone is too long. Joining the pieces with "\n"
- * restores the original except where a line had to be cut.
+ * a line only when that line alone is too long, at its last space if any.
  */
 export function splitAtLines(text: string, max: number): string[] {
+  if (max < 2) {
+    throw new Error("splitAtLines needs max >= 2", { cause: { max } });
+  }
+
   const pieces: string[] = [];
   let current: string | null = null;
-
-  const pushLongLine = (line: string) => {
-    let rest = line;
-    while (rest.length > max) {
-      let cut = max;
-      // Keep a surrogate pair together.
-      const code = rest.charCodeAt(cut - 1);
-      if (code >= 0xd800 && code <= 0xdbff) {
-        cut--;
-      }
-      pieces.push(rest.slice(0, cut));
-      rest = rest.slice(cut);
-    }
-    return rest;
-  };
 
   for (const line of text.split("\n")) {
     if (current !== null && current.length + 1 + line.length <= max) {
@@ -191,10 +212,16 @@ export function splitAtLines(text: string, max: number): string[] {
     if (current !== null) {
       pieces.push(current);
     }
-    current = line.length > max ? pushLongLine(line) : line;
+    if (line.length > max) {
+      const cut = cutLongLine(line, max);
+      pieces.push(...cut.slice(0, -1));
+      current = cut[cut.length - 1];
+    } else {
+      current = line;
+    }
   }
 
-  if (current !== null) {
+  if (current) {
     pieces.push(current);
   }
 

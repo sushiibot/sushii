@@ -186,10 +186,9 @@ export class ModViewSession {
           "Failed to handle mod view interaction",
         );
 
-        // Defence-in-depth: acknowledge so the click doesn't sit unanswered
-        // for 3s and surface "This interaction failed". Not reachable by any
-        // known path today — `showModal` already marks the interaction
-        // replied, so this can't cover a throw from the modal flow.
+        // Acknowledge so the click doesn't sit unanswered and surface "This
+        // interaction failed", e.g. when loading a case's proof throws before
+        // the update. A throw after `showModal` or `update` can't use it.
         try {
           if (!i.replied && !i.deferred) {
             await i.reply(

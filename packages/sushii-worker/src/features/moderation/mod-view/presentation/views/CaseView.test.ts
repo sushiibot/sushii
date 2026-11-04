@@ -351,6 +351,44 @@ describe("splitAtLines", () => {
     expect(splitAtLines("abcdefghij\nk", 4)).toEqual(["abcd", "efgh", "ij\nk"]);
   });
 
+  test("cuts a long line at its last space before the limit", () => {
+    expect(splitAtLines("aaa bbb ccc", 9)).toEqual(["aaa bbb ", "ccc"]);
+  });
+
+  test("re-quotes every piece of a cut quoted line, losing no text", () => {
+    const words = Array.from({ length: 1000 }, (_, i) => `w${i}`).join(" ");
+    const line = `> ${words}`.slice(0, 4000);
+    expect(line).toHaveLength(4000);
+
+    const pieces = splitAtLines(line, 1000);
+
+    expect(pieces.length).toBeGreaterThan(4);
+    for (const piece of pieces) {
+      expect(piece.length).toBeLessThanOrEqual(1000);
+      expect(piece).toStartWith("> ");
+      expect(piece.length).toBeGreaterThan(2);
+    }
+    expect(pieces.map((p) => p.slice(2)).join("")).toBe(line.slice(2));
+  });
+
+  test("re-quotes a quoted line with no spaces too", () => {
+    const line = `> ${"a".repeat(3998)}`;
+    const pieces = splitAtLines(line, 1000);
+
+    expect(pieces.every((p) => p.startsWith("> ") && p.length <= 1000)).toBe(
+      true,
+    );
+    expect(pieces.map((p) => p.slice(2)).join("")).toBe("a".repeat(3998));
+  });
+
+  test("emits no empty trailing piece", () => {
+    expect(splitAtLines("aaaa\n", 4)).toEqual(["aaaa"]);
+  });
+
+  test("rejects a limit too small to make progress", () => {
+    expect(() => splitAtLines("abc", 1)).toThrow();
+  });
+
   test("never splits a surrogate pair", () => {
     const pieces = splitAtLines("aaa😀b", 4);
     expect(pieces).toEqual(["aaa", "😀b"]);

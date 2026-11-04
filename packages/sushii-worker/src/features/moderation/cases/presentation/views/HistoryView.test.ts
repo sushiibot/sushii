@@ -210,6 +210,21 @@ describe("formatModerationCase", () => {
     expect(line).toContain(":lock: 1 proof");
   });
 
+  it("keeps the lock on an oversized note's pointer, with no not-sent line", () => {
+    const c = makeReasonCase(
+      "a\n".repeat(REASON_MAX_LENGTH / 2),
+      ActionType.Note,
+    );
+
+    const line = formatModerationCase(c, emojis);
+
+    expect(line).toContain(
+      "\n> :lock: Too long to show here. Open it from History → View case.",
+    );
+    expect(line).not.toContain("Not sent");
+    expect(line).not.toContain(":reason:");
+  });
+
   it("keeps the sent emoji on the pointer", () => {
     const c = makeReasonCase("a\n".repeat(REASON_MAX_LENGTH / 2)).withDMResult({
       channelId: "1",
