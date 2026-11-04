@@ -1,6 +1,12 @@
+import { sleep } from "bun";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import type { Client, Message } from "discord.js";
-import { MessageFlags, Routes } from "discord.js";
+import {
+  DiscordAPIError,
+  MessageFlags,
+  RESTJSONErrorCodes,
+  Routes,
+} from "discord.js";
 import pino from "pino";
 
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain/repositories/BotEmojiRepository";
@@ -18,6 +24,7 @@ import {
   MOD_LOG_FACTS_ID,
   messageTextLength,
 } from "../presentation/views/ModLogMessageView";
+import type { KeyedMutex } from "./KeyedMutex";
 import {
   DELETE_DM_PROMPT_RESERVE,
   MORE_PROOF_LINE_RESERVE,
@@ -943,23 +950,56 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     expect(updateHosting).toHaveBeenCalledTimes(1);
   });
 
-  test("a file Discord no longer serves is dropped from the row, not hosted", async () => {
-    fetchSpy.mockResolvedValue(new Response("gone", { status: 404 }));
+  test("a file Discord no longer serves stays listed and isn't fetched again", async () => {
+    const gone = RESPONSE_URL.replace("dm-", "gone-");
+    const kept = RESPONSE_URL.replace("dm-", "kept-");
+    fetchSpy.mockImplementation((async (url: string | URL | Request) =>
+      String(url) === gone
+        ? new Response("gone", { status: 404 })
+        : new Response(Buffer.from("png"))) as unknown as typeof fetch);
     const posted = v2Message(null);
     const { service, updateHosting } = setup({
       posted,
+      proofs: [makeProof({ id: "7", source: "action", attachments: [gone] })],
+    });
+
+    await service.adoptUnhosted(makeCase());
+    await service.adoptUnhosted(makeCase());
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(updateHosting).not.toHaveBeenCalled();
+    expect(posted.edit).not.toHaveBeenCalled();
+
+    // With a live file next to it, the gone one stays in the row.
+    const partly = setup({
       proofs: [
-        makeProof({ id: "7", source: "action", attachments: [RESPONSE_URL] }),
+        makeProof({ id: "8", source: "action", attachments: [kept, gone] }),
+      ],
+    });
+    await partly.service.adoptUnhosted(makeCase());
+    expect(partly.updateHosting).toHaveBeenCalledWith(GUILD, "8", {
+      attachments: [
+        expect.stringContaining("/1_kept-screenshot.png?ex="),
+        gone,
+      ],
+      hostMessageId: LOG_MESSAGE,
+    });
+  });
+
+  test("403 is worth retrying", async () => {
+    const forbidden = RESPONSE_URL.replace("dm-", "forbidden-");
+    fetchSpy.mockResolvedValue(new Response("", { status: 403 }));
+    const { service, updateHosting } = setup({
+      proofs: [
+        makeProof({ id: "7", source: "action", attachments: [forbidden] }),
       ],
     });
 
     await service.adoptUnhosted(makeCase());
+    await service.adoptUnhosted(makeCase());
 
-    expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
-      attachments: [],
-      hostMessageId: null,
-    });
-    expect(editPayload(posted).files).toBeUndefined();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(updateHosting).not.toHaveBeenCalled();
   });
 
   test("a download that may work later leaves the proof for the next try", async () => {
@@ -1005,11 +1045,14 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     expect(updateHosting).not.toHaveBeenCalled();
   });
 
-  test("the first post carries unhosted files", async () => {
+  test("a new entry is posted first, then gets the unhosted files", async () => {
     fetchSpy.mockResolvedValue(new Response(Buffer.from("png")));
-    const send = mock(async (payload: never) =>
-      postedFrom(payload, LOG_MESSAGE),
-    );
+    let sentMessage: ReturnType<typeof fakeMessage> | null = null;
+    const send = mock(async (payload: never) => {
+      expect(fetchSpy).not.toHaveBeenCalled();
+      sentMessage = postedFrom(payload, LOG_MESSAGE);
+      return sentMessage;
+    });
     const { service, updateHosting } = setup({
       proofs: [
         makeProof({ id: "7", source: "action", attachments: [RESPONSE_URL] }),
@@ -1023,11 +1066,11 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
 
     expect(sent.id).toBe(LOG_MESSAGE);
     const payload = send.mock.calls[0]?.[0] as unknown as {
-      components: { toJSON(): unknown }[];
-      files: { name: string }[];
+      files?: unknown[];
     };
-    expect(payload.files.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
-    expect(payloadText(payload)).toContain("attachment://1_dm-screenshot.png");
+    expect(payload.files).toBeUndefined();
+    const upload = editPayload(sentMessage as never);
+    expect(upload.files?.map((f) => f.name)).toEqual(["1_dm-screenshot.png"]);
     expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
       attachments: [expect.stringContaining("/1_dm-screenshot.png?ex=")],
       hostMessageId: LOG_MESSAGE,
@@ -1213,5 +1256,193 @@ describe("ModLogMessageService keeping the entry within limits", () => {
       ),
     ).rejects.toThrow("Failed to post proof replies");
     expect(first.delete).toHaveBeenCalledTimes(1);
+  });
+});
+
+function caseWith(
+  o: { reason?: string; msgId?: string | null; actionTime?: Date } = {},
+) {
+  return new ModerationCase(
+    GUILD,
+    "4822",
+    ActionType.Ban,
+    o.actionTime ?? new Date("2026-10-27T11:00:00.000Z"),
+    TARGET,
+    "spambot",
+    EXECUTOR,
+    o.reason ? Reason.create(o.reason).unwrap() : null,
+    o.msgId === undefined ? LOG_MESSAGE : o.msgId,
+    [],
+    DM,
+  );
+}
+
+function fullEntryProofs(): CaseProof[] {
+  return ["y", "z"].map((c, i) =>
+    makeProof({
+      id: String(i + 1),
+      content: c.repeat(1000),
+      hostMessageId: LOG_MESSAGE,
+    }),
+  );
+}
+
+function lockOf(service: ModLogMessageService): KeyedMutex {
+  return (service as unknown as { caseLock: KeyedMutex }).caseLock;
+}
+
+describe("ModLogMessageService without waiting on the case lock", () => {
+  test("render() of the posted entry moves proof that no longer fits", async () => {
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: fullEntryProofs(),
+    });
+
+    const message = await service.render(
+      caseWith({ reason: "r".repeat(3000) }),
+      {
+        currentMessage: posted as never,
+      },
+    );
+
+    expect(posted.reply).toHaveBeenCalled();
+    expect(updateHosting).toHaveBeenCalled();
+    expect(messageTextLength(message)).toBeLessThanOrEqual(4000);
+    expect(text(message)).toContain("More proof in the reply below");
+  });
+
+  test("a failed move leaves the entry alone instead of hiding proof", async () => {
+    const posted = v2Message(null);
+    posted.reply.mockRejectedValue(new Error("Missing Permissions"));
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: fullEntryProofs(),
+    });
+    const edited = caseWith({ reason: "r".repeat(3000) });
+
+    await expect(
+      service.render(edited, { currentMessage: posted as never }),
+    ).rejects.toThrow("couldn't be moved");
+    expect(
+      await service.refreshEntry(
+        { message: posted as never, missing: null },
+        edited,
+      ),
+    ).toBe("failed");
+    expect(posted.edit).not.toHaveBeenCalled();
+    expect(updateHosting).not.toHaveBeenCalled();
+  });
+
+  test("a busy case skips the move and returns at once", async () => {
+    const posted = v2Message(null);
+    const { service } = setup({ posted, proofs: fullEntryProofs() });
+    let release: () => void = () => undefined;
+    const held = lockOf(service).run(
+      `${GUILD}:4822`,
+      () => new Promise<void>((resolve) => (release = resolve)),
+    );
+
+    expect(
+      await service.refreshEntry(
+        { message: posted as never, missing: null },
+        caseWith({ reason: "r".repeat(3000) }),
+      ),
+    ).toBe("failed");
+    expect(posted.reply).not.toHaveBeenCalled();
+    expect(posted.edit).not.toHaveBeenCalled();
+
+    // A plain edit doesn't need the lock at all.
+    expect(await service.refresh(caseWith({ reason: "short" }))).toBe(
+      "updated",
+    );
+    release();
+    await held;
+  });
+
+  test("a slow adoption download doesn't hold up a refresh", async () => {
+    const fetchSpy = spyOn(globalThis, "fetch");
+    let finish: (response: Response) => void = () => undefined;
+    fetchSpy.mockImplementation(
+      (() =>
+        new Promise<Response>(
+          (resolve) => (finish = resolve),
+        )) as unknown as typeof fetch,
+    );
+    const posted = v2Message(null);
+    const { service } = setup({
+      posted,
+      proofs: [
+        makeProof({
+          id: "7",
+          source: "action",
+          attachments: [
+            "https://cdn.discordapp.com/attachments/9/8/slow.png?ex=1&is=2&hm=3&",
+          ],
+        }),
+      ],
+    });
+
+    const adoption = service.adoptUnhosted(caseWith());
+    await sleep(5);
+    expect(await service.refresh(caseWith({ reason: "edited" }))).toBe(
+      "updated",
+    );
+    await service.render(caseWith({ reason: "edited" }), {
+      currentMessage: posted as never,
+    });
+
+    finish(new Response(Buffer.from("png")));
+    await adoption;
+    fetchSpy.mockReset();
+    expect(posted.edit.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("ModLogMessageService waiting for an entry being posted", () => {
+  test("a fresh case with no message ID yet is waited for", async () => {
+    const posting = caseWith({ msgId: null, actionTime: new Date() });
+    const findById = mock(async () => posting);
+    findById.mockResolvedValueOnce(posting);
+    findById.mockResolvedValueOnce(caseWith({ actionTime: new Date() }));
+    const { service } = setup({ findById });
+
+    expect(
+      await service.hostProof(posting, draft(), [upload("a.png")]),
+    ).toMatchObject({ kind: "hosted", hostMessageId: LOG_MESSAGE });
+    expect(findById).toHaveBeenCalledTimes(2);
+  });
+
+  test("an old case that never got an entry has no mod log to use", async () => {
+    const findById = mock(async () => null);
+    const { service } = setup({ findById });
+
+    expect(
+      await service.hostProof(caseWith({ msgId: null }), draft(), [
+        upload("a.png"),
+      ]),
+    ).toEqual({ kind: "no_mod_log" });
+    expect(findById).not.toHaveBeenCalled();
+  });
+
+  test("a deleted entry has no mod log to use; a flaky fetch retries later", async () => {
+    const gone = setup({
+      fetchError: new DiscordAPIError(
+        { code: RESTJSONErrorCodes.UnknownMessage, message: "Unknown Message" },
+        RESTJSONErrorCodes.UnknownMessage,
+        404,
+        "GET",
+        "/channels/1/messages/2",
+        {},
+      ),
+    });
+    expect(
+      await gone.service.hostProof(caseWith(), draft(), [upload("a.png")]),
+    ).toEqual({ kind: "no_mod_log" });
+
+    const flaky = setup({ fetchError: new Error("socket hang up") });
+    expect(
+      await flaky.service.hostProof(caseWith(), draft(), [upload("a.png")]),
+    ).toEqual({ kind: "retry_later" });
   });
 });

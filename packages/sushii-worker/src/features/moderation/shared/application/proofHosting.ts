@@ -161,7 +161,8 @@ export type ProofDownload =
   | { kind: "too_large"; bytes: number }
   | { kind: "transient"; status?: number; err?: unknown };
 
-const DEAD_STATUSES = new Set([403, 404, 410]);
+// 403 can come from a CDN edge or an expired signature, so it may work later.
+const DEAD_STATUSES = new Set([404, 410]);
 
 export async function downloadProofFile(
   url: string,
@@ -215,4 +216,24 @@ export async function downloadProofFile(
       contentType: res.headers.get("content-type"),
     },
   };
+}
+
+/** A set that forgets its oldest entries past a size cap. */
+export class BoundedSet<T> {
+  private readonly items = new Set<T>();
+
+  constructor(private readonly max: number) {}
+
+  has(item: T): boolean {
+    return this.items.has(item);
+  }
+
+  add(item: T): void {
+    this.items.delete(item);
+    this.items.add(item);
+    if (this.items.size > this.max) {
+      const oldest = this.items.values().next().value as T;
+      this.items.delete(oldest);
+    }
+  }
 }

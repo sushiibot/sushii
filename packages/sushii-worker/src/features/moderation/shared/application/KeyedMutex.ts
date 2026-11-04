@@ -2,6 +2,20 @@
 export class KeyedMutex {
   private readonly tails = new Map<string, Promise<void>>();
 
+  /** Runs fn only if nothing holds the key; null when it's busy. */
+  async tryRun<T>(key: string, fn: () => Promise<T>): Promise<T | null> {
+    if (this.tails.has(key)) {
+      return null;
+    }
+
+    return this.run(key, fn);
+  }
+
+  /** Keys currently held or waited on. */
+  get size(): number {
+    return this.tails.size;
+  }
+
   async run<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const previous = this.tails.get(key) ?? Promise.resolve();
     let release: () => void = () => undefined;
