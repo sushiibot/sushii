@@ -7,17 +7,14 @@ import {
   REASON_MAX_LENGTH,
   Reason,
 } from "@/features/moderation/shared/domain/value-objects/Reason";
+import { reasonDelivery } from "@/features/moderation/shared/presentation/proof/reasonBlock";
 import {
   TAB_CONTENT_CHAR_BUDGET,
   chunkItems,
 } from "@/shared/presentation/packLines";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
-import {
-  HISTORY_ACTION_EMOJIS,
-  formatModerationCase,
-  reasonDelivery,
-} from "./HistoryView";
+import { HISTORY_ACTION_EMOJIS, formatModerationCase } from "./HistoryView";
 
 const GUILD_ID = "111111111111111111";
 const USER_A = "222222222222222222";
@@ -112,7 +109,7 @@ describe("formatModerationCase", () => {
     });
 
     expect(formatModerationCase(c, emojis)).toContain(
-      "> :reason: spam\n> -# Not sent: they have DMs off or blocked sushii",
+      "> :reason: spam\n> -# Not sent: DM failed: they have DMs off or blocked sushii",
     );
   });
 
@@ -257,7 +254,7 @@ describe("reasonDelivery", () => {
   it("says the DM failed when no failure reason was recorded", () => {
     expect(
       reasonDelivery(makeReasonCase("x").withDMResult({ error: "boom" })),
-    ).toEqual({ sent: false, why: "the DM failed" });
+    ).toEqual({ sent: false, why: "DM failed: Discord returned an error" });
   });
 
   it("says the DM was deleted when no deleter was recorded", () => {

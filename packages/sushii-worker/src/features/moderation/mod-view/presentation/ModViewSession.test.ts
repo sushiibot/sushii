@@ -7,6 +7,7 @@ import type { EmojiMap } from "@/features/bot-emojis";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { makeModerationCase } from "@/test/fixtures/moderationCase";
 
 import type { ModViewResult } from "../application/ModViewService";
@@ -213,17 +214,31 @@ describe("ModViewSession View case select", () => {
     };
   }
 
-  async function pick(listByCase: () => Promise<CaseProof[]>) {
+  async function pick(
+    listByCase: () => Promise<CaseProof[]>,
+    options: { warnDmText?: string; dmDelivered?: boolean } = {},
+  ) {
     const { interaction, collectorHandlers } = makeInteraction();
     const data = makeEmptyData();
+    const picked = makeModerationCase({
+      guildId: GUILD_ID,
+      caseId: "7",
+      userId: TARGET_ID,
+      reason: "spam",
+    });
     data.history.moderationHistory = [
-      makeModerationCase({
-        guildId: GUILD_ID,
-        caseId: "7",
-        userId: TARGET_ID,
-        reason: "spam",
-      }),
+      options.dmDelivered
+        ? picked.withDMResult({ channelId: "1", messageId: "2" })
+        : picked,
     ];
+    const guildConfig = GuildConfig.createDefault(GUILD_ID);
+    const config = {
+      ...guildConfig,
+      moderationSettings: {
+        ...guildConfig.moderationSettings,
+        warnDmText: options.warnDmText ?? null,
+      },
+    } as GuildConfig;
     data.history.totalCases = 1;
 
     const caseProofRepository = {
@@ -239,7 +254,12 @@ describe("ModViewSession View case select", () => {
       mockEmojis,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
-      caseProofRepository,
+      {
+        caseProofRepository,
+        guildConfigRepository: {
+          findByGuildId: mock(async () => config),
+        },
+      },
       pino({ level: "silent" }),
     );
     await session.start();
@@ -278,6 +298,23 @@ describe("ModViewSession View case select", () => {
     const sent = select.followUp.mock.calls[0][0];
     expect(sent.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
     expect(JSON.stringify(sent)).toContain("Case #7");
+  });
+
+  it("notes the server's DM text when the delivered DM carried it", async () => {
+    const withText = await pick(() => Promise.resolve([]), {
+      warnDmText: "Read the rules",
+      dmDelivered: true,
+    });
+    expect(JSON.stringify(withText.select.followUp.mock.calls)).toContain(
+      "Also included your server's warn message",
+    );
+
+    const without = await pick(() => Promise.resolve([]), {
+      dmDelivered: true,
+    });
+    expect(JSON.stringify(without.select.followUp.mock.calls)).not.toContain(
+      "Also included",
+    );
   });
 
   it("sends every message of a split case view in order", async () => {

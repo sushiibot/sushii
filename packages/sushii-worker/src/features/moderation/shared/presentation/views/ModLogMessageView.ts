@@ -21,14 +21,10 @@ import dayjs from "@/shared/domain/dayjs";
 import Color from "@/utils/colors";
 
 import type { CaseProof } from "../../domain/entities/CaseProof";
-import type {
-  DMFailureReason,
-  ModerationCase,
-} from "../../domain/entities/ModerationCase";
+import type { ModerationCase } from "../../domain/entities/ModerationCase";
 import {
   ActionType,
   ActionTypeBotEmojis,
-  actionTypeSupportsDM,
 } from "../../domain/value-objects/ActionType";
 import { isGalleryMedia } from "../caseMedia";
 import {
@@ -39,7 +35,13 @@ import {
   proofHeading,
   proofMediaUrls,
 } from "../proof/proofBlock";
-import { REASON_EMOJIS, reasonHeading } from "../proof/reasonBlock";
+import {
+  REASON_EMOJIS,
+  dmKind,
+  hasLiveDm,
+  reasonDelivery,
+  reasonHeading,
+} from "../proof/reasonBlock";
 import {
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
@@ -139,13 +141,6 @@ const ACTION_TITLES: Partial<Record<ActionType, string>> = {
   [ActionType.Note]: "Note",
 };
 
-const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
-  user_blocked: "they have DMs off or blocked sushii",
-  user_privacy: "they have server DMs off or share no server with sushii",
-  user_cannot_receive: "Discord won't deliver DMs to them",
-  unknown: "Discord returned an error",
-};
-
 function unix(date: Date | dayjs.Dayjs): number {
   return dayjs(date).unix();
 }
@@ -241,66 +236,7 @@ function buildFacts(input: ModLogMessageInput): string[] {
   return facts;
 }
 
-/** Action word for the guild's DM settings, e.g. "ban DMs are off". */
-function dmKind(type: ActionType): string | null {
-  switch (type) {
-    case ActionType.Ban:
-    case ActionType.TempBan:
-    case ActionType.Softban:
-      return "ban";
-    case ActionType.Kick:
-      return "kick";
-    case ActionType.Timeout:
-    case ActionType.TimeoutAdjust:
-      return "timeout";
-    case ActionType.Warn:
-      return "warn";
-    default:
-      return null;
-  }
-}
-
-function reasonNotSentWhy(moderationCase: ModerationCase): string | undefined {
-  if (moderationCase.dmDeleted) {
-    return moderationCase.dmDeletedBy
-      ? `DM deleted by <@${moderationCase.dmDeletedBy}>`
-      : "DM deleted";
-  }
-
-  const dm = moderationCase.dmResult;
-  if (dm?.error || moderationCase.dmFailureReason) {
-    const reason =
-      moderationCase.dmFailureReason ?? dm?.failureReason ?? "unknown";
-    return `DM failed: ${DM_FAILURE_TEXT[reason]}`;
-  }
-
-  if (!actionTypeSupportsDM(moderationCase.actionType)) {
-    return undefined;
-  }
-
-  if (moderationCase.dmNotAttemptedReason === "user_not_in_guild") {
-    return "they weren't in the server";
-  }
-
-  if (moderationCase.dmIntentSource === "executor_no") {
-    return "the mod chose no DM";
-  }
-
-  if (moderationCase.dmIntentSource === "guild_default") {
-    const kind = dmKind(moderationCase.actionType);
-    return kind ? `${kind} DMs are off` : "DMs are off";
-  }
-
-  return undefined;
-}
-
-export function hasLiveDm(moderationCase: ModerationCase): boolean {
-  return (
-    !moderationCase.dmDeleted &&
-    !!moderationCase.dmResult?.channelId &&
-    !!moderationCase.dmResult.messageId
-  );
-}
+export { hasLiveDm };
 
 export interface PostedMessage {
   flags: { has(flag: MessageFlags): boolean };
@@ -431,9 +367,10 @@ function buildReasonHeading(input: ModLogMessageInput): string {
     return reasonHeading(emojis, { sent: true, to: "user" });
   }
 
+  const delivery = reasonDelivery(moderationCase);
   return reasonHeading(emojis, {
     sent: false,
-    why: reasonNotSentWhy(moderationCase),
+    why: (!delivery.sent && delivery.why) || undefined,
   });
 }
 

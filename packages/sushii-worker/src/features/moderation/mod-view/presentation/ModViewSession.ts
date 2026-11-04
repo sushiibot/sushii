@@ -25,13 +25,12 @@ import type { EmojiMap } from "@/features/bot-emojis";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import type { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
-import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
 import type { ModViewResult } from "../application/ModViewService";
 import { MODVIEW_CUSTOM_IDS } from "./customIds";
-import { buildCaseViewMessages } from "./views/CaseView";
+import { type CaseViewSources, loadCaseViewMessages } from "./views/CaseView";
 import {
   MODVIEW_IDLE_TIMEOUT_MS,
   createModViewMessage,
@@ -108,7 +107,7 @@ export class ModViewSession {
     private readonly targetMember: GuildMember | null,
     private readonly emojis: EmojiMap<typeof HISTORY_ACTION_EMOJIS>,
     private readonly setNicknameService: SetNicknameService,
-    private readonly caseProofRepository: CaseProofRepository,
+    private readonly caseViewSources: CaseViewSources,
     private readonly logger: Logger,
     initialTab: ModViewTab = "overview",
     private readonly ephemeral = false,
@@ -268,15 +267,10 @@ export class ModViewSession {
     );
     // Built before the update so a render failure still gets the error reply.
     const messages = moderationCase
-      ? buildCaseViewMessages(
+      ? await loadCaseViewMessages(
           moderationCase,
-          await this.caseProofRepository.listByCase(
-            this.interaction.guildId,
-            moderationCase.caseId,
-          ),
           this.emojis,
-          // Guild config isn't in the mod view's deps, so the server DM text note is omitted.
-          { serverDmTextIncluded: false },
+          this.caseViewSources,
         )
       : [];
 

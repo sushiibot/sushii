@@ -1,16 +1,12 @@
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis";
-import type {
-  DMFailureReason,
-  ModerationCase,
-} from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { CaseProofCounts } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import {
   ActionType,
   ActionTypeBotEmojis,
-  actionTypeSupportsDM,
 } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { reasonDelivery } from "@/features/moderation/shared/presentation/proof/reasonBlock";
 import {
-  formatActionType,
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
@@ -37,58 +33,6 @@ const MAX_CASE_LENGTH = TAB_CONTENT_CHAR_BUDGET;
 // Overview shows rows too and has no select, so the pointer names the History tab.
 const OVERSIZED_NOTE =
   "Too long to show here. Open it from History → View case.";
-
-const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
-  user_blocked: "they have DMs off or blocked sushii",
-  user_privacy: "they have server DMs off or share no server with sushii",
-  user_cannot_receive: "Discord won't deliver DMs to them",
-  unknown: "the DM failed",
-};
-
-export type ReasonDelivery =
-  | { sent: true }
-  | { sent: false; why: string | null };
-
-/** Whether the user still has the reason in their DMs, and if not, why. */
-export function reasonDelivery(moderationCase: ModerationCase): ReasonDelivery {
-  if (moderationCase.dmDeleted) {
-    const by = moderationCase.dmDeletedBy
-      ? ` by <@${moderationCase.dmDeletedBy}>`
-      : "";
-    return { sent: false, why: `DM deleted${by}` };
-  }
-
-  const dm = moderationCase.dmResult;
-  if (dm?.channelId && dm.messageId) {
-    return { sent: true };
-  }
-
-  if (dm?.error || moderationCase.dmFailureReason) {
-    const failure =
-      moderationCase.dmFailureReason ?? dm?.failureReason ?? "unknown";
-    return { sent: false, why: DM_FAILURE_TEXT[failure] };
-  }
-
-  if (!actionTypeSupportsDM(moderationCase.actionType)) {
-    return { sent: false, why: null };
-  }
-
-  if (moderationCase.dmNotAttemptedReason === "user_not_in_guild") {
-    return { sent: false, why: "they weren't in the server" };
-  }
-
-  switch (moderationCase.dmIntentSource) {
-    case "executor_no":
-      return { sent: false, why: "the mod chose no DM" };
-    case "guild_default":
-      return {
-        sent: false,
-        why: `${formatActionType(moderationCase.actionType)} DMs are off`,
-      };
-    default:
-      return { sent: false, why: null };
-  }
-}
 
 function prefixed(emoji: string, text: string): string {
   return emoji ? `${emoji} ${text}` : text;

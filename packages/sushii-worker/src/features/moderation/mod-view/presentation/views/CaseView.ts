@@ -11,12 +11,10 @@ import {
   TextDisplayBuilder,
 } from "discord.js";
 
-import {
-  type HistoryEmojis,
-  reasonDelivery,
-} from "@/features/moderation/cases/presentation/views/HistoryView";
+import type { HistoryEmojis } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import {
   addProofButton,
@@ -26,16 +24,19 @@ import {
   proofMediaUrls,
 } from "@/features/moderation/shared/presentation/proof/proofBlock";
 import {
+  alsoIncludedLine,
+  reasonDelivery,
   reasonHeading,
+  serverDmTextIncluded,
   withEmoji,
 } from "@/features/moderation/shared/presentation/proof/reasonBlock";
 import {
-  formatActionType,
   formatActionTypeAsSentence,
   getActionTypeBotEmoji,
   getActionTypeColor,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
 import dayjs from "@/shared/domain/dayjs";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import Color from "@/utils/colors";
 import { truncateText } from "@/utils/truncateText";
 
@@ -48,6 +49,9 @@ const SELECT_TEXT_MAX_LENGTH = 100;
 export const CASE_VIEW_TEXT_MAX = 4000;
 
 const CONTINUED_LINE = "-# Continued below";
+
+/** Marks the first case view message, so Add proof knows to rebuild it. */
+export const CASE_VIEW_CONTAINER_ID = 4001;
 
 const NO_PROOF_LINE =
   "-# None yet. Add screenshots, message links or context for other mods.";
@@ -134,7 +138,7 @@ function reasonText(
 
   let s = `${heading}\n${reason ?? "-# No reason given"}`;
   if (delivery.sent && opts.serverDmTextIncluded) {
-    s += `\n-# Also included your server's ${formatActionType(moderationCase.actionType)} message`;
+    s += `\n-# ${alsoIncludedLine(moderationCase.actionType)}`;
   }
 
   return s;
@@ -286,6 +290,7 @@ export function buildCaseViewMessages(
 
   const accent = getActionTypeColor(moderationCase.actionType) ?? Color.Info;
   const container = new ContainerBuilder()
+    .setId(CASE_VIEW_CONTAINER_ID)
     .setAccentColor(accent)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(header))
     .addSeparatorComponents(new SeparatorBuilder())
@@ -341,4 +346,34 @@ export function buildCaseViewMessages(
   }
 
   return messages;
+}
+
+export interface CaseViewSources {
+  caseProofRepository: Pick<CaseProofRepository, "listByCase">;
+  guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
+}
+
+/** The case view from the case's current proof and the server's DM settings. */
+export async function loadCaseViewMessages(
+  moderationCase: ModerationCase,
+  emojis: HistoryEmojis,
+  sources: CaseViewSources,
+): Promise<CaseViewMessage[]> {
+  const [proofs, guildConfig] = await Promise.all([
+    sources.caseProofRepository.listByCase(
+      moderationCase.guildId,
+      moderationCase.caseId,
+    ),
+    sources.guildConfigRepository.findByGuildId(moderationCase.guildId),
+  ]);
+  return buildCaseViewMessages(moderationCase, proofs, emojis, {
+    serverDmTextIncluded: serverDmTextIncluded(moderationCase, guildConfig),
+  });
+}
+
+/** Whether posted components are a case view's first message. */
+export function isCaseViewMessage(
+  components: readonly { id?: number }[],
+): boolean {
+  return components.some((c) => c.id === CASE_VIEW_CONTAINER_ID);
 }

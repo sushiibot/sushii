@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
-import { type ReasonEmojis, reasonHeading } from "./reasonBlock";
+import {
+  GUILD,
+  OTHER_MOD,
+  makeCase,
+} from "@/features/moderation/actions/presentation/response/testFixtures";
+import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+
+import {
+  type ReasonEmojis,
+  notSentWhy,
+  reasonDelivery,
+  reasonHeading,
+  serverDmTextIncluded,
+} from "./reasonBlock";
 
 const EMOJIS: ReasonEmojis = {
   additional_message: "<:additional_message:1>",
@@ -42,5 +56,79 @@ describe("reasonHeading", () => {
         { sent: true, to: "user" },
       ),
     ).toBe("**Reason** · sent to user by DM");
+  });
+});
+
+describe("reasonDelivery", () => {
+  test("a live DM is sent", () => {
+    expect(reasonDelivery(makeCase())).toEqual({ sent: true });
+  });
+
+  test("the same why texts as the mod log", () => {
+    expect(
+      reasonDelivery(makeCase({ dm: null, dmIntentSource: "executor_no" })),
+    ).toEqual({ sent: false, why: "the mod chose no DM" });
+    expect(
+      reasonDelivery(
+        makeCase({
+          actionType: ActionType.TempBan,
+          dm: null,
+          dmIntentSource: "guild_default",
+        }),
+      ),
+    ).toEqual({ sent: false, why: "ban DMs are off" });
+    expect(
+      reasonDelivery(
+        makeCase({
+          dm: { error: "x", failureReason: "user_cannot_receive" },
+        }),
+      ),
+    ).toEqual({
+      sent: false,
+      why: "DM failed: Discord won't deliver DMs to them",
+    });
+    expect(reasonDelivery(makeCase({ dmDeleted: true }))).toEqual({
+      sent: false,
+      why: `DM deleted by <@${OTHER_MOD}>`,
+    });
+  });
+
+  test("actions without a DM have no why", () => {
+    expect(
+      reasonDelivery(makeCase({ actionType: ActionType.Note, dm: null })),
+    ).toEqual({ sent: false, why: null });
+  });
+});
+
+describe("notSentWhy", () => {
+  test("names the setting for the action's DM kind", () => {
+    expect(notSentWhy("guild_default", ActionType.TimeoutAdjust)).toBe(
+      "timeout DMs are off",
+    );
+    expect(notSentWhy("not_in_guild", ActionType.Ban)).toBe(
+      "they weren't in the server",
+    );
+    expect(notSentWhy(null, ActionType.Ban)).toBeNull();
+  });
+});
+
+describe("serverDmTextIncluded", () => {
+  function config(banDmText: string | null): GuildConfig {
+    const base = GuildConfig.createDefault(GUILD);
+    return {
+      ...base,
+      moderationSettings: { ...base.moderationSettings, banDmText },
+    } as GuildConfig;
+  }
+
+  test("only for a delivered DM with the action's server text set", () => {
+    expect(serverDmTextIncluded(makeCase(), config("Appeal at x"))).toBe(true);
+    expect(serverDmTextIncluded(makeCase(), config("  "))).toBe(false);
+    expect(
+      serverDmTextIncluded(makeCase({ dm: null }), config("Appeal at x")),
+    ).toBe(false);
+    expect(
+      serverDmTextIncluded(makeCase({ dmDeleted: true }), config("x")),
+    ).toBe(false);
   });
 });

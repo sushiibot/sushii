@@ -25,10 +25,7 @@ import type { Result } from "ts-results";
 
 import type { BotEmojiNameType, EmojiMap } from "@/features/bot-emojis/domain";
 import type { TemplateRef } from "@/features/moderation/reason-templates/domain/ReasonExpander";
-import {
-  guildDmText,
-  guildDmTextSetting,
-} from "@/features/moderation/shared/application/DMNotificationService";
+import { guildDmText } from "@/features/moderation/shared/application/DMNotificationService";
 import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModerationAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type {
@@ -51,17 +48,20 @@ import {
   proofMediaUrls,
 } from "@/features/moderation/shared/presentation/proof/proofBlock";
 import {
+  type NotSentCause,
   REASON_EMOJIS,
+  alsoIncludedLine,
+  caseDmState,
+  dmFailureText,
+  hasLiveDm,
+  notSentWhy,
   reasonHeading,
 } from "@/features/moderation/shared/presentation/proof/reasonBlock";
 import {
   getActionTypeBotEmoji,
   getActionTypeColor,
 } from "@/features/moderation/shared/presentation/views/ActionTypeFormatter";
-import {
-  buildDeleteDmConfirm,
-  hasLiveDm,
-} from "@/features/moderation/shared/presentation/views/ModLogMessageView";
+import { buildDeleteDmConfirm } from "@/features/moderation/shared/presentation/views/ModLogMessageView";
 import dayjs from "@/shared/domain/dayjs";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
@@ -261,7 +261,7 @@ function targetLine(
   if (result.ok) {
     const failure = dmFailureOf(result.val);
     return failure
-      ? `${withEmoji(emojis.success, chip)}\n-# ↳ DM failed: ${DM_FAILURE_TEXT[failure]}`
+      ? `${withEmoji(emojis.success, chip)}\n-# ↳ DM failed: ${dmFailureText(failure)}`
       : withEmoji(emojis.success, chip);
   }
 
@@ -388,52 +388,8 @@ function buildDetails(
     );
 }
 
-const DM_FAILURE_TEXT: Record<DMFailureReason, string> = {
-  user_blocked: "they blocked sushii",
-  user_privacy: "they have server DMs off or share no server with sushii",
-  user_cannot_receive: "they have DMs off or blocked sushii",
-  unknown: "Discord returned an error",
-};
-
-type NotSentCause = "not_in_guild" | "executor_no" | "guild_default" | null;
-
-type DmState =
-  | { kind: "live" }
-  | { kind: "deleted" }
-  | { kind: "failed"; reason: DMFailureReason }
-  | { kind: "not_sent"; cause: NotSentCause };
-
-function dmState(moderationCase: ModerationCase): DmState {
-  if (moderationCase.dmDeleted) {
-    return { kind: "deleted" };
-  }
-  if (hasLiveDm(moderationCase)) {
-    return { kind: "live" };
-  }
-  if (moderationCase.dmFailed || moderationCase.dmFailureReason) {
-    return {
-      kind: "failed",
-      reason:
-        moderationCase.dmFailureReason ??
-        moderationCase.dmResult?.failureReason ??
-        "unknown",
-    };
-  }
-  if (moderationCase.dmNotAttemptedReason === "user_not_in_guild") {
-    return { kind: "not_sent", cause: "not_in_guild" };
-  }
-  switch (moderationCase.dmIntentSource) {
-    case "executor_no":
-      return { kind: "not_sent", cause: "executor_no" };
-    case "guild_default":
-      return { kind: "not_sent", cause: "guild_default" };
-    default:
-      return { kind: "not_sent", cause: null };
-  }
-}
-
 function dmFailureOf(moderationCase: ModerationCase): DMFailureReason | null {
-  const state = dmState(moderationCase);
+  const state = caseDmState(moderationCase);
   return state.kind === "failed" ? state.reason : null;
 }
 
@@ -450,46 +406,19 @@ function deletedBy(cases: ModerationCase[]): string {
   return [by ? ` by <@${by}>` : "", at ? ` <t:${unix(at)}:R>` : ""].join("");
 }
 
-/** "ban" for a ban DM, or null for actions without a DM text setting. */
-function dmTextNoun(actionType: ActionType): string | null {
-  switch (guildDmTextSetting(actionType)) {
-    case "banDmText":
-      return "ban";
-    case "kickDmText":
-      return "kick";
-    case "warnDmText":
-      return "warn";
-    case "timeoutDmText":
-      return "timeout";
-    default:
-      return null;
-  }
-}
-
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function notSentText(cause: NotSentCause, actionType: ActionType): string {
-  switch (cause) {
-    case "not_in_guild":
-      return "they're not in the server";
-    case "executor_no":
-      return "you chose no DM";
-    case "guild_default": {
-      const noun = dmTextNoun(actionType);
-      return noun
-        ? `${capitalize(noun)} DMs are off in \`/settings\``
-        : "DMs are off in `/settings`";
-    }
-    default:
-      return "";
-  }
-}
-
-function alsoIncludedLine(actionType: ActionType): string {
-  const noun = dmTextNoun(actionType);
-  return `Also included your server's ${noun ?? "DM"} message`;
+/** The response tells the mod where the server's DM setting lives. */
+function notSentText(
+  cause: NotSentCause | null,
+  actionType: ActionType,
+): string {
+  const why = notSentWhy(cause, actionType) ?? "";
+  return cause === "guild_default"
+    ? `${capitalize(why)} in \`/settings\``
+    : why;
 }
 
 /**
@@ -590,7 +519,7 @@ function reasonDelivery(input: DeliveryInput): ReasonDelivery {
   }
 
   const actionType = dmCases[0].actionType;
-  const states = dmCases.map(dmState);
+  const states = dmCases.map(caseDmState);
   const total = dmCases.length;
   const live = states.filter((s) => s.kind === "live").length;
   const deleted = states.filter((s) => s.kind === "deleted").length;
@@ -629,7 +558,7 @@ function reasonDelivery(input: DeliveryInput): ReasonDelivery {
     if (total === 1) {
       const [state] = states;
       if (state.kind === "failed") {
-        cause = `DM failed: ${DM_FAILURE_TEXT[state.reason]}`;
+        cause = `DM failed: ${dmFailureText(state.reason)}`;
       } else if (state.kind === "not_sent" && state.cause === "guild_default") {
         cause = notSentText(state.cause, actionType);
       } else if (state.kind === "not_sent" && state.cause) {
@@ -640,7 +569,7 @@ function reasonDelivery(input: DeliveryInput): ReasonDelivery {
     } else if (deleted === total) {
       cause = `${total} DMs deleted${deletedBy(dmCases)}`;
     } else if (failed.length === total) {
-      cause = `DMs failed for all ${total}${failReason ? `: ${DM_FAILURE_TEXT[failReason]}` : ""}`;
+      cause = `DMs failed for all ${total}${failReason ? `: ${dmFailureText(failReason)}` : ""}`;
     } else if (notSent.length === total) {
       if (notSentCause === "guild_default") {
         cause = notSentText(notSentCause, actionType);

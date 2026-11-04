@@ -491,6 +491,7 @@ export function setupModerationFeature({
     timeoutDetectionService: services.timeoutDetectionService,
     setNicknameService,
     caseProofRepository: services.caseProofRepository,
+    guildConfigRepository: services.guildConfigRepository,
   });
 
   const commands = createModerationCommands(

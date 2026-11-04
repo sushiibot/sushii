@@ -455,7 +455,7 @@ describe("buildActionResultMessage", () => {
       }),
     );
     expect(reasonText(container)).toEndWith(
-      "\n-# DM not sent: you chose no DM",
+      "\n-# DM not sent: the mod chose no DM",
     );
   });
 
@@ -471,7 +471,7 @@ describe("buildActionResultMessage", () => {
       `**${emojis.reason} Reason** · not sent\n`,
     );
     expect(reasonText(container)).toEndWith(
-      "\n-# DM failed: they blocked sushii",
+      "\n-# DM failed: they have DMs off or blocked sushii",
     );
   });
 
@@ -539,7 +539,9 @@ describe("buildActionResultMessage", () => {
     const container = json(render({ targets, results }));
 
     expect(headerText(container)).toContain("Banned 2 of 3 users");
-    expect(headerText(container)).toContain("DM failed: they blocked sushii");
+    expect(headerText(container)).toContain(
+      "DM failed: they have DMs off or blocked sushii",
+    );
     expect(reasonText(container)).toStartWith(
       `**${emojis.additional_message} Reason** · sent to 1 of 2 users by DM\n`,
     );
@@ -1370,6 +1372,42 @@ describe("postedResponseDiffers", () => {
       dmOverride: `${emojis.message} DM updated with the new reason`,
     });
     expect(differs(rebuilt, [edited])).toBe(false);
+  });
+
+  test("a response posted with older DM status wording still matches", () => {
+    const moderationCase = makeCase({
+      dm: null,
+      dmIntentSource: "executor_no",
+    });
+    const current = posted(
+      render({
+        results: [Ok(moderationCase)],
+        reasonNotes: ["Template `!spam`"],
+      }),
+    );
+    const older = JSON.parse(
+      JSON.stringify(current).replace(
+        "DM not sent: the mod chose no DM",
+        "DM not sent: you chose no DM",
+      ),
+    ) as APIMessageTopLevelComponent[];
+    expect(JSON.stringify(older)).toContain("you chose no DM");
+
+    expect(differs(older, [moderationCase])).toBe(false);
+    const rebuilt = reasonText(
+      json(
+        rebuildActionResponse(older, {
+          cases: [moderationCase],
+          proofs: [],
+          emojis,
+          savePrompt: false,
+          mode: "buttons",
+        }),
+      ),
+    );
+    expect(rebuilt).toContain("-# Template `!spam`");
+    expect(rebuilt).toContain("-# DM not sent: the mod chose no DM");
+    expect(rebuilt).not.toContain("you chose no DM");
   });
 
   test("proof added elsewhere differs, edited content doesn't", () => {

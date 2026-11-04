@@ -6,6 +6,7 @@ import type { BotEmojiRepository } from "@/features/bot-emojis";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { getErrorMessage } from "@/interactions/responses/error";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { ModViewService } from "../application/ModViewService";
 import type { ModViewEntryInteraction } from "./ModViewSession";
@@ -17,6 +18,7 @@ export interface ModViewDependencies {
   emojiRepository: BotEmojiRepository;
   setNicknameService: SetNicknameService;
   caseProofRepository: CaseProofRepository;
+  guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
   logger: Logger;
 }
 
@@ -78,7 +80,10 @@ export async function openModView(
     member,
     emojis,
     deps.setNicknameService,
-    deps.caseProofRepository,
+    {
+      caseProofRepository: deps.caseProofRepository,
+      guildConfigRepository: deps.guildConfigRepository,
+    },
     deps.logger,
     initialTab,
     ephemeral,

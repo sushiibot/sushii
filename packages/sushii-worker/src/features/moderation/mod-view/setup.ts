@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import type { SetNicknameService } from "@/features/alt-accounts/application/SetNicknameService";
 import type { AltAccountRepository } from "@/features/alt-accounts/domain/repositories";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import type { FullFeatureSetupReturn } from "@/shared/types/FeatureSetup";
 
 import type { HistoryUserService } from "../cases/application/HistoryUserService";
@@ -29,6 +30,7 @@ interface CreateModViewDependenciesDeps {
   timeoutDetectionService: TimeoutDetectionService;
   setNicknameService: SetNicknameService;
   caseProofRepository: CaseProofRepository;
+  guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
 }
 
 export interface ModViewFeatureServices {
@@ -60,6 +62,7 @@ export function createModViewDependencies(
     emojiRepository: deps.emojiRepository,
     setNicknameService: deps.setNicknameService,
     caseProofRepository: deps.caseProofRepository,
+    guildConfigRepository: deps.guildConfigRepository,
     logger: deps.logger.child({ feature: "modView" }),
   };
 }
