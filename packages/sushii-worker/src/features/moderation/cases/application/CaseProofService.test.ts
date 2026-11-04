@@ -303,6 +303,7 @@ describe("CaseProofService hosting", () => {
 
   test("a failure on every case is rethrown", async () => {
     const ctx = setup({ caseIds: ["4822", "4823"] });
+    const error = spyOn(ctx.logger, "error");
     ctx.hostProof.mockImplementation(async () => {
       throw new Error("Missing Access");
     });
@@ -311,6 +312,9 @@ describe("CaseProofService hosting", () => {
     );
     expect(ctx.markStale).not.toHaveBeenCalled();
     expect(ctx.recordProofAdded).toHaveBeenCalledWith("button", "failed");
+    // The first is rethrown for the caller to log; only the others are logged here.
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0][0]).toMatchObject({ caseId: "4823" });
   });
 
   test("a case still being posted is skipped while the others get it", async () => {

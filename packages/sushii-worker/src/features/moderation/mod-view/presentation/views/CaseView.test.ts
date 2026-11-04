@@ -13,6 +13,7 @@ import { proofEntryText } from "@/features/moderation/shared/presentation/proof/
 import { MODVIEW_CUSTOM_IDS } from "../customIds";
 import {
   CASE_VIEW_TEXT_MAX,
+  REOPEN_CASE_VIEW_LINE,
   buildCaseSelect,
   buildCaseViewMessages,
   splitAtLines,
@@ -342,6 +343,32 @@ describe("buildCaseViewMessages", () => {
     expect(texts(json(first))[2]).toBe(
       "**:lock: Proof** · mods only\n-# Continued below",
     );
+  });
+
+  test("firstOnly points to reopening instead of saying it continues", () => {
+    const moderationCase = makeCase("7", { reason: "r".repeat(3000) });
+    const messages = buildCaseViewMessages(
+      moderationCase,
+      [makeProof({ content: "x".repeat(1000) })],
+      emojis,
+      { serverDmTextIncluded: false, firstOnly: true },
+    );
+
+    expect(messages).toHaveLength(1);
+    const all = texts(json(messages[0]));
+    expect(all.join("\n")).not.toContain("Continued below");
+    expect(all).toContain(REOPEN_CASE_VIEW_LINE);
+    expect(all.join("").length).toBeLessThanOrEqual(CASE_VIEW_TEXT_MAX);
+  });
+
+  test("firstOnly without overflow has no reopen line", () => {
+    const [first] = buildCaseViewMessages(
+      makeCase("7", { reason: "spam" }),
+      [makeProof({ content: "short" })],
+      emojis,
+      { serverDmTextIncluded: false, firstOnly: true },
+    );
+    expect(texts(json(first))).not.toContain(REOPEN_CASE_VIEW_LINE);
   });
 });
 

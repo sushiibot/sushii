@@ -42,6 +42,7 @@ import {
   partialProofText,
   proofErrorText,
   proofNotice,
+  typedBackText,
 } from "@/features/moderation/shared/presentation/proof/proofMessages";
 import { getErrorMessage } from "@/interactions/responses/error";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -205,49 +206,36 @@ export class AddProofButtonHandler extends ButtonHandler {
     // defer: downloads and re-uploads files to the mod log
     await submission.deferUpdate();
 
+    let result: Awaited<ReturnType<AddProofDeps["caseProofService"]["add"]>>;
     try {
-      await this.addAndRefresh(submission, caseIds, origin, content, files);
+      result = await this.deps.caseProofService.add({
+        guildId: submission.guildId,
+        caseIds,
+        authorId: submission.user.id,
+        kind: "button",
+        content,
+        files,
+        uploadLimit: submission.attachmentSizeLimit,
+        exceptMessageId:
+          origin === "response" ? submission.message.id : undefined,
+      });
     } catch (err) {
       // Logged here instead of the router: its reply would be a second error message.
       this.deps.logger.error(
         { err, guildId: submission.guildId, caseIds, origin },
         "Failed to add proof",
       );
-      await submission
-        .followUp(
-          getErrorMessage(
-            "Couldn't add proof",
-            "Something went wrong. Try again.",
-            true,
-          ),
-        )
-        .catch((followUpErr: unknown) => {
-          this.deps.logger.warn(
-            { err: followUpErr, guildId: submission.guildId },
-            "Failed to tell the mod adding proof failed",
-          );
-        });
+      await this.notePrivately(
+        submission,
+        getErrorMessage(
+          "Couldn't add proof",
+          `Something went wrong. Try again.${typedBackText(content)}`,
+          true,
+        ),
+      );
+      return;
     }
-  }
 
-  private async addAndRefresh(
-    submission: ModalMessageModalSubmitInteraction<"cached">,
-    caseIds: string[],
-    origin: AddProofOrigin,
-    content: string | null,
-    files: ReturnType<typeof readAddProofFields>["files"],
-  ): Promise<void> {
-    const result = await this.deps.caseProofService.add({
-      guildId: submission.guildId,
-      caseIds,
-      authorId: submission.user.id,
-      kind: "button",
-      content,
-      files,
-      uploadLimit: submission.attachmentSizeLimit,
-      exceptMessageId:
-        origin === "response" ? submission.message.id : undefined,
-    });
     if (result.err) {
       await submission.followUp(
         proofNotice(
@@ -261,15 +249,24 @@ export class AddProofButtonHandler extends ButtonHandler {
       return;
     }
 
-    const { proofs, skipped } = result.val;
-    if (origin === "response") {
-      await this.refreshResponse(submission, caseIds);
-    } else if (origin === "case_view") {
-      await this.refreshCaseView(submission, result.val.cases[0]);
+    const { proofs, skipped, cases: added } = result.val;
+    try {
+      if (origin === "response") {
+        await this.refreshResponse(submission, caseIds);
+      } else if (origin === "case_view") {
+        await this.refreshCaseView(submission, added[0]);
+      }
+    } catch (err) {
+      // The proof is saved; the mod log entry shows it even if this message doesn't.
+      this.deps.logger.warn(
+        { err, guildId: submission.guildId, caseIds, origin },
+        "Failed to refresh the message proof was added from",
+      );
     }
 
     if (skipped.length > 0) {
-      await submission.followUp(
+      await this.notePrivately(
+        submission,
         proofNotice(
           partialProofText(
             proofs.map((p) => p.caseId),
@@ -277,6 +274,21 @@ export class AddProofButtonHandler extends ButtonHandler {
           ),
           Color.Warning,
         ),
+      );
+    }
+  }
+
+  /** Best effort: the add already happened or was already reported. */
+  private async notePrivately(
+    submission: ModalMessageModalSubmitInteraction<"cached">,
+    message: Parameters<ModalMessageModalSubmitInteraction["followUp"]>[0],
+  ): Promise<void> {
+    try {
+      await submission.followUp(message);
+    } catch (err) {
+      this.deps.logger.warn(
+        { err, guildId: submission.guildId },
+        "Failed to send an Add proof note",
       );
     }
   }

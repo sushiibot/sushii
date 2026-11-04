@@ -412,6 +412,23 @@ describe("Add proof submit", () => {
       "Couldn't add proof",
     );
     expect(error).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(ctx.submission.followUp.mock.calls[0])).toContain(
+      "> Reported in #reports",
+    );
+  });
+
+  test("a failed refresh only warns: the proof is saved", async () => {
+    const ctx = setup({ message: responseMessage() });
+    const error = spyOn(ctx.logger, "error");
+    const warn = spyOn(ctx.logger, "warn");
+    ctx.submission.editReply.mockImplementationOnce(async () => {
+      throw new Error("Unknown Message");
+    });
+    await ctx.run();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(error).not.toHaveBeenCalled();
+    expect(ctx.submission.followUp).not.toHaveBeenCalled();
   });
 
   test("a split case view edits only its first message and points to the rest", async () => {

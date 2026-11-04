@@ -1,5 +1,10 @@
 import type { InteractionReplyOptions } from "discord.js";
-import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+import {
+  ContainerBuilder,
+  MessageFlags,
+  TextDisplayBuilder,
+  escapeMarkdown,
+} from "discord.js";
 
 import { formatCaseRefs } from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import type {
@@ -61,17 +66,42 @@ function refusalText(error: AddProofError, context: ProofErrorContext) {
   }
 }
 
+/** The mod's text quoted back when nothing was saved, so it isn't lost. */
+export function typedBackText(typed: string | null | undefined): string {
+  const text = typed?.trim();
+  return text
+    ? `\n-# Nothing was saved. What you typed:\n${quoteMarkdownString(
+        escapeMarkdown(text, {
+          maskedLink: true,
+          heading: true,
+          bulletedList: true,
+          numberedList: true,
+        }),
+      )}`
+    : "";
+}
+
 /** Short, searchable text for each expected refusal, with the typed text quoted back. */
 export function proofErrorText(
   error: AddProofError,
   context: ProofErrorContext,
 ): string {
   const text = refusalText(error, context);
-  const typed = context.typed?.trim();
-  if (!typed || error === "empty") {
-    return text;
+  return error === "empty" ? text : text + typedBackText(context.typed);
+}
+
+/** Retrying from the button would add the proof again to the cases that got it. */
+function skippedCaseLine(skip: CaseSkip): string | null {
+  const ref = `Case #${skip.caseId}`;
+  const again = `Add it again from ${ref}'s mod log entry or case view.`;
+  switch (skip.reason) {
+    case "retry_later":
+      return `-# ${ref}: its mod log entry is still being posted. ${again}`;
+    case "failed":
+      return `-# ${ref}: something went wrong. ${again}`;
+    case "no_mod_log_for_files":
+      return null;
   }
-  return `${text}\n-# Nothing was saved. What you typed:\n${quoteMarkdownString(typed)}`;
 }
 
 /** For proof that reached some cases of an action but not all of them. */
@@ -79,10 +109,13 @@ export function partialProofText(
   added: readonly string[],
   skipped: readonly CaseSkip[],
 ): string {
-  const reasons = [...new Set(skipped.map((s) => SKIP_TEXT[s.reason]))];
+  const lines = skipped.flatMap((s) => skippedCaseLine(s) ?? []);
+  if (skipped.some((s) => s.reason === "no_mod_log_for_files")) {
+    lines.push(`-# ${NO_MOD_LOG_FOR_FILES_TEXT}`);
+  }
   return [
     `Proof added: ${formatCaseRefs(added)}. Not added: ${formatCaseRefs(skipped.map((s) => s.caseId))}.`,
-    ...reasons.map((r) => `-# ${r}`),
+    ...lines,
   ].join("\n");
 }
 

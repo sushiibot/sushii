@@ -287,7 +287,8 @@ export function buildCaseViewMessages(
   if (entries.length === 0) {
     sectionText = `${heading}\n${NO_PROOF_LINE}`;
   } else if (shown === 0) {
-    sectionText = `${heading}\n${CONTINUED_LINE}`;
+    // With firstOnly, the reopen line takes the place of the continuation.
+    sectionText = opts.firstOnly ? heading : `${heading}\n${CONTINUED_LINE}`;
   } else {
     sectionText = [heading, ...entries.slice(0, shown)].join("\n");
   }

@@ -195,15 +195,13 @@ export class CaseProofService {
       }
     }
 
-    if (proofs.length === 0 && failures.length > 0) {
-      throw failures[0].err;
+    const [firstFailure, ...otherFailures] = failures;
+    if (proofs.length === 0 && firstFailure) {
+      // The first is thrown to the caller; the rest are only seen here.
+      this.logFailures(input.guildId, otherFailures);
+      throw firstFailure.err;
     }
-    for (const failure of failures) {
-      this.deps.logger.error(
-        { err: failure.err, guildId: input.guildId, caseId: failure.caseId },
-        "Failed to add proof to a case",
-      );
-    }
+    this.logFailures(input.guildId, failures);
     if (proofs.length === 0) {
       return Err({ kind: "not_added", skipped });
     }
@@ -257,6 +255,18 @@ export class CaseProofService {
       },
     ]);
     return row;
+  }
+
+  private logFailures(
+    guildId: string,
+    failures: readonly { caseId: string; err: unknown }[],
+  ): void {
+    for (const failure of failures) {
+      this.deps.logger.error(
+        { err: failure.err, guildId, caseId: failure.caseId },
+        "Failed to add proof to a case",
+      );
+    }
   }
 
   /** null when any case is gone. */
