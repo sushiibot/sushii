@@ -120,6 +120,33 @@ describe("proofEntryText", () => {
     expect(text).toContain("> 1\\. now");
   });
 
+  test("keeps URLs in quoted text unescaped", () => {
+    const text = proofEntryText(
+      makeProof({
+        sourceAuthorId: AUTHOR,
+        sourceContent:
+          "go to <https://evil.example/x_y> or https://evil.example/a_b*c now_ok",
+      }),
+      EMOJIS,
+    );
+
+    expect(text).toContain(
+      "> go to <https://evil.example/x_y> or https://evil.example/a_b*c now\\_ok",
+    );
+  });
+
+  test("escapes subtext markers in the quoted message", () => {
+    const text = proofEntryText(
+      makeProof({
+        sourceAuthorId: AUTHOR,
+        sourceContent: "-# fake mod note\nfine -# here",
+      }),
+      EMOJIS,
+    );
+
+    expect(text).toContain("> \\-# fake mod note\n> fine -# here");
+  });
+
   test("keeps URLs raw and never truncates", () => {
     const long = `${"a".repeat(990)} https://example.com/evidence`;
     const text = proofEntryText(makeProof({ content: long }), EMOJIS);

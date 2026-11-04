@@ -11,6 +11,7 @@ export type ReasonEmojis = EmojiMap<typeof REASON_EMOJIS>;
 
 export type ReasonDeliveryState =
   | { sent: true; to: string }
+  /** `why` is bot-written text and may hold markdown, so it isn't escaped. */
   | { sent: false; why?: string };
 
 /** A missing bot emoji arrives as "", which must not leave a stray space inside the bold. */
@@ -26,6 +27,6 @@ export function reasonHeading(
     return `**${withEmoji(emojis.additional_message, "Reason")}** · sent to ${escapeMarkdown(state.to)} by DM`;
   }
 
-  const why = state.why ? ` (${escapeMarkdown(state.why)})` : "";
+  const why = state.why ? ` (${state.why})` : "";
   return `**${withEmoji(emojis.reason, "Reason")}** · not sent${why}`;
 }

@@ -26,13 +26,13 @@ describe("reasonHeading", () => {
     );
   });
 
-  test("escapes markdown in the username and cause", () => {
+  test("escapes markdown in the username only", () => {
     expect(reasonHeading(EMOJIS, { sent: true, to: "__bold_guy__" })).toBe(
       "**<:additional_message:1> Reason** · sent to \\_\\_bold\\_guy\\_\\_ by DM",
     );
-    expect(reasonHeading(EMOJIS, { sent: false, why: "*odd*" })).toBe(
-      "**<:reason:2> Reason** · not sent (\\*odd\\*)",
-    );
+    expect(
+      reasonHeading(EMOJIS, { sent: false, why: "off in `/settings`" }),
+    ).toBe("**<:reason:2> Reason** · not sent (off in `/settings`)");
   });
 
   test("keeps the bold valid without emojis", () => {

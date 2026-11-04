@@ -446,6 +446,7 @@ describe("case proof backfill migration (Integration)", () => {
       attachments: ["", "https://cdn.discordapp.com/a.png", " "],
     });
     await insertCase(db, GUILD_ID, "8");
+    await insertCase(db, GUILD_ID, "9", { attachments: ["\t", "\n"] });
     await client.query(
       `UPDATE app_public.mod_logs SET attachments = '{{https://x/a.png,https://x/b.png}}' WHERE guild_id = $1 AND case_id = 8`,
       [GUILD_ID],
@@ -482,6 +483,7 @@ describe("case proof backfill migration (Integration)", () => {
       "6",
       "7",
       "8",
+      "9",
     ]);
 
     expect([...byCase.keys()].sort()).toEqual(["1", "4", "7"]);

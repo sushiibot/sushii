@@ -30,6 +30,28 @@ export function proofHeading(emojis: ProofEmojis): string {
   return `**${withEmoji(emojis.lock, "Proof")}** · mods only`;
 }
 
+/** Stops at brackets and parens so a masked link's `[text](` still matches around it. */
+const URL_SPAN = /<https?:\/\/[^\s>]+>|https?:\/\/[^\s<>()[\]]+/g;
+const PLACEHOLDER = /\uE000(\d+)\uE001/g;
+
+/** Escapes copied message text without putting backslashes into its URLs. */
+function escapeQuotedText(text: string): string {
+  const urls: string[] = [];
+  const masked = text.replace(URL_SPAN, (url) => {
+    urls.push(url);
+    return `\uE000${urls.length - 1}\uE001`;
+  });
+
+  return escapeMarkdown(masked, {
+    maskedLink: true,
+    heading: true,
+    bulletedList: true,
+    numberedList: true,
+  })
+    .replace(/^(\s*)-#/gm, "$1\\-#")
+    .replace(PLACEHOLDER, (_, index: string) => urls[Number(index)]);
+}
+
 function fileCount(count: number): string {
   return count === 1 ? "1 file" : `${count} files`;
 }
@@ -51,16 +73,7 @@ export function proofEntryText(
     lines.push(proof.content);
   }
   if (proof.sourceContent) {
-    lines.push(
-      quoteMarkdownString(
-        escapeMarkdown(proof.sourceContent, {
-          maskedLink: true,
-          heading: true,
-          bulletedList: true,
-          numberedList: true,
-        }),
-      ),
-    );
+    lines.push(quoteMarkdownString(escapeQuotedText(proof.sourceContent)));
   }
   if (proof.sourceMessageUrl) {
     lines.push(proof.sourceMessageUrl);

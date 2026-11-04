@@ -12,7 +12,7 @@ FROM "app_public"."mod_logs" AS "m"
 CROSS JOIN LATERAL (
 	SELECT array_agg("u"."a" ORDER BY "u"."ord") AS "urls"
 	FROM unnest("m"."attachments") WITH ORDINALITY AS "u"("a", "ord")
-	WHERE btrim("u"."a") <> ''
+	WHERE "u"."a" !~ '^\s*$'
 ) AS "f"
 WHERE array_ndims("m"."attachments") = 1
 	AND "f"."urls" IS NOT NULL;
