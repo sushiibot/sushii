@@ -18,7 +18,7 @@ import { quoteMarkdownString } from "@/utils/markdown";
 export const HISTORY_ACTION_EMOJIS = [
   ...ActionTypeBotEmojis,
   "reason",
-  "additional_message",
+  "dm_sent",
   "lock",
   "duration",
   "attachment",

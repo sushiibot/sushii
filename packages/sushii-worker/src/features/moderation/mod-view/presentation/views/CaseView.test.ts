@@ -195,7 +195,7 @@ describe("buildCaseViewMessages", () => {
       `### :ban: Ban · Case #7\n<@${USER_ID}> · by <@${MOD_ID}> · <t:${Math.floor(moderationCase.actionTime.getTime() / 1000)}:R>`,
     );
     expect(reason).toBe(
-      "**:additional_message: Reason** · sent to user by DM\nSpamming invite links\n-# Also included your server's ban message",
+      "**:dm_sent: Reason** · sent to user by DM\nSpamming invite links\n-# Also included your server's ban message",
     );
     expect(proofText).toStartWith("**:lock: Proof** · mods only\n-# <@");
     expect(proofText).toContain("Reported in #reports");

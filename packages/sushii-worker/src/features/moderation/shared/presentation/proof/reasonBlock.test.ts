@@ -17,17 +17,17 @@ import {
 } from "./reasonBlock";
 
 const EMOJIS: ReasonEmojis = {
-  additional_message: "<:additional_message:1>",
+  dm_sent: "<:dm_sent:1>",
   reason: "<:reason:2>",
 };
 
 describe("reasonHeading", () => {
   test("sent", () => {
     expect(reasonHeading(EMOJIS, { sent: true, to: "spambot" })).toBe(
-      "**<:additional_message:1> Reason** · sent to spambot by DM",
+      "**<:dm_sent:1> Reason** · sent to spambot by DM",
     );
     expect(reasonHeading(EMOJIS, { sent: true, to: "3 users" })).toBe(
-      "**<:additional_message:1> Reason** · sent to 3 users by DM",
+      "**<:dm_sent:1> Reason** · sent to 3 users by DM",
     );
   });
 
@@ -42,7 +42,7 @@ describe("reasonHeading", () => {
 
   test("escapes markdown in the username only", () => {
     expect(reasonHeading(EMOJIS, { sent: true, to: "__bold_guy__" })).toBe(
-      "**<:additional_message:1> Reason** · sent to \\_\\_bold\\_guy\\_\\_ by DM",
+      "**<:dm_sent:1> Reason** · sent to \\_\\_bold\\_guy\\_\\_ by DM",
     );
     expect(
       reasonHeading(EMOJIS, { sent: false, why: "off in `/settings`" }),
@@ -52,7 +52,7 @@ describe("reasonHeading", () => {
   test("keeps the bold valid without emojis", () => {
     expect(
       reasonHeading(
-        { additional_message: "", reason: "" },
+        { dm_sent: "", reason: "" },
         { sent: true, to: "user" },
       ),
     ).toBe("**Reason** · sent to user by DM");

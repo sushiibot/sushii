@@ -320,7 +320,7 @@ describe("buildModLogMessage", () => {
     );
 
     expect(allText(container)).toContain(
-      `**${emojis.additional_message} Reason** · sent to user by DM\nSpamming in channels (rule 3).`,
+      `**${emojis.dm_sent} Reason** · sent to user by DM\nSpamming in channels (rule 3).`,
     );
     expect(allText(container)).toContain(
       `-# ${emojis.trash} Deleted messages from the previous hour`,

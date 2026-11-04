@@ -86,7 +86,7 @@ describe("formatModerationCase", () => {
     const line = formatModerationCase(c, emojis);
 
     expect(line).toContain("\n> Spamming invite links");
-    expect(line).not.toContain(":additional_message:");
+    expect(line).not.toContain(":dm_sent:");
     expect(line).not.toContain("Not sent");
   });
 

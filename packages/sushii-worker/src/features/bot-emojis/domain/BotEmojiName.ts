@@ -22,7 +22,7 @@ export const BotEmojiName = z.enum([
   "reason",
   "tip",
   "message",
-  "additional_message",
+  "dm_sent",
   "history",
   "duration",
   "lock",

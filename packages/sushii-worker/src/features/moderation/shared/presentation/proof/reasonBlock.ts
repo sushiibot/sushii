@@ -17,7 +17,7 @@ import {
 } from "../../domain/value-objects/ActionType";
 
 export const REASON_EMOJIS = [
-  "additional_message",
+  "dm_sent",
   "reason",
 ] as const satisfies readonly BotEmojiNameType[];
 
@@ -38,7 +38,7 @@ export function reasonHeading(
   state: ReasonDeliveryState,
 ): string {
   if (state.sent) {
-    return `**${withEmoji(emojis.additional_message, "Reason")}** · sent to ${escapeMarkdown(state.to)} by DM`;
+    return `**${withEmoji(emojis.dm_sent, "Reason")}** · sent to ${escapeMarkdown(state.to)} by DM`;
   }
 
   const why = state.why ? ` (${state.why})` : "";
