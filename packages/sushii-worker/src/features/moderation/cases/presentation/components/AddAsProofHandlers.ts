@@ -52,7 +52,7 @@ export interface AddAsProofDeps {
 const EMPTY_HINT = "Pick a message with text or files.";
 
 export const SOURCE_MESSAGE_GONE_TEXT =
-  "That message was deleted or sushii can't read its channel anymore, so it can't be added as proof.";
+  "That message was deleted, or sushii can't read its channel, so it can't be added as proof.";
 
 export function toSourceMessage(message: Message): SourceMessage {
   return {
