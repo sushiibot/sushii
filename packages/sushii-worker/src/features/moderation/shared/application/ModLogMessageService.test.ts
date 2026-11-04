@@ -11,13 +11,18 @@ import { ModerationCase } from "../domain/entities/ModerationCase";
 import type { CaseProofRepository } from "../domain/repositories/CaseProofRepository";
 import { ActionType } from "../domain/value-objects/ActionType";
 import { Reason } from "../domain/value-objects/Reason";
+import { proofEntryText } from "../presentation/proof/proofBlock";
 import type { ModLogMessage } from "../presentation/views/ModLogMessageView";
 import {
   MESSAGE_TEXT_MAX_LENGTH,
   MOD_LOG_FACTS_ID,
   messageTextLength,
 } from "../presentation/views/ModLogMessageView";
-import { ModLogMessageService } from "./ModLogMessageService";
+import {
+  DELETE_DM_PROMPT_RESERVE,
+  MORE_PROOF_LINE_RESERVE,
+  ModLogMessageService,
+} from "./ModLogMessageService";
 
 const GUILD = "187450744427773963";
 const TARGET = "912345678901234567";
@@ -733,13 +738,21 @@ describe("ModLogMessageService.hostProof", () => {
         DM,
       );
 
-    // The entry with a one-character proof, as hostProof would render it.
-    const measure = setup({
-      proofs: [makeProof({ content: "a", hostMessageId: LOG_MESSAGE })],
-    });
-    const base = messageTextLength(await measure.service.render(withReason()));
-    // Headroom for the "More proof" link and the Delete DM prompt.
-    const longest = MESSAGE_TEXT_MAX_LENGTH - 270 - base + 1;
+    // The entry without proof, plus what the draft's lines add, as hostProof measures it.
+    const base = messageTextLength(await setup().service.render(withReason()));
+    const meta = proofEntryText(
+      { ...draft(), content: null },
+      {
+        lock: "",
+        attachment: "",
+      },
+    );
+    const longest =
+      MESSAGE_TEXT_MAX_LENGTH -
+      MORE_PROOF_LINE_RESERVE -
+      DELETE_DM_PROMPT_RESERVE -
+      base -
+      (meta.length + 2);
 
     const fitting = v2Message(null);
     const fits = await setup({ posted: fitting }).service.hostProof(
@@ -873,6 +886,88 @@ describe("ModLogMessageService adopting unhosted proof files", () => {
     expect(updateHosting).toHaveBeenCalledWith(GUILD, "7", {
       attachments: [expect.stringContaining("/1_dm-screenshot.png?ex=")],
       hostMessageId: LOG_MESSAGE,
+    });
+  });
+});
+
+describe("ModLogMessageService oversized proof", () => {
+  const huge = () =>
+    draft({
+      content: "c".repeat(1000),
+      sourceAuthorId: TARGET,
+      sourceContent: "a\n".repeat(1000),
+      sourceMessageUrl: `https://discord.com/channels/${GUILD}/1/2`,
+    });
+
+  function partTexts(payload: { components: { toJSON(): unknown }[] }) {
+    const container = payload.components[0]?.toJSON() as {
+      components: { type: number; content?: string }[];
+    };
+    return container.components
+      .filter((c) => c.type === 10)
+      .map((c) => c.content ?? "");
+  }
+
+  test("a proof too long for one message is split across replies, never cut", async () => {
+    const posted = v2Message(null);
+    const { service } = setup({ posted });
+
+    const result = await service.hostProof(makeCase(), huge(), [
+      upload("shot.png"),
+    ]);
+
+    expect(result).toMatchObject({ kind: "hosted", hostMessageId: LOG_REPLY });
+    const first = (await posted.reply.mock.results[0]?.value) as ReturnType<
+      typeof fakeMessage
+    >;
+    const payloads = [
+      posted.reply.mock.calls[0]?.[0],
+      first.reply.mock.calls[0]?.[0],
+    ] as unknown as {
+      components: { toJSON(): unknown }[];
+      files: { name: string }[];
+    }[];
+    expect(payloads.every(Boolean)).toBe(true);
+    expect(payloads[0]?.files).toEqual([]);
+    expect(payloads[1]?.files).toHaveLength(1);
+
+    const texts = payloads.map(partTexts);
+    for (const parts of texts) {
+      expect(parts.reduce((sum, t) => sum + t.length, 0)).toBeLessThanOrEqual(
+        4000,
+      );
+      expect(parts[0]).toContain("More proof · Case #4822");
+    }
+    expect(texts[0]?.[0]).toContain("part 1 of 2");
+    const body = texts.map((parts) => parts[1]).join("\n");
+    expect(body).toBe(
+      proofEntryText(
+        {
+          ...huge(),
+          attachments: ["attachment://1_shot.png"],
+        },
+        { lock: "", attachment: "" },
+      ),
+    );
+
+    expect(payloadText(editPayload(posted))).toContain(
+      `More proof in the reply below: https://discord.com/channels/${GUILD}/${LOG_CHANNEL}/${LOG_REPLY}`,
+    );
+  });
+
+  test("unhosted text too long for the entry renders without it, then refresh moves it to replies", async () => {
+    const proofs = [makeProof({ ...huge(), id: "9", hostMessageId: null })];
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({ posted, proofs });
+
+    const rendered = text(await service.render(makeCase()));
+    expect(rendered).not.toContain("c".repeat(1000));
+
+    expect(await service.refresh(makeCase())).toBe("updated");
+    expect(posted.reply).toHaveBeenCalledTimes(1);
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "9", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
     });
   });
 });

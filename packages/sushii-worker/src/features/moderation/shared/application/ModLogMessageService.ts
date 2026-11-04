@@ -21,9 +21,12 @@ import type { CaseProofRepository } from "../domain/repositories/CaseProofReposi
 import type { ModLogRepository } from "../domain/repositories/ModLogRepository";
 import { isGalleryMedia } from "../presentation/caseMedia";
 import {
+  proofEntryText,
+  proofFileLinks,
+} from "../presentation/proof/proofBlock";
+import {
   MESSAGE_TEXT_MAX_LENGTH,
   MOD_LOG_EMOJIS,
-  type ModLogEmojis,
   type ModLogMessage,
   type ModLogMessageInput,
   type ModLogProof,
@@ -38,7 +41,10 @@ import {
   isLegacyEntryWithDeletedDm,
   messageTextLength,
 } from "../presentation/views/ModLogMessageView";
-import { buildProofReplyMessage } from "../presentation/views/ModLogProofReplyView";
+import {
+  buildProofReplyMessage,
+  proofReplyParts,
+} from "../presentation/views/ModLogProofReplyView";
 import { guildDmText } from "./DMNotificationService";
 import {
   type ProofUpload,
@@ -65,8 +71,10 @@ type PlacedProof = ModLogProof & Pick<CaseProof, "hostMessageId">;
 
 const MESSAGE_FILES_MAX = 10;
 // Headroom an entry keeps so the later "More proof" link and the Delete DM prompt still fit.
-const MORE_PROOF_LINE_RESERVE = 120;
-const DELETE_DM_PROMPT_RESERVE = 150;
+// The link line with 20-digit ids and its newline is 126; the prompt is 92 plus a
+// markdown-escaped name of up to 37 characters (legacy tags), so at most 166.
+export const MORE_PROOF_LINE_RESERVE = 130;
+export const DELETE_DM_PROMPT_RESERVE = 170;
 // A signed CDN link to an uploaded file, shown once its URL is known.
 const FILE_LINK_RESERVE = 300;
 const PROOF_DOWNLOAD_TIMEOUT_MS = 15_000;
@@ -134,6 +142,21 @@ function isAdoptable(proof: CaseProof): boolean {
   );
 }
 
+/** Upper bound of the text a proof adds to the entry, file links included. */
+function proofTextLength(proof: ModLogProof): number {
+  const links = proofFileLinks([proof]).filter(
+    (url) => !url.startsWith("attachment://"),
+  );
+  return (
+    proofEntryText(proof, PROOF_TEXT_EMOJIS).length +
+    1 +
+    links.reduce((sum, url) => sum + url.length + 1, 0)
+  );
+}
+
+// proofEntryText doesn't use emojis; only lengths are measured here.
+const PROOF_TEXT_EMOJIS = { lock: "", attachment: "" };
+
 function toAttachment(file: ProofUpload, name: string): AttachmentBuilder {
   return new AttachmentBuilder(file.data, { name });
 }
@@ -184,6 +207,17 @@ export class ModLogMessageService {
     proofs: readonly PlacedProof[],
     entryId: string | null = moderationCase.msgId,
   ): Promise<ModLogMessage> {
+    return (await this.planEntry(moderationCase, options, proofs, entryId))
+      .message;
+  }
+
+  /** Renders the entry, plus the unhosted proof that didn't fit on it. */
+  private async planEntry<P extends PlacedProof>(
+    moderationCase: ModerationCase,
+    options: ModLogRenderOptions,
+    proofs: readonly P[],
+    entryId: string | null,
+  ): Promise<{ message: ModLogMessage; omitted: P[]; textLength: number }> {
     const { targetUser, currentMessage, ...viewOptions } = options;
     const executorId = moderationCase.executorId ?? this.client.user?.id;
 
@@ -207,9 +241,6 @@ export class ModLogMessageService {
       }
     }
 
-    const shown = proofs.filter(
-      (p) => p.hostMessageId === null || p.hostMessageId === entryId,
-    );
     const overflowHost = proofs.find(
       (p) => p.hostMessageId !== null && p.hostMessageId !== entryId,
     )?.hostMessageId;
@@ -220,21 +251,43 @@ export class ModLogMessageService {
         ? `https://discord.com/channels/${moderationCase.guildId}/${channelId}/${overflowHost}`
         : null;
 
-    return buildModLogMessage({
-      moderationCase,
-      target,
-      emojis,
-      fallbackExecutorId: this.client.user?.id ?? null,
-      executorTag,
-      factsBlock,
-      extraFacts,
-      proofs: shown,
-      moreProofUrl,
-      dmIncludedServerText:
-        hasLiveDm(moderationCase) &&
-        !!guildDmText(moderationCase.actionType, config),
-      ...viewOptions,
-    });
+    const build = (shown: readonly PlacedProof[]) =>
+      buildModLogMessage({
+        moderationCase,
+        target,
+        emojis,
+        fallbackExecutorId: this.client.user?.id ?? null,
+        executorTag,
+        factsBlock,
+        extraFacts,
+        proofs: shown,
+        moreProofUrl,
+        dmIncludedServerText:
+          hasLiveDm(moderationCase) &&
+          !!guildDmText(moderationCase.actionType, config),
+        ...viewOptions,
+      });
+
+    // Proof hosted on the entry always fits; unhosted proof is shown while it
+    // fits and otherwise waits for adoption to move it into a reply.
+    const shown = new Set(
+      proofs.filter((p) => entryId !== null && p.hostMessageId === entryId),
+    );
+    let length = messageTextLength(build([...shown]));
+    for (const proof of proofs.filter((p) => p.hostMessageId === null)) {
+      const added = proofTextLength(proof);
+      if (length + added <= MESSAGE_TEXT_MAX_LENGTH) {
+        shown.add(proof);
+        length += added;
+      }
+    }
+
+    const ordered = proofs.filter((p) => shown.has(p));
+    return {
+      message: build(ordered),
+      omitted: proofs.filter((p) => p.hostMessageId === null && !shown.has(p)),
+      textLength: length,
+    };
   }
 
   /**
@@ -400,14 +453,20 @@ export class ModLogMessageService {
         : { kind: "text_only", hostMessageId: null };
     }
 
-    const existing = await this.caseProofRepository.listByCase(
+    const stored = await this.caseProofRepository.listByCase(
       moderationCase.guildId,
       moderationCase.caseId,
     );
-    const placed = await this.placeProof(
+    // Files already waiting go first, so the entry's files are all real attachments.
+    const adopted = await this.adoptUnhosted(
       entry.message,
       entry.moderationCase,
-      existing,
+      stored,
+    );
+    const placed = await this.placeProof(
+      adopted.message,
+      entry.moderationCase,
+      adopted.proofs,
       { ...draft, createdAt: draft.createdAt ?? new Date() },
       files,
     );
@@ -472,24 +531,23 @@ export class ModLogMessageService {
       ...(uploads.find((u) => u.proof.id === proof.id)?.download.failed ?? []),
     ]);
 
-    const rendered = await this.renderWithProofs(
-      moderationCase,
-      options,
-      withRefs,
-      null,
-    );
-    if (uploads.length === 0) {
-      return channel.send(rendered);
-    }
-    if (!this.fitsOnEntry(rendered, withRefs, null, 0, names)) {
-      // Left unhosted; the next refresh moves them onto the entry or a reply.
-      return channel.send(
+    const plan = await this.planEntry(moderationCase, options, withRefs, null);
+    const uploadIds = new Set(uploads.map((u) => u.proof.id));
+    const carriesUploads =
+      uploads.length > 0 &&
+      !plan.omitted.some((p) => uploadIds.has(p.id)) &&
+      this.fitsOnEntry(plan.textLength, withRefs, null, 0, names);
+
+    if (!carriesUploads) {
+      const sent = await channel.send(
         await this.renderWithProofs(moderationCase, options, proofs, null),
       );
+      await this.adoptAfterPost(sent, moderationCase, proofs, options);
+      return sent;
     }
 
     const sent = await channel.send({
-      ...rendered,
+      ...plan.message,
       files: uploads
         .flatMap((u) => u.download.files)
         .map((file, i) => toAttachment(file, names[i] ?? file.name)),
@@ -503,26 +561,69 @@ export class ModLogMessageService {
         .map((name) => urls[names.indexOf(name)])
         .filter((url): url is string => !!url);
       hosted.set(proof.id, [...newUrls, ...download.failed]);
-      await this.saveHosting(proof, hosted.get(proof.id) ?? [], sent.id);
+    }
+    const current = pending((proof) => hosted.get(proof.id) ?? []).map(
+      (proof) =>
+        hosted.has(proof.id) ? { ...proof, hostMessageId: sent.id } : proof,
+    );
+
+    try {
+      for (const { proof } of uploads) {
+        await this.saveHosting(proof, hosted.get(proof.id) ?? [], sent.id);
+      }
+    } catch (err) {
+      // The entry is already posted; failing here would post it twice on retry.
+      this.logger.warn(
+        { err, guildId: moderationCase.guildId, caseId: moderationCase.caseId },
+        "Failed to save proof hosting after posting the mod log entry",
+      );
+      return sent;
     }
 
     if (names.some((name) => !isGalleryMedia(name))) {
-      const final = pending((proof) => hosted.get(proof.id) ?? []).map(
-        (proof) =>
-          hosted.has(proof.id) ? { ...proof, hostMessageId: sent.id } : proof,
-      );
       await this.bestEffortEdit(
         sent,
-        await this.renderWithProofs(moderationCase, options, final, sent.id),
+        await this.renderWithProofs(moderationCase, options, current, sent.id),
         moderationCase,
       );
     }
+    await this.adoptAfterPost(sent, moderationCase, current, options);
 
     return sent;
   }
 
+  /** Moves proof the first post couldn't hold into replies. Best effort. */
+  private async adoptAfterPost(
+    sent: Message,
+    moderationCase: ModerationCase,
+    proofs: CaseProof[],
+    options: Omit<ModLogRenderOptions, "currentMessage">,
+  ): Promise<void> {
+    try {
+      const adopted = await this.adoptUnhosted(sent, moderationCase, proofs);
+      if (adopted.changed) {
+        await this.bestEffortEdit(
+          adopted.message,
+          await this.renderWithProofs(
+            moderationCase,
+            { ...options, currentMessage: adopted.message },
+            adopted.proofs,
+            sent.id,
+          ),
+          moderationCase,
+        );
+      }
+    } catch (err) {
+      // The entry is already posted; failing here would post it twice on retry.
+      this.logger.warn(
+        { err, guildId: moderationCase.guildId, caseId: moderationCase.caseId },
+        "Failed to move unhosted proof after posting the mod log entry",
+      );
+    }
+  }
+
   private fitsOnEntry(
-    rendered: ModLogMessage,
+    textLength: number,
     proofs: readonly PlacedProof[],
     entryId: string | null,
     existingFiles: number,
@@ -533,7 +634,7 @@ export class ModLogMessageService {
     );
     const pendingLinks = newNames.filter((n) => !isGalleryMedia(n)).length;
     const text =
-      messageTextLength(rendered) +
+      textLength +
       (hasOverflow ? 0 : MORE_PROOF_LINE_RESERVE) +
       DELETE_DM_PROMPT_RESERVE +
       pendingLinks * FILE_LINK_RESERVE;
@@ -550,7 +651,8 @@ export class ModLogMessageService {
 
   /**
    * Adds one proof to the entry, keeping the files already on it, or posts it
-   * as a reply when the entry would go over 4000 characters or 10 files.
+   * as replies when the entry would go over 4000 characters or 10 files.
+   * `others` must all fit on the entry already.
    */
   private async placeProof(
     entryMessage: Message,
@@ -571,18 +673,30 @@ export class ModLogMessageService {
       existing.map((f) => f.filename),
     );
     const refs = names.map((n) => `attachment://${n}`);
-    const onEntry = [
-      ...others,
-      { ...proof, attachments: refs, hostMessageId: entry.id },
-    ];
-    const rendered = await this.renderWithProofs(
+    const draft = { ...proof, attachments: refs, hostMessageId: entry.id };
+    const onEntry = [...others, draft];
+    // Measured without the draft, so an oversized draft never reaches a builder.
+    const base = await this.planEntry(
       moderationCase,
       { currentMessage: entry },
-      onEntry,
+      others,
       entry.id,
     );
+    const fits = this.fitsOnEntry(
+      base.textLength + proofTextLength(draft),
+      onEntry,
+      entry.id,
+      existing.length,
+      names,
+    );
 
-    if (this.fitsOnEntry(rendered, onEntry, entry.id, existing.length, names)) {
+    if (fits) {
+      const rendered = await this.renderWithProofs(
+        moderationCase,
+        { currentMessage: entry },
+        onEntry,
+        entry.id,
+      );
       const edited = await this.editEntry(entry, moderationCase, rendered, {
         keep: [...existingIds],
         files,
@@ -607,28 +721,13 @@ export class ModLogMessageService {
       return { hostMessageId: entry.id, attachmentUrls: urls, entry: edited };
     }
 
-    const emojis = await this.emojiRepository.getEmojis(MOD_LOG_EMOJIS);
-    const reply = await entry.reply({
-      ...this.renderReply(
-        moderationCase,
-        { ...proof, attachments: refs },
-        emojis,
-      ),
-      files: files.map((file, i) => toAttachment(file, names[i] ?? file.name)),
-      failIfNotExists: false,
-    });
-    const urls = this.collectUrls(reply, names, new Set(), moderationCase);
-    if (names.some((n) => !isGalleryMedia(n))) {
-      await this.bestEffortEdit(
-        reply,
-        this.renderReply(
-          moderationCase,
-          { ...proof, attachments: urls },
-          emojis,
-        ),
-        moderationCase,
-      );
-    }
+    const { firstReplyId, urls } = await this.postReplies(
+      entry,
+      moderationCase,
+      proof,
+      files,
+      names,
+    );
 
     const hadOverflow = others.some(
       (p) => p.hostMessageId !== null && p.hostMessageId !== entry.id,
@@ -639,27 +738,77 @@ export class ModLogMessageService {
         await this.renderWithProofs(
           moderationCase,
           { currentMessage: entry },
-          [...others, { ...proof, attachments: urls, hostMessageId: reply.id }],
+          [
+            ...others,
+            { ...proof, attachments: urls, hostMessageId: firstReplyId },
+          ],
           entry.id,
         ),
         moderationCase,
       );
     }
 
-    return { hostMessageId: reply.id, attachmentUrls: urls, entry };
+    return { hostMessageId: firstReplyId, attachmentUrls: urls, entry };
   }
 
-  private renderReply(
+  /**
+   * Posts a proof as a chain of replies to the entry, split at line breaks so
+   * no reply passes 4000 characters. The last reply holds the files.
+   */
+  private async postReplies(
+    entry: Message,
     moderationCase: ModerationCase,
     proof: ModLogProof,
-    emojis: ModLogEmojis,
-  ): ModLogMessage {
-    return buildProofReplyMessage({
-      caseId: moderationCase.caseId,
-      userId: moderationCase.userId,
-      proof,
+    files: readonly ProofUpload[],
+    names: readonly string[],
+  ): Promise<{ firstReplyId: string; urls: string[] }> {
+    const emojis = await this.emojiRepository.getEmojis(MOD_LOG_EMOJIS);
+    const pending = {
+      ...proof,
+      attachments: names.map((n) => `attachment://${n}`),
+    };
+    const parts = proofReplyParts(
+      pending,
       emojis,
-    });
+      names.filter((n) => !isGalleryMedia(n)).length,
+      FILE_LINK_RESERVE,
+    );
+    const render = (part: (typeof parts)[number]) =>
+      buildProofReplyMessage({
+        caseId: moderationCase.caseId,
+        userId: moderationCase.userId,
+        emojis,
+        part,
+      });
+
+    let previous = entry;
+    let firstReplyId: string | null = null;
+    let urls: string[] = [];
+    for (const part of parts) {
+      const isLast = part.index === parts.length - 1;
+      const reply = await previous.reply({
+        ...render(part),
+        files: isLast
+          ? files.map((file, i) => toAttachment(file, names[i] ?? file.name))
+          : [],
+        failIfNotExists: false,
+      });
+      firstReplyId ??= reply.id;
+      previous = reply;
+
+      if (isLast) {
+        urls = this.collectUrls(reply, names, new Set(), moderationCase);
+        if (names.some((n) => !isGalleryMedia(n))) {
+          await this.bestEffortEdit(
+            reply,
+            render({ ...part, proof: { ...proof, attachments: urls } }),
+            moderationCase,
+          );
+        }
+      }
+    }
+
+    return { firstReplyId: firstReplyId ?? previous.id, urls };
   }
 
   private collectUrls(
@@ -773,23 +922,64 @@ export class ModLogMessageService {
 
   /**
    * Moves proof files that live elsewhere (the action response) onto the
-   * entry, so the mod log holds every proof file. Best effort.
+   * entry, so the mod log holds every proof file, and moves unhosted text
+   * that no longer fits on the entry into replies. Best effort per proof.
    */
   private async adoptUnhosted(
     entryMessage: Message,
     moderationCase: ModerationCase,
     stored: CaseProof[],
-  ): Promise<{ proofs: CaseProof[]; message: Message }> {
+  ): Promise<{ proofs: CaseProof[]; message: Message; changed: boolean }> {
     let proofs = stored;
     let message = entryMessage;
+    let changed = false;
 
-    for (const proof of stored.filter(isAdoptable)) {
-      const download = await this.downloadProofFiles(proof);
-      if (download.files.length === 0) {
-        continue;
+    const { omitted } = await this.planEntry(
+      moderationCase,
+      { currentMessage: message },
+      stored,
+      message.id,
+    );
+    const work = stored.filter(
+      (p) =>
+        p.hostMessageId === null &&
+        p.source !== "backfill" &&
+        (isAdoptable(p) || omitted.includes(p)),
+    );
+
+    for (const [index, proof] of work.entries()) {
+      const later = new Set(work.slice(index + 1).map((p) => p.id));
+      const others = proofs.filter(
+        (p) => p.id !== proof.id && !later.has(p.id),
+      );
+
+      let files: ProofUpload[] = [];
+      let kept = proof.attachments.filter(Boolean);
+      if (isAdoptable(proof)) {
+        const download = await this.downloadProofFiles(proof);
+        files = download.files;
+        kept = download.failed;
       }
 
-      const others = proofs.filter((p) => p.id !== proof.id);
+      if (files.length === 0) {
+        const base = await this.planEntry(
+          moderationCase,
+          { currentMessage: message },
+          others,
+          message.id,
+        );
+        const fits = this.fitsOnEntry(
+          base.textLength + proofTextLength(proof),
+          [...others, proof],
+          message.id,
+          0,
+          [],
+        );
+        if (fits) {
+          continue;
+        }
+      }
+
       let placed: PlaceResult;
       try {
         placed = await this.placeProof(
@@ -797,7 +987,7 @@ export class ModLogMessageService {
           moderationCase,
           others,
           proof,
-          download.files,
+          files,
         );
       } catch (err) {
         this.logger.warn(
@@ -807,13 +997,14 @@ export class ModLogMessageService {
             caseId: moderationCase.caseId,
             proofId: proof.id,
           },
-          "Failed to move proof files onto the mod log entry",
+          "Failed to move proof onto the mod log",
         );
         continue;
       }
 
-      const attachments = [...placed.attachmentUrls, ...download.failed];
+      const attachments = [...placed.attachmentUrls, ...kept];
       await this.saveHosting(proof, attachments, placed.hostMessageId);
+      changed = true;
       message = placed.entry;
       proofs = proofs.map((p) =>
         p.id === proof.id
@@ -822,7 +1013,7 @@ export class ModLogMessageService {
       );
     }
 
-    return { proofs, message };
+    return { proofs, message, changed };
   }
 
   private async saveHosting(
