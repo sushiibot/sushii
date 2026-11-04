@@ -25,11 +25,13 @@ import type { EmojiMap } from "@/features/bot-emojis";
 import type { UserLookupBan } from "@/features/moderation/cases/domain/entities/UserLookupBan";
 import type { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import type { CaseProofCounts } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import { getErrorMessage } from "@/interactions/responses/error";
 import { ComponentsV2Paginator } from "@/shared/presentation/ComponentsV2Paginator";
 
 import type { ModViewResult } from "../application/ModViewService";
 import { MODVIEW_CUSTOM_IDS } from "./customIds";
+import type { LiveModView, ModViewRegistry } from "./modViewRegistry";
 import { type CaseViewSources, loadCaseViewMessages } from "./views/CaseView";
 import {
   MODVIEW_IDLE_TIMEOUT_MS,
@@ -50,6 +52,9 @@ export type ModViewEntryInteraction =
  * `collector.ended` anyway.
  */
 const MODAL_TIMEOUT_MS = MODVIEW_IDLE_TIMEOUT_MS - 30_000;
+
+/** The entry interaction's token dies at 15 minutes, so edits must land before. */
+const EDIT_WINDOW_MS = 15 * 60 * 1000 - 30 * 1000;
 
 const REJECTION_MESSAGE =
   "These controls belong to whoever opened this view — run your own `/modview`.";
@@ -94,10 +99,12 @@ const TAB_BY_CUSTOM_ID: ReadonlyMap<string, ModViewTab> = new Map([
  * The session never calls `ComponentsV2Paginator.start()` — see
  * `openPaginatedTab`.
  */
-export class ModViewSession {
+export class ModViewSession implements LiveModView {
   private activeTab: ModViewTab = "overview";
   private includeAlts = true;
   private paginator: ModViewPaginator | null = null;
+  /** What the History paginator was built from, to rebuild it in place. */
+  private historyPaginatorSource: ModViewPaginatorSource | null = null;
   private expired = false;
 
   constructor(
@@ -111,8 +118,51 @@ export class ModViewSession {
     private readonly logger: Logger,
     initialTab: ModViewTab = "overview",
     private readonly ephemeral = false,
+    private readonly registry: ModViewRegistry | null = null,
   ) {
     this.activeTab = initialTab;
+  }
+
+  get guildId(): string {
+    return this.interaction.guildId;
+  }
+
+  caseIds(): string[] {
+    return this.data.history.moderationHistory.map((c) => c.caseId);
+  }
+
+  canEdit(now: number): boolean {
+    return now < this.interaction.createdTimestamp + EDIT_WINDOW_MS;
+  }
+
+  /** History's page boundaries depend on the counts, so its paginator is rebuilt at the same page. */
+  async showProofCounts(counts: Map<string, CaseProofCounts>): Promise<void> {
+    if (this.expired || !this.canEdit(Date.now())) {
+      return;
+    }
+
+    this.data.proofCounts = counts;
+
+    if (
+      this.activeTab === "history" &&
+      this.paginator &&
+      this.historyPaginatorSource
+    ) {
+      const page = this.paginator.getState().currentPage;
+      const paginator = this.createHistoryPaginator(
+        this.historyPaginatorSource,
+      );
+      // goToPage clamps against the cached total, so load it first.
+      await paginator.getTotalPages();
+      paginator.goToPage(page);
+      this.paginator = paginator;
+    }
+
+    await this.interaction.editReply(
+      this.paginator
+        ? await this.paginator.renderCurrentPage()
+        : this.renderScreen({ disabled: false }),
+    );
   }
 
   /**
@@ -158,6 +208,7 @@ export class ModViewSession {
     const collector = msg.createMessageComponentCollector({
       idle: MODVIEW_IDLE_TIMEOUT_MS,
     });
+    this.registry?.register(this);
 
     collector.on("collect", async (i) => {
       try {
@@ -209,6 +260,7 @@ export class ModViewSession {
 
     collector.on("end", async () => {
       this.expired = true;
+      this.registry?.unregister(this);
 
       try {
         await msg.edit(await this.renderExpired());
@@ -414,6 +466,7 @@ export class ModViewSession {
   private createHistoryPaginator(
     i: ModViewPaginatorSource,
   ): ComponentsV2Paginator<ModerationCase[]> {
+    this.historyPaginatorSource = i;
     // Same derivation the tab's content builder runs, so page boundaries and
     // rendered rows cannot disagree.
     const { pages } = deriveHistoryTabView(

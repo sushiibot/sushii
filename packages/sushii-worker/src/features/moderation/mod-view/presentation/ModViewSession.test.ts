@@ -71,9 +71,13 @@ function makeEmptyData(): ModViewResult {
  * stub carrying the `Message`-shaped stub directly on `resource.message`
  * (no separate `fetch()` round trip), with `edit` and a fake collector.
  */
-function makeInteraction() {
-  const editReply = mock(() =>
-    Promise.reject(new Error("editReply should never be called")),
+function makeInteraction(
+  options: { chatInput?: boolean; createdTimestamp?: number } = {},
+) {
+  const editReply = mock((_message: unknown) =>
+    options.chatInput
+      ? Promise.resolve()
+      : Promise.reject(new Error("editReply should never be called")),
   );
 
   const collectorHandlers: Record<string, (...args: unknown[]) => unknown> = {};
@@ -94,7 +98,8 @@ function makeInteraction() {
   };
 
   const interaction = {
-    isChatInputCommand: () => false,
+    isChatInputCommand: () => options.chatInput ?? false,
+    createdTimestamp: options.createdTimestamp ?? Date.now(),
     reply: mock((_opts?: { flags?: number }) => Promise.resolve(response)),
     editReply,
     guildId: GUILD_ID,
@@ -340,5 +345,144 @@ describe("ModViewSession View case select", () => {
     expect(
       (select.reply.mock.calls[0][0].flags ?? 0) & MessageFlags.Ephemeral,
     ).toBe(MessageFlags.Ephemeral);
+  });
+});
+
+describe("ModViewSession proof refresh", () => {
+  const PAGINATOR_FORWARD = "components_v2_paginator_forward";
+
+  function makeHistoryData(): ModViewResult {
+    const data = makeEmptyData();
+    // 60 cases make several History pages, newest first.
+    data.history.moderationHistory = Array.from({ length: 60 }, (_, i) =>
+      makeModerationCase({
+        guildId: GUILD_ID,
+        caseId: `${i + 1}`,
+        userId: TARGET_ID,
+        reason: `reason ${i + 1}`,
+      }),
+    );
+    data.history.totalCases = 60;
+    return data;
+  }
+
+  async function open(
+    initialTab: "overview" | "history",
+    options: { createdTimestamp?: number } = {},
+  ) {
+    const ctx = makeInteraction({ chatInput: true, ...options });
+    const registry = { register: mock(), unregister: mock() };
+    const session = new ModViewSession(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ctx.interaction as any,
+      makeHistoryData(),
+      makeUser(),
+      null,
+      mockEmojis,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {} as any,
+      pino({ level: "silent" }),
+      initialTab,
+      false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      registry as any,
+    );
+    await session.start();
+    return { ...ctx, session, registry };
+  }
+
+  function click(customId: string) {
+    return {
+      user: { id: EXECUTOR_ID },
+      customId,
+      replied: false,
+      deferred: false,
+      isStringSelectMenu: () => false,
+      isButton: () => true,
+      update: mock(() => Promise.resolve()),
+      reply: mock(() => Promise.resolve()),
+    };
+  }
+
+  function lastEdit(interaction: {
+    editReply: { mock: { calls: unknown[][] } };
+  }) {
+    const calls = interaction.editReply.mock.calls;
+    return JSON.stringify(calls[calls.length - 1][0]);
+  }
+
+  it("registers while live and unregisters when the collector ends", async () => {
+    const { session, registry, collectorHandlers } = await open("history");
+
+    expect(registry.register).toHaveBeenCalledWith(session);
+    expect(session.caseIds()).toHaveLength(60);
+    expect(registry.unregister).not.toHaveBeenCalled();
+
+    await collectorHandlers.end();
+
+    expect(registry.unregister).toHaveBeenCalledWith(session);
+  });
+
+  it("re-renders History with the new counts on the same page", async () => {
+    const { session, interaction, collectorHandlers } = await open("history");
+    await collectorHandlers.collect(click(PAGINATOR_FORWARD));
+
+    await session.showProofCounts(new Map([["20", { entries: 2, files: 3 }]]));
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    const edited = lastEdit(interaction);
+    expect(edited).toContain('"label":"2 / ');
+    expect(edited).toContain("`#20`");
+    expect(edited).toContain("2 proof");
+    expect(edited).toContain("3 files");
+    expect(edited).not.toContain("`#60`");
+  });
+
+  it("keeps the History page for later page turns", async () => {
+    const { session, interaction, collectorHandlers } = await open("history");
+    await collectorHandlers.collect(click(PAGINATOR_FORWARD));
+    await session.showProofCounts(new Map([["20", { entries: 1, files: 0 }]]));
+
+    const next = click(PAGINATOR_FORWARD);
+    await collectorHandlers.collect(next);
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    const turned = JSON.stringify(
+      (next.update.mock.calls as unknown[][])[0][0],
+    );
+    expect(turned).toContain('"label":"3 / ');
+  });
+
+  it("re-renders the active non-paginated tab in place", async () => {
+    const { session, interaction } = await open("overview");
+
+    await session.showProofCounts(new Map([["60", { entries: 4, files: 0 }]]));
+
+    const edited = lastEdit(interaction);
+    expect(edited).toContain("`#60`");
+    expect(edited).toContain("4 proof");
+    expect(edited).not.toContain("components_v2_paginator_current");
+  });
+
+  it("does nothing once the session has expired", async () => {
+    const { session, interaction, collectorHandlers } = await open("history");
+    await collectorHandlers.end();
+
+    await session.showProofCounts(new Map([["60", { entries: 1, files: 0 }]]));
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it("does nothing past the interaction's edit window", async () => {
+    const { session, interaction } = await open("history", {
+      createdTimestamp: Date.now() - 15 * 60 * 1000,
+    });
+
+    expect(session.canEdit(Date.now())).toBe(false);
+    await session.showProofCounts(new Map([["60", { entries: 1, files: 0 }]]));
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });

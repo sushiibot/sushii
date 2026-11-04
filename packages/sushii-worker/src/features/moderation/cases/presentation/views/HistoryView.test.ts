@@ -77,7 +77,7 @@ describe("formatModerationCase", () => {
     expect(line).toContain(`on <@${USER_B}>`);
   });
 
-  it("quotes a delivered reason with the sent emoji", () => {
+  it("quotes a delivered reason with no emoji", () => {
     const c = makeReasonCase("Spamming invite links").withDMResult({
       channelId: "1",
       messageId: "2",
@@ -85,7 +85,8 @@ describe("formatModerationCase", () => {
 
     const line = formatModerationCase(c, emojis);
 
-    expect(line).toContain("\n> :additional_message: Spamming invite links");
+    expect(line).toContain("\n> Spamming invite links");
+    expect(line).not.toContain(":additional_message:");
     expect(line).not.toContain("Not sent");
   });
 
@@ -98,7 +99,7 @@ describe("formatModerationCase", () => {
     const line = formatModerationCase(c, emojis);
 
     expect(line).toContain(
-      "\n> :reason: Ignoring mods\n> -# Not sent: kick DMs are off",
+      "\n> Ignoring mods\n> -# Not sent: kick DMs are off",
     );
   });
 
@@ -109,7 +110,7 @@ describe("formatModerationCase", () => {
     });
 
     expect(formatModerationCase(c, emojis)).toContain(
-      "> :reason: spam\n> -# Not sent: DM failed: they have DMs off or blocked sushii",
+      "\n> spam\n> -# Not sent: DM failed: they have DMs off or blocked sushii",
     );
   });
 
@@ -119,26 +120,25 @@ describe("formatModerationCase", () => {
       .withDmDeleted(USER_B, new Date());
 
     expect(formatModerationCase(c, emojis)).toContain(
-      `> :reason: spam\n> -# Not sent: DM deleted by <@${USER_B}>`,
+      `\n> spam\n> -# Not sent: DM deleted by <@${USER_B}>`,
     );
   });
 
   it("omits the not-sent line when the cause wasn't recorded", () => {
     const line = formatModerationCase(makeReasonCase("spam"), emojis);
 
-    expect(line).toContain("> :reason: spam");
+    expect(line).toMatch(/\n> spam$/);
     expect(line).not.toContain("Not sent");
   });
 
-  it("prefixes a note with the lock and never says not sent", () => {
+  it("quotes a note's text plainly and never says not sent", () => {
     const line = formatModerationCase(
       makeReasonCase("Possible alt", ActionType.Note),
       emojis,
     );
 
-    expect(line).toContain("\n> :lock: Possible alt");
+    expect(line).toMatch(/\n> Possible alt$/);
     expect(line).not.toContain("Not sent");
-    expect(line).not.toContain(":reason:");
   });
 
   it("shows proof counts, and files only when there are any", () => {
@@ -202,12 +202,12 @@ describe("formatModerationCase", () => {
     expect(line.length).toBeLessThanOrEqual(TAB_CONTENT_CHAR_BUDGET);
     expect(line).toContain("`#1`");
     expect(line).toContain(
-      "\n> :reason: Too long to show here. Open it from History → View case.\n> -# Not sent: the mod chose no DM",
+      "\n> Too long to show here. Open it from History → View case.\n> -# Not sent: the mod chose no DM",
     );
     expect(line).toContain(":lock: 1 proof");
   });
 
-  it("keeps the lock on an oversized note's pointer, with no not-sent line", () => {
+  it("shows an oversized note's pointer plainly, with no not-sent line", () => {
     const c = makeReasonCase(
       "a\n".repeat(REASON_MAX_LENGTH / 2),
       ActionType.Note,
@@ -215,21 +215,22 @@ describe("formatModerationCase", () => {
 
     const line = formatModerationCase(c, emojis);
 
-    expect(line).toContain(
-      "\n> :lock: Too long to show here. Open it from History → View case.",
+    expect(line).toMatch(
+      /\n> Too long to show here\. Open it from History → View case\.$/,
     );
     expect(line).not.toContain("Not sent");
-    expect(line).not.toContain(":reason:");
   });
 
-  it("keeps the sent emoji on the pointer", () => {
+  it("shows a delivered reason's pointer plainly", () => {
     const c = makeReasonCase("a\n".repeat(REASON_MAX_LENGTH / 2)).withDMResult({
       channelId: "1",
       messageId: "2",
     });
 
-    expect(formatModerationCase(c, emojis)).toContain(
-      "\n> :additional_message: Too long to show here.",
+    const line = formatModerationCase(c, emojis);
+
+    expect(line).toMatch(
+      /\n> Too long to show here\. Open it from History → View case\.$/,
     );
   });
 });

@@ -4,6 +4,7 @@ import { Err, Ok } from "ts-results";
 
 import type { ActionResponseRegistry } from "@/features/moderation/actions/presentation/response/responseRegistry";
 import type { ModLogMessageService } from "@/features/moderation/shared/application/ModLogMessageService";
+import type { ProofChangeListener } from "@/features/moderation/shared/application/ProofChangeListener";
 import {
   type ProofFileSource,
   downloadProofSource,
@@ -100,6 +101,7 @@ export interface CaseProofServiceDeps {
   caseProofRepository: Pick<CaseProofRepository, "add" | "countsByCases">;
   modLogMessageService: Pick<ModLogMessageService, "hostProof">;
   responseRegistry: Pick<ActionResponseRegistry, "markStale">;
+  proofChangeListener: ProofChangeListener;
   metrics: Pick<ModerationMetrics, "recordProofAdded">;
   logger: Logger;
   download?: typeof downloadProofSource;
@@ -218,6 +220,10 @@ export class CaseProofService {
       proofs.map((p) => p.caseId),
       { exceptMessageId: input.exceptMessageId },
     );
+    this.notifyProofAdded(
+      input.guildId,
+      proofs.map((p) => p.caseId),
+    );
 
     this.deps.logger.info(
       {
@@ -262,6 +268,18 @@ export class CaseProofService {
       },
     ]);
     return row;
+  }
+
+  private notifyProofAdded(guildId: string, caseIds: string[]): void {
+    try {
+      this.deps.proofChangeListener.proofAdded(guildId, caseIds);
+    } catch (err) {
+      // The proof is already stored, so a failed refresh can't fail the add.
+      this.deps.logger.error(
+        { err, guildId, caseIds },
+        "Failed to notify proof change listener",
+      );
+    }
   }
 
   private logFailures(

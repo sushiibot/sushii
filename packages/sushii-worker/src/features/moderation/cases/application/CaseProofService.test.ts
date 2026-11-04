@@ -82,6 +82,7 @@ function setup(
             },
   );
   const markStale = mock(async () => undefined);
+  const proofAdded = mock((_guildId: string, _caseIds: string[]) => undefined);
   const recordProofAdded = mock();
   const download = mock(
     async () =>
@@ -97,6 +98,7 @@ function setup(
     caseProofRepository: { add, countsByCases },
     modLogMessageService: { hostProof },
     responseRegistry: { markStale },
+    proofChangeListener: { proofAdded },
     metrics: { recordProofAdded },
     logger,
     download,
@@ -120,6 +122,7 @@ function setup(
     add,
     hostProof,
     markStale,
+    proofAdded,
     recordProofAdded,
     download,
     logger,
@@ -349,5 +352,56 @@ describe("CaseProofService hosting", () => {
       "Missing Access",
     );
     expect(ctx.add).not.toHaveBeenCalled();
+  });
+});
+
+describe("CaseProofService proof change listener", () => {
+  test("is told only about the cases that got the proof", async () => {
+    const ctx = setup({
+      caseIds: ["4822", "4823", "4824"],
+      host: (caseId) =>
+        caseId === "4823"
+          ? { kind: "retry_later" }
+          : { kind: "text_only", hostMessageId: "m" },
+    });
+
+    await ctx.service.add(ctx.input());
+
+    expect(ctx.proofAdded).toHaveBeenCalledTimes(1);
+    expect(ctx.proofAdded).toHaveBeenCalledWith(GUILD, ["4822", "4824"]);
+  });
+
+  test("is not told when no case got the proof", async () => {
+    const ctx = setup({ host: () => ({ kind: "retry_later" }) });
+
+    const result = await ctx.service.add(ctx.input());
+
+    expect(result.ok).toBe(false);
+    expect(ctx.proofAdded).not.toHaveBeenCalled();
+  });
+
+  test("is not told about a refused add", async () => {
+    const ctx = setup();
+
+    await ctx.service.add(ctx.input({ content: null }));
+
+    expect(ctx.proofAdded).not.toHaveBeenCalled();
+  });
+
+  test("a throwing listener doesn't fail the add", async () => {
+    const ctx = setup();
+    ctx.proofAdded.mockImplementation(() => {
+      throw new Error("boom");
+    });
+    const error = spyOn(ctx.logger, "error");
+
+    const result = await ctx.service.add(ctx.input());
+
+    expect(result.ok).toBe(true);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0][0]).toMatchObject({
+      guildId: GUILD,
+      caseIds: ["4822"],
+    });
   });
 });

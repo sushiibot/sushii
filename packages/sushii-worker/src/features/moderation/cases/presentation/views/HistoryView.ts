@@ -38,27 +38,19 @@ function prefixed(emoji: string, text: string): string {
   return emoji ? `${emoji} ${text}` : text;
 }
 
-/** The reason's emoji and any "Not sent" line; null when there's no reason. */
-function reasonParts(
-  moderationCase: ModerationCase,
-  emojis: HistoryEmojis,
-): { emoji: string; notSent: string } | null {
-  if (!moderationCase.reason?.value) {
-    return null;
-  }
-
+/** The "Not sent" line under a reason that didn't reach the user. */
+function notSentLine(moderationCase: ModerationCase): string {
   if (moderationCase.actionType === ActionType.Note) {
-    return { emoji: emojis.lock, notSent: "" };
+    return "";
   }
 
   const delivery = reasonDelivery(moderationCase);
-  if (delivery.sent) {
-    return { emoji: emojis.additional_message, notSent: "" };
+  // Older cases recorded no DM outcome, so with no known cause there's no line.
+  if (delivery.sent || !delivery.why) {
+    return "";
   }
 
-  // Older cases recorded no DM outcome, so with no known cause there's no line.
-  const notSent = delivery.why ? `\n> -# Not sent: ${delivery.why}` : "";
-  return { emoji: emojis.reason, notSent };
+  return `\n> -# Not sent: ${delivery.why}`;
 }
 
 function proofCountLine(
@@ -119,20 +111,18 @@ export function formatModerationCase(
   s += ` · <t:${timestamp}:R>`;
 
   const proofLine = proofCountLine(proofCounts, emojis);
-  const parts = reasonParts(moderationCase, emojis);
-  if (!parts || !moderationCase.reason) {
+  const reason = moderationCase.reason?.value;
+  if (!reason) {
     return s + proofLine;
   }
 
-  const quoted = quoteMarkdownString(
-    prefixed(parts.emoji, moderationCase.reason.value),
-  );
-  const full = `${s}\n${quoted}${parts.notSent}${proofLine}`;
+  const notSent = notSentLine(moderationCase);
+  const full = `${s}\n${quoteMarkdownString(reason)}${notSent}${proofLine}`;
   if (full.length <= MAX_CASE_LENGTH) {
     return full;
   }
 
-  return `${s}\n> ${prefixed(parts.emoji, OVERSIZED_NOTE)}${parts.notSent}${proofLine}`;
+  return `${s}\n> ${OVERSIZED_NOTE}${notSent}${proofLine}`;
 }
 
 export function spansMultipleUsers(cases: ModerationCase[]): boolean {

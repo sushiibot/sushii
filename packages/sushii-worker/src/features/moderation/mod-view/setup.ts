@@ -17,6 +17,7 @@ import { ModViewService } from "./application/ModViewService";
 import type { ModViewDependencies } from "./presentation/ModViewEntry";
 import { ModViewCommand } from "./presentation/commands/ModViewCommand";
 import { ModViewContextMenuHandler } from "./presentation/commands/ModViewContextMenuHandler";
+import type { ModViewRegistry } from "./presentation/modViewRegistry";
 
 interface CreateModViewDependenciesDeps {
   client: Client;
@@ -31,6 +32,7 @@ interface CreateModViewDependenciesDeps {
   setNicknameService: SetNicknameService;
   caseProofRepository: CaseProofRepository;
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
+  modViewRegistry: ModViewRegistry;
 }
 
 export interface ModViewFeatureServices {
@@ -63,6 +65,7 @@ export function createModViewDependencies(
     setNicknameService: deps.setNicknameService,
     caseProofRepository: deps.caseProofRepository,
     guildConfigRepository: deps.guildConfigRepository,
+    modViewRegistry: deps.modViewRegistry,
     logger: deps.logger.child({ feature: "modView" }),
   };
 }

@@ -78,6 +78,7 @@ import {
 } from "./management/presentation";
 // Mod view sub-feature
 import type { ModViewDependencies } from "./mod-view/presentation/ModViewEntry";
+import { createModViewRegistry } from "./mod-view/presentation/modViewRegistry";
 import {
   createModViewDependencies,
   setupModViewFeature,
@@ -286,11 +287,17 @@ export function createModerationServices({
     moderationMetrics,
   );
 
+  const modViewRegistry = createModViewRegistry({
+    caseProofRepository,
+    logger: logger.child({ module: "modViewRegistry" }),
+  });
+
   const caseProofService = new CaseProofService({
     modLogRepository,
     caseProofRepository,
     modLogMessageService,
     responseRegistry: actionResponseRegistry,
+    proofChangeListener: modViewRegistry,
     metrics: moderationMetrics,
     logger: logger.child({ module: "caseProofService" }),
   });
@@ -327,6 +334,7 @@ export function createModerationServices({
     modLogRepository,
     caseProofRepository,
     caseProofService,
+    modViewRegistry,
     guildConfigRepository,
     tempBanRepository,
     timeoutDetectionService,
@@ -556,6 +564,7 @@ export function setupModerationFeature({
     setNicknameService,
     caseProofRepository: services.caseProofRepository,
     guildConfigRepository: services.guildConfigRepository,
+    modViewRegistry: services.modViewRegistry,
   });
 
   const commands = createModerationCommands(

@@ -11,6 +11,7 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { ModViewService } from "../application/ModViewService";
 import type { ModViewEntryInteraction } from "./ModViewSession";
 import { ModViewSession } from "./ModViewSession";
+import type { ModViewRegistry } from "./modViewRegistry";
 import type { ModViewTab } from "./views/components/ModViewChrome";
 
 export interface ModViewDependencies {
@@ -19,6 +20,7 @@ export interface ModViewDependencies {
   setNicknameService: SetNicknameService;
   caseProofRepository: CaseProofRepository;
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
+  modViewRegistry: ModViewRegistry;
   logger: Logger;
 }
 
@@ -87,6 +89,7 @@ export async function openModView(
     deps.logger,
     initialTab,
     ephemeral,
+    deps.modViewRegistry,
   );
 
   await session.start();
