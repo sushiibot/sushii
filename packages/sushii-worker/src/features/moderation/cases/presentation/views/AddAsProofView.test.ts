@@ -120,6 +120,25 @@ describe("proofSourceContent", () => {
   });
 });
 
+describe("proofSourceContent for a forward", () => {
+  test("names the forwarder first", () => {
+    expect(proofSourceContent("scam", { forwardedBy: TARGET })).toBe(
+      `Forwarded by <@${TARGET}>\nscam`,
+    );
+    expect(proofSourceContent("", { forwardedBy: TARGET })).toBe(
+      `Forwarded by <@${TARGET}>`,
+    );
+  });
+
+  test("the forwarder line counts inside the cap", () => {
+    const stored =
+      proofSourceContent("x".repeat(1495), { forwardedBy: TARGET }) ?? "";
+    expect(stored.length).toBeLessThanOrEqual(SOURCE_CONTENT_MAX_LENGTH);
+    expect(stored.startsWith(`Forwarded by <@${TARGET}>\n`)).toBe(true);
+    expect(stored.endsWith(SOURCE_SHORTENED_LINE)).toBe(true);
+  });
+});
+
 describe("Add as proof picker", () => {
   const cases = [
     makeCase({ caseId: "4822" }),

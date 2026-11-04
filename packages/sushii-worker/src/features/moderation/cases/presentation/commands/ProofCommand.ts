@@ -269,25 +269,39 @@ export class ProofCommand extends SlashCommandHandler {
    * An error after the public defer. The first follow-up after a defer would
    * edit the deferred reply and stay public, so the reply is edited to a short
    * public line first, then the details follow privately and the line is
-   * removed. Each step is best effort.
+   * removed. Each step runs only if the one before it worked: a follow-up
+   * without the edit would post the details publicly.
    */
   private async reportLateError(
     interaction: ChatInputCommandInteraction<"cached">,
     caseId: string,
     details: Parameters<ChatInputCommandInteraction["followUp"]>[0],
   ): Promise<void> {
-    const warn = (msg: string) => (err: unknown) => {
-      this.deps.logger.warn({ err, guildId: interaction.guildId }, msg);
-    };
-    await interaction
-      .editReply({ content: `Couldn't add proof to case #${caseId}.` })
-      .catch(warn("Failed to show the /proof error line"));
-    await interaction
-      .followUp(details)
-      .catch(warn("Failed to send the /proof error details"));
-    await interaction
-      .deleteReply()
-      .catch(warn("Failed to remove the /proof error line"));
+    const steps: [string, () => Promise<unknown>][] = [
+      [
+        "Failed to show the /proof error line",
+        () =>
+          interaction.editReply({
+            content: `Couldn't add proof to case #${caseId}.`,
+          }),
+      ],
+      [
+        "Failed to send the /proof error details",
+        () => interaction.followUp(details),
+      ],
+      [
+        "Failed to remove the /proof error line",
+        () => interaction.deleteReply(),
+      ],
+    ];
+    for (const [failure, step] of steps) {
+      try {
+        await step();
+      } catch (err) {
+        this.deps.logger.warn({ err, guildId: interaction.guildId }, failure);
+        return;
+      }
+    }
   }
 }
 

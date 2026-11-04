@@ -36,12 +36,17 @@ export interface AddProofInput {
   kind: ProofAddKind;
   content: string | null;
   files: ProofFileSource[];
-  /** The message the proof was taken from (right-click). */
-  source?: { url: string; authorId: string; content: string | null };
+  /** The message the proof was taken from (right-click); no author for a forward. */
+  source?: { url: string; authorId: string | null; content: string | null };
   /** What the bot may upload in this guild, e.g. `interaction.attachmentSizeLimit`. */
   uploadLimit: number;
   /** A response that shows the new proof itself, so it isn't marked stale. */
   exceptMessageId?: string;
+  /**
+   * A retry of a refused add, without the files. The first attempt already
+   * recorded the outcome, so this one records none.
+   */
+  fallback?: boolean;
 }
 
 /**
@@ -124,7 +129,9 @@ export class CaseProofService {
       }
       return result;
     } finally {
-      this.deps.metrics.recordProofAdded(input.kind, outcome);
+      if (!input.fallback) {
+        this.deps.metrics.recordProofAdded(input.kind, outcome);
+      }
     }
   }
 

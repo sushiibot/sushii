@@ -312,6 +312,28 @@ describe("/proof", () => {
     );
   });
 
+  test("if the public line can't be shown, the details aren't sent, since they'd go public", async () => {
+    const ctx = setup({ result: Err("cases_not_found") });
+    ctx.interaction.editReply.mockImplementation(async () => {
+      throw new Error("Unknown Webhook");
+    });
+    await ctx.run();
+
+    expect(ctx.interaction.followUp).not.toHaveBeenCalled();
+    expect(ctx.interaction.deleteReply).not.toHaveBeenCalled();
+  });
+
+  test("if the details can't be sent, the public line stays", async () => {
+    const ctx = setup({ result: Err("cases_not_found") });
+    ctx.interaction.followUp.mockImplementation(async () => {
+      throw new Error("Unknown Webhook");
+    });
+    await ctx.run();
+
+    expect(ctx.interaction.editReply).toHaveBeenCalled();
+    expect(ctx.interaction.deleteReply).not.toHaveBeenCalled();
+  });
+
   test("an unexpected failure is reported privately, not thrown to the router", async () => {
     const ctx = setup({ addThrows: true });
     await ctx.run();

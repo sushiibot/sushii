@@ -18,6 +18,7 @@ import {
 } from "@/features/moderation/actions/presentation/response/testFixtures";
 import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
+import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { AddProofResult } from "../../application/CaseProofService";
 import { AddAsProofContextMenuHandler } from "../commands/AddAsProofContextMenuHandler";
@@ -89,6 +90,7 @@ function setup(
     results?: AddResult[];
     permitted?: boolean;
     canRead?: boolean;
+    modLogChannel?: string | null;
     message?: ReturnType<typeof sourceMessage> | "deleted" | "foreign";
   } = {},
 ) {
@@ -108,6 +110,16 @@ function setup(
   );
   const deps = {
     modLogRepository: { findNewestByUser },
+    guildConfigRepository: {
+      findByGuildId: mock(async () => {
+        const config = GuildConfig.createDefault(GUILD);
+        config.loggingSettings.modLogChannel =
+          options.modLogChannel === undefined
+            ? "1029384756102938400"
+            : options.modLogChannel;
+        return config;
+      }),
+    },
     caseProofService: { add },
     emojiRepository: {
       getEmojis: mock(async () =>
@@ -160,6 +172,12 @@ function setup(
   }
 
   return { deps, add, findNewestByUser, fetchMessage, component };
+}
+
+interface AddInput {
+  files: unknown[];
+  source: unknown;
+  fallback: boolean;
 }
 
 type AddResult = Awaited<
@@ -259,6 +277,7 @@ describe("Add as proof pick", () => {
         content: "I'm giving away free nitro, claim here",
       },
       uploadLimit: 10 * 1024 * 1024,
+      fallback: false,
     });
     expect(json(interaction.editReply.mock.calls[0])).toContain(
       "✅ Added to case #4822 as proof",
@@ -322,9 +341,9 @@ describe("Add as proof pick", () => {
     );
 
     expect(ctx.add).toHaveBeenCalledTimes(1);
-    expect(json(interaction.editReply.mock.calls[0])).toContain(
-      "This case was deleted",
-    );
+    const out = json(interaction.editReply.mock.calls[0]);
+    expect(out).toContain("This case was deleted");
+    expect(out).toContain("-# Right-click the message to try again.");
   });
 
   test("an unexpected failure is shown in the picker, not thrown", async () => {
@@ -342,14 +361,21 @@ describe("Add as proof pick", () => {
     );
   });
 
-  const fallbacks: [string, AddResult, string][] = [
+  const noEntry = Err({
+    kind: "not_added" as const,
+    skipped: [{ caseId: "4822", reason: "no_mod_log_for_files" as const }],
+  });
+  const fallbacks: [string, AddResult, string, (string | null)?][] = [
     [
       "no mod log channel",
-      Err({
-        kind: "not_added" as const,
-        skipped: [{ caseId: "4822", reason: "no_mod_log_for_files" as const }],
-      }),
-      "-# Files weren't saved: this server has no mod log channel to keep them. Set one in `/settings`.",
+      noEntry,
+      "-# Files weren't saved: this case has no mod log entry to keep them on. Set a mod log channel in `/settings`.",
+      null,
+    ],
+    [
+      "no entry for the case",
+      noEntry,
+      "-# Files weren't saved: this case has no mod log entry to keep them on.\"",
     ],
     [
       "a file over the limit",
@@ -363,23 +389,21 @@ describe("Add as proof pick", () => {
     ],
   ];
 
-  for (const [name, refusal, note] of fallbacks) {
+  for (const [name, refusal, note, modLogChannel] of fallbacks) {
     test(`with ${name}, still saves the link and text`, async () => {
-      const ctx = setup({ results: [refusal, stored([])] });
+      const ctx = setup({ results: [refusal, stored([])], modLogChannel });
       const interaction = ctx.component(ADD_ID);
       await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
         interaction as unknown as ButtonInteraction,
       );
 
       expect(ctx.add).toHaveBeenCalledTimes(2);
-      const [first] = ctx.add.mock.calls[0] as [
-        { files: unknown[]; source: unknown },
-      ];
-      const [retry] = ctx.add.mock.calls[1] as [
-        { files: unknown[]; source: unknown },
-      ];
+      const [first] = ctx.add.mock.calls[0] as [AddInput];
+      const [retry] = ctx.add.mock.calls[1] as [AddInput];
       expect(first.files).toHaveLength(1);
+      expect(first.fallback).toBe(false);
       expect(retry.files).toEqual([]);
+      expect(retry.fallback).toBe(true);
       expect(retry.source).toEqual(first.source);
 
       const out = json(interaction.editReply.mock.calls[0]);
@@ -405,9 +429,9 @@ describe("Add as proof pick", () => {
     );
 
     expect(ctx.add).toHaveBeenCalledTimes(1);
-    expect(json(interaction.editReply.mock.calls[0])).toContain(
-      "still being posted",
-    );
+    const out = json(interaction.editReply.mock.calls[0]);
+    expect(out).toContain("still being posted");
+    expect(out).toContain("-# Right-click the message to try again.");
   });
 
   test("the confirmation counts the stored files, not the message's", async () => {
@@ -450,7 +474,11 @@ describe("Add as proof pick", () => {
     expect(ctx.add.mock.calls[0]).toMatchObject([
       {
         files: [{ name: "fwd.png" }],
-        source: { url: URL, authorId: TARGET, content: "forwarded scam text" },
+        source: {
+          url: URL,
+          authorId: null,
+          content: `Forwarded by <@${TARGET}>\nforwarded scam text`,
+        },
       },
     ]);
   });
@@ -536,6 +564,29 @@ describe("Add as proof forwards", () => {
     expect(out).toContain("Forwards don't say who first wrote them.");
     expect(out).not.toContain("Add to #");
     expect(out).toContain("Someone else's case…");
+  });
+});
+
+describe("Add as proof user select on a forward", () => {
+  test("picking the forwarder lists their cases", async () => {
+    const ctx = setup({
+      message: sourceMessage("", {
+        content: "forwarded scam text",
+        attachments: attachments([]),
+      }),
+    });
+    const interaction = ctx.component(USER_ID, {
+      isUserSelectMenu: () => true,
+      users: { first: () => ({ id: TARGET, username: "spambot" }) },
+    });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
+    );
+
+    expect(ctx.findNewestByUser).toHaveBeenCalledWith(GUILD, TARGET, 10);
+    const out = json(interaction.update.mock.calls[0]);
+    expect(out).toContain("Add to #4822");
+    expect(out).toContain(`-# Showing <@${TARGET}>'s cases`);
   });
 });
 

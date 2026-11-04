@@ -436,6 +436,7 @@ export function createModerationCommands(
 
   const addAsProof: AddAsProofDeps = {
     modLogRepository: services.modLogRepository,
+    guildConfigRepository: services.guildConfigRepository,
     caseProofService: services.caseProofService,
     emojiRepository: services.emojiRepository,
     logger: logger.child({ module: "addAsProof" }),

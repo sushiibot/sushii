@@ -38,12 +38,14 @@ export class AddAsProofContextMenuHandler extends ContextMenuHandler {
     }
 
     const message = interaction.targetMessage;
+    const source = toSourceMessage(message);
     await interaction.reply(
       await renderAddAsProofPicker(
         this.deps,
         interaction.guildId,
-        toSourceMessage(message),
+        source,
         { id: message.author.id, username: message.author.username },
+        source.forwarded ? "unknown" : "author",
       ),
     );
   }

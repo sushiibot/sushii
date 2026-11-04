@@ -113,17 +113,29 @@ function collapseBlankLines(text: string): string {
  * The message text stored with the proof. The mod log quotes it, which
  * doubles newline-heavy text, so it's capped well under one entry's 4000.
  */
-export function proofSourceContent(content: string): string | null {
+export function proofSourceContent(
+  content: string,
+  opts: { forwardedBy?: string } = {},
+): string | null {
+  const header = opts.forwardedBy ? `Forwarded by <@${opts.forwardedBy}>` : "";
   const text = collapseBlankLines(content).trim();
-  if (!text) {
+  const join = (body: string) =>
+    header && body ? `${header}\n${body}` : header || body;
+
+  const whole = join(text);
+  if (!whole) {
     return null;
   }
-  if (text.length <= SOURCE_CONTENT_MAX_LENGTH) {
-    return text;
+  if (whole.length <= SOURCE_CONTENT_MAX_LENGTH) {
+    return whole;
   }
 
-  const room = SOURCE_CONTENT_MAX_LENGTH - SOURCE_SHORTENED_LINE.length - 1;
-  return `${truncateText(text, room)}\n${SOURCE_SHORTENED_LINE}`;
+  const room =
+    SOURCE_CONTENT_MAX_LENGTH -
+    (header ? header.length + 1 : 0) -
+    SOURCE_SHORTENED_LINE.length -
+    1;
+  return `${join(truncateText(text, room))}\n${SOURCE_SHORTENED_LINE}`;
 }
 
 function fileNoun(files: SourceMessage["files"]): string {

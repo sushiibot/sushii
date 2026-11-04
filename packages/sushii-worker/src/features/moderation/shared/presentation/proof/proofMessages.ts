@@ -25,12 +25,16 @@ const number = new Intl.NumberFormat("en-US");
 export const NO_MOD_LOG_FOR_FILES_TEXT =
   "Proof files are stored on the mod log entry, and this server has no mod log channel. Set one in `/settings`.";
 
+/** Also covers a deleted entry or an old case that never got one, not only a missing channel. */
+export const NO_MOD_LOG_ENTRY_FOR_FILES_TEXT =
+  "Proof files are stored on the case's mod log entry, and this case doesn't have one. If the server has no mod log channel, set one in `/settings`.";
+
 export const RETRY_LATER_TEXT =
   "The mod log entry is still being posted. Try again in a few seconds.";
 
 const SKIP_TEXT: Record<CaseSkipReason, string> = {
   retry_later: RETRY_LATER_TEXT,
-  no_mod_log_for_files: NO_MOD_LOG_FOR_FILES_TEXT,
+  no_mod_log_for_files: NO_MOD_LOG_ENTRY_FOR_FILES_TEXT,
   failed: "Something went wrong there. Try again.",
 };
 
@@ -111,7 +115,7 @@ export function partialProofText(
 ): string {
   const lines = skipped.flatMap((s) => skippedCaseLine(s) ?? []);
   if (skipped.some((s) => s.reason === "no_mod_log_for_files")) {
-    lines.push(`-# ${NO_MOD_LOG_FOR_FILES_TEXT}`);
+    lines.push(`-# ${NO_MOD_LOG_ENTRY_FOR_FILES_TEXT}`);
   }
   return [
     `Proof added: ${formatCaseRefs(added)}. Not added: ${formatCaseRefs(skipped.map((s) => s.caseId))}.`,

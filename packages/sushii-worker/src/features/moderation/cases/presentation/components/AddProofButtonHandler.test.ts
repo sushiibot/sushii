@@ -332,7 +332,7 @@ describe("Add proof submit", () => {
     );
   });
 
-  test("files without a mod log channel: the typed text comes back", async () => {
+  test("files without a mod log entry: the typed text comes back", async () => {
     const ctx = setup({
       message: responseMessage(),
       result: Err({
@@ -343,7 +343,7 @@ describe("Add proof submit", () => {
     await ctx.run();
     const note = JSON.stringify(ctx.submission.followUp.mock.calls[0]);
     expect(note).toContain(
-      "this server has no mod log channel. Set one in `/settings`.",
+      "this case doesn't have one. If the server has no mod log channel, set one in `/settings`.",
     );
     expect(note).toContain("Nothing was saved. What you typed:");
     expect(note).toContain("> Reported in #reports");
@@ -374,7 +374,7 @@ describe("Add proof submit", () => {
     await ctx.run();
     const note = JSON.stringify(ctx.submission.followUp.mock.calls[0]);
     expect(note).toContain("still being posted");
-    expect(note).toContain("no mod log channel");
+    expect(note).toContain("this case doesn't have one");
   });
 
   test("an empty form", async () => {

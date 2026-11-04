@@ -127,6 +127,12 @@ function setup(
 }
 
 describe("CaseProofService validation", () => {
+  test("a fallback retry records no second outcome", async () => {
+    const ctx = setup();
+    await ctx.service.add(ctx.input({ fallback: true }));
+    expect(ctx.recordProofAdded).not.toHaveBeenCalled();
+  });
+
   test("nothing to add", async () => {
     const ctx = setup();
     const result = await ctx.service.add(ctx.input({ content: "  " }));

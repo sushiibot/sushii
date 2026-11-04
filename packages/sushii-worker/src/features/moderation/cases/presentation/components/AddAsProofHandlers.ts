@@ -28,6 +28,7 @@ import {
   proofNotice,
 } from "@/features/moderation/shared/presentation/proof/proofMessages";
 import { getErrorMessageEdit } from "@/interactions/responses/error";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 import {
   ButtonHandler,
   SelectMenuHandler,
@@ -40,6 +41,7 @@ import {
 import {
   ADD_AS_PROOF_EMOJIS,
   PICKER_CASE_LIMIT,
+  type PickerInput,
   type SourceMessage,
   type SourceMessageRef,
   buildAddAsProofAdding,
@@ -51,6 +53,7 @@ import {
 
 export interface AddAsProofDeps {
   modLogRepository: Pick<ModLogRepository, "findNewestByUser">;
+  guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
   caseProofService: Pick<CaseProofService, "add">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
   logger: Logger;
@@ -123,7 +126,8 @@ export async function fetchSourceMessage(
       channel.isDMBased() ||
       channel.guildId !== interaction.guildId ||
       !channel.isTextBased() ||
-      !channel.permissionsFor(interaction.member).has(READ_PERMISSIONS)
+      // Threads can return null here at runtime.
+      channel.permissionsFor(interaction.member)?.has(READ_PERMISSIONS) !== true
     ) {
       return null;
     }
@@ -136,17 +140,17 @@ export async function fetchSourceMessage(
   }
 }
 
-/** The picker for one user's cases: the message author first, or anyone picked after. */
+/**
+ * The picker for one user's cases. The caller picks the mode: a forward
+ * opens as `unknown`, since its author is only whoever forwarded it.
+ */
 export async function renderAddAsProofPicker(
   deps: AddAsProofDeps,
   guildId: string,
   message: SourceMessage,
   user: { id: string; username: string },
+  showing: PickerInput["showing"],
 ) {
-  const isAuthor = user.id === message.authorId;
-  // A forward's author is whoever forwarded it, rarely whose case it's for.
-  const showing =
-    isAuthor && message.forwarded ? "unknown" : isAuthor ? "author" : "other";
   const [cases, emojis] = await Promise.all([
     showing === "unknown"
       ? []
@@ -171,10 +175,11 @@ export async function renderAddAsProofPicker(
 const MB = 1024 * 1024;
 
 /** Why the files can't be stored while the link and text still can; null for other errors. */
-export function filesNotSavedReason(
+export async function filesNotSavedReason(
   error: AddProofError,
   maxFileBytes: number,
-): string | null {
+  hasModLogChannel: () => Promise<boolean>,
+): Promise<string | null> {
   if (error === "file_too_large") {
     return `one is over the ${Math.floor(maxFileBytes / MB)} MB limit.`;
   }
@@ -186,7 +191,11 @@ export function filesNotSavedReason(
     error.skipped.length > 0 &&
     error.skipped.every((s) => s.reason === "no_mod_log_for_files")
   ) {
-    return "this server has no mod log channel to keep them. Set one in `/settings`.";
+    // Also a deleted entry or an old case without one, not only a missing channel.
+    const noEntry = "this case has no mod log entry to keep them on.";
+    return (await hasModLogChannel())
+      ? noEntry
+      : `${noEntry} Set a mod log channel in \`/settings\`.`;
   }
   return null;
 }
@@ -209,8 +218,15 @@ async function showResult(
   }
 }
 
-function errorEdit(text: string): InteractionEditReplyOptions {
-  const { components, allowedMentions } = proofNotice(text);
+const TRY_AGAIN_LINE = "-# Right-click the message to try again.";
+
+function errorEdit(
+  text: string,
+  { retry }: { retry: boolean },
+): InteractionEditReplyOptions {
+  const { components, allowedMentions } = proofNotice(
+    retry ? `${text}\n${TRY_AGAIN_LINE}` : text,
+  );
   // An edit can't set Ephemeral; the picker keeps its own flags.
   return { components, allowedMentions, flags: MessageFlags.IsComponentsV2 };
 }
@@ -229,12 +245,18 @@ async function addMessageToCase(
 
   const message = await fetchSourceMessage(interaction, ref);
   if (!message) {
-    await showResult(interaction, deps, errorEdit(SOURCE_MESSAGE_GONE_TEXT));
+    // Retrying can't help: the message is gone or unreadable.
+    await showResult(
+      interaction,
+      deps,
+      errorEdit(SOURCE_MESSAGE_GONE_TEXT, { retry: false }),
+    );
     return;
   }
 
   const maxFileBytes = proofFileMaxBytes(interaction.attachmentSizeLimit);
-  const add = (files: ProofFileSource[]) =>
+  const forwarded = forwardedSnapshot(message) !== null;
+  const add = (files: ProofFileSource[], fallback = false) =>
     deps.caseProofService.add({
       guildId: interaction.guildId,
       caseIds: [caseId],
@@ -242,12 +264,16 @@ async function addMessageToCase(
       kind: "context_menu",
       content: null,
       files,
+      // A forward's author is only whoever forwarded it, so it's named in the text instead.
       source: {
         url: message.url,
-        authorId: message.author.id,
-        content: proofSourceContent(contentOf(message).content ?? ""),
+        authorId: forwarded ? null : message.author.id,
+        content: proofSourceContent(contentOf(message).content ?? "", {
+          forwardedBy: forwarded ? message.author.id : undefined,
+        }),
       },
       uploadLimit: interaction.attachmentSizeLimit,
+      fallback,
     });
 
   let result: AddResult;
@@ -255,12 +281,17 @@ async function addMessageToCase(
   try {
     result = await add(proofFiles(message));
     const reason = result.err
-      ? filesNotSavedReason(result.val, maxFileBytes)
+      ? await filesNotSavedReason(result.val, maxFileBytes, async () => {
+          const config = await deps.guildConfigRepository.findByGuildId(
+            interaction.guildId,
+          );
+          return config.loggingSettings.modLogChannel !== null;
+        })
       : null;
     if (reason) {
       // The link and text still count as proof without the files.
       filesNotSaved = reason;
-      result = await add([]);
+      result = await add([], true);
     }
   } catch (err) {
     // Logged here instead of the router, which would answer a second time.
@@ -285,6 +316,7 @@ async function addMessageToCase(
       deps,
       errorEdit(
         proofErrorText(result.val, { emptyHint: EMPTY_HINT, maxFileBytes }),
+        { retry: true },
       ),
     );
     return;
@@ -407,11 +439,13 @@ export class AddAsProofSelectHandler extends SelectMenuHandler {
     if (!user) {
       throw new Error("Add as proof user select without a user");
     }
+    const source = toSourceMessage(message);
     const picker = await renderAddAsProofPicker(
       this.deps,
       interaction.guildId,
-      toSourceMessage(message),
+      source,
       { id: user.id, username: user.username },
+      user.id === source.authorId && !source.forwarded ? "author" : "other",
     );
     // An update can't set Ephemeral; the picker keeps its own flags.
     await interaction.update({ ...picker, flags: MessageFlags.IsComponentsV2 });
