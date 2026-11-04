@@ -132,7 +132,7 @@ function proofTextId(proofs: readonly CaseProof[]): number {
 }
 
 /** The Delete DM button's id is this base plus the live DMs it deletes. */
-export const LIVE_DM_BUTTON_ID_BASE = 2200;
+export const LIVE_DM_BUTTON_ID_BASE = 3000;
 const LIVE_DM_BUTTON_ID_MAX_COUNT = 99;
 
 function liveDmButtonId(live: number): number {
@@ -525,7 +525,8 @@ function normalizeText(text: string): string {
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => line.trimEnd())
-    .join("\n");
+    .join("\n")
+    .trimEnd();
 }
 
 /** "Template `!spam`", or the no-shortcut variant. */
@@ -1373,7 +1374,7 @@ function postedReason(
 
   return {
     notes: noteLines
-      .filter((line) => !isStatusLine(line))
+      .filter((line) => line !== "" && !isStatusLine(line))
       .map((line) => line.replace(/^-# /, "")),
     dmTextIncluded,
   };
@@ -1426,6 +1427,10 @@ function postedLiveDms(container: APIContainerComponent): number | "some" {
     return [];
   });
   for (const button of buttons) {
+    const kind = parseResponseButtonId(button.custom_id ?? "")?.kind;
+    if (kind !== "dmDelete" && kind !== "dmDeleteConfirm") {
+      continue;
+    }
     const id = button.id ?? 0;
     if (
       id >= LIVE_DM_BUTTON_ID_BASE &&
@@ -1433,10 +1438,7 @@ function postedLiveDms(container: APIContainerComponent): number | "some" {
     ) {
       return id - LIVE_DM_BUTTON_ID_BASE;
     }
-    const kind = parseResponseButtonId(button.custom_id ?? "")?.kind;
-    if (kind === "dmDelete" || kind === "dmDeleteConfirm") {
-      return "some";
-    }
+    return "some";
   }
   return 0;
 }

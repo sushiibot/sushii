@@ -1497,6 +1497,88 @@ describe("postedResponseDiffers", () => {
     expect(differs(original, [makeCase({ reason })])).toBe(false);
   });
 
+  test("component ids stay unique with 102 proofs and 2 live DMs", () => {
+    const targets = [makeTarget(TARGET, "a"), makeTarget(TARGET_2, "b")];
+    const cases = targets.map((t, i) =>
+      makeCase({ caseId: `${4822 + i}`, userId: t.id }),
+    );
+    const proofs = Array.from({ length: 102 }, (_, i) =>
+      proof({ id: `${i}`, content: "x" }),
+    );
+    for (const mode of ["buttons", "confirmDeleteDm"] as const) {
+      const message = rebuild(
+        render({ targets, results: cases.map((c) => Ok(c)), proofs }),
+        { cases, proofs, mode },
+      );
+      const ids: number[] = [];
+      const visit = (node: unknown) => {
+        const c = node as {
+          id?: number;
+          components?: unknown[];
+          accessory?: unknown;
+        };
+        if (c.id !== undefined) {
+          ids.push(c.id);
+        }
+        (c.components ?? []).forEach(visit);
+        if (c.accessory) {
+          visit(c.accessory);
+        }
+      };
+      json(message).components.forEach(visit);
+      expect(ids).toContain(PROOF_TEXT_ID_BASE + 102);
+      expect(ids).toContain(LIVE_DM_BUTTON_ID_BASE + 2);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+
+  test("a reason ending in a newline doesn't read as a change", () => {
+    const reason = "Spam\n";
+    const original = posted(
+      render({
+        results: [Ok(makeCase({ reason }))],
+        action: banAction(reason),
+        reasonNotes: ["Template `!spam`"],
+      }),
+    );
+    expect(differs(original, [makeCase({ reason })])).toBe(false);
+    expect(differs(original, [makeCase({ reason: "Spam" })])).toBe(false);
+  });
+
+  test("only Delete DM buttons are read for the live DM count", () => {
+    const withButton = (button: Record<string, unknown>) =>
+      [
+        {
+          type: ComponentType.Container,
+          components: [
+            {
+              type: ComponentType.TextDisplay,
+              id: ACTION_RESPONSE_IDS.reason,
+              content: "**Reason**\nSpamming invite links",
+            },
+            {
+              type: ComponentType.ActionRow,
+              components: [{ type: ComponentType.Button, style: 2, ...button }],
+            },
+          ],
+        },
+      ] as unknown as APIMessageTopLevelComponent[];
+
+    const save = withButton({
+      label: "Save as template",
+      custom_id: "modAction/save/4822",
+      id: LIVE_DM_BUTTON_ID_BASE + 2,
+    });
+    expect(differs(save, [makeCase({ dmDeleted: true })])).toBe(false);
+
+    const oldConfirm = withButton({
+      label: "Delete DM",
+      custom_id: "modAction/dm/deleteConfirm/4822",
+    });
+    expect(differs(oldConfirm, [makeCase()])).toBe(false);
+    expect(differs(oldConfirm, [makeCase({ dmDeleted: true })])).toBe(true);
+  });
+
   test("an old response without a proof section skips the proof comparison", () => {
     const old: APIMessageTopLevelComponent[] = [
       {
@@ -1531,6 +1613,7 @@ describe("postedResponseDiffers", () => {
       false,
     );
     expect(differs(old, [makeCase({ reason: "Other" })])).toBe(true);
+    expect(differs(old, [makeCase({ dmDeleted: true })])).toBe(true);
   });
 });
 
