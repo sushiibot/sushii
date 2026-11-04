@@ -49,6 +49,8 @@ describe("AuditLogService", () => {
   let findById: ReturnType<typeof mock>;
   let postModLogMessage: ReturnType<typeof mock>;
   let refresh: ReturnType<typeof mock>;
+  let adoptUnhosted: ReturnType<typeof mock>;
+  let updateMessageId: ReturnType<typeof mock>;
   let service: AuditLogService;
 
   const entry = {
@@ -68,6 +70,8 @@ describe("AuditLogService", () => {
     findById = mock(async () => editedRow());
     postModLogMessage = mock(async () => Ok(POSTED));
     refresh = mock(async () => "updated");
+    adoptUnhosted = mock(async () => undefined);
+    updateMessageId = mock(async () => undefined);
 
     const modLogRepository = {
       findPendingCase: mock(async (_g: string, _u: string, type: ActionType) =>
@@ -76,7 +80,7 @@ describe("AuditLogService", () => {
       // markAsNotPending returns the row as it was before the edit.
       markAsNotPending: mock(async () => pendingRow()),
       findById,
-      updateMessageId: mock(async () => undefined),
+      updateMessageId,
     } as unknown as ModLogRepository;
 
     service = new AuditLogService(
@@ -92,7 +96,7 @@ describe("AuditLogService", () => {
       { updateSpamAlert: mock(async () => undefined) } as never,
       pino({ level: "silent" }),
       { isSuppressed: () => false } as never,
-      { refresh },
+      { refresh, adoptUnhosted },
     );
   });
 
@@ -122,5 +126,63 @@ describe("AuditLogService", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     const [refreshed] = refresh.mock.calls[0] as unknown as [ModerationCase];
     expect(refreshed.reason?.value).toBe("Set while pending");
+  });
+
+  test("hosts proof saved while the entry was posting, once its message ID is stored", async () => {
+    const order: string[] = [];
+    const posted = new ModerationCase(
+      GUILD,
+      "4822",
+      ActionType.Ban,
+      new Date("2026-10-27T11:00:00.000Z"),
+      TARGET,
+      "spambot",
+      MOD,
+      null,
+      POSTED,
+    );
+    // The command inserts its action proof row after the post read the
+    // proof list, so only the read after storing the message ID sees it.
+    postModLogMessage.mockImplementation(async () => {
+      order.push("posted");
+      return Ok(POSTED);
+    });
+    updateMessageId.mockImplementation(async () => {
+      order.push("message id saved");
+    });
+    findById
+      .mockResolvedValueOnce(pendingRow())
+      .mockResolvedValueOnce(pendingRow())
+      .mockResolvedValueOnce(posted);
+    adoptUnhosted.mockImplementation(async () => {
+      order.push("adopted");
+    });
+
+    await service.handleAuditLogEntry(entry, guild);
+
+    expect(order).toEqual(["posted", "message id saved", "adopted"]);
+    expect(adoptUnhosted).toHaveBeenCalledWith(posted);
+  });
+
+  test("a failed adoption doesn't fail the audit log entry", async () => {
+    findById.mockResolvedValue(
+      new ModerationCase(
+        GUILD,
+        "4822",
+        ActionType.Ban,
+        new Date(),
+        TARGET,
+        "spambot",
+        MOD,
+        null,
+        POSTED,
+      ),
+    );
+    adoptUnhosted.mockImplementation(async () => {
+      throw new Error("Missing Access");
+    });
+
+    const result = await service.handleAuditLogEntry(entry, guild);
+    expect(result.ok).toBe(true);
   });
 });

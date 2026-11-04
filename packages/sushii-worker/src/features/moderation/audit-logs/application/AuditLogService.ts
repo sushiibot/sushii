@@ -56,7 +56,7 @@ export class AuditLogService {
     private readonly softbanSuppressionSet: SoftbanSuppressionSet,
     private readonly modLogMessageService: Pick<
       ModLogMessageService,
-      "refresh"
+      "refresh" | "adoptUnhosted"
     >,
   ) {}
 
@@ -187,6 +187,10 @@ export class AuditLogService {
           await this.refreshIfChangedWhilePosting(
             latestCase,
             processedLog.auditLogEvent,
+          );
+          await this.adoptAfterPosting(
+            processedLog.modLogCase.guildId,
+            processedLog.modLogCase.caseId,
           );
 
           return Ok.EMPTY;
@@ -569,6 +573,27 @@ export class AuditLogService {
     await this.modLogMessageService.refresh(current, {
       timeoutChange: auditLogEvent.timeoutChange,
     });
+  }
+
+  /**
+   * Proof saved while the entry was posting found no message ID to host its
+   * files on. The ID is stored now, so this read sees any such row.
+   */
+  private async adoptAfterPosting(
+    guildId: string,
+    caseId: string,
+  ): Promise<void> {
+    try {
+      const current = await this.modLogRepository.findById(guildId, caseId);
+      if (current?.msgId) {
+        await this.modLogMessageService.adoptUnhosted(current);
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, guildId, caseId },
+        "Failed to host proof files after posting the mod log entry",
+      );
+    }
   }
 
   /**
