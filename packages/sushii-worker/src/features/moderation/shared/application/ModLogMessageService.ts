@@ -89,7 +89,8 @@ export const DELETE_DM_PROMPT_RESERVE = 170;
 // A signed CDN link to an uploaded file, shown once its URL is known.
 const FILE_LINK_RESERVE = 300;
 const PROOF_DOWNLOAD_TOTAL_MS = 20_000;
-const PROOF_DOWNLOAD_MAX_BYTES = 10 * 1024 * 1024;
+// Matches the 25 MB cap on proof uploads: a file the guild accepted once fits its mod log too.
+const PROOF_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 export interface PendingEntryWait {
   totalMs: number;
