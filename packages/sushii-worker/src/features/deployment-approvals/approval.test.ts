@@ -72,6 +72,7 @@ describe("deployment approval UI", () => {
     const handler = new DeploymentApprovalButtonHandler(
       api,
       "222222222222222222",
+      emojiRepo,
     );
     const reply = mock(async () => undefined);
     await handler.handleInteraction({
@@ -80,6 +81,86 @@ describe("deployment approval UI", () => {
     } as unknown as ButtonInteraction);
     expect(post).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledTimes(1);
+  });
+  test("review and confirm edit the release message in place", async () => {
+    const token = "x".repeat(43);
+    const order: string[] = [];
+    const post = mock(async (path: string) => {
+      order.push("post " + path);
+      return {};
+    });
+    const review = mock(async () => ({ confirmation: token, card }));
+    const api = { post, review } as unknown as ApprovalClient;
+    const handler = new DeploymentApprovalButtonHandler(
+      api,
+      "222222222222222222",
+      emojiRepo,
+    );
+    const deferUpdate = mock(async () => undefined);
+    const editReply = mock(async (_body: unknown) => undefined);
+    const update = mock(async (_body: unknown) => {
+      order.push("update");
+    });
+    const base = {
+      user: { id: "222222222222222222" },
+      message: { id: "333333333333333333" },
+      deferUpdate,
+      editReply,
+      update,
+    };
+    await handler.handleInteraction({
+      ...base,
+      customId: "/deploy-approval/review/" + card.id + "/1/approved",
+    } as unknown as ButtonInteraction);
+    expect(deferUpdate).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(editReply.mock.calls[0][0])).toContain(
+      "/confirm/" + token,
+    );
+
+    await handler.handleInteraction({
+      ...base,
+      customId: "/deploy-approval/confirm/" + token,
+    } as unknown as ButtonInteraction);
+    expect(order).toEqual(["update", "post /internal/decide"]);
+    const submitting = JSON.stringify(update.mock.calls[0][0]);
+    expect(submitting).toContain("Submitting");
+    expect(submitting).toContain('"disabled":true');
+  });
+  test("expired confirmation restores the release card", async () => {
+    const token = "x".repeat(43);
+    const { ApprovalError } = await import("./client");
+    const post = mock(async () => {
+      throw new ApprovalError("confirmation_expired");
+    });
+    const review = mock(async () => ({ confirmation: token, card }));
+    const handler = new DeploymentApprovalButtonHandler(
+      { post, review } as unknown as ApprovalClient,
+      "222222222222222222",
+      emojiRepo,
+    );
+    const editReply = mock(async (_body: unknown) => undefined);
+    const followUp = mock(async (_body: unknown) => undefined);
+    const base = {
+      user: { id: "222222222222222222" },
+      message: { id: "333333333333333333" },
+      deferUpdate: mock(async () => undefined),
+      update: mock(async () => undefined),
+      editReply,
+      followUp,
+      replied: true,
+    };
+    await handler.handleInteraction({
+      ...base,
+      customId: "/deploy-approval/review/" + card.id + "/1/approved",
+    } as unknown as ButtonInteraction);
+    await handler.handleInteraction({
+      ...base,
+      customId: "/deploy-approval/confirm/" + token,
+    } as unknown as ButtonInteraction);
+    expect(JSON.stringify(editReply.mock.calls[1][0])).toContain(
+      "/deploy-approval/review/" + card.id,
+    );
+    expect(JSON.stringify(followUp.mock.calls[0][0])).toContain("expired");
   });
   test("pending updates edit the same recovered message without starting a thread", async () => {
     const ack = mock(async (_path: string, _body: unknown) => ({}));

@@ -40,7 +40,11 @@ export function setupDeploymentApprovals(
   }
   return {
     buttonHandlers: [
-      new DeploymentApprovalButtonHandler(api, config.deployment.ownerUserId),
+      new DeploymentApprovalButtonHandler(
+        api,
+        config.deployment.ownerUserId,
+        emojiRepo,
+      ),
     ],
   };
 }

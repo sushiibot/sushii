@@ -159,6 +159,7 @@ export function confirmationCard(
   card: Candidate,
   token: string,
   decision: string,
+  submitting = false,
 ) {
   return new ContainerBuilder()
     .addTextDisplayComponents(
@@ -189,11 +190,21 @@ export function confirmationCard(
         new ButtonBuilder()
           .setCustomId("/deploy-approval/confirm/" + token)
           .setLabel(
-            decision === "approved" ? "Approve & deploy" : "Reject release",
+            submitting
+              ? "Submitting…"
+              : decision === "approved"
+                ? "Approve & deploy"
+                : "Reject release",
           )
           .setStyle(
             decision === "approved" ? ButtonStyle.Success : ButtonStyle.Danger,
-          ),
+          )
+          .setDisabled(submitting),
+        new ButtonBuilder()
+          .setCustomId("/deploy-approval/cancel")
+          .setLabel("Cancel")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(submitting),
       ),
     );
 }
