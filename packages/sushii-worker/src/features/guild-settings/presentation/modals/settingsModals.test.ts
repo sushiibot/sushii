@@ -1236,7 +1236,7 @@ describe("notifications modal sushii updates", () => {
 
     expect(json.components).toHaveLength(1);
     expect(json.components[0].description).toStartWith(
-      "Where sushii posts setup problems and sushii updates.",
+      "Where sushii tells you what to fix in your server, and posts sushii updates.",
     );
   });
 
@@ -1288,7 +1288,7 @@ describe("notifications modal sushii updates", () => {
       expect(json.components).toHaveLength(2);
       expect(json.components[1].label).toBe("Also post sushii updates here");
       expect(json.components[1].description).toBe(
-        "New features, changes and planned downtime",
+        "Posts about new sushii features",
       );
       expect(labelComponent(json, 1)).toMatchObject({
         type: ComponentType.Checkbox,

@@ -78,15 +78,14 @@ describe("buildFeedbackModal", () => {
     ]);
   });
 
-  test("error modal without a trace doesn't promise an error ID", () => {
+  test("error modal without a trace has no intro text", () => {
     const modal = buildFeedbackModal({
       source: "error_report",
       traceId: null,
     }).toJSON();
 
-    expect(modal.components[0]).toEqual({
-      type: ComponentType.TextDisplay,
-      content: expect.not.stringContaining("error ID"),
-    });
+    expect(
+      modal.components.some((c) => c.type === ComponentType.TextDisplay),
+    ).toBe(false);
   });
 });

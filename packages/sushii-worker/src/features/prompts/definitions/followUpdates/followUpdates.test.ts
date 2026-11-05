@@ -108,8 +108,8 @@ describe("follow_updates content", () => {
 
     expect(content.text).toBe(
       [
-        "## 📢 Get sushii updates in your server",
-        "Pick a channel for **sushii notifications**. sushii posts new features, changes and planned downtime there, and tells you when something in your setup needs fixing.",
+        "## 🔔 Pick a channel for sushii notifications",
+        "sushii tells you there when something in your server needs fixing, like a missing permission. It also posts sushii updates about new features.",
         "-# You don't need to join the support server.",
       ].join("\n"),
     );
@@ -144,7 +144,7 @@ describe("follow_updates content", () => {
     expect(content.text).toBe(
       [
         `## 📢 Get sushii updates in <#${CHANNEL}> too?`,
-        `<#${CHANNEL}> is your sushii notifications channel. sushii can also post new features, changes and planned downtime there.`,
+        `sushii already tells you in <#${CHANNEL}> when something in your server needs fixing. It can also post sushii updates about new features there.`,
         "-# You don't need to join the support server.",
       ].join("\n"),
     );

@@ -57,7 +57,7 @@ export function settingsOutcomeText(
 
 export const BACKFILL_NOTICE: SushiiNotification = {
   title: "📢 sushii updates now post here",
-  body: "This channel already gets sushii's setup alerts. It now also gets sushii's announcements: new features, changes and planned downtime, so you don't have to join the support server to hear about them.",
+  body: "This channel already gets alerts when something in your server needs fixing. It now also gets sushii updates about new features, so you don't need to join the support server to hear about them.",
   hint: "Don't want them? Turn off **Also post sushii updates here** in /settings → Logging → sushii notifications.",
   severity: "info",
   buttons: new ActionRowBuilder<ButtonBuilder>().addComponents(

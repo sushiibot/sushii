@@ -31,20 +31,23 @@ function contentInput(placeholder: string): TextInputBuilder {
 }
 
 function buildErrorModal(traceId: string | null): ModalBuilder {
-  const intro = traceId
-    ? "This goes straight to the sushii team. The error ID is attached automatically."
-    : "This goes straight to the sushii team.";
-
-  return new ModalBuilder()
+  const modal = new ModalBuilder()
     .setCustomId(buildModalId({ source: "error_report", traceId }))
-    .setTitle("Send feedback to sushii")
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(intro))
-    .addLabelComponents(
-      new LabelBuilder()
-        .setLabel("What were you trying to do?")
-        .setDescription("What you expected and what happened instead.")
-        .setTextInputComponent(contentInput("I was running a command and…")),
+    .setTitle("Send feedback to sushii");
+  if (traceId) {
+    modal.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        "The error ID is attached automatically.",
+      ),
     );
+  }
+
+  return modal.addLabelComponents(
+    new LabelBuilder()
+      .setLabel("What were you trying to do?")
+      .setDescription("What you expected and what happened instead.")
+      .setTextInputComponent(contentInput("I was running a command and…")),
+  );
 }
 
 function buildPanelModal(
@@ -69,7 +72,7 @@ function buildPanelModal(
     .setTitle("Send feedback")
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `About: **${FEATURE_LABELS[id.feature]}**\nIdeas, confusing bits, things that don't work, or things you like. It all goes straight to the sushii team.`,
+        `About: **${FEATURE_LABELS[id.feature]}**\nIdeas, confusing bits, things that don't work, or things you like.`,
       ),
     )
     .addLabelComponents(

@@ -32,7 +32,7 @@ export const LOG_ROWS: readonly {
   {
     target: "notifications",
     name: "sushii notifications",
-    hint: "Setup problems and sushii updates",
+    hint: "Things to fix in your server, plus sushii updates",
   },
 ];
 

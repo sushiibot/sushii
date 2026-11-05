@@ -49,8 +49,8 @@ export function buildPickChannelContent(
     ? NO_SUPPORT_SERVER_NEEDED
     : "-# ⚠️ sushii needs **Manage Webhooks** in that channel to post updates.";
   const text = [
-    "## 📢 Get sushii updates in your server",
-    "Pick a channel for **sushii notifications**. sushii posts new features, changes and planned downtime there, and tells you when something in your setup needs fixing.",
+    "## 🔔 Pick a channel for sushii notifications",
+    "sushii tells you there when something in your server needs fixing, like a missing permission. It also posts sushii updates about new features.",
     footer,
   ].join("\n");
 
@@ -77,7 +77,7 @@ export function buildPickChannelContent(
 export function buildFollowChannelContent(channelId: string): PromptContent {
   const text = [
     `## 📢 Get sushii updates in <#${channelId}> too?`,
-    `<#${channelId}> is your sushii notifications channel. sushii can also post new features, changes and planned downtime there.`,
+    `sushii already tells you in <#${channelId}> when something in your server needs fixing. It can also post sushii updates about new features there.`,
     NO_SUPPORT_SERVER_NEEDED,
   ].join("\n");
 
@@ -115,7 +115,7 @@ export function buildFollowSuccessMessage(
     Color.Success,
     [
       "## ✅ Following sushii updates",
-      `New features and changes will post in <#${channelId}>.`,
+      `sushii updates will post in <#${channelId}>.`,
       "-# Change or turn this off in /settings → Logging → sushii notifications.",
     ].join("\n"),
   );

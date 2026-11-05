@@ -87,7 +87,7 @@ export function thanksReply() {
         .addTextDisplayComponents(
           new TextDisplayBuilder().setContent(
             "✅ **Thanks!** Your feedback was sent to the sushii team.\n" +
-              "-# Want a reply or to talk it through? Join the support server.",
+              "-# Want a reply? Join the support server.",
           ),
         )
         .addActionRowComponents(

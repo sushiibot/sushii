@@ -61,7 +61,7 @@ const LOGS: Record<
   notifications: {
     log: "notifications",
     title: "sushii notifications",
-    what: "Where sushii posts setup problems and sushii updates.",
+    what: "Where sushii tells you what to fix in your server, and posts sushii updates.",
     channel: (ctx) => ctx.config.loggingSettings.sushiiNotificationsChannel,
   },
 };
@@ -112,7 +112,7 @@ export function buildLogModal(
     modal.addLabelComponents(
       checkboxLabel({
         label: "Also post sushii updates here",
-        description: "New features, changes and planned downtime",
+        description: "Posts about new sushii features",
         customId: FIELD.updates,
         checked: updatesCheckboxDefault(ctx.updates),
       }),
