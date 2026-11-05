@@ -32,7 +32,9 @@ function setup(catchUp: () => Promise<void>) {
   const relay = {
     run: mock(async () => undefined),
     housekeeping: mock(async () => undefined),
-  } as unknown as SushiiUpdatesRelayService;
+  } as unknown as SushiiUpdatesRelayService & {
+    run: ReturnType<typeof mock>;
+  };
   const deployment = {
     isCurrentDeploymentActive: () => true,
   } as unknown as DeploymentService;
@@ -46,7 +48,7 @@ function setup(catchUp: () => Promise<void>) {
   );
   const execute = () =>
     (task as unknown as { execute(): Promise<void> }).execute();
-  return { execute, capture, logger };
+  return { execute, capture, relay, logger };
 }
 
 function accessError(): DiscordAPIError {
@@ -61,6 +63,16 @@ function accessError(): DiscordAPIError {
 }
 
 describe("SushiiUpdatesRelayTask catch-up", () => {
+  test("catch-up runs once per process while the relay keeps running", async () => {
+    const t = setup(async () => undefined);
+
+    await t.execute();
+    await t.execute();
+
+    expect(t.capture.catchUp).toHaveBeenCalledTimes(1);
+    expect(t.relay.run).toHaveBeenCalledTimes(2);
+  });
+
   test("missing access to the source warns once and backs off", async () => {
     const t = setup(async () => {
       throw accessError();

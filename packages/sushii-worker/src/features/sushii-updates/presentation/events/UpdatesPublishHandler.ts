@@ -31,6 +31,9 @@ async function fetchUnlessDeleted(
 export class UpdatesPublishHandler extends EventHandler<Events.MessageUpdate> {
   readonly eventType = Events.MessageUpdate;
 
+  // Capture is an idempotent DB write and only the active slot sends, so both slots capture and a switch can't lose a publish.
+  readonly isExemptFromDeploymentCheck = true;
+
   constructor(
     private readonly sourceChannelId: string,
     private readonly capture: Pick<SushiiUpdatesCaptureService, "capture">,

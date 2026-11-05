@@ -19,7 +19,7 @@ const CATCH_UP_BACKOFF_MS = 30 * 60 * 1000;
 export class SushiiUpdatesRelayTask extends AbstractBackgroundTask {
   readonly name = "SushiiUpdatesRelay";
   readonly cronTime = "* * * * *";
-  private catchUpBlockedUntil = 0;
+  private nextCatchUpAt = 0;
 
   constructor(
     client: Client,
@@ -52,16 +52,18 @@ export class SushiiUpdatesRelayTask extends AbstractBackgroundTask {
   private async runSourceClusterWork(): Promise<void> {
     // Each step is independent, and forwarding already-captured posts shouldn't wait on either.
     const botUserId = this.client.user?.id;
-    if (botUserId && Date.now() >= this.catchUpBlockedUntil) {
+    if (botUserId && Date.now() >= this.nextCatchUpAt) {
       try {
         await this.capture.catchUp(botUserId);
+        // Both slots capture publish events, so one read when this slot goes active covers any gap.
+        this.nextCatchUpAt = Number.POSITIVE_INFINITY;
       } catch (err) {
         // A permission problem on the source channel is an operator fix, not a bug; warn once per backoff.
         if (
           err instanceof DiscordAPIError &&
           SOURCE_ACCESS_ERRORS.has(err.code)
         ) {
-          this.catchUpBlockedUntil = Date.now() + CATCH_UP_BACKOFF_MS;
+          this.nextCatchUpAt = Date.now() + CATCH_UP_BACKOFF_MS;
           this.logger.warn(
             { code: err.code, channelId: this.sourceChannelId },
             "sushii can't read the sushii updates channel; check View Channel and Read Message History",
