@@ -52,7 +52,7 @@ function buildRegisteredHandlers(): (
     new AddProofButtonHandler(dep),
     new ModLogDeleteDMButtonHandler(dep, dep, dep, dep),
     new ModLogReasonButtonHandler(dep, dep, dep, dep, dep, dep),
-    new PromptButtonHandler(dep, dep),
+    new PromptButtonHandler(dep),
     new RoleMenuButtonHandler(dep, dep, dep, dep),
     new RoleMenuSelectMenuHandler(dep, dep, dep, dep),
     new ScheduleConfigDeleteButtonHandler(dep, dep, dep),

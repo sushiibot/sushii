@@ -103,6 +103,7 @@ import {
 } from "./shared/infrastructure";
 import { OtelModerationMetrics } from "./shared/infrastructure/metrics/OtelModerationMetrics";
 import { ReasonTemplateStatsGauge } from "./shared/infrastructure/metrics/ReasonTemplateStatsGauge";
+import type { PromptOffer } from "./shared/presentation/proof/proofIntroOffer";
 
 interface ModerationDependencies {
   db: NodePgDatabase<typeof schema>;
@@ -116,6 +117,7 @@ interface ModerationDependencies {
   altAccountRepository: AltAccountRepository;
   setNicknameService: SetNicknameService;
   permissionUsageRecorder: PermissionUsageRecorder;
+  promptOffer: PromptOffer;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -132,6 +134,7 @@ export function createModerationServices({
   nameHistoryService,
   altAccountRepository,
   permissionUsageRecorder,
+  promptOffer,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -366,6 +369,7 @@ export function createModerationServices({
     // Additional dependencies
     emojiRepository,
     permissionUsageRecorder,
+    promptOffer,
   };
 }
 
@@ -430,6 +434,7 @@ export function createModerationCommands(
       guildConfigRepository: services.guildConfigRepository,
       caseProofService: services.caseProofService,
       emojiRepository: services.emojiRepository,
+      promptOffer: services.promptOffer,
       logger: logger.child({ commandHandler: "proof" }),
     }),
   ];
@@ -447,6 +452,7 @@ export function createModerationCommands(
     guildConfigRepository: services.guildConfigRepository,
     caseProofService: services.caseProofService,
     emojiRepository: services.emojiRepository,
+    promptOffer: services.promptOffer,
     logger: logger.child({ module: "addAsProof" }),
   };
 
@@ -471,6 +477,7 @@ export function createModerationCommands(
       guildConfigRepository: services.guildConfigRepository,
       caseProofService: services.caseProofService,
       emojiRepository: services.emojiRepository,
+      promptOffer: services.promptOffer,
       logger: logger.child({ buttonHandler: "addProof" }),
     }),
     new AddAsProofButtonHandler(addAsProof),
@@ -529,6 +536,7 @@ export function setupModerationFeature({
   altAccountRepository,
   setNicknameService,
   permissionUsageRecorder,
+  promptOffer,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
@@ -546,6 +554,7 @@ export function setupModerationFeature({
     altAccountRepository,
     setNicknameService,
     permissionUsageRecorder,
+    promptOffer,
   });
 
   // Built ahead of both createModerationCommands (History/Names/Lookup

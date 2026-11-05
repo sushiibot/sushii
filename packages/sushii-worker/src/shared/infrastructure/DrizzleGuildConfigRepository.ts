@@ -78,6 +78,9 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
           ? data.logSushiiNotifications.toString()
           : null,
         sushiiNotificationsEnabled: data.logSushiiNotificationsEnabled ?? false,
+        sushiiUpdatesWebhookId: data.sushiiUpdatesWebhookId
+          ? data.sushiiUpdatesWebhookId.toString()
+          : null,
       },
       {
         timeoutDmText: data.timeoutDmText,
@@ -148,7 +151,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       lookupDetailsOptIn: config.moderationSettings.lookupDetailsOptIn,
       lookupPrompted: config.moderationSettings.lookupPrompted,
       automodSpamEnabled: config.moderationSettings.automodSpamEnabled,
-      automodScamImageEnabled: config.moderationSettings.automodScamImageEnabled,
+      automodScamImageEnabled:
+        config.moderationSettings.automodScamImageEnabled,
       automodAlertsChannelId: config.moderationSettings.automodAlertsChannelId
         ? BigInt(config.moderationSettings.automodAlertsChannelId)
         : null,

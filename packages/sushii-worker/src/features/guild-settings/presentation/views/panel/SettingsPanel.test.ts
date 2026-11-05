@@ -11,6 +11,7 @@ import type {
 import { computeSettingsStatus } from "@/features/guild-settings/application/SettingsStatus";
 import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
+import type { SushiiUpdatesSettingsState } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 
@@ -110,6 +111,7 @@ interface Fixture {
   config: GuildConfig;
   screening?: ScreeningSettingsState | null;
   ipGrabbers?: IpGrabberSettingsState | null;
+  updates?: SushiiUpdatesSettingsState | null;
   health?: [string, ChannelHealth][];
 }
 
@@ -131,6 +133,7 @@ function makeInput(
     }),
     screening,
     ipGrabbers,
+    updates: fixture.updates ?? null,
     ignoredChannelIds: [CH.botspam, CH.memes],
     emojis: EMOJIS,
     expired: false,
@@ -941,6 +944,11 @@ describe("budgets", () => {
           ...IP_GRABBERS,
           ruleName: "r".repeat(100),
           problem: "rule_full",
+        },
+        updates: {
+          following: false,
+          optedOut: false,
+          canManageWebhooks: false,
         },
         ignoredChannelIds: Array.from(
           { length: ignoredCount },

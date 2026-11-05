@@ -198,7 +198,7 @@ export function buildHelpDetail(input: HelpDetailInput): {
   for (const block of blocks) {
     container.addTextDisplayComponents(helpTextDisplay(block));
   }
-  addHelpFooter(container, input.mentions, input.guildId);
+  addHelpFooter(container, input.mentions, input.guildId, "help.search");
 
   return {
     components: [container],

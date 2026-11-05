@@ -126,6 +126,7 @@ function setup(
         Object.fromEntries(ADD_AS_PROOF_EMOJIS.map((n) => [n, botEmoji(n)])),
       ),
     },
+    promptOffer: { offer: mock(async () => undefined) },
     logger: pino({ level: "silent" }),
     now: () => NOW,
   };
@@ -171,7 +172,14 @@ function setup(
     };
   }
 
-  return { deps, add, findNewestByUser, fetchMessage, component };
+  return {
+    deps,
+    add,
+    findNewestByUser,
+    fetchMessage,
+    component,
+    offer: deps.promptOffer.offer,
+  };
 }
 
 interface AddInput {
@@ -282,6 +290,7 @@ describe("Add as proof pick", () => {
     expect(json(interaction.editReply.mock.calls[0])).toContain(
       "✅ Added to case #4822 as proof",
     );
+    expect(ctx.offer).toHaveBeenCalledWith(interaction, "proof_intro");
   });
 
   test("stores long message text capped", async () => {
@@ -344,6 +353,7 @@ describe("Add as proof pick", () => {
     const out = json(interaction.editReply.mock.calls[0]);
     expect(out).toContain("This case was deleted");
     expect(out).toContain("-# Right-click the message to try again.");
+    expect(ctx.offer).not.toHaveBeenCalled();
   });
 
   test("an unexpected failure is shown in the picker, not thrown", async () => {
@@ -359,6 +369,7 @@ describe("Add as proof pick", () => {
     expect(JSON.stringify(interaction.editReply.mock.calls[0])).toContain(
       "Couldn't add proof",
     );
+    expect(ctx.offer).not.toHaveBeenCalled();
   });
 
   const noEntry = Err({

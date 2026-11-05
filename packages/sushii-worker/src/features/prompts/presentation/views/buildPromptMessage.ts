@@ -1,6 +1,8 @@
-import type { InteractionReplyOptions, InteractionUpdateOptions } from "discord.js";
+import type {
+  InteractionReplyOptions,
+  InteractionUpdateOptions,
+} from "discord.js";
 import {
-  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
@@ -13,43 +15,48 @@ import Color from "@/utils/colors";
 import type { PromptContent } from "../../domain/PromptDefinition";
 import { makeCustomId } from "../customIds";
 
-type ComponentsV2Reply = InteractionReplyOptions & { flags: MessageFlags.IsComponentsV2 };
-type ComponentsV2Update = InteractionUpdateOptions & { flags: MessageFlags.IsComponentsV2 };
+type PromptReply = InteractionReplyOptions & {
+  flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
+};
+type ComponentsV2Update = InteractionUpdateOptions & {
+  flags: MessageFlags.IsComponentsV2;
+};
 
-export function buildPromptMessage(
-  content: PromptContent,
-  promptId: string,
-  snoozeEnabled: boolean,
-): ComponentsV2Reply {
+export function buildPromptMessage(content: PromptContent): PromptReply {
   const container = new ContainerBuilder().setAccentColor(
     content.accentColor ?? Color.Info,
   );
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.text));
-
-  if (content.actionRow) {
-    container.addActionRowComponents(content.actionRow);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(content.text),
+  );
+  for (const row of content.rows ?? []) {
+    container.addActionRowComponents(row);
   }
 
-  const buttons: ButtonBuilder[] = [];
-  if (snoozeEnabled) {
-    buttons.push(
-      new ButtonBuilder()
-        .setCustomId(makeCustomId(promptId, "snooze"))
-        .setLabel("Remind me in 7 days")
-        .setStyle(ButtonStyle.Secondary),
-    );
-  }
-  buttons.push(
-    new ButtonBuilder()
-      .setCustomId(makeCustomId(promptId, "dismiss"))
-      .setLabel("Don't show again")
-      .setStyle(ButtonStyle.Secondary),
-  );
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  };
+}
 
-  container.addActionRowComponents(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons),
-  );
+export function snoozeButton(promptId: string, days: number): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(makeCustomId(promptId, "snooze"))
+    .setLabel(`Remind me in ${days} days`)
+    .setStyle(ButtonStyle.Secondary);
+}
 
+export function dismissButton(promptId: string): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(makeCustomId(promptId, "dismiss"))
+    .setLabel("Don't show again")
+    .setStyle(ButtonStyle.Secondary);
+}
+
+function noteMessage(text: string): ComponentsV2Update {
+  const container = new ContainerBuilder().setAccentColor(Color.DiscordGrey);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
@@ -57,26 +64,26 @@ export function buildPromptMessage(
   };
 }
 
-export function buildSnoozedMessage(): ComponentsV2Update {
-  const container = new ContainerBuilder().setAccentColor(Color.DiscordGrey);
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("-# Got it — will remind you in 7 days."),
-  );
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
+export function buildSnoozedMessage(days: number): ComponentsV2Update {
+  return noteMessage(`-# Got it, I'll remind you in ${days} days.`);
 }
 
 export function buildDismissedMessage(): ComponentsV2Update {
-  const container = new ContainerBuilder().setAccentColor(Color.DiscordGrey);
+  return noteMessage("-# Got it, won't ask again.");
+}
+
+export function buildNotAllowedMessage(): InteractionReplyOptions & {
+  flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
+} {
+  const container = new ContainerBuilder().setAccentColor(Color.Error);
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("-# Got it, won't ask again."),
+    new TextDisplayBuilder().setContent(
+      "You no longer have permission to do this.",
+    ),
   );
   return {
     components: [container],
-    flags: MessageFlags.IsComponentsV2,
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     allowedMentions: { parse: [] },
   };
 }

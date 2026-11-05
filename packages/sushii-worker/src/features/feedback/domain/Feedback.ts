@@ -28,6 +28,11 @@ export const FEATURE_LABELS = {
   "settings.automod": "Automod settings",
   "settings.welcome": "Welcome settings",
   "permission-audit": "Permission audit",
+  "help.members": "Help (members)",
+  "help.moderators": "Help (moderators)",
+  "help.admins": "Help (admins)",
+  "help.search": "Help search",
+  "prompt.proof_intro": "Proof intro",
 } as const;
 export type FeedbackFeatureKey = keyof typeof FEATURE_LABELS;
 

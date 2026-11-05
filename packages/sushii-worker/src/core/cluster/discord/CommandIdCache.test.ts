@@ -420,3 +420,53 @@ describe("InteractionRouter.register", () => {
     );
   });
 });
+
+describe("InteractionRouter after-command hook", () => {
+  function makeRouter(handler: () => Promise<void>) {
+    spyOn(log, "info").mockImplementation(() => undefined);
+    spyOn(log, "error").mockImplementation(() => undefined);
+    const router = new InteractionRouter(
+      { rest: {} } as unknown as Client,
+      Object.create(null) as DeploymentService,
+      Object.create(null) as InteractionMetrics,
+    );
+    router.addCommands({
+      command: { name: "ping" },
+      handler,
+    } as unknown as SlashCommandHandler);
+    const hook = mock(async () => undefined);
+    router.setAfterCommandHook(hook);
+    const interaction = {
+      commandName: "ping",
+      guildId: GUILD_ID,
+      user: { id: "100000000000000001" },
+      options: { getSubcommandGroup: () => null, getSubcommand: () => null },
+      replied: true,
+      deferred: false,
+      reply: mock(async () => undefined),
+      followUp: mock(async () => undefined),
+      editReply: mock(async () => undefined),
+    };
+    const run = () =>
+      (
+        router as unknown as {
+          handleSlashCommandInteraction(i: unknown): Promise<boolean>;
+        }
+      ).handleSlashCommandInteraction(interaction);
+    return { run, hook, interaction };
+  }
+
+  test("runs the hook after a command succeeds", async () => {
+    const { run, hook, interaction } = makeRouter(async () => undefined);
+    expect(await run()).toBe(true);
+    expect(hook).toHaveBeenCalledWith(interaction);
+  });
+
+  test("skips the hook when the command throws", async () => {
+    const { run, hook } = makeRouter(async () => {
+      throw new Error("boom");
+    });
+    expect(await run()).toBe(false);
+    expect(hook).not.toHaveBeenCalled();
+  });
+});

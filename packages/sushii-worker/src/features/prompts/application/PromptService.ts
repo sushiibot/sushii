@@ -1,135 +1,232 @@
-import { sleep } from "bun";
-import type { ChatInputCommandInteraction } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  MessageComponentInteraction,
+} from "discord.js";
 import type { Logger } from "pino";
 
-import type { PromptDefinition } from "../domain/PromptDefinition";
-import type { PromptStateData } from "../domain/PromptState";
+import type {
+  PromptActionContext,
+  PromptDefinition,
+  PromptInteraction,
+} from "../domain/PromptDefinition";
+import type { PromptStateData, PromptSubject } from "../domain/PromptState";
 import type { PromptStateRepository } from "../domain/repositories/PromptStateRepository";
+import type { PromptMetrics } from "../infrastructure/PromptMetrics";
 import { buildPromptMessage } from "../presentation/views/buildPromptMessage";
 
-const PROMPT_DELAY_MS = 2000;
-const SNOOZE_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** At most one prompt of any kind per person in this window. */
+export const USER_PROMPT_CAP_DAYS = 7;
+const DEFAULT_SNOOZE_DAYS = 7;
+/** Interaction tokens stay valid for 15 minutes. */
+const SEEN_INTERACTION_TTL_MS = 15 * 60 * 1000;
 
 export class PromptService {
+  private readonly promptedInteractions = new Set<string>();
+  private readonly byId: ReadonlyMap<string, PromptDefinition>;
+
   constructor(
     private readonly repository: PromptStateRepository,
     private readonly prompts: readonly PromptDefinition[],
+    private readonly metrics: PromptMetrics,
     private readonly logger: Logger,
-  ) {}
+    private readonly now: () => Date = () => new Date(),
+  ) {
+    this.byId = new Map(prompts.map((p) => [p.id, p]));
+  }
 
-  async maybePrompt(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
+  getPrompt(promptId: string): PromptDefinition | undefined {
+    return this.byId.get(promptId);
+  }
+
+  /** Best-effort follow-up after the caller has already responded; never throws. */
+  async offer(interaction: PromptInteraction, promptId: string): Promise<void> {
+    const prompt = this.byId.get(promptId);
+    if (!prompt) {
+      this.logger.warn({ promptId }, "Offered an unknown prompt");
+      return;
+    }
+    await this.tryShow(interaction, [prompt]);
+  }
+
+  /** Called by the router after a slash command handler finishes without throwing. */
+  async afterCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!interaction.inCachedGuild()) {
+      return;
+    }
+    // A modal-only response leaves ephemeral null, and a follow-up to an unedited defer would replace its placeholder.
+    if (!interaction.replied || interaction.ephemeral === null) {
+      return;
+    }
+    await this.tryShow(
+      interaction,
+      this.prompts.filter((p) => p.delivery === "auto"),
+    );
+  }
+
+  private async tryShow(
+    interaction: PromptInteraction,
+    candidates: readonly PromptDefinition[],
+  ): Promise<void> {
+    if (this.promptedInteractions.has(interaction.id)) {
+      return;
+    }
+
     try {
-      await this.doMaybePrompt(interaction);
-    } catch (error) {
+      for (const prompt of candidates) {
+        const shown = await this.tryShowOne(interaction, prompt);
+        if (shown !== "next") {
+          return;
+        }
+      }
+    } catch (err) {
       this.logger.error(
-        { err: error, guildId: interaction.guildId },
+        { err, guildId: interaction.guildId, userId: interaction.user.id },
         "Failed to run prompt check",
       );
     }
   }
 
-  private async doMaybePrompt(
-    interaction: ChatInputCommandInteraction<"cached">,
-  ): Promise<void> {
-    // Triggers are expected to be fast synchronous checks. Avoid I/O in triggers.
-    for (const prompt of this.prompts) {
-      const triggered = await prompt.trigger(interaction);
-      if (!triggered) {
-        continue;
-      }
-
-      const guildId = BigInt(interaction.guildId);
-      const state = await this.repository.findByGuildAndPrompt(guildId, prompt.id);
-
-      if (!this.shouldShow(state, prompt)) {
-        continue;
-      }
-
-      const threshold = this.getCooldownThreshold(prompt);
-      const claimed = await this.repository.claimPromptSlot(guildId, prompt.id, threshold);
-      if (!claimed) {
-        continue;
-      }
-
-      const content = prompt.buildContent(interaction);
-      const snoozeEnabled =
-        prompt.repeatCooldown !== null && (prompt.snoozeEnabled ?? false);
-
-      await sleep(PROMPT_DELAY_MS);
-
-      const message = await interaction.followUp({
-        ...buildPromptMessage(content, prompt.id, snoozeEnabled),
-        ephemeral: false,
-      });
-
-      if (prompt.onSent) {
-        prompt.onSent(message, { promptService: this, guildId }).catch((err) => {
-          this.logger.error(
-            { err, promptId: prompt.id, guildId },
-            "Error in prompt onSent handler",
-          );
-        });
-      }
-
-      // Only one prompt per interaction
-      break;
+  /** "next" moves on to the next candidate; anything else ends the check for this interaction. */
+  private async tryShowOne(
+    interaction: PromptInteraction,
+    prompt: PromptDefinition,
+  ): Promise<"shown" | "stop" | "next"> {
+    const now = this.now();
+    if (prompt.activeUntil && now >= prompt.activeUntil) {
+      return "next";
     }
+    if (!(await prompt.eligible(interaction))) {
+      return "next";
+    }
+
+    const subject = this.subjectFor(prompt, interaction);
+    const state = await this.repository.find(subject, prompt.id);
+    if (!this.shouldShow(state, prompt, now)) {
+      return "next";
+    }
+
+    const userId = BigInt(interaction.user.id);
+    const lastShown = await this.repository.lastShownToUser(userId);
+    if (
+      lastShown &&
+      now.getTime() - lastShown.getTime() < USER_PROMPT_CAP_DAYS * DAY_MS
+    ) {
+      this.metrics.recordSkipped(prompt.id, "cap");
+      return "stop";
+    }
+
+    const claim = await this.repository.claim(
+      subject,
+      prompt.id,
+      this.cooldownThreshold(prompt, now),
+    );
+    if (!claim) {
+      return "next";
+    }
+
+    this.markPrompted(interaction.id);
+    try {
+      const content = await prompt.build(interaction);
+      await interaction.followUp(buildPromptMessage(content));
+    } catch (err) {
+      await this.repository.release(subject, prompt.id, claim.previous);
+      this.metrics.recordSkipped(prompt.id, "send_failed");
+      this.logger.warn(
+        { err, promptId: prompt.id, guildId: interaction.guildId },
+        "Failed to send prompt",
+      );
+      return "stop";
+    }
+
+    if (subject.scope === "guild") {
+      await this.repository.recordShownToUser(userId, prompt.id, now);
+    }
+    this.metrics.recordShown(prompt.id);
+    return "shown";
   }
 
-  shouldShow(state: PromptStateData | null, prompt: PromptDefinition): boolean {
+  shouldShow(
+    state: PromptStateData | null,
+    prompt: PromptDefinition,
+    now: Date = this.now(),
+  ): boolean {
     if (!state) {
       return true;
     }
-    if (state.completedAt) {
+    if (state.completedAt || state.dismissedAt) {
       return false;
     }
-    if (state.dismissedAt) {
-      return false;
-    }
-    if (state.snoozeUntil && state.snoozeUntil > new Date()) {
+    if (state.snoozeUntil && state.snoozeUntil > now) {
       return false;
     }
     if (!state.lastPromptedAt) {
       return true;
     }
-    if (prompt.repeatCooldown === null) {
-      return false;
-    }
-    if (prompt.repeatCooldown === "daily") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return state.lastPromptedAt < today;
-    }
-    const threshold = new Date();
-    threshold.setDate(threshold.getDate() - prompt.repeatCooldown.days);
-    return state.lastPromptedAt < threshold;
+    const threshold = this.cooldownThreshold(prompt, now);
+    return threshold !== null && state.lastPromptedAt < threshold;
   }
 
-  private getCooldownThreshold(prompt: PromptDefinition): Date | null {
-    if (prompt.repeatCooldown === null) {
+  private cooldownThreshold(prompt: PromptDefinition, now: Date): Date | null {
+    if (prompt.repeat === null) {
       return null;
     }
-    if (prompt.repeatCooldown === "daily") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today;
-    }
-    const threshold = new Date();
-    threshold.setDate(threshold.getDate() - prompt.repeatCooldown.days);
-    return threshold;
+    return new Date(now.getTime() - prompt.repeat.days * DAY_MS);
   }
 
-  async recordSnoozed(guildId: bigint, promptId: string): Promise<void> {
-    const snoozeUntil = new Date();
-    snoozeUntil.setDate(snoozeUntil.getDate() + SNOOZE_DAYS);
-    await this.repository.recordSnoozed(guildId, promptId, snoozeUntil);
+  subjectFor(
+    prompt: PromptDefinition,
+    interaction: { guildId: string; user: { id: string } },
+  ): PromptSubject {
+    return prompt.scope === "guild"
+      ? { scope: "guild", id: BigInt(interaction.guildId) }
+      : { scope: "user", id: BigInt(interaction.user.id) };
   }
 
-  async recordDismissed(guildId: bigint, promptId: string): Promise<void> {
-    await this.repository.recordDismissed(guildId, promptId);
+  actionContext(
+    prompt: PromptDefinition,
+    interaction: MessageComponentInteraction<"cached">,
+  ): PromptActionContext {
+    const subject = this.subjectFor(prompt, interaction);
+    return {
+      subject,
+      recordCompleted: () =>
+        this.repository.recordCompleted(subject, prompt.id),
+      recordDismissed: () =>
+        this.repository.recordDismissed(subject, prompt.id),
+    };
   }
 
-  async recordCompleted(guildId: bigint, promptId: string): Promise<void> {
-    await this.repository.recordCompleted(guildId, promptId);
+  snoozeDays(prompt: PromptDefinition): number {
+    return prompt.snoozeDays ?? DEFAULT_SNOOZE_DAYS;
+  }
+
+  async recordSnoozed(
+    prompt: PromptDefinition,
+    subject: PromptSubject,
+  ): Promise<void> {
+    const until = new Date(
+      this.now().getTime() + this.snoozeDays(prompt) * DAY_MS,
+    );
+    await this.repository.recordSnoozed(subject, prompt.id, until);
+  }
+
+  async recordDismissed(
+    prompt: PromptDefinition,
+    subject: PromptSubject,
+  ): Promise<void> {
+    await this.repository.recordDismissed(subject, prompt.id);
+  }
+
+  recordAction(promptId: string, action: string): void {
+    this.metrics.recordAction(promptId, action);
+  }
+
+  private markPrompted(interactionId: string): void {
+    this.promptedInteractions.add(interactionId);
+    setTimeout(
+      () => this.promptedInteractions.delete(interactionId),
+      SEEN_INTERACTION_TTL_MS,
+    ).unref?.();
   }
 }

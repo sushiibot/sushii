@@ -33,6 +33,7 @@ export function createActionResponseHandlers(
         services.emojiRepository,
         services.reasonTemplateService,
         logger.child({ commandHandler: config.name }),
+        services.promptOffer,
         scheduleExpiry,
         services.moderationMetrics,
       ),

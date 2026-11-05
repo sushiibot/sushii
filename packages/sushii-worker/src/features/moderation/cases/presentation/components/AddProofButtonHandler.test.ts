@@ -150,6 +150,7 @@ function setup(options: {
     },
     caseProofService: { add },
     emojiRepository: { getEmojis: mock(async () => makeAllEmojis()) },
+    promptOffer: { offer: mock(async () => undefined) },
     logger,
     now: () => options.now ?? CREATED + 60_000,
   };
@@ -192,6 +193,7 @@ function setup(options: {
     add,
     listByCase,
     logger,
+    offer: deps.promptOffer.offer,
   };
 }
 
@@ -277,6 +279,7 @@ describe("Add proof submit", () => {
     expect(edited).toContain("Reported in #reports");
     expect(edited).not.toContain("None yet");
     expect(ctx.submission.followUp).not.toHaveBeenCalled();
+    expect(ctx.offer).toHaveBeenCalledWith(ctx.submission, "proof_intro");
   });
 
   test("on an expired response the re-render stays expired", async () => {
@@ -330,6 +333,7 @@ describe("Add proof submit", () => {
     expect(JSON.stringify(note)).toContain(
       "The mod log entry is still being posted. Try again in a few seconds.",
     );
+    expect(ctx.offer).not.toHaveBeenCalled();
   });
 
   test("files without a mod log entry: the typed text comes back", async () => {
@@ -415,6 +419,7 @@ describe("Add proof submit", () => {
     expect(JSON.stringify(ctx.submission.followUp.mock.calls[0])).toContain(
       "> Reported in #reports",
     );
+    expect(ctx.offer).not.toHaveBeenCalled();
   });
 
   test("a failed refresh only warns: the proof is saved", async () => {

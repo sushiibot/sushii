@@ -1,6 +1,8 @@
 import type { InteractionUpdateOptions } from "discord.js";
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelSelectMenuBuilder,
   ChannelType,
   ContainerBuilder,
@@ -9,47 +11,96 @@ import {
 } from "discord.js";
 
 import Color from "@/utils/colors";
+
 import type { PromptContent } from "../../domain/PromptDefinition";
 import { makeCustomId } from "../../presentation/customIds";
+import {
+  dismissButton,
+  snoozeButton,
+} from "../../presentation/views/buildPromptMessage";
 
 export const FOLLOW_UPDATES_ID = "follow_updates";
+export const FOLLOW_UPDATES_SNOOZE_DAYS = 30;
 
-type ComponentsV2Update = InteractionUpdateOptions & { flags: MessageFlags.IsComponentsV2 };
+export const FOLLOW_UPDATES_ACTION = {
+  pickChannel: "channel_select",
+  follow: "follow",
+} as const;
 
-export function buildFollowUpdatesContent(botHasManageWebhooks: boolean): PromptContent {
-  let text =
-    "## 📢 Get sushii updates in your server\n" +
-    "Stay informed about new features, improvements, and fixes — update posts will appear in the channel you choose.\n\n" +
-    "**Pick a channel to receive updates:**";
+const NO_SUPPORT_SERVER_NEEDED =
+  "-# You don't need to join the support server.";
 
-  if (!botHasManageWebhooks) {
-    text +=
-      "\n\n-# ⚠️ sushii needs the **Manage Webhooks** permission to follow channels. Grant it in Server Settings → Roles, then try again.";
-  }
+type ComponentsV2Update = InteractionUpdateOptions & {
+  flags: MessageFlags.IsComponentsV2;
+};
 
-  const channelSelectRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
-    new ChannelSelectMenuBuilder()
-      .setCustomId(makeCustomId(FOLLOW_UPDATES_ID, "channel_select"))
-      .setPlaceholder("Choose a channel for updates")
-      .setChannelTypes(ChannelType.GuildText)
-      .setMinValues(1)
-      .setMaxValues(1),
-  );
+function snoozeAndDismiss(): ButtonBuilder[] {
+  return [
+    snoozeButton(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_SNOOZE_DAYS),
+    dismissButton(FOLLOW_UPDATES_ID),
+  ];
+}
+
+/** State A: no notifications channel yet. */
+export function buildPickChannelContent(
+  botHasManageWebhooks: boolean,
+): PromptContent {
+  const footer = botHasManageWebhooks
+    ? NO_SUPPORT_SERVER_NEEDED
+    : "-# ⚠️ sushii needs **Manage Webhooks** in that channel to post updates.";
+  const text = [
+    "## 📢 Get sushii updates in your server",
+    "Pick a channel for **sushii notifications**. sushii posts new features, changes and planned downtime there, and tells you when something in your setup needs fixing.",
+    footer,
+  ].join("\n");
 
   return {
     text,
     accentColor: Color.Info,
-    actionRow: channelSelectRow,
+    rows: [
+      new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId(
+            makeCustomId(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_ACTION.pickChannel),
+          )
+          .setPlaceholder("Choose a channel")
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setMinValues(1)
+          .setMaxValues(1),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(snoozeAndDismiss()),
+    ],
   };
 }
 
-export function buildFollowSuccessMessage(channelId: string): ComponentsV2Update {
-  const container = new ContainerBuilder().setAccentColor(Color.Success);
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `## ✅ Following sushii updates\nUpdate posts will now appear in <#${channelId}>.`,
-    ),
-  );
+/** State B: the notifications channel is set but doesn't follow updates. */
+export function buildFollowChannelContent(channelId: string): PromptContent {
+  const text = [
+    `## 📢 Get sushii updates in <#${channelId}> too?`,
+    `<#${channelId}> is your sushii notifications channel. sushii can also post new features, changes and planned downtime there.`,
+    NO_SUPPORT_SERVER_NEEDED,
+  ].join("\n");
+
+  return {
+    text,
+    accentColor: Color.Info,
+    rows: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(
+            makeCustomId(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_ACTION.follow),
+          )
+          .setLabel("Follow sushii updates")
+          .setStyle(ButtonStyle.Primary),
+        ...snoozeAndDismiss(),
+      ),
+    ],
+  };
+}
+
+function resultMessage(color: number, text: string): ComponentsV2Update {
+  const container = new ContainerBuilder().setAccentColor(color);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
@@ -57,16 +108,22 @@ export function buildFollowSuccessMessage(channelId: string): ComponentsV2Update
   };
 }
 
-export function buildFollowErrorMessage(message: string): ComponentsV2Update {
-  const container = new ContainerBuilder().setAccentColor(Color.Error);
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `## ❌ Couldn't follow updates channel\n${message}`,
-    ),
+export function buildFollowSuccessMessage(
+  channelId: string,
+): ComponentsV2Update {
+  return resultMessage(
+    Color.Success,
+    [
+      "## ✅ Following sushii updates",
+      `New features and changes will post in <#${channelId}>.`,
+      "-# Change or turn this off in /settings → Logging → sushii notifications.",
+    ].join("\n"),
   );
-  return {
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  };
+}
+
+export function buildFollowErrorMessage(reason: string): ComponentsV2Update {
+  return resultMessage(
+    Color.Error,
+    `## ❌ Couldn't follow sushii updates\n${reason}`,
+  );
 }

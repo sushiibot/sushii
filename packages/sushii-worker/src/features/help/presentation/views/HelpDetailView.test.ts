@@ -4,8 +4,9 @@ import type {
   APITextDisplayComponent,
   PermissionsBitField,
 } from "discord.js";
-import { ComponentType, MessageFlags } from "discord.js";
+import { ButtonStyle, ComponentType, MessageFlags } from "discord.js";
 
+import { SUPPORT_SERVER_URL } from "@/shared/presentation/supportServer";
 import {
   ALL_EMOJIS,
   KNOWN_MENTIONS,
@@ -47,9 +48,36 @@ function render(
 }
 
 const m = (path: string) => `</${path}:1300000000000000000>`;
-const FOOTER = `-# Search any command: ${m("help")} \`command:\` · Full docs: <https://sushii.bot>`;
+const FOOTER =
+  `-# Search any command: ${m("help")} \`command:\` · Full docs: <https://sushii.bot>\n` +
+  `-# Get sushii updates: ${m("settings")} → Logging → sushii notifications`;
 
 describe("buildHelpDetail", () => {
+  test("footer row sends search feedback and links the support server", () => {
+    const payload = buildHelpDetail({
+      query: "rolemenu",
+      entries,
+      memberPermissions: PERMISSIONS.rolesAdmin,
+      emojis: ALL_EMOJIS,
+      mentions: KNOWN_MENTIONS,
+      guildId: "167058919611564043",
+    });
+    const container: APIContainerComponent = payload.components[0].toJSON();
+    const last = container.components.at(-1);
+
+    expect(last).toMatchObject({
+      type: ComponentType.ActionRow,
+      components: [
+        { custom_id: "feedback/panel/help.search", label: "Feedback" },
+        {
+          style: ButtonStyle.Link,
+          label: "Support server",
+          url: SUPPORT_SERVER_URL,
+        },
+      ],
+    });
+  });
+
   test("root with subcommands lists them with the permission and tab line", () => {
     expect(render("rolemenu", PERMISSIONS.rolesAdmin)).toEqual([
       `## ${GEAR} **/rolemenu**\nCreate a role menu.`,

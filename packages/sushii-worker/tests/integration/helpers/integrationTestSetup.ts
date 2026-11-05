@@ -119,6 +119,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     setNicknameService: altAccountsServices.setNicknameService,
     permissionUsageRecorder:
       permissionAuditFeature.services.permissionUsageRecorder,
+    promptOffer: { offer: async () => undefined },
   });
 
   // Create giveaway services with mock client

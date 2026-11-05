@@ -1,4 +1,5 @@
 import type { IpGrabberProviderId } from "@/features/ip-grabber-links/domain/providers";
+import type { SushiiUpdatesSettingsInput } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
 import type { LogType } from "@/shared/domain/entities/GuildConfig";
 
 export type { LogType };
@@ -43,8 +44,14 @@ export interface IpGrabberPatch {
   providers: IpGrabberProviderId[];
 }
 
+/** Applied after the notifications channel patch from the same modal. */
+export type SushiiUpdatesPatch = {
+  kind: "sushiiUpdates";
+} & SushiiUpdatesSettingsInput;
+
 export type SettingsPatch =
   | GuildSettingsPatch
   | MessageLogIgnorePatch
   | ScreeningPatch
-  | IpGrabberPatch;
+  | IpGrabberPatch
+  | SushiiUpdatesPatch;

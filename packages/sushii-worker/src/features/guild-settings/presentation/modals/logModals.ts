@@ -1,5 +1,7 @@
 import { ModalBuilder } from "discord.js";
 
+import { updatesCheckboxDefault } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
+
 import type { LogType, SettingsPatch } from "../../application/SettingsPatch";
 import { settingsIds } from "../session/settingsIds";
 import { compareSnowflakes } from "../utils/compareSnowflakes";
@@ -9,9 +11,11 @@ import {
   MAX_IGNORED_CHANNELS,
   channelHint,
   channelSelectLabel,
+  checkboxLabel,
   prefillChannel,
   readChannel,
   readChannels,
+  readCheckbox,
 } from "./modalFields";
 
 export type LogTarget =
@@ -57,7 +61,7 @@ const LOGS: Record<
   notifications: {
     log: "notifications",
     title: "sushii notifications",
-    what: "Where sushii tells you about problems with your setup.",
+    what: "Where sushii posts setup problems and sushii updates.",
     channel: (ctx) => ctx.config.loggingSettings.sushiiNotificationsChannel,
   },
 };
@@ -104,6 +108,17 @@ export function buildLogModal(
     );
   }
 
+  if (target === "notifications" && ctx.updates) {
+    modal.addLabelComponents(
+      checkboxLabel({
+        label: "Also post sushii updates here",
+        description: "New features, changes and planned downtime",
+        customId: FIELD.updates,
+        checked: updatesCheckboxDefault(ctx.updates),
+      }),
+    );
+  }
+
   return modal;
 }
 
@@ -112,13 +127,21 @@ export function parseLogModal(
   submission: ModalSubmission,
   ctx: ModalContext,
 ): SettingsPatch[] {
+  const channelId = readChannel(submission);
   const patches: SettingsPatch[] = [
-    {
-      kind: "logChannel",
-      log: LOGS[target].log,
-      channelId: readChannel(submission),
-    },
+    { kind: "logChannel", log: LOGS[target].log, channelId },
   ];
+
+  if (target === "notifications" && ctx.updates) {
+    patches.push({
+      kind: "sushiiUpdates",
+      channelId,
+      follow: readCheckbox(submission, FIELD.updates),
+      previousChannelId: ctx.config.loggingSettings.sushiiNotificationsChannel,
+      wasFollowing: ctx.updates.following,
+      shownChecked: updatesCheckboxDefault(ctx.updates),
+    });
+  }
 
   if (target === "msglog") {
     patches.push({

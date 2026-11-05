@@ -24,6 +24,10 @@ import { proofFileMaxBytes } from "@/features/moderation/shared/application/proo
 import { PROOF_FILES_PER_CASE_MAX } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import {
+  PROOF_INTRO_ID,
+  type PromptOffer,
+} from "@/features/moderation/shared/presentation/proof/proofIntroOffer";
+import {
   proofErrorText,
   proofNotice,
 } from "@/features/moderation/shared/presentation/proof/proofMessages";
@@ -56,6 +60,7 @@ export interface AddAsProofDeps {
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
   caseProofService: Pick<CaseProofService, "add">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
+  promptOffer: PromptOffer;
   logger: Logger;
   now?: () => Date;
 }
@@ -236,7 +241,7 @@ function errorEdit(
  * "Adding…" state, so a second click can't add it again.
  */
 async function addMessageToCase(
-  interaction: MessageComponentInteraction<"cached">,
+  interaction: ButtonInteraction<"cached"> | AnySelectMenuInteraction<"cached">,
   deps: AddAsProofDeps,
   ref: SourceMessageRef,
   caseId: string,
@@ -336,6 +341,7 @@ async function addMessageToCase(
       filesNotSaved,
     }),
   );
+  await deps.promptOffer.offer(interaction, PROOF_INTRO_ID);
 }
 
 async function hasModPermission(

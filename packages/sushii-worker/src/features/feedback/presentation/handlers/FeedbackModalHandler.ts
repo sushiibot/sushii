@@ -1,7 +1,17 @@
-import type { ModalSubmitFields, ModalSubmitInteraction } from "discord.js";
-import { ContainerBuilder, MessageFlags, TextDisplayBuilder } from "discord.js";
+import type {
+  ButtonBuilder,
+  ModalSubmitFields,
+  ModalSubmitInteraction,
+} from "discord.js";
+import {
+  ActionRowBuilder,
+  ContainerBuilder,
+  MessageFlags,
+  TextDisplayBuilder,
+} from "discord.js";
 
 import ModalHandler from "@/shared/presentation/handlers/ModalHandler";
+import { buildSupportServerButton } from "@/shared/presentation/supportServer";
 import Color from "@/utils/colors";
 
 import type { FeedbackService } from "../../application/FeedbackService";
@@ -69,6 +79,29 @@ function reply(color: Color, content: string) {
   };
 }
 
+export function thanksReply() {
+  return {
+    components: [
+      new ContainerBuilder()
+        .setAccentColor(Color.Success)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            "✅ **Thanks!** Your feedback was sent to the sushii team.\n" +
+              "-# Want a reply or to talk it through? Join the support server.",
+          ),
+        )
+        .addActionRowComponents(
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            buildSupportServerButton(),
+          ),
+        )
+        .toJSON(),
+    ],
+    flags: MessageFlags.IsComponentsV2 as const,
+    allowedMentions: { parse: [] },
+  };
+}
+
 export class FeedbackModalHandler extends ModalHandler {
   customIDMatch = (customId: string) =>
     parseModalId(customId) !== null
@@ -126,11 +159,6 @@ export class FeedbackModalHandler extends ModalHandler {
       return;
     }
 
-    await interaction.editReply(
-      reply(
-        Color.Success,
-        "✅ **Thanks!** Your feedback was sent to the sushii team.",
-      ),
-    );
+    await interaction.editReply(thanksReply());
   }
 }

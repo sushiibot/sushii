@@ -179,6 +179,7 @@ function createCommand(
       emojiRepository,
       port,
       ipGrabbers,
+      null,
       0,
     ),
     logger,

@@ -38,6 +38,7 @@ import { setupMessageVerificationFeature } from "@/features/message-verification
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupPermissionAuditFeature } from "@/features/permission-audit";
+import { configureFollowUpdatesPrompt } from "@/features/prompts/definitions/followUpdates";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
@@ -47,6 +48,7 @@ import { setupServerManagementFeature } from "@/features/server-management/setup
 import { setupSocialFeature } from "@/features/social/setup";
 import { setupStatsFeature } from "@/features/stats/setup";
 import { setupStatusFeature } from "@/features/status/setup";
+import { setupSushiiUpdatesFeature } from "@/features/sushii-updates/setup";
 import { setupTagFeature } from "@/features/tags/setup";
 import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import { setupUserProfileFeature } from "@/features/user-profile/setup";
@@ -266,6 +268,21 @@ export function registerFeatures(
     logger,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
+  const sushiiUpdatesFeature = setupSushiiUpdatesFeature({
+    client,
+    db,
+    guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
+    deploymentService,
+    logger: logger.child({ feature: "SushiiUpdates" }),
+    sourceChannelId: config.sushiiUpdatesChannelId,
+  });
+  const { sushiiUpdatesService } = sushiiUpdatesFeature.services;
+  configureFollowUpdatesPrompt(
+    sushiiUpdatesService && {
+      updates: sushiiUpdatesService,
+      guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
+    },
+  );
   const promptsFeature = setupPromptsFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({
     db,
@@ -349,6 +366,7 @@ export function registerFeatures(
     setNicknameService: altAccountsServices.setNicknameService,
     permissionUsageRecorder:
       permissionAuditFeature.services.permissionUsageRecorder,
+    promptOffer: promptsFeature.services.promptService,
   });
   const serverManagementFeature = setupServerManagementFeature({
     db,
@@ -407,6 +425,7 @@ export function registerFeatures(
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
     screeningSettings: memberScreeningFeature.services.settingsPort,
     ipGrabberSettings: ipGrabberLinksFeature.services.settingsPort,
+    sushiiUpdates: sushiiUpdatesService,
   });
 
   // Message log feature
@@ -538,6 +557,11 @@ export function registerFeatures(
     ...roleMenuFeature.selectMenuHandlers,
     ...levelingFeature.selectMenuHandlers,
     ...memberScreeningFeature.selectMenuHandlers,
+    ...promptsFeature.selectMenuHandlers,
+  );
+
+  interactionRouter.setAfterCommandHook((interaction) =>
+    promptsFeature.services.promptService.afterCommand(interaction),
   );
 
   // ---------------------------------------------------------------------------
@@ -568,7 +592,6 @@ export function registerFeatures(
     ...messageLogFeature.eventHandlers,
     ...reactionLogFeature.eventHandlers,
     ...scheduleFeature.eventHandlers,
-    ...promptsFeature.eventHandlers,
     ...permissionAuditFeature.eventHandlers,
     ...memberScreeningFeature.eventHandlers,
     ...serverManagementFeature.eventHandlers,
@@ -642,6 +665,7 @@ export function registerFeatures(
     ...messageVerificationFeature.tasks,
     ...permissionAuditFeature.tasks,
     ...memberScreeningFeature.tasks,
+    ...sushiiUpdatesFeature.tasks,
   ];
 
   client.once(Events.ClientReady, () => {

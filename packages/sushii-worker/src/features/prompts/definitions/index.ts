@@ -1,6 +1,9 @@
 import type { PromptDefinition } from "../domain/PromptDefinition";
 import { followUpdatesPrompt } from "./followUpdates";
+import { proofIntroPrompt } from "./proofIntro";
 
-// NOTE: Only the first prompt whose trigger() returns true fires per interaction.
-// Ensure triggers do not overlap to avoid one prompt silently shadowing another.
-export const ALL_PROMPTS: readonly PromptDefinition[] = [followUpdatesPrompt];
+/** Checked in order; at most one prompt is shown per interaction. */
+export const ALL_PROMPTS: readonly PromptDefinition[] = [
+  followUpdatesPrompt,
+  proofIntroPrompt,
+];

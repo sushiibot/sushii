@@ -70,6 +70,10 @@ import {
 } from "@/features/moderation/shared/presentation/caseMedia";
 import { OPTION_NAMES } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
 import {
+  PROOF_INTRO_ID,
+  type PromptOffer,
+} from "@/features/moderation/shared/presentation/proof/proofIntroOffer";
+import {
   getErrorMessage,
   getErrorMessageEdit,
 } from "@/interactions/responses/error";
@@ -197,6 +201,7 @@ export class ModerationCommand extends SlashCommandHandler {
     private readonly emojiRepository: BotEmojiRepository,
     private readonly reasonTemplateService: ModerationCommandTemplates,
     private readonly logger: Logger,
+    private readonly promptOffer: PromptOffer,
     private readonly scheduleExpiry: ResponseExpiryScheduler = scheduleResponseExpiry,
     private readonly metrics: Pick<
       ModerationMetrics,
@@ -621,6 +626,8 @@ export class ModerationCommand extends SlashCommandHandler {
     if (proofUrl) {
       await this.saveActionProof(cases, interaction.user.id, proofUrl);
     }
+
+    await this.promptOffer.offer(interaction, PROOF_INTRO_ID);
   }
 
   /** Only media is re-hosted: a gallery is the one place its link keeps working. */

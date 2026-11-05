@@ -93,6 +93,7 @@ export class Config {
   readonly ipGrabberDiscoveryEnabled: boolean;
   readonly scamImageStoreEndpoint?: string;
   readonly scamImageStoreBucket?: string;
+  readonly sushiiUpdatesChannelId?: string;
 
   readonly manualShardCount?: number;
   readonly shardsPerCluster?: number;
@@ -141,6 +142,7 @@ export class Config {
     this.ipGrabberDiscoveryEnabled = env.IP_GRABBER_DISCOVERY_ENABLED;
     this.scamImageStoreEndpoint = env.SCAM_IMAGE_STORE_ENDPOINT;
     this.scamImageStoreBucket = env.SCAM_IMAGE_STORE_BUCKET;
+    this.sushiiUpdatesChannelId = env.SUSHII_UPDATES_CHANNEL_ID;
 
     this.manualShardCount = env.MANUAL_SHARD_COUNT;
     this.shardsPerCluster = env.SHARDS_PER_CLUSTER ?? 2;

@@ -79,6 +79,7 @@ function setup(options: {
   const recordUse = mock(async () => undefined);
   const shouldPromptSave = mock(async () => false);
   const scheduleExpiry = mock(() => undefined);
+  const offer = mock(async () => undefined);
   const metrics = {
     recordReasonResolved: mock(),
     recordSavePrompt: mock(),
@@ -94,6 +95,7 @@ function setup(options: {
     { getEmojis: mock(async () => makeEmojis()) } as never,
     { resolve, recordUse, shouldPromptSave },
     pino({ level: "silent" }),
+    { offer },
     scheduleExpiry,
     metrics,
   );
@@ -126,8 +128,65 @@ function setup(options: {
     shouldPromptSave,
     scheduleExpiry,
     metrics,
+    offer,
   };
 }
+
+describe("ModerationCommand proof intro", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test("is offered after a case is made and its proof saved", async () => {
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: { ...PROOF, name: "log.txt" },
+    });
+    await ctx.run();
+
+    expect(ctx.addActionProof).toHaveBeenCalledTimes(1);
+    expect(ctx.offer).toHaveBeenCalledWith(ctx.interaction, "proof_intro");
+    const offerOrder = ctx.offer.mock.invocationCallOrder[0];
+    expect(offerOrder).toBeGreaterThan(
+      ctx.addActionProof.mock.invocationCallOrder[0],
+    );
+    expect(offerOrder).toBeGreaterThan(
+      ctx.interaction.editReply.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("is offered without proof too", async () => {
+    const ctx = setup({ strings: { users: TARGET }, expansion: null });
+    await ctx.run();
+
+    expect(ctx.offer).toHaveBeenCalledWith(ctx.interaction, "proof_intro");
+  });
+
+  test("isn't offered when every target failed", async () => {
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      results: [Err("Missing permissions")],
+    });
+    await ctx.run();
+
+    expect(ctx.interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(ctx.offer).not.toHaveBeenCalled();
+  });
+
+  test("isn't offered when the action is refused before it runs", async () => {
+    const ctx = setup({
+      configKey: "WARN",
+      strings: { users: TARGET },
+      expansion: null,
+    });
+    await ctx.run();
+
+    expect(ctx.interaction.reply).toHaveBeenCalledTimes(1);
+    expect(ctx.offer).not.toHaveBeenCalled();
+  });
+});
 
 describe("ModerationCommand reason expansion", () => {
   test("an unresolved template pick refuses the action", async () => {
@@ -530,6 +589,7 @@ describe("proof option", () => {
         {} as never,
         {} as never,
         pino({ level: "silent" }),
+        {} as never,
       ).command as { options?: { name: string; description: string }[] };
       const names = json.options?.map((o) => o.name) ?? [];
       expect(names).toContain("proof");

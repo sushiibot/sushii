@@ -39,6 +39,10 @@ import {
 } from "@/features/moderation/shared/presentation/proof/addProofModal";
 import { parseAddProofCustomId } from "@/features/moderation/shared/presentation/proof/customIds";
 import {
+  PROOF_INTRO_ID,
+  type PromptOffer,
+} from "@/features/moderation/shared/presentation/proof/proofIntroOffer";
+import {
   partialProofText,
   proofErrorText,
   proofNotice,
@@ -64,6 +68,7 @@ export interface AddProofDeps {
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
   caseProofService: Pick<CaseProofService, "add">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
+  promptOffer: PromptOffer;
   logger: Logger;
   now?: () => number;
 }
@@ -276,6 +281,8 @@ export class AddProofButtonHandler extends ButtonHandler {
         ),
       );
     }
+
+    await this.deps.promptOffer.offer(submission, PROOF_INTRO_ID);
   }
 
   /** Best effort: the add already happened or was already reported. */

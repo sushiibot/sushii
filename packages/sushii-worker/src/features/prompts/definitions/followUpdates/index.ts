@@ -1,93 +1,163 @@
-import { ChannelType, PermissionFlagsBits } from "discord.js";
+import type { MessageComponentInteraction } from "discord.js";
+import { MessageFlags, PermissionFlagsBits } from "discord.js";
+
+import type { SushiiUpdatesService } from "@/features/sushii-updates/application/SushiiUpdatesService";
+import {
+  followErrorText,
+  savedButNotFollowingText,
+} from "@/features/sushii-updates/presentation/updatesText";
+import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
+import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
 import type { PromptDefinition } from "../../domain/PromptDefinition";
-import { makeCustomId } from "../../presentation/customIds";
 import {
+  FOLLOW_UPDATES_ACTION,
   FOLLOW_UPDATES_ID,
+  FOLLOW_UPDATES_SNOOZE_DAYS,
+  buildFollowChannelContent,
   buildFollowErrorMessage,
   buildFollowSuccessMessage,
-  buildFollowUpdatesContent,
+  buildPickChannelContent,
 } from "./message";
 
-// The channel must be of type Announcement (GuildAnnouncement) for following to work.
-const UPDATES_CHANNEL_ID = "828010062383153192";
+export interface FollowUpdatesDependencies {
+  updates: Pick<SushiiUpdatesService, "follow">;
+  guildConfigRepository: GuildConfigRepository;
+}
 
-// TODO: Remove once feature is ready for all guilds
-const ENABLED_GUILD_IDS = new Set(["167058919611564043"]);
+// Prompt definitions are static, so the feature's services are handed in at startup.
+let deps: FollowUpdatesDependencies | null = null;
 
-const MOD_PERMISSIONS =
-  PermissionFlagsBits.BanMembers |
-  PermissionFlagsBits.KickMembers |
-  PermissionFlagsBits.ModerateMembers;
+/** Null (the default) keeps the prompt from ever being offered. */
+export function configureFollowUpdatesPrompt(
+  dependencies: FollowUpdatesDependencies | null,
+): void {
+  deps = dependencies;
+}
+
+const FEATURE_OFF_REPLY = "sushii updates aren't available right now.";
+const NO_CHANNEL_REASON =
+  "Pick a sushii notifications channel in /settings → Logging first.";
+
+function notificationsChannel(config: GuildConfig): string | null {
+  const logs = config.loggingSettings;
+  return logs.sushiiNotificationsEnabled
+    ? logs.sushiiNotificationsChannel
+    : null;
+}
+
+function pickedChannel(
+  i: MessageComponentInteraction<"cached">,
+): string | null {
+  if (!i.isChannelSelectMenu()) {
+    throw new Error("follow_updates channel picker is not a channel select", {
+      cause: { customId: i.customId },
+    });
+  }
+  return i.values[0] ?? null;
+}
 
 export const followUpdatesPrompt: PromptDefinition = {
   id: FOLLOW_UPDATES_ID,
   scope: "guild",
-  repeatCooldown: "daily",
-  snoozeEnabled: true,
+  repeat: { days: 30 },
+  snoozeDays: FOLLOW_UPDATES_SNOOZE_DAYS,
+  delivery: "auto",
 
-  async trigger(interaction) {
-    if (!ENABLED_GUILD_IDS.has(interaction.guildId)) {
+  async eligible(interaction) {
+    if (!deps) {
       return false;
     }
-    if (!interaction.memberPermissions.any(MOD_PERMISSIONS)) {
+    if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
       return false;
     }
-    const channel = interaction.channel;
-    if (!channel || !channel.isTextBased()) {
-      return false;
-    }
-    const everyonePerms = channel.permissionsFor(interaction.guild.roles.everyone);
-    if (everyonePerms?.has(PermissionFlagsBits.ViewChannel)) {
-      return false;
-    }
-    return true;
+    const config = await deps.guildConfigRepository.findByGuildId(
+      interaction.guildId,
+    );
+    return config.loggingSettings.sushiiUpdatesWebhookId === null;
   },
 
-  buildContent(interaction) {
+  async build(interaction) {
+    if (!deps) {
+      throw new Error(
+        "follow_updates prompt built while sushii updates is off",
+      );
+    }
+    const config = await deps.guildConfigRepository.findByGuildId(
+      interaction.guildId,
+    );
+    const channelId = notificationsChannel(config);
+    if (channelId) {
+      return buildFollowChannelContent(channelId);
+    }
+
     const botHasManageWebhooks =
-      interaction.guild.members.me?.permissions.has(PermissionFlagsBits.ManageWebhooks) ??
-      false;
-    return buildFollowUpdatesContent(botHasManageWebhooks);
+      interaction.guild.members.me?.permissions.has(
+        PermissionFlagsBits.ManageWebhooks,
+      ) ?? false;
+    return buildPickChannelContent(botHasManageWebhooks);
   },
 
-  async onSent(message, ctx) {
-    // Handles the channel select only. Snooze/dismiss are handled globally by
-    // PromptButtonHandler and are restart-safe via the InteractionRouter.
-    const collector = message.createMessageComponentCollector({
-      filter: (i) => i.customId === makeCustomId(FOLLOW_UPDATES_ID, "channel_select"),
-      time: 15 * 60 * 1000,
-      max: 1,
-    });
+  canAct(interaction) {
+    return interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild);
+  },
 
-    collector.on("collect", async (i) => {
-      if (!i.isChannelSelectMenu() || !i.inCachedGuild()) {
-        return;
-      }
-      const targetChannelId = i.values[0];
-      if (!targetChannelId) {
-        return;
-      }
+  async handleAction(i, action, ctx) {
+    // An old prompt can still be clicked after the feature is turned off.
+    if (!deps) {
+      await i.reply({
+        content: FEATURE_OFF_REPLY,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const { updates, guildConfigRepository } = deps;
 
-      // defer: fetches the updates channel over REST and creates a follower webhook in the target channel
-      await i.deferUpdate();
+    const isPicker = action === FOLLOW_UPDATES_ACTION.pickChannel;
+    if (!isPicker && action !== FOLLOW_UPDATES_ACTION.follow) {
+      throw new Error("Unknown follow_updates action", { cause: { action } });
+    }
+    const picked = isPicker ? pickedChannel(i) : null;
 
-      try {
-        const updatesChannel = await i.client.channels.fetch(UPDATES_CHANNEL_ID);
-        if (!updatesChannel || updatesChannel.type !== ChannelType.GuildAnnouncement) {
-          await i.editReply(buildFollowErrorMessage("Updates channel is unavailable."));
-          return;
-        }
-        await updatesChannel.addFollower(targetChannelId);
-        await ctx.promptService.recordCompleted(ctx.guildId, FOLLOW_UPDATES_ID);
-        await i.editReply(buildFollowSuccessMessage(targetChannelId));
-      } catch (error) {
-        const msg =
-          error instanceof Error && error.message.includes("Missing Permissions")
-            ? "sushii needs the **Manage Webhooks** permission in that channel."
-            : "Couldn't follow the updates channel. Check that sushii has **Manage Webhooks** permission.";
-        await i.editReply(buildFollowErrorMessage(msg));
-      }
-    });
+    // defer: creates a follower webhook through Discord's API
+    await i.deferUpdate();
+
+    // The service serializes follows per guild, so a second click sees the first click's stored follow.
+    const config = await guildConfigRepository.findByGuildId(i.guildId);
+    const current = notificationsChannel(config);
+    const alreadyIn = current ?? picked;
+    if (config.loggingSettings.sushiiUpdatesWebhookId && alreadyIn) {
+      await ctx.recordCompleted();
+      await i.editReply(buildFollowSuccessMessage(alreadyIn));
+      return;
+    }
+
+    const channelId = picked ?? current;
+    if (!channelId) {
+      await i.editReply(buildFollowErrorMessage(NO_CHANNEL_REASON));
+      return;
+    }
+
+    if (picked) {
+      await guildConfigRepository.save(
+        config
+          .updateLogChannel("notifications", picked)
+          .setLoggingEnabled("notifications", true),
+      );
+    }
+
+    const result = await updates.follow(i.guild, channelId, "prompt");
+    if (result.err) {
+      const reason = followErrorText(result.val, channelId);
+      await i.editReply(
+        buildFollowErrorMessage(
+          picked ? `${savedButNotFollowingText(channelId)} ${reason}` : reason,
+        ),
+      );
+      return;
+    }
+
+    await ctx.recordCompleted();
+    await i.editReply(buildFollowSuccessMessage(channelId));
   },
 };

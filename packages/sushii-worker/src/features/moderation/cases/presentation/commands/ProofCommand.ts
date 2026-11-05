@@ -27,6 +27,10 @@ import type { ModerationCase } from "@/features/moderation/shared/domain/entitie
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
 import {
+  PROOF_INTRO_ID,
+  type PromptOffer,
+} from "@/features/moderation/shared/presentation/proof/proofIntroOffer";
+import {
   NO_MOD_LOG_FOR_FILES_TEXT,
   proofErrorText,
   proofNotice,
@@ -56,6 +60,7 @@ export interface ProofCommandDeps {
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
   caseProofService: Pick<CaseProofService, "add">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
+  promptOffer: PromptOffer;
   logger: Logger;
 }
 
@@ -191,6 +196,7 @@ export class ProofCommand extends SlashCommandHandler {
         ),
       }),
     );
+    await this.deps.promptOffer.offer(interaction, PROOF_INTRO_ID);
   }
 
   /**

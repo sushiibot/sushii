@@ -26,6 +26,9 @@ import type {
   ScreeningSettingsPort,
   ScreeningSettingsState,
 } from "@/features/member-screening/application/ScreeningSettingsPort";
+import type { SushiiUpdatesSettingsPort } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
+import { sushiiUpdatesSyncNeeded } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
+import { settingsOutcomeText } from "@/features/sushii-updates/presentation/updatesText";
 import { buildInternalErrorContainer } from "@/interactions/responses/error";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -123,6 +126,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     private readonly emojiRepository: BotEmojiRepository,
     private readonly screeningSettings: ScreeningSettingsPort | null,
     private readonly ipGrabberSettings: IpGrabberSettingsPort | null,
+    private readonly sushiiUpdates: SushiiUpdatesSettingsPort | null,
     private readonly rejectionDeleteMs: number = REJECTION_DELETE_MS,
   ) {
     super();
@@ -188,6 +192,8 @@ export default class SettingsCommand extends SlashCommandHandler {
       this.getScreening(guild.id),
       this.getIpGrabbers(guild),
     ]);
+    const updates =
+      (await this.sushiiUpdates?.getForSettings(guild, config)) ?? null;
     const channelHealth = checkChannelHealth(
       guild,
       configuredChannelIds(config, screening),
@@ -199,6 +205,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       config,
       screening,
       ipGrabbers,
+      updates,
       ignoredChannelIds,
       ...resolveModalPrefills(
         guild,
@@ -482,13 +489,26 @@ export default class SettingsCommand extends SlashCommandHandler {
     }
 
     try {
+      const patches = parseSettingsModal(target, submission, ctx);
       if (target === "ip-grabbers") {
         // defer: edits the server's AutoMod rules through Discord's API
         await submission.deferUpdate();
+      } else if (
+        patches.some(
+          (patch) =>
+            patch.kind === "sushiiUpdates" && sushiiUpdatesSyncNeeded(patch),
+        )
+      ) {
+        // defer: creates or deletes the sushii updates follower webhook through Discord's API
+        await submission.deferUpdate();
       }
 
-      for (const patch of parseSettingsModal(target, submission, ctx)) {
-        await this.applyPatch(i.guildId, patch);
+      const notices: string[] = [];
+      for (const patch of patches) {
+        const notice = await this.applyPatch(i.guild, patch);
+        if (notice) {
+          notices.push(notice);
+        }
       }
 
       // A submit that lands after the collector ended must not re-enable a dead panel.
@@ -501,23 +521,33 @@ export default class SettingsCommand extends SlashCommandHandler {
       } else {
         await submission.update(payload);
       }
+
+      for (const notice of notices) {
+        await submission.followUp({
+          content: notice,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        });
+      }
     } catch (err) {
       await this.sendInternalError(submission);
       throw err;
     }
   }
 
+  /** Returns a note for the user when part of the patch couldn't be applied. */
   private async applyPatch(
-    guildId: string,
+    guild: Guild,
     patch: SettingsPatch,
-  ): Promise<void> {
+  ): Promise<string | null> {
+    const guildId = guild.id;
     switch (patch.kind) {
       case "messageLogIgnored":
         await this.messageLogBlockService.setIgnoredChannels(
           guildId,
           patch.channelIds,
         );
-        return;
+        return null;
       case "screening":
         if (!this.screeningSettings) {
           throw new Error("Screening patch without a screening port");
@@ -527,7 +557,7 @@ export default class SettingsCommand extends SlashCommandHandler {
           guildId,
           patch.checkAvatars,
         );
-        return;
+        return null;
       case "ipGrabbers":
         if (!this.ipGrabberSettings) {
           throw new Error("IP grabber patch without an IP grabber port");
@@ -536,9 +566,17 @@ export default class SettingsCommand extends SlashCommandHandler {
           ruleId: patch.ruleId,
           providers: patch.providers,
         });
-        return;
+        return null;
+      case "sushiiUpdates": {
+        if (!this.sushiiUpdates) {
+          throw new Error("sushii updates patch without a sushii updates port");
+        }
+        const outcome = await this.sushiiUpdates.applySettings(guild, patch);
+        return settingsOutcomeText(outcome);
+      }
       default:
         await this.guildSettingsService.apply(guildId, patch);
+        return null;
     }
   }
 }

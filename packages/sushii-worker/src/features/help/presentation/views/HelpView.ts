@@ -11,7 +11,10 @@ import {
 } from "discord.js";
 
 import type { EmojiMap } from "@/features/bot-emojis/domain/types";
+import type { FeedbackFeatureKey } from "@/features/feedback/domain/Feedback";
+import { buildFeedbackPanelButton } from "@/features/feedback/presentation/views/FeedbackButton";
 import type { CommandMentions } from "@/shared/presentation/commandMentions";
+import { buildSupportServerButton } from "@/shared/presentation/supportServer";
 import Color from "@/utils/colors";
 
 import type { HelpAudience } from "../../domain/helpCatalog";
@@ -66,11 +69,19 @@ export function addHelpFooter(
   container: ContainerBuilder,
   mentions: CommandMentions,
   guildId: string | undefined,
+  feedbackFeature: FeedbackFeatureKey,
 ): void {
   container.addSeparatorComponents(divider());
   container.addTextDisplayComponents(
     helpTextDisplay(
-      `-# Search any command: ${mentions.mention("help", guildId)} \`command:\` · Full docs: <${DOCS_URL}>`,
+      `-# Search any command: ${mentions.mention("help", guildId)} \`command:\` · Full docs: <${DOCS_URL}>\n` +
+        `-# Get sushii updates: ${mentions.mention("settings", guildId)} → Logging → sushii notifications`,
+    ),
+  );
+  container.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilderType>().addComponents(
+      buildFeedbackPanelButton(feedbackFeature),
+      buildSupportServerButton(),
     ),
   );
 }
@@ -168,7 +179,12 @@ export function buildHelpPage(input: HelpViewInput): {
     }
   }
 
-  addHelpFooter(container, input.mentions, input.guildId);
+  addHelpFooter(
+    container,
+    input.mentions,
+    input.guildId,
+    `help.${input.audience}`,
+  );
 
   return {
     components: [container],

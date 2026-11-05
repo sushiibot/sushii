@@ -1,4 +1,6 @@
 import {
+  type ActionRowBuilder,
+  type ButtonBuilder,
   type Client,
   ContainerBuilder,
   MessageFlags,
@@ -15,6 +17,8 @@ export interface SushiiNotification {
   body: string;
   hint?: string;
   severity: "info" | "warning";
+  /** Link buttons, shown below the hint. */
+  buttons?: ActionRowBuilder<ButtonBuilder>;
 }
 
 /**
@@ -80,6 +84,10 @@ export function buildNotificationContainer(
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(`-# ${notification.hint}`),
       );
+  }
+
+  if (notification.buttons) {
+    container.addActionRowComponents(notification.buttons);
   }
 
   return container;

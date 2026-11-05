@@ -115,7 +115,16 @@ export function findFocusedOption(
   };
 }
 
+export type AfterCommandHook = (
+  interaction: ChatInputCommandInteraction,
+) => Promise<void>;
+
 export default class InteractionRouter {
+  /**
+   * Runs after a slash command handler finishes without throwing. Must not throw.
+   */
+  private afterCommandHook: AfterCommandHook | null = null;
+
   /**
    * Discord client
    */
@@ -577,7 +586,15 @@ export default class InteractionRouter {
       return false;
     }
 
+    if (this.afterCommandHook) {
+      await this.afterCommandHook(interaction);
+    }
+
     return true;
+  }
+
+  setAfterCommandHook(hook: AfterCommandHook): void {
+    this.afterCommandHook = hook;
   }
 
   /**

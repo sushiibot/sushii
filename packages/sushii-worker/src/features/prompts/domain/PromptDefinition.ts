@@ -1,37 +1,49 @@
-import type { ActionRowBuilder, ChatInputCommandInteraction, Message, MessageActionRowComponentBuilder } from "discord.js";
+import type {
+  ActionRowBuilder,
+  MessageActionRowComponentBuilder,
+  MessageComponentInteraction,
+  RepliableInteraction,
+} from "discord.js";
 
-import type { PromptService } from "../application/PromptService";
+import type { PromptScope, PromptSubject } from "./PromptState";
+
+export type PromptInteraction = RepliableInteraction<"cached">;
 
 export interface PromptContent {
   text: string;
   accentColor?: number;
-  actionRow?: ActionRowBuilder<MessageActionRowComponentBuilder>;
+  rows?: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 }
 
-export interface PromptHandlerContext {
-  promptService: PromptService;
-  guildId: bigint;
+export interface PromptActionContext {
+  subject: PromptSubject;
+  recordCompleted(): Promise<void>;
+  recordDismissed(): Promise<void>;
 }
 
-// Discriminated union: snooze requires a repeat cooldown — a one-shot prompt
-// can't snooze because there's nothing to come back to.
-type WithRepeat = {
-  repeatCooldown: "daily" | { days: number };
-  snoozeEnabled: boolean;
-};
+type Repeat =
+  | { repeat: { days: number }; snoozeDays?: number }
+  | { repeat: null; snoozeDays?: never };
 
-type WithoutRepeat = {
-  repeatCooldown: null;
-  snoozeEnabled?: never;
-};
-
-export type PromptDefinition = (WithRepeat | WithoutRepeat) & {
+export type PromptDefinition = Repeat & {
   readonly id: string;
-  readonly scope: "guild";
-  trigger(interaction: ChatInputCommandInteraction<"cached">): Promise<boolean>;
-  buildContent(interaction: ChatInputCommandInteraction<"cached">): PromptContent;
-  // Called with the sent message so the prompt can set up its own component
-  // collector for any custom action (e.g. channel select). Snooze/dismiss are
-  // handled globally by PromptButtonHandler and do not need to be handled here.
-  onSent?(message: Message<true>, ctx: PromptHandlerContext): Promise<void>;
+  readonly scope: PromptScope;
+  /** Stops being offered from this moment. */
+  readonly activeUntil?: Date;
+  /**
+   * "auto": considered after any successful slash command.
+   * "explicit": only shown when feature code calls `PromptService.offer()`.
+   */
+  readonly delivery: "auto" | "explicit";
+  /** Cheap checks only (permissions, config already in cache). */
+  eligible(interaction: PromptInteraction): Promise<boolean>;
+  build(interaction: PromptInteraction): Promise<PromptContent> | PromptContent;
+  /** Re-checked on every button/select click, since a sent prompt stays clickable after permissions change. */
+  canAct?(interaction: MessageComponentInteraction<"cached">): boolean;
+  /** Custom component actions, routed by `prompt:<id>:<action>` custom IDs. Snooze and dismiss are handled for every prompt. */
+  handleAction?(
+    interaction: MessageComponentInteraction<"cached">,
+    action: string,
+    ctx: PromptActionContext,
+  ): Promise<void>;
 };

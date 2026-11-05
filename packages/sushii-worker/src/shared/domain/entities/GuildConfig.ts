@@ -26,6 +26,8 @@ export interface LoggingSettings {
   reactionLogEnabled: boolean;
   sushiiNotificationsChannel: string | null;
   sushiiNotificationsEnabled: boolean;
+  /** Written only by the sushii-updates feature, never by `save()`. */
+  sushiiUpdatesWebhookId: string | null;
 }
 
 export interface ModerationSettings {
@@ -99,6 +101,7 @@ export class GuildConfig {
         reactionLogEnabled: true,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: true,
+        sushiiUpdatesWebhookId: null,
       },
       {
         timeoutDmText: null,

@@ -7,7 +7,7 @@ const PREFIX = "feedback/";
 const NO_TRACE = "-";
 const TRACE = "[0-9a-f]{32}";
 const NONCE = "[0-9a-f]{8}";
-const FEATURE = "[a-z.-]+";
+const FEATURE = "[a-z._-]+";
 const SNOWFLAKE = "\\d{17,20}";
 
 const TRACE_ID_RE = new RegExp(`^${TRACE}$`);

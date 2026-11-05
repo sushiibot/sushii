@@ -32,7 +32,7 @@ export const LOG_ROWS: readonly {
   {
     target: "notifications",
     name: "sushii notifications",
-    hint: "Problems sushii needs you to fix",
+    hint: "Setup problems and sushii updates",
   },
 ];
 
@@ -68,6 +68,27 @@ export function ignoredText(channelIds: string[]): string {
   return `Ignoring ${shown.join(", ")}${rest > 0 ? `, +${rest} more` : ""}`;
 }
 
+function updatesDetail(
+  input: PanelInput,
+  state: RowState,
+  channelId: string | null,
+): string | null {
+  const channelExists =
+    state.kind === "on" ||
+    (state.kind === "attention" &&
+      state.problem.kind === "missing_permissions");
+  if (!input.updates || !channelId || !channelExists) {
+    return null;
+  }
+  if (input.updates.following) {
+    return "📢 Following sushii updates";
+  }
+  if (!input.updates.canManageWebhooks) {
+    return "⚠️ sushii needs **Manage Webhooks** here to post updates";
+  }
+  return "Updates off";
+}
+
 function logValue(state: RowState, channelId: string | null): string {
   if (state.kind === "off" || state.kind === "not_set" || !channelId) {
     return "Off";
@@ -94,6 +115,12 @@ export function addLoggingPanel(
       input.ignoredChannelIds.length > 0
     ) {
       details.push(smallText(ignoredText(input.ignoredChannelIds)));
+    }
+    if (target === "notifications") {
+      const updates = updatesDetail(input, state, channelId);
+      if (updates) {
+        details.push(smallText(updates));
+      }
     }
     if (hint) {
       details.push(smallText(hint));

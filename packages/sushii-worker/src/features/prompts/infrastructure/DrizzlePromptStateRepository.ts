@@ -1,90 +1,164 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "@/infrastructure/database/schema";
 
-import type { PromptStateData } from "../domain/PromptState";
+import type { PromptStateData, PromptSubject } from "../domain/PromptState";
 import type { PromptStateRepository } from "../domain/repositories/PromptStateRepository";
 
 type DbType = NodePgDatabase<typeof schema>;
 
-const table = schema.guildPromptStatesInAppPublic;
+const guildTable = schema.guildPromptStatesInAppPublic;
+const userTable = schema.userPromptStatesInAppPublic;
+
+interface StateFields {
+  lastPromptedAt?: Date | null;
+  snoozeUntil?: Date;
+  dismissedAt?: Date;
+  completedAt?: Date;
+}
 
 export class DrizzlePromptStateRepository implements PromptStateRepository {
   constructor(private readonly db: DbType) {}
 
-  async findByGuildAndPrompt(
-    guildId: bigint,
+  async find(
+    subject: PromptSubject,
     promptId: string,
   ): Promise<PromptStateData | null> {
-    const results = await this.db
+    if (subject.scope === "guild") {
+      const [row] = await this.db
+        .select()
+        .from(guildTable)
+        .where(
+          and(
+            eq(guildTable.guildId, subject.id),
+            eq(guildTable.promptId, promptId),
+          ),
+        )
+        .limit(1);
+      return row ?? null;
+    }
+
+    const [row] = await this.db
       .select()
-      .from(table)
-      .where(and(eq(table.guildId, guildId), eq(table.promptId, promptId)))
+      .from(userTable)
+      .where(
+        and(eq(userTable.userId, subject.id), eq(userTable.promptId, promptId)),
+      )
       .limit(1);
-    return results[0] ?? null;
+    return row ?? null;
   }
 
-  async claimPromptSlot(
-    guildId: bigint,
+  async claim(
+    subject: PromptSubject,
     promptId: string,
     cooldownThreshold: Date | null,
-  ): Promise<boolean> {
+  ): Promise<{ previous: Date | null } | false> {
     const now = new Date();
+    const previous =
+      (await this.find(subject, promptId))?.lastPromptedAt ?? null;
 
-    // setWhere condition: only update lastPromptedAt if it's null (never shown)
-    // or before the cooldown threshold. This is atomic at the DB level — if two
-    // concurrent callers race here, only one wins and the other returns false.
+    if (subject.scope === "guild") {
+      const setWhere = cooldownThreshold
+        ? sql`${guildTable.lastPromptedAt} IS NULL OR ${guildTable.lastPromptedAt} < ${cooldownThreshold}`
+        : sql`${guildTable.lastPromptedAt} IS NULL`;
+      const rows = await this.db
+        .insert(guildTable)
+        .values({ guildId: subject.id, promptId, lastPromptedAt: now })
+        .onConflictDoUpdate({
+          target: [guildTable.guildId, guildTable.promptId],
+          set: { lastPromptedAt: now },
+          setWhere,
+        })
+        .returning({ promptId: guildTable.promptId });
+      return rows.length > 0 ? { previous } : false;
+    }
+
     const setWhere = cooldownThreshold
-      ? sql`${table.lastPromptedAt} IS NULL OR ${table.lastPromptedAt} < ${cooldownThreshold}`
-      : sql`${table.lastPromptedAt} IS NULL`;
-
-    const result = await this.db
-      .insert(table)
-      .values({ guildId, promptId, lastPromptedAt: now })
+      ? sql`${userTable.lastPromptedAt} IS NULL OR ${userTable.lastPromptedAt} < ${cooldownThreshold}`
+      : sql`${userTable.lastPromptedAt} IS NULL`;
+    const rows = await this.db
+      .insert(userTable)
+      .values({ userId: subject.id, promptId, lastPromptedAt: now })
       .onConflictDoUpdate({
-        target: [table.guildId, table.promptId],
+        target: [userTable.userId, userTable.promptId],
         set: { lastPromptedAt: now },
         setWhere,
       })
-      .returning({ guildId: table.guildId });
+      .returning({ promptId: userTable.promptId });
+    return rows.length > 0 ? { previous } : false;
+  }
 
-    return result.length > 0;
+  async release(
+    subject: PromptSubject,
+    promptId: string,
+    previous: Date | null,
+  ): Promise<void> {
+    await this.upsert(subject, promptId, { lastPromptedAt: previous });
+  }
+
+  async lastShownToUser(userId: bigint): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ last: max(userTable.lastPromptedAt) })
+      .from(userTable)
+      .where(eq(userTable.userId, userId));
+    return row?.last ?? null;
+  }
+
+  async recordShownToUser(
+    userId: bigint,
+    promptId: string,
+    at: Date,
+  ): Promise<void> {
+    await this.upsert({ scope: "user", id: userId }, promptId, {
+      lastPromptedAt: at,
+    });
   }
 
   async recordSnoozed(
-    guildId: bigint,
+    subject: PromptSubject,
     promptId: string,
     snoozeUntil: Date,
   ): Promise<void> {
-    await this.db
-      .insert(table)
-      .values({ guildId, promptId, snoozeUntil })
-      .onConflictDoUpdate({
-        target: [table.guildId, table.promptId],
-        set: { snoozeUntil },
-      });
+    await this.upsert(subject, promptId, { snoozeUntil });
   }
 
-  async recordDismissed(guildId: bigint, promptId: string): Promise<void> {
-    const dismissedAt = new Date();
-    await this.db
-      .insert(table)
-      .values({ guildId, promptId, dismissedAt })
-      .onConflictDoUpdate({
-        target: [table.guildId, table.promptId],
-        set: { dismissedAt },
-      });
+  async recordDismissed(
+    subject: PromptSubject,
+    promptId: string,
+  ): Promise<void> {
+    await this.upsert(subject, promptId, { dismissedAt: new Date() });
   }
 
-  async recordCompleted(guildId: bigint, promptId: string): Promise<void> {
-    const completedAt = new Date();
+  async recordCompleted(
+    subject: PromptSubject,
+    promptId: string,
+  ): Promise<void> {
+    await this.upsert(subject, promptId, { completedAt: new Date() });
+  }
+
+  private async upsert(
+    subject: PromptSubject,
+    promptId: string,
+    fields: StateFields,
+  ): Promise<void> {
+    if (subject.scope === "guild") {
+      await this.db
+        .insert(guildTable)
+        .values({ guildId: subject.id, promptId, ...fields })
+        .onConflictDoUpdate({
+          target: [guildTable.guildId, guildTable.promptId],
+          set: fields,
+        });
+      return;
+    }
+
     await this.db
-      .insert(table)
-      .values({ guildId, promptId, completedAt })
+      .insert(userTable)
+      .values({ userId: subject.id, promptId, ...fields })
       .onConflictDoUpdate({
-        target: [table.guildId, table.promptId],
-        set: { completedAt },
+        target: [userTable.userId, userTable.promptId],
+        set: fields,
       });
   }
 }

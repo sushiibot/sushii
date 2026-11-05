@@ -246,6 +246,14 @@ export const guildConfigsInAppPublic = appPublic.table("guild_configs", {
   logSushiiNotificationsEnabled: boolean("log_sushii_notifications_enabled")
     .default(true)
     .notNull(),
+  // Follower webhook for sushii's announcement channel, posting into the notifications channel
+  sushiiUpdatesWebhookId: bigint("sushii_updates_webhook_id", {
+    mode: "bigint",
+  }),
+  // Set once the guild was offered (or chose) updates, so the backfill never overrides a choice
+  sushiiUpdatesBackfilledAt: timestamp("sushii_updates_backfilled_at", {
+    mode: "date",
+  }),
 
   // Moderation action default behavior
   timeoutDmText: text("timeout_dm_text"),
@@ -1192,6 +1200,28 @@ export const guildPromptStatesInAppPublic = appPublic.table(
       columns: [table.guildId, table.promptId],
       name: "guild_prompt_states_pkey",
     }),
+  ],
+);
+
+export const userPromptStatesInAppPublic = appPublic.table(
+  "user_prompt_states",
+  {
+    userId: bigint("user_id", { mode: "bigint" }).notNull(),
+    promptId: text("prompt_id").notNull(),
+    lastPromptedAt: timestamp("last_prompted_at", { mode: "date" }),
+    snoozeUntil: timestamp("snooze_until", { mode: "date" }),
+    dismissedAt: timestamp("dismissed_at", { mode: "date" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.promptId],
+      name: "user_prompt_states_pkey",
+    }),
+    index("user_prompt_states_user_last_prompted_idx").on(
+      table.userId,
+      table.lastPromptedAt,
+    ),
   ],
 );
 

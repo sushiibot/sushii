@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { FEATURE_LABELS } from "../domain/Feedback";
 import {
   buildErrorButtonId,
   buildModalId,
@@ -68,6 +69,23 @@ describe("button IDs", () => {
       source: "panel",
       feature: "permission-audit",
     });
+  });
+
+  test.each([
+    ["help.members", "Help (members)"],
+    ["help.moderators", "Help (moderators)"],
+    ["help.admins", "Help (admins)"],
+    ["help.search", "Help search"],
+    ["prompt.proof_intro", "Proof intro"],
+  ] as const)("%s is a labelled feature that round-trips", (feature, label) => {
+    expect(FEATURE_LABELS[feature]).toBe(label);
+    expect(parseButtonId(buildPanelButtonId(feature))).toEqual({
+      source: "panel",
+      feature,
+    });
+    expect(parseModalId(buildModalId({ source: "panel", feature }))).toEqual(
+      expect.objectContaining({ source: "panel", feature }),
+    );
   });
 
   test.each([

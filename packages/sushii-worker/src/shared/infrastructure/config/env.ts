@@ -74,6 +74,9 @@ const envSchema = z.object({
   // Uploads also need the SCAM_IMAGE_STORE_* secrets; absent = feature disabled
   SCAM_IMAGE_STORE_ENDPOINT: z.string().optional(),
   SCAM_IMAGE_STORE_BUCKET: z.string().optional(),
+
+  // sushii's announcement channel that servers follow; unset = updates following disabled
+  SUSHII_UPDATES_CHANNEL_ID: z.string().regex(/^\d+$/).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

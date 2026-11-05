@@ -17,10 +17,9 @@ import type { ButtonBuilder } from "discord.js";
 import { t } from "i18next";
 
 import { buildErrorFeedbackButton } from "@/features/feedback/presentation/views/FeedbackButton";
+import { SUPPORT_SERVER_URL } from "@/shared/presentation/supportServer";
 
 import Color from "../../utils/colors";
-
-const SUPPORT_SERVER_URL = "https://discord.gg/PjDRRXSSAF";
 
 export type ReplyableInteraction =
   | ChatInputCommandInteraction
@@ -99,8 +98,7 @@ export function getErrorMessage(
   return {
     components: [buildErrorContainer(title, description)],
     flags:
-      MessageFlags.IsComponentsV2 |
-      (ephemeral ? MessageFlags.Ephemeral : 0),
+      MessageFlags.IsComponentsV2 | (ephemeral ? MessageFlags.Ephemeral : 0),
     allowedMentions: { parse: [] },
   };
 }

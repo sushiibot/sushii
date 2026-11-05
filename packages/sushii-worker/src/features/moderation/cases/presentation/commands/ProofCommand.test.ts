@@ -114,6 +114,7 @@ function setup(options: {
         Object.fromEntries(PROOF_COMMAND_EMOJIS.map((n) => [n, botEmoji(n)])),
       ),
     },
+    promptOffer: { offer: mock(async () => undefined) },
     logger: pino({ level: "silent" }),
   };
   const command = new ProofCommand(deps as never);
@@ -150,6 +151,7 @@ function setup(options: {
       command.handler(interaction as unknown as ChatInputCommandInteraction),
     interaction,
     add,
+    offer: deps.promptOffer.offer,
   };
 }
 
@@ -218,6 +220,7 @@ describe("/proof", () => {
         }
       ).allowedMentions,
     ).toEqual({ parse: [] });
+    expect(ctx.offer).toHaveBeenCalledWith(ctx.interaction, "proof_intro");
   });
 
   test("accepts #4822 and rejects ranges", () => {
@@ -232,6 +235,7 @@ describe("/proof", () => {
 
     expect(ctx.interaction.deferReply).not.toHaveBeenCalled();
     expect(ctx.add).not.toHaveBeenCalled();
+    expect(ctx.offer).not.toHaveBeenCalled();
     const call = ctx.interaction.reply.mock.calls[0];
     expect(flagsOf(call) & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
     expect(payloadJson(call)).toContain(
@@ -296,6 +300,7 @@ describe("/proof", () => {
     await ctx.run();
 
     expect(order).toEqual(["editReply", "followUp", "deleteReply"]);
+    expect(ctx.offer).not.toHaveBeenCalled();
     expect(ctx.interaction.editReply).toHaveBeenCalledWith({
       content: "Couldn't add proof to case #4822.",
     });
@@ -342,6 +347,7 @@ describe("/proof", () => {
       content: "Couldn't add proof to case #4822.",
     });
     expect(ctx.interaction.deleteReply).toHaveBeenCalled();
+    expect(ctx.offer).not.toHaveBeenCalled();
     const [payload] = ctx.interaction.followUp.mock.calls[0] as [
       { flags: number },
     ];

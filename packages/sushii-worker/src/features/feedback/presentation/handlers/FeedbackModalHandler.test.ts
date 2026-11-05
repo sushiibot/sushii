@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ModalSubmitInteraction } from "discord.js";
-import { MessageFlags } from "discord.js";
+import { ButtonStyle, ComponentType, MessageFlags } from "discord.js";
 import { Err, Ok } from "ts-results";
+
+import { SUPPORT_SERVER_URL } from "@/shared/presentation/supportServer";
 
 import type { FeedbackService } from "../../application/FeedbackService";
 import { buildModalId } from "../customIds";
-import { FeedbackModalHandler } from "./FeedbackModalHandler";
+import { FeedbackModalHandler, thanksReply } from "./FeedbackModalHandler";
 
 const TRACE = "4bf92f3577b34da6a3ce929d0e0e4736";
 const USER_ID = "150443906511667200";
@@ -87,8 +89,38 @@ describe("FeedbackModalHandler", () => {
       flags: MessageFlags.Ephemeral,
     });
     expect(interaction.editReply).toHaveBeenCalledWith(
-      replyWithText("Thanks!"),
+      expect.objectContaining({
+        components: [
+          expect.objectContaining({
+            components: [
+              expect.objectContaining({
+                content: expect.stringContaining("Thanks!"),
+              }),
+              expect.objectContaining({ type: ComponentType.ActionRow }),
+            ],
+          }),
+        ],
+      }),
     );
+  });
+
+  test("thanks reply points to the support server", () => {
+    const [container] = thanksReply().components;
+    const [text, row] = container.components;
+
+    expect(text).toMatchObject({
+      content: expect.stringContaining("Join the support server"),
+    });
+    expect(row).toMatchObject({
+      type: ComponentType.ActionRow,
+      components: [
+        {
+          style: ButtonStyle.Link,
+          label: "Support server",
+          url: SUPPORT_SERVER_URL,
+        },
+      ],
+    });
   });
 
   test("error source defaults to broken without reading a select", async () => {

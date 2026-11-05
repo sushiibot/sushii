@@ -6,8 +6,9 @@ import type {
   APITextDisplayComponent,
   PermissionsBitField,
 } from "discord.js";
-import { ComponentType } from "discord.js";
+import { ButtonStyle, ComponentType } from "discord.js";
 
+import { SUPPORT_SERVER_URL } from "@/shared/presentation/supportServer";
 import {
   ALL_EMOJIS,
   KNOWN_MENTIONS,
@@ -52,13 +53,18 @@ function texts(container: APIContainerComponent): string[] {
     .map((c) => c.content);
 }
 
-function tabs(container: APIContainerComponent): APIButtonComponent[] {
-  const row = container.components.find(
-    (c) => c.type === ComponentType.ActionRow,
+function rows(container: APIContainerComponent): APIButtonComponent[][] {
+  return container.components.flatMap((c) =>
+    c.type === ComponentType.ActionRow
+      ? [c.components as APIButtonComponent[]]
+      : [],
   );
-  return row?.type === ComponentType.ActionRow
-    ? (row.components as APIButtonComponent[])
-    : [];
+}
+
+/** The tab row comes first; the footer row is always last. */
+function tabs(container: APIContainerComponent): APIButtonComponent[] {
+  const all = rows(container);
+  return all.length > 1 ? all[0] : [];
 }
 
 function countComponents(
@@ -202,7 +208,39 @@ describe("buildHelpPage fallbacks", () => {
     expect(content).toContain(
       "-# Search any command: `/help` `command:` · Full docs: <https://sushii.bot>",
     );
+    expect(content).toContain(
+      "-# Get sushii updates: `/settings` → Logging → sushii notifications",
+    );
   });
+});
+
+describe("buildHelpPage footer", () => {
+  test("points to sushii updates in /settings", () => {
+    const content = texts(render("members", PERMISSIONS.member)).join("\n");
+
+    expect(content).toContain(
+      "-# Get sushii updates: </settings:1300000000000000000> → Logging → sushii notifications",
+    );
+  });
+
+  for (const audience of ["members", "moderators", "admins"] as const) {
+    test(`${audience} tab ends with feedback for that tab and the support server`, () => {
+      const page = render(audience, PERMISSIONS.admin);
+      const last = page.components.at(-1);
+
+      expect(last).toMatchObject({
+        type: ComponentType.ActionRow,
+        components: [
+          { custom_id: `feedback/panel/help.${audience}`, label: "Feedback" },
+          {
+            style: ButtonStyle.Link,
+            label: "Support server",
+            url: SUPPORT_SERVER_URL,
+          },
+        ],
+      });
+    });
+  }
 });
 
 describe("buildHelpPage budget", () => {
