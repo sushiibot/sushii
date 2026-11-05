@@ -1,4 +1,5 @@
 import type { Client } from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
@@ -7,10 +8,18 @@ import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBa
 import type { SushiiUpdatesCaptureService } from "../../application/SushiiUpdatesCaptureService";
 import type { SushiiUpdatesRelayService } from "../../application/SushiiUpdatesRelayService";
 
+const SOURCE_ACCESS_ERRORS = new Set<number | string>([
+  RESTJSONErrorCodes.MissingAccess,
+  RESTJSONErrorCodes.MissingPermissions,
+  RESTJSONErrorCodes.UnknownChannel,
+]);
+const CATCH_UP_BACKOFF_MS = 30 * 60 * 1000;
+
 /** Each cluster forwards to the guilds in its own cache; delivery rows are the claims, so two processes never send the same delivery. */
 export class SushiiUpdatesRelayTask extends AbstractBackgroundTask {
   readonly name = "SushiiUpdatesRelay";
   readonly cronTime = "* * * * *";
+  private catchUpBlockedUntil = 0;
 
   constructor(
     client: Client,
@@ -43,11 +52,23 @@ export class SushiiUpdatesRelayTask extends AbstractBackgroundTask {
   private async runSourceClusterWork(): Promise<void> {
     // Each step is independent, and forwarding already-captured posts shouldn't wait on either.
     const botUserId = this.client.user?.id;
-    if (botUserId) {
+    if (botUserId && Date.now() >= this.catchUpBlockedUntil) {
       try {
         await this.capture.catchUp(botUserId);
       } catch (err) {
-        this.logger.error({ err }, "sushii updates catch-up failed");
+        // A permission problem on the source channel is an operator fix, not a bug; warn once per backoff.
+        if (
+          err instanceof DiscordAPIError &&
+          SOURCE_ACCESS_ERRORS.has(err.code)
+        ) {
+          this.catchUpBlockedUntil = Date.now() + CATCH_UP_BACKOFF_MS;
+          this.logger.warn(
+            { code: err.code, channelId: this.sourceChannelId },
+            "sushii can't read the sushii updates channel; check View Channel and Read Message History",
+          );
+        } else {
+          this.logger.error({ err }, "sushii updates catch-up failed");
+        }
       }
     }
     try {
