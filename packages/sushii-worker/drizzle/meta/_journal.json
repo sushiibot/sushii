@@ -547,6 +547,20 @@
       "when": 1793744763145,
       "tag": "0077_case_proof_backfill",
       "breakpoints": false
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793850770186,
+      "tag": "0078_drop-stale-rls",
+      "breakpoints": false
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1793850801083,
+      "tag": "0079_reader-role-grants",
+      "breakpoints": false
     }
   ]
 }

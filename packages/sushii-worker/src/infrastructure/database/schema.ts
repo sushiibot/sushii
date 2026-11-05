@@ -9,7 +9,6 @@ import {
   index,
   integer,
   jsonb,
-  pgPolicy,
   pgSchema,
   primaryKey,
   serial,
@@ -77,24 +76,13 @@ export const nameTypeInAppPublic = appPublic.enum("name_type", [
   "nickname",
 ]);
 
-export const cachedUsersInAppPublic = appPublic.table(
-  "cached_users",
-  {
-    id: bigint({ mode: "bigint" }).primaryKey().notNull(),
-    avatarUrl: text("avatar_url").notNull(),
-    name: text().notNull(),
-    discriminator: integer().notNull(),
-    lastChecked: timestamp("last_checked", { mode: "date" }).notNull(),
-  },
-  () => [
-    pgPolicy("select_all", {
-      as: "permissive",
-      for: "select",
-      to: ["public"],
-      using: sql`true`,
-    }),
-  ],
-);
+export const cachedUsersInAppPublic = appPublic.table("cached_users", {
+  id: bigint({ mode: "bigint" }).primaryKey().notNull(),
+  avatarUrl: text("avatar_url").notNull(),
+  name: text().notNull(),
+  discriminator: integer().notNull(),
+  lastChecked: timestamp("last_checked", { mode: "date" }).notNull(),
+});
 
 export const userNameHistoryInAppPublic = appPublic.table(
   "user_name_history",
@@ -190,32 +178,21 @@ export const failuresInAppHidden = appHidden.table("failures", {
     ),
 });
 
-export const cachedGuildsInAppPublic = appPublic.table(
-  "cached_guilds",
-  {
-    id: bigint({ mode: "bigint" }).primaryKey().notNull(),
-    name: text().notNull(),
-    icon: text(),
-    splash: text(),
-    banner: text(),
-    features: text().array().default([""]).notNull(),
-    memberCount: bigint("member_count", { mode: "bigint" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  () => [
-    pgPolicy("select_all", {
-      as: "permissive",
-      for: "select",
-      to: ["public"],
-      using: sql`true`,
-    }),
-  ],
-);
+export const cachedGuildsInAppPublic = appPublic.table("cached_guilds", {
+  id: bigint({ mode: "bigint" }).primaryKey().notNull(),
+  name: text().notNull(),
+  icon: text(),
+  splash: text(),
+  banner: text(),
+  features: text().array().default([""]).notNull(),
+  memberCount: bigint("member_count", { mode: "bigint" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
 
 export const messagesInAppPublic = appPublic.table(
   "messages",
@@ -246,110 +223,74 @@ export const messagesInAppPublic = appPublic.table(
   ],
 );
 
-export const guildConfigsInAppPublic = appPublic.table(
-  "guild_configs",
-  {
-    id: bigint({ mode: "bigint" }).primaryKey().notNull(),
-    prefix: text(),
-    joinMsg: text("join_msg"),
-    joinMsgEnabled: boolean("join_msg_enabled").default(true).notNull(),
-    joinReact: text("join_react"),
-    leaveMsg: text("leave_msg"),
-    leaveMsgEnabled: boolean("leave_msg_enabled").default(true).notNull(),
-    msgChannel: bigint("msg_channel", { mode: "bigint" }),
-    logMsg: bigint("log_msg", { mode: "bigint" }),
-    logMsgEnabled: boolean("log_msg_enabled").default(true).notNull(),
-    logMod: bigint("log_mod", { mode: "bigint" }),
-    logModEnabled: boolean("log_mod_enabled").default(true).notNull(),
-    logMember: bigint("log_member", { mode: "bigint" }),
-    logMemberEnabled: boolean("log_member_enabled").default(true).notNull(),
-    logReaction: bigint("log_reaction", { mode: "bigint" }),
-    logReactionEnabled: boolean("log_reaction_enabled").default(true).notNull(),
-    logSushiiNotifications: bigint("log_sushii_notifications", {
-      mode: "bigint",
-    }),
-    logSushiiNotificationsEnabled: boolean("log_sushii_notifications_enabled")
-      .default(true)
-      .notNull(),
+export const guildConfigsInAppPublic = appPublic.table("guild_configs", {
+  id: bigint({ mode: "bigint" }).primaryKey().notNull(),
+  prefix: text(),
+  joinMsg: text("join_msg"),
+  joinMsgEnabled: boolean("join_msg_enabled").default(true).notNull(),
+  joinReact: text("join_react"),
+  leaveMsg: text("leave_msg"),
+  leaveMsgEnabled: boolean("leave_msg_enabled").default(true).notNull(),
+  msgChannel: bigint("msg_channel", { mode: "bigint" }),
+  logMsg: bigint("log_msg", { mode: "bigint" }),
+  logMsgEnabled: boolean("log_msg_enabled").default(true).notNull(),
+  logMod: bigint("log_mod", { mode: "bigint" }),
+  logModEnabled: boolean("log_mod_enabled").default(true).notNull(),
+  logMember: bigint("log_member", { mode: "bigint" }),
+  logMemberEnabled: boolean("log_member_enabled").default(true).notNull(),
+  logReaction: bigint("log_reaction", { mode: "bigint" }),
+  logReactionEnabled: boolean("log_reaction_enabled").default(true).notNull(),
+  logSushiiNotifications: bigint("log_sushii_notifications", {
+    mode: "bigint",
+  }),
+  logSushiiNotificationsEnabled: boolean("log_sushii_notifications_enabled")
+    .default(true)
+    .notNull(),
 
-    // Moderation action default behavior
-    timeoutDmText: text("timeout_dm_text"),
-    // Via /timeout command
-    timeoutCommandDmEnabled: boolean("timeout_dm_enabled")
-      .default(true)
-      .notNull(),
-    // Via right click timeout
-    timeoutNativeDmEnabled: boolean("timeout_native_dm_enabled")
-      .default(true)
-      .notNull(),
+  // Moderation action default behavior
+  timeoutDmText: text("timeout_dm_text"),
+  // Via /timeout command
+  timeoutCommandDmEnabled: boolean("timeout_dm_enabled")
+    .default(true)
+    .notNull(),
+  // Via right click timeout
+  timeoutNativeDmEnabled: boolean("timeout_native_dm_enabled")
+    .default(true)
+    .notNull(),
 
-    warnDmText: text("warn_dm_text"),
-    // No warnDmEnabled, since it doesn't make sense to warn without a DM
+  warnDmText: text("warn_dm_text"),
+  // No warnDmEnabled, since it doesn't make sense to warn without a DM
 
-    banDmText: text("ban_dm_text"),
-    banDmEnabled: boolean("ban_dm_enabled").default(true).notNull(),
+  banDmText: text("ban_dm_text"),
+  banDmEnabled: boolean("ban_dm_enabled").default(true).notNull(),
 
-    kickDmText: text("kick_dm_text"),
-    kickDmEnabled: boolean("kick_dm_enabled").default(false).notNull(),
+  kickDmText: text("kick_dm_text"),
+  kickDmEnabled: boolean("kick_dm_enabled").default(false).notNull(),
 
-    // Other
-    disabledChannels: bigint("disabled_channels", { mode: "bigint" }).array(),
-    lookupDetailsOptIn: boolean("lookup_details_opt_in")
-      .default(false)
-      .notNull(),
-    lookupPrompted: boolean("lookup_prompted").default(false).notNull(),
-    // Automod settings
-    automodSpamEnabled: boolean("automod_spam_enabled")
-      .default(false)
-      .notNull(),
-    automodScamImageEnabled: boolean("automod_scam_image_enabled")
-      .default(false)
-      .notNull(),
-    automodAlertsChannelId: bigint("automod_alerts_channel_id", {
-      mode: "bigint",
-    }),
-    automodExemptRoleIds: bigint("automod_exempt_role_ids", {
-      mode: "bigint",
-    }).array(),
-  },
-  () => [
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
-    pgPolicy("update_managed_guild", {
-      as: "permissive",
-      for: "update",
-      to: ["public"],
-    }),
-    pgPolicy("select_managed_guild", {
-      as: "permissive",
-      for: "select",
-      to: ["public"],
-    }),
-  ],
-);
+  // Other
+  disabledChannels: bigint("disabled_channels", { mode: "bigint" }).array(),
+  lookupDetailsOptIn: boolean("lookup_details_opt_in").default(false).notNull(),
+  lookupPrompted: boolean("lookup_prompted").default(false).notNull(),
+  // Automod settings
+  automodSpamEnabled: boolean("automod_spam_enabled").default(false).notNull(),
+  automodScamImageEnabled: boolean("automod_scam_image_enabled")
+    .default(false)
+    .notNull(),
+  automodAlertsChannelId: bigint("automod_alerts_channel_id", {
+    mode: "bigint",
+  }),
+  automodExemptRoleIds: bigint("automod_exempt_role_ids", {
+    mode: "bigint",
+  }).array(),
+});
 
-export const scamImageHashesInAppPublic = appPublic.table(
-  "scam_image_hashes",
-  {
-    id: serial().primaryKey().notNull(),
-    phash: bigint({ mode: "bigint" }),
-    label: text(),
-    s3Key: text("s3_key"),
-    addedAt: timestamp("added_at", { mode: "date" }).defaultNow().notNull(),
-  },
-  () => [
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
-  ],
-);
+export const scamImageHashesInAppPublic = appPublic.table("scam_image_hashes", {
+  id: serial().primaryKey().notNull(),
+  phash: bigint({ mode: "bigint" }),
+  label: text(),
+  s3Key: text("s3_key"),
+  addedAt: timestamp("added_at", { mode: "date" }).defaultNow().notNull(),
+});
 
 export const scamCandidateSightingsInAppPublic = appPublic.table(
   "scam_candidate_sightings",
@@ -594,12 +535,6 @@ export const notificationsInAppPublic = appPublic.table(
       columns: [table.userId, table.guildId, table.keyword],
       name: "notifications_pkey",
     }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -614,12 +549,6 @@ export const xpBlocksInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.guildId, table.blockId],
       name: "xp_blocks_pkey",
-    }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
     }),
   ],
 );
@@ -666,12 +595,6 @@ export const notificationUserSettingsInAppPublic = appPublic.table(
       columns: [table.userId],
       name: "notification_user_settings_pkey",
     }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -697,12 +620,6 @@ export const levelRolesInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.guildId, table.roleId],
       name: "level_roles_pkey",
-    }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
     }),
     check("chk_add_before_remove", sql`add_level < remove_level`),
     check(
@@ -802,12 +719,6 @@ export const remindersInAppPublic = appPublic.table(
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.id], name: "reminders_pkey" }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -832,12 +743,6 @@ export const botStatsInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.name, table.category],
       name: "bot_stats_pkey",
-    }),
-    pgPolicy("select_stats", {
-      as: "permissive",
-      for: "select",
-      to: ["public"],
-      using: sql`true`,
     }),
   ],
 );
@@ -864,12 +769,6 @@ export const roleMenusInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.guildId, table.menuName],
       name: "role_menus_pkey",
-    }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
     }),
   ],
 );
@@ -898,12 +797,6 @@ export const roleMenuRolesInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.guildId, table.menuName, table.roleId],
       name: "role_menu_roles_pkey",
-    }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
     }),
   ],
 );
@@ -942,12 +835,6 @@ export const roleMenuMessagesInAppPublic = appPublic.table(
     primaryKey({
       columns: [table.guildId, table.menuName, table.messageId],
       name: "role_menu_messages_pkey",
-    }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
     }),
   ],
 );
@@ -1005,13 +892,6 @@ export const tagsInAppPublic = appPublic.table(
       table.tagName.asc().nullsLast().op("gin_trgm_ops"),
     ),
     primaryKey({ columns: [table.guildId, table.tagName], name: "tags_pkey" }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
-    pgPolicy("select_all", { as: "permissive", for: "select", to: ["public"] }),
   ],
 );
 
@@ -1032,13 +912,6 @@ export const userLevelsInAppPublic = appPublic.table(
       name: "user_levels_pkey",
     }),
     index("user_levels_last_msg_idx").on(table.lastMsg),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
-    pgPolicy("select_all", { as: "permissive", for: "select", to: ["public"] }),
   ],
 );
 
@@ -1120,12 +993,6 @@ export const modLogsInAppPublic = appPublic.table(
       columns: [table.guildId, table.caseId],
       name: "mod_logs_pkey",
     }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1146,12 +1013,6 @@ export const mutesInAppPublic = appPublic.table(
       name: "fk_mod_action",
     }),
     primaryKey({ columns: [table.guildId, table.userId], name: "mutes_pkey" }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1331,12 +1192,6 @@ export const guildPromptStatesInAppPublic = appPublic.table(
       columns: [table.guildId, table.promptId],
       name: "guild_prompt_states_pkey",
     }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1435,16 +1290,14 @@ export const messageVerificationsInAppPublic = appPublic.table(
       withTimezone: true,
       mode: "date",
     }).notNull(),
-    attachments: jsonb()
-      .notNull()
-      .$type<
-        {
-          filename: string;
-          contentType: string | null;
-          size: number;
-          url?: string;
-        }[]
-      >(),
+    attachments: jsonb().notNull().$type<
+      {
+        filename: string;
+        contentType: string | null;
+        size: number;
+        url?: string;
+      }[]
+    >(),
     channelContext: jsonb("channel_context").$type<
       | { type: "dm" }
       | { type: "group_dm"; name: string | null; recipients: string[] }
@@ -1497,12 +1350,6 @@ export const altIdentitiesInAppPublic = appPublic.table(
       columns: [table.guildId, table.id],
       name: "alt_identities_pkey",
     }),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1536,12 +1383,6 @@ export const altIdentityMembersInAppPublic = appPublic.table(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1564,12 +1405,6 @@ export const permissionUsageInAppPublic = appPublic.table(
     }),
     index("permission_usage_last_used_at_idx").on(table.lastUsedAt),
     index("permission_usage_user_id_idx").on(table.userId),
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
   ],
 );
 
@@ -1585,14 +1420,6 @@ export const permissionUsageCoverageInAppPublic = appPublic.table(
     backfillCoverage:
       jsonb("backfill_coverage").$type<Record<string, string>>(),
   },
-  () => [
-    pgPolicy("admin_access", {
-      as: "permissive",
-      for: "all",
-      to: ["sushii_admin"],
-      using: sql`true`,
-    }),
-  ],
 );
 
 export const screeningGuildsInAppPublic = appPublic.table("screening_guilds", {
