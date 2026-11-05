@@ -1,7 +1,6 @@
 import type { SettingsStatus } from "@/features/guild-settings/application/SettingsStatus";
 import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
-import type { SushiiUpdatesSettingsState } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
 import type { SettingsTab } from "../../session/settingsIds";
@@ -14,7 +13,7 @@ export interface PanelInput {
   status: SettingsStatus;
   screening: ScreeningSettingsState | null;
   ipGrabbers: IpGrabberSettingsState | null;
-  updates: SushiiUpdatesSettingsState | null;
+  sushiiUpdatesAvailable: boolean;
   ignoredChannelIds: string[];
   emojis: PanelEmojis;
   expired: boolean;

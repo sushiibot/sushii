@@ -72,7 +72,7 @@ function makeConfig(): GuildConfig {
       reactionLogEnabled: false,
       sushiiNotificationsChannel: null,
       sushiiNotificationsEnabled: true,
-      sushiiUpdatesWebhookId: null,
+      sushiiUpdatesEnabled: true,
     },
     {
       ...config.moderationSettings,
@@ -175,7 +175,7 @@ function makeCtx(
     status: makeStatus(),
     screening: SCREENING,
     ipGrabbers: IP_GRABBERS,
-    updates: null,
+    sushiiUpdatesAvailable: false,
     ignoredChannelIds: [IGNORED_A, IGNORED_B],
     ...overrides,
   };
@@ -1218,21 +1218,20 @@ describe("untouched submit keeps the current settings", () => {
 
 describe("notifications modal sushii updates", () => {
   const NOTIFY_CHANNEL = "200000000000000020";
-  const withChannel = () =>
-    makeConfig().updateLogChannel("notifications", NOTIFY_CHANNEL);
-  const updatesCtx = (
-    following: boolean,
-    config: GuildConfig = withChannel(),
-    optedOut = false,
-  ): ModalContext =>
+  const updatesCtx = (enabled: boolean): ModalContext =>
     makeCtx({
-      config,
+      config: makeConfig()
+        .updateLogChannel("notifications", NOTIFY_CHANNEL)
+        .setSushiiUpdatesEnabled(enabled),
       status: makeStatus({ logging: { notifications: ON } }),
-      updates: { following, optedOut, canManageWebhooks: true },
+      sushiiUpdatesAvailable: true,
     });
 
   test("hides the checkbox when the feature is off", () => {
-    const json = modalJson("notifications", makeCtx({ updates: null }));
+    const json = modalJson(
+      "notifications",
+      makeCtx({ sushiiUpdatesAvailable: false }),
+    );
 
     expect(json.components).toHaveLength(1);
     expect(json.components[0].description).toStartWith(
@@ -1240,122 +1239,42 @@ describe("notifications modal sushii updates", () => {
     );
   });
 
-  test.each([
-    {
-      name: "following",
-      following: true,
-      channel: true,
-      optedOut: false,
-      checked: true,
-    },
-    {
-      name: "no channel yet",
-      following: false,
-      channel: false,
-      optedOut: false,
-      checked: true,
-    },
-    {
-      name: "no channel, opted out",
-      following: false,
-      channel: false,
-      optedOut: true,
-      checked: false,
-    },
-    {
-      name: "channel set, undecided",
-      following: false,
-      channel: true,
-      optedOut: false,
-      checked: true,
-    },
-    {
-      name: "channel set, opted out",
-      following: false,
-      channel: true,
-      optedOut: true,
-      checked: false,
-    },
-  ])(
-    "checkbox defaults when $name",
-    ({ following, channel, optedOut, checked }) => {
-      const config = channel ? withChannel() : makeConfig();
-      const json = modalJson(
-        "notifications",
-        updatesCtx(following, config, optedOut),
-      );
+  test.each([true, false])("checkbox defaults to the stored %p", (enabled) => {
+    const json = modalJson("notifications", updatesCtx(enabled));
 
-      expect(json.components).toHaveLength(2);
-      expect(json.components[1].label).toBe("Also post sushii updates here");
-      expect(json.components[1].description).toBe(
-        "Posts about new sushii features",
-      );
-      expect(labelComponent(json, 1)).toMatchObject({
-        type: ComponentType.Checkbox,
-        custom_id: "updates",
-        default: checked,
-      });
-    },
-  );
+    expect(json.components).toHaveLength(2);
+    expect(json.components[1].label).toBe("Also post sushii updates here");
+    expect(json.components[1].description).toBe(
+      "Posts about new sushii features",
+    );
+    expect(labelComponent(json, 1)).toMatchObject({
+      type: ComponentType.Checkbox,
+      custom_id: "updates",
+      default: enabled,
+    });
+  });
 
-  test("parses the channel and the checkbox", () => {
+  test.each([true, false])("parses the checkbox as %p", (ticked) => {
     const patches = parse(
       "notifications",
       submit([
         channelSelect("channel", [MOD_CHANNEL]),
-        checkbox("updates", true),
+        checkbox("updates", ticked),
       ]),
-      updatesCtx(true),
+      updatesCtx(!ticked),
     );
 
     expect(patches).toEqual([
       { kind: "logChannel", log: "notifications", channelId: MOD_CHANNEL },
-      {
-        kind: "sushiiUpdates",
-        channelId: MOD_CHANNEL,
-        follow: true,
-        previousChannelId: NOTIFY_CHANNEL,
-        wasFollowing: true,
-        shownChecked: true,
-      },
+      { kind: "flag", setting: "sushiiUpdates", enabled: ticked },
     ]);
-  });
-
-  test("an opted-out guild changing channel keeps the box it saw", () => {
-    const patches = parse(
-      "notifications",
-      submit([
-        channelSelect("channel", [MOD_CHANNEL]),
-        checkbox("updates", false),
-      ]),
-      updatesCtx(false, withChannel(), true),
-    );
-
-    expect(patches[1]).toMatchObject({ follow: false, shownChecked: false });
-  });
-
-  test("an unticked, cleared submit asks to stop following", () => {
-    const patches = parse(
-      "notifications",
-      submit([channelSelect("channel", []), checkbox("updates", false)]),
-      updatesCtx(true),
-    );
-
-    expect(patches[1]).toEqual({
-      kind: "sushiiUpdates",
-      channelId: null,
-      follow: false,
-      previousChannelId: NOTIFY_CHANNEL,
-      wasFollowing: true,
-      shownChecked: true,
-    });
   });
 
   test("feature off parses only the channel", () => {
     const patches = parse(
       "notifications",
       submit([channelSelect("channel", [MOD_CHANNEL])]),
-      makeCtx({ updates: null }),
+      makeCtx({ sushiiUpdatesAvailable: false }),
     );
 
     expect(patches).toEqual([

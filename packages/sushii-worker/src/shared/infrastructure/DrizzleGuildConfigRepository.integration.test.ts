@@ -76,7 +76,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: true,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: true,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: "You have been muted",
@@ -139,7 +139,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: false,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: false,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -184,7 +184,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: false,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: false,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: false,
       },
       {
         timeoutDmText: "Muted!",
@@ -216,6 +216,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
     expect(savedConfig.disabledChannels).toEqual(["999"]);
 
     expect(retrievedConfig).toEqual(savedConfig);
+    expect(retrievedConfig.loggingSettings.sushiiUpdatesEnabled).toBe(false);
   });
 
   test("handles null values correctly", async () => {
@@ -241,7 +242,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: false,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: false,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -315,7 +316,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: false,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: false,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -368,7 +369,7 @@ describe("DrizzleGuildConfigRepository (Integration)", () => {
         reactionLogEnabled: true,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: true,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: null,

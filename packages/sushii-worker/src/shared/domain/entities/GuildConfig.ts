@@ -26,8 +26,8 @@ export interface LoggingSettings {
   reactionLogEnabled: boolean;
   sushiiNotificationsChannel: string | null;
   sushiiNotificationsEnabled: boolean;
-  /** Written only by the sushii-updates feature, never by `save()`. */
-  sushiiUpdatesWebhookId: string | null;
+  /** Relay sushii updates posts into the notifications channel. */
+  sushiiUpdatesEnabled: boolean;
 }
 
 export interface ModerationSettings {
@@ -101,7 +101,7 @@ export class GuildConfig {
         reactionLogEnabled: true,
         sushiiNotificationsChannel: null,
         sushiiNotificationsEnabled: true,
-        sushiiUpdatesWebhookId: null,
+        sushiiUpdatesEnabled: true,
       },
       {
         timeoutDmText: null,
@@ -285,6 +285,12 @@ export class GuildConfig {
   setReactionLogEnabled(enabled: boolean): GuildConfig {
     const config = this.clone();
     config.loggingSettings.reactionLogEnabled = enabled;
+    return config;
+  }
+
+  setSushiiUpdatesEnabled(enabled: boolean): GuildConfig {
+    const config = this.clone();
+    config.loggingSettings.sushiiUpdatesEnabled = enabled;
     return config;
   }
 

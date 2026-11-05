@@ -26,9 +26,6 @@ import type {
   ScreeningSettingsPort,
   ScreeningSettingsState,
 } from "@/features/member-screening/application/ScreeningSettingsPort";
-import type { SushiiUpdatesSettingsPort } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
-import { sushiiUpdatesSyncNeeded } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
-import { settingsOutcomeText } from "@/features/sushii-updates/presentation/updatesText";
 import { buildInternalErrorContainer } from "@/interactions/responses/error";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import { SlashCommandHandler } from "@/shared/presentation/handlers";
@@ -126,7 +123,7 @@ export default class SettingsCommand extends SlashCommandHandler {
     private readonly emojiRepository: BotEmojiRepository,
     private readonly screeningSettings: ScreeningSettingsPort | null,
     private readonly ipGrabberSettings: IpGrabberSettingsPort | null,
-    private readonly sushiiUpdates: SushiiUpdatesSettingsPort | null,
+    private readonly sushiiUpdatesAvailable: boolean,
     private readonly rejectionDeleteMs: number = REJECTION_DELETE_MS,
   ) {
     super();
@@ -192,8 +189,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       this.getScreening(guild.id),
       this.getIpGrabbers(guild),
     ]);
-    const updates =
-      (await this.sushiiUpdates?.getForSettings(guild, config)) ?? null;
     const channelHealth = checkChannelHealth(
       guild,
       configuredChannelIds(config, screening),
@@ -205,7 +200,7 @@ export default class SettingsCommand extends SlashCommandHandler {
       config,
       screening,
       ipGrabbers,
-      updates,
+      sushiiUpdatesAvailable: this.sushiiUpdatesAvailable,
       ignoredChannelIds,
       ...resolveModalPrefills(
         guild,
@@ -493,14 +488,6 @@ export default class SettingsCommand extends SlashCommandHandler {
       if (target === "ip-grabbers") {
         // defer: edits the server's AutoMod rules through Discord's API
         await submission.deferUpdate();
-      } else if (
-        patches.some(
-          (patch) =>
-            patch.kind === "sushiiUpdates" && sushiiUpdatesSyncNeeded(patch),
-        )
-      ) {
-        // defer: creates or deletes the sushii updates follower webhook through Discord's API
-        await submission.deferUpdate();
       }
 
       const notices: string[] = [];
@@ -567,13 +554,6 @@ export default class SettingsCommand extends SlashCommandHandler {
           providers: patch.providers,
         });
         return null;
-      case "sushiiUpdates": {
-        if (!this.sushiiUpdates) {
-          throw new Error("sushii updates patch without a sushii updates port");
-        }
-        const outcome = await this.sushiiUpdates.applySettings(guild, patch);
-        return settingsOutcomeText(outcome);
-      }
       default:
         await this.guildSettingsService.apply(guildId, patch);
         return null;

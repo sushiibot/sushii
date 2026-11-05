@@ -271,17 +271,18 @@ export function registerFeatures(
   const sushiiUpdatesFeature = setupSushiiUpdatesFeature({
     client,
     db,
-    guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
     deploymentService,
+    commandMentions,
     logger: logger.child({ feature: "SushiiUpdates" }),
     sourceChannelId: config.sushiiUpdatesChannelId,
   });
-  const { sushiiUpdatesService } = sushiiUpdatesFeature.services;
   configureFollowUpdatesPrompt(
-    sushiiUpdatesService && {
-      updates: sushiiUpdatesService,
-      guildConfigRepository: guildSettingsServices.guildConfigurationRepository,
-    },
+    sushiiUpdatesFeature.available
+      ? {
+          guildConfigRepository:
+            guildSettingsServices.guildConfigurationRepository,
+        }
+      : null,
   );
   const promptsFeature = setupPromptsFeature({ db, logger });
   const levelingFeature = setupLevelingFeature({
@@ -425,7 +426,7 @@ export function registerFeatures(
     botEmojiRepository: botEmojiFeature.services.botEmojiRepository,
     screeningSettings: memberScreeningFeature.services.settingsPort,
     ipGrabberSettings: ipGrabberLinksFeature.services.settingsPort,
-    sushiiUpdates: sushiiUpdatesService,
+    sushiiUpdatesAvailable: sushiiUpdatesFeature.available,
   });
 
   // Message log feature
@@ -595,6 +596,7 @@ export function registerFeatures(
     ...permissionAuditFeature.eventHandlers,
     ...memberScreeningFeature.eventHandlers,
     ...serverManagementFeature.eventHandlers,
+    ...sushiiUpdatesFeature.eventHandlers,
   ];
 
   // ---------------------------------------------------------------------------

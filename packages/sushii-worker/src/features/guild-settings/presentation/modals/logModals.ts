@@ -1,7 +1,5 @@
 import { ModalBuilder } from "discord.js";
 
-import { updatesCheckboxDefault } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
-
 import type { LogType, SettingsPatch } from "../../application/SettingsPatch";
 import { settingsIds } from "../session/settingsIds";
 import { compareSnowflakes } from "../utils/compareSnowflakes";
@@ -108,13 +106,13 @@ export function buildLogModal(
     );
   }
 
-  if (target === "notifications" && ctx.updates) {
+  if (target === "notifications" && ctx.sushiiUpdatesAvailable) {
     modal.addLabelComponents(
       checkboxLabel({
         label: "Also post sushii updates here",
         description: "Posts about new sushii features",
         customId: FIELD.updates,
-        checked: updatesCheckboxDefault(ctx.updates),
+        checked: ctx.config.loggingSettings.sushiiUpdatesEnabled,
       }),
     );
   }
@@ -132,14 +130,11 @@ export function parseLogModal(
     { kind: "logChannel", log: LOGS[target].log, channelId },
   ];
 
-  if (target === "notifications" && ctx.updates) {
+  if (target === "notifications" && ctx.sushiiUpdatesAvailable) {
     patches.push({
-      kind: "sushiiUpdates",
-      channelId,
-      follow: readCheckbox(submission, FIELD.updates),
-      previousChannelId: ctx.config.loggingSettings.sushiiNotificationsChannel,
-      wasFollowing: ctx.updates.following,
-      shownChecked: updatesCheckboxDefault(ctx.updates),
+      kind: "flag",
+      setting: "sushiiUpdates",
+      enabled: readCheckbox(submission, FIELD.updates),
     });
   }
 

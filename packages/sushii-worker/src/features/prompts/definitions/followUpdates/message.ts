@@ -1,8 +1,7 @@
 import type { InteractionUpdateOptions } from "discord.js";
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  type ButtonBuilder,
   ChannelSelectMenuBuilder,
   ChannelType,
   ContainerBuilder,
@@ -24,34 +23,17 @@ export const FOLLOW_UPDATES_SNOOZE_DAYS = 30;
 
 export const FOLLOW_UPDATES_ACTION = {
   pickChannel: "channel_select",
-  follow: "follow",
 } as const;
-
-const NO_SUPPORT_SERVER_NEEDED =
-  "-# You don't need to join the support server.";
 
 type ComponentsV2Update = InteractionUpdateOptions & {
   flags: MessageFlags.IsComponentsV2;
 };
 
-function snoozeAndDismiss(): ButtonBuilder[] {
-  return [
-    snoozeButton(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_SNOOZE_DAYS),
-    dismissButton(FOLLOW_UPDATES_ID),
-  ];
-}
-
-/** State A: no notifications channel yet. */
-export function buildPickChannelContent(
-  botHasManageWebhooks: boolean,
-): PromptContent {
-  const footer = botHasManageWebhooks
-    ? NO_SUPPORT_SERVER_NEEDED
-    : "-# ⚠️ sushii needs **Manage Webhooks** in that channel to post updates.";
+export function buildPickChannelContent(): PromptContent {
   const text = [
     "## 🔔 Pick a channel for sushii notifications",
     "sushii tells you there when something in your server needs fixing, like a missing permission. It also posts sushii updates about new features.",
-    footer,
+    "-# You don't need to join the support server.",
   ].join("\n");
 
   return {
@@ -68,39 +50,30 @@ export function buildPickChannelContent(
           .setMinValues(1)
           .setMaxValues(1),
       ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(snoozeAndDismiss()),
-    ],
-  };
-}
-
-/** State B: the notifications channel is set but doesn't follow updates. */
-export function buildFollowChannelContent(channelId: string): PromptContent {
-  const text = [
-    `## 📢 Get sushii updates in <#${channelId}> too?`,
-    `sushii already tells you in <#${channelId}> when something in your server needs fixing. It can also post sushii updates about new features there.`,
-    NO_SUPPORT_SERVER_NEEDED,
-  ].join("\n");
-
-  return {
-    text,
-    accentColor: Color.Info,
-    rows: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(
-            makeCustomId(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_ACTION.follow),
-          )
-          .setLabel("Follow sushii updates")
-          .setStyle(ButtonStyle.Primary),
-        ...snoozeAndDismiss(),
+        snoozeButton(FOLLOW_UPDATES_ID, FOLLOW_UPDATES_SNOOZE_DAYS),
+        dismissButton(FOLLOW_UPDATES_ID),
       ),
     ],
   };
 }
 
-function resultMessage(color: number, text: string): ComponentsV2Update {
-  const container = new ContainerBuilder().setAccentColor(color);
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+export function buildNotificationsOnMessage(
+  channelId: string,
+  updatesEnabled: boolean,
+): ComponentsV2Update {
+  const updates = updatesEnabled ? ", plus sushii updates" : "";
+  const container = new ContainerBuilder()
+    .setAccentColor(Color.Success)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        [
+          "## ✅ sushii notifications are on",
+          `sushii will post in <#${channelId}> when something needs fixing${updates}.`,
+          "-# Change this in /settings → Logging → sushii notifications.",
+        ].join("\n"),
+      ),
+    );
   return {
     components: [container],
     flags: MessageFlags.IsComponentsV2,
@@ -108,22 +81,6 @@ function resultMessage(color: number, text: string): ComponentsV2Update {
   };
 }
 
-export function buildFollowSuccessMessage(
-  channelId: string,
-): ComponentsV2Update {
-  return resultMessage(
-    Color.Success,
-    [
-      "## ✅ Following sushii updates",
-      `sushii updates will post in <#${channelId}>.`,
-      "-# Change or turn this off in /settings → Logging → sushii notifications.",
-    ].join("\n"),
-  );
-}
-
-export function buildFollowErrorMessage(reason: string): ComponentsV2Update {
-  return resultMessage(
-    Color.Error,
-    `## ❌ Couldn't follow sushii updates\n${reason}`,
-  );
+export function cantSendText(channelId: string): string {
+  return `sushii can't post in <#${channelId}>. Give it **View Channel** and **Send Messages** there, or pick another channel.`;
 }

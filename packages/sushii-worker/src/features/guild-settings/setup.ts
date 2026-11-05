@@ -4,7 +4,6 @@ import type { Logger } from "pino";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import type { IpGrabberSettingsPort } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsPort } from "@/features/member-screening/application/ScreeningSettingsPort";
-import type { SushiiUpdatesSettingsPort } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
 import type * as schema from "@/infrastructure/database/schema";
 import type { FeatureSetupWithServices } from "@/shared/types/FeatureSetup";
 
@@ -23,7 +22,7 @@ interface GuildSettingsDependencies {
   botEmojiRepository: BotEmojiRepository;
   screeningSettings: ScreeningSettingsPort | null;
   ipGrabberSettings: IpGrabberSettingsPort | null;
-  sushiiUpdates: SushiiUpdatesSettingsPort | null;
+  sushiiUpdatesAvailable: boolean;
 }
 
 export function createGuildSettingsServices({
@@ -67,7 +66,7 @@ export function createGuildSettingsCommands(
   botEmojiRepository: BotEmojiRepository,
   screeningSettings: ScreeningSettingsPort | null,
   ipGrabberSettings: IpGrabberSettingsPort | null,
-  sushiiUpdates: SushiiUpdatesSettingsPort | null,
+  sushiiUpdatesAvailable: boolean,
 ) {
   const { guildSettingsService, messageLogBlockService } = services;
 
@@ -79,7 +78,7 @@ export function createGuildSettingsCommands(
       botEmojiRepository,
       screeningSettings,
       ipGrabberSettings,
-      sushiiUpdates,
+      sushiiUpdatesAvailable,
     ),
   ];
 
@@ -105,7 +104,7 @@ export function setupGuildSettingsFeature({
   botEmojiRepository,
   screeningSettings,
   ipGrabberSettings,
-  sushiiUpdates,
+  sushiiUpdatesAvailable,
 }: GuildSettingsDependencies): FeatureSetupWithServices<GuildSettingsServices> {
   const commands = createGuildSettingsCommands(
     services,
@@ -113,7 +112,7 @@ export function setupGuildSettingsFeature({
     botEmojiRepository,
     screeningSettings,
     ipGrabberSettings,
-    sushiiUpdates,
+    sushiiUpdatesAvailable,
   );
   const events = createGuildSettingsEventHandlers(services, logger);
 

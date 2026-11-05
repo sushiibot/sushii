@@ -319,6 +319,21 @@ describe("GuildSettingsService.apply text and flag patches", () => {
     expect(moderationSettings.automodSpamEnabled).toBe(true);
     expect(moderationSettings.automodScamImageEnabled).toBe(true);
   });
+
+  test("the sushii updates flag turns updates off and back on", async () => {
+    const t = setup();
+    const patch = (enabled: boolean): GuildSettingsPatch => ({
+      kind: "flag",
+      setting: "sushiiUpdates",
+      enabled,
+    });
+
+    await t.service.apply(GUILD, patch(false));
+    expect(t.current().loggingSettings.sushiiUpdatesEnabled).toBe(false);
+
+    await t.service.apply(GUILD, patch(true));
+    expect(t.current().loggingSettings.sushiiUpdatesEnabled).toBe(true);
+  });
 });
 
 describe("GuildSettingsService.apply idempotence", () => {

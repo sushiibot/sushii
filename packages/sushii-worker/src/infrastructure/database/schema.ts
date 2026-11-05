@@ -36,6 +36,8 @@ import {
   type CaseProofSource,
 } from "@/features/moderation/shared/domain/entities/CaseProof";
 import type { FishyResult } from "@/features/social/domain";
+import { DELIVERY_STATUSES } from "@/features/sushii-updates/domain/UpdatePost";
+import type { DeliveryStatus } from "@/features/sushii-updates/domain/UpdatePost";
 
 export const appPublic = pgSchema("app_public");
 export const appHidden = pgSchema("app_hidden");
@@ -246,14 +248,9 @@ export const guildConfigsInAppPublic = appPublic.table("guild_configs", {
   logSushiiNotificationsEnabled: boolean("log_sushii_notifications_enabled")
     .default(true)
     .notNull(),
-  // Follower webhook for sushii's announcement channel, posting into the notifications channel
-  sushiiUpdatesWebhookId: bigint("sushii_updates_webhook_id", {
-    mode: "bigint",
-  }),
-  // Set once the guild was offered (or chose) updates, so the backfill never overrides a choice
-  sushiiUpdatesBackfilledAt: timestamp("sushii_updates_backfilled_at", {
-    mode: "date",
-  }),
+  sushiiUpdatesEnabled: boolean("sushii_updates_enabled")
+    .default(true)
+    .notNull(),
 
   // Moderation action default behavior
   timeoutDmText: text("timeout_dm_text"),
@@ -1223,6 +1220,54 @@ export const userPromptStatesInAppPublic = appPublic.table(
       table.lastPromptedAt,
     ),
   ],
+);
+
+export const sushiiUpdatePostsInAppPublic = appPublic.table(
+  "sushii_update_posts",
+  {
+    messageId: bigint("message_id", { mode: "bigint" }).primaryKey(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  },
+  (table) => [index("sushii_update_posts_created_at_idx").on(table.createdAt)],
+);
+
+export const sushiiUpdateDeliveriesInAppPublic = appPublic.table(
+  "sushii_update_deliveries",
+  {
+    postId: bigint("post_id", { mode: "bigint" }).notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    status: text("status").$type<DeliveryStatus>().notNull(),
+    messageId: bigint("message_id", { mode: "bigint" }),
+    errorCode: text("error_code"),
+    attempts: integer("attempts").notNull().default(1),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.postId, table.guildId],
+      name: "sushii_update_deliveries_pkey",
+    }),
+    foreignKey({
+      columns: [table.postId],
+      foreignColumns: [sushiiUpdatePostsInAppPublic.messageId],
+      name: "sushii_update_deliveries_post_id_fkey",
+    }).onDelete("cascade"),
+    index("sushii_update_deliveries_claimed_updated_at_idx")
+      .on(table.updatedAt)
+      .where(sql`${table.status} = 'claimed'`),
+    check(
+      "sushii_update_deliveries_status_check",
+      sql`${table.status} IN (${sql.raw(DELIVERY_STATUSES.map((s) => `'${s}'`).join(", "))})`,
+    ),
+  ],
+);
+
+export const sushiiUpdateIntrosInAppPublic = appPublic.table(
+  "sushii_update_intros",
+  {
+    guildId: bigint("guild_id", { mode: "bigint" }).primaryKey(),
+    sentAt: timestamp("sent_at", { mode: "date" }).notNull().defaultNow(),
+  },
 );
 
 export const scheduleMessagesInAppPublic = appPublic.table(

@@ -1,11 +1,6 @@
-import type { MessageComponentInteraction } from "discord.js";
+import type { Guild, MessageComponentInteraction } from "discord.js";
 import { MessageFlags, PermissionFlagsBits } from "discord.js";
 
-import type { SushiiUpdatesService } from "@/features/sushii-updates/application/SushiiUpdatesService";
-import {
-  followErrorText,
-  savedButNotFollowingText,
-} from "@/features/sushii-updates/presentation/updatesText";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
 
@@ -14,14 +9,12 @@ import {
   FOLLOW_UPDATES_ACTION,
   FOLLOW_UPDATES_ID,
   FOLLOW_UPDATES_SNOOZE_DAYS,
-  buildFollowChannelContent,
-  buildFollowErrorMessage,
-  buildFollowSuccessMessage,
+  buildNotificationsOnMessage,
   buildPickChannelContent,
+  cantSendText,
 } from "./message";
 
 export interface FollowUpdatesDependencies {
-  updates: Pick<SushiiUpdatesService, "follow">;
   guildConfigRepository: GuildConfigRepository;
 }
 
@@ -36,25 +29,36 @@ export function configureFollowUpdatesPrompt(
 }
 
 const FEATURE_OFF_REPLY = "sushii updates aren't available right now.";
-const NO_CHANNEL_REASON =
-  "Pick a sushii notifications channel in /settings → Logging first.";
 
-function notificationsChannel(config: GuildConfig): string | null {
+function hasNotificationsChannel(config: GuildConfig): boolean {
   const logs = config.loggingSettings;
-  return logs.sushiiNotificationsEnabled
-    ? logs.sushiiNotificationsChannel
-    : null;
+  return logs.sushiiNotificationsEnabled && !!logs.sushiiNotificationsChannel;
 }
 
-function pickedChannel(
-  i: MessageComponentInteraction<"cached">,
-): string | null {
-  if (!i.isChannelSelectMenu()) {
-    throw new Error("follow_updates channel picker is not a channel select", {
+function canSendIn(guild: Guild, channelId: string): boolean {
+  const channel = guild.channels.cache.get(channelId);
+  const me = guild.members.me;
+  if (!channel || !me || !channel.isSendable()) {
+    return false;
+  }
+  return (
+    channel
+      .permissionsFor(me)
+      ?.has([
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+      ]) ?? false
+  );
+}
+
+function pickedChannel(i: MessageComponentInteraction<"cached">): string {
+  const picked = i.isChannelSelectMenu() ? i.values[0] : undefined;
+  if (!picked) {
+    throw new Error("follow_updates channel picker sent no channel", {
       cause: { customId: i.customId },
     });
   }
-  return i.values[0] ?? null;
+  return picked;
 }
 
 export const followUpdatesPrompt: PromptDefinition = {
@@ -74,28 +78,11 @@ export const followUpdatesPrompt: PromptDefinition = {
     const config = await deps.guildConfigRepository.findByGuildId(
       interaction.guildId,
     );
-    return config.loggingSettings.sushiiUpdatesWebhookId === null;
+    return !hasNotificationsChannel(config);
   },
 
-  async build(interaction) {
-    if (!deps) {
-      throw new Error(
-        "follow_updates prompt built while sushii updates is off",
-      );
-    }
-    const config = await deps.guildConfigRepository.findByGuildId(
-      interaction.guildId,
-    );
-    const channelId = notificationsChannel(config);
-    if (channelId) {
-      return buildFollowChannelContent(channelId);
-    }
-
-    const botHasManageWebhooks =
-      interaction.guild.members.me?.permissions.has(
-        PermissionFlagsBits.ManageWebhooks,
-      ) ?? false;
-    return buildPickChannelContent(botHasManageWebhooks);
+  build() {
+    return buildPickChannelContent();
   },
 
   canAct(interaction) {
@@ -111,53 +98,34 @@ export const followUpdatesPrompt: PromptDefinition = {
       });
       return;
     }
-    const { updates, guildConfigRepository } = deps;
-
-    const isPicker = action === FOLLOW_UPDATES_ACTION.pickChannel;
-    if (!isPicker && action !== FOLLOW_UPDATES_ACTION.follow) {
+    if (action !== FOLLOW_UPDATES_ACTION.pickChannel) {
       throw new Error("Unknown follow_updates action", { cause: { action } });
     }
-    const picked = isPicker ? pickedChannel(i) : null;
 
-    // defer: creates a follower webhook through Discord's API
-    await i.deferUpdate();
+    const channelId = pickedChannel(i);
+    if (!canSendIn(i.guild, channelId)) {
+      await i.reply({
+        content: cantSendText(channelId),
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      });
+      return;
+    }
 
-    // The service serializes follows per guild, so a second click sees the first click's stored follow.
+    const { guildConfigRepository } = deps;
     const config = await guildConfigRepository.findByGuildId(i.guildId);
-    const current = notificationsChannel(config);
-    const alreadyIn = current ?? picked;
-    if (config.loggingSettings.sushiiUpdatesWebhookId && alreadyIn) {
-      await ctx.recordCompleted();
-      await i.editReply(buildFollowSuccessMessage(alreadyIn));
-      return;
-    }
-
-    const channelId = picked ?? current;
-    if (!channelId) {
-      await i.editReply(buildFollowErrorMessage(NO_CHANNEL_REASON));
-      return;
-    }
-
-    if (picked) {
-      await guildConfigRepository.save(
-        config
-          .updateLogChannel("notifications", picked)
-          .setLoggingEnabled("notifications", true),
-      );
-    }
-
-    const result = await updates.follow(i.guild, channelId, "prompt");
-    if (result.err) {
-      const reason = followErrorText(result.val, channelId);
-      await i.editReply(
-        buildFollowErrorMessage(
-          picked ? `${savedButNotFollowingText(channelId)} ${reason}` : reason,
-        ),
-      );
-      return;
-    }
+    await guildConfigRepository.save(
+      config
+        .updateLogChannel("notifications", channelId)
+        .setLoggingEnabled("notifications", true),
+    );
 
     await ctx.recordCompleted();
-    await i.editReply(buildFollowSuccessMessage(channelId));
+    await i.update(
+      buildNotificationsOnMessage(
+        channelId,
+        config.loggingSettings.sushiiUpdatesEnabled,
+      ),
+    );
   },
 };

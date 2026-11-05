@@ -1,31 +1,40 @@
 import { ValueType, metrics } from "@opentelemetry/api";
-import type { Counter } from "@opentelemetry/api";
+import type { Counter, Gauge } from "@opentelemetry/api";
 
-export type FollowSource = "settings" | "prompt" | "backfill";
+import type { DeliveryOutcome } from "../domain/UpdatePost";
 
 export class SushiiUpdatesMetrics {
-  readonly follows: Counter;
-  readonly unfollows: Counter;
+  readonly relays: Counter;
+  readonly postsCaptured: Counter;
+  readonly stuckClaims: Gauge;
 
   constructor() {
     const meter = metrics.getMeter("sushii-updates", "1.0");
 
-    this.follows = meter.createCounter("updates.follow", {
+    this.relays = meter.createCounter("updates.relay", {
+      description: "sushii updates posts forwarded to servers by outcome",
+      valueType: ValueType.INT,
+    });
+    this.postsCaptured = meter.createCounter("updates.posts_captured", {
+      description: "New posts stored from sushii's updates channel",
+      valueType: ValueType.INT,
+    });
+    this.stuckClaims = meter.createGauge("updates.stuck_claims", {
       description:
-        "Attempts to follow sushii's updates channel by source and outcome",
-      valueType: ValueType.INT,
-    });
-    this.unfollows = meter.createCounter("updates.unfollow", {
-      description: "Servers that stopped following sushii's updates channel",
+        "Deliveries claimed over 10 minutes ago and never finished, so never retried",
       valueType: ValueType.INT,
     });
   }
 
-  recordFollow(source: FollowSource, outcome: string): void {
-    this.follows.add(1, { source, outcome });
+  recordRelay(outcome: DeliveryOutcome): void {
+    this.relays.add(1, { outcome });
   }
 
-  recordUnfollow(source: FollowSource): void {
-    this.unfollows.add(1, { source });
+  recordPostCaptured(): void {
+    this.postsCaptured.add(1);
+  }
+
+  recordStuckClaims(count: number): void {
+    this.stuckClaims.record(count);
   }
 }

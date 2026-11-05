@@ -75,7 +75,7 @@ const envSchema = z.object({
   SCAM_IMAGE_STORE_ENDPOINT: z.string().optional(),
   SCAM_IMAGE_STORE_BUCKET: z.string().optional(),
 
-  // sushii's announcement channel that servers follow; unset = updates following disabled
+  // sushii's announcement channel whose published posts are relayed; unset = sushii updates off
   SUSHII_UPDATES_CHANNEL_ID: z.string().regex(/^\d+$/).optional(),
 });
 

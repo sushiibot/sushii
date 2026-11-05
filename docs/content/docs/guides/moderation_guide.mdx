@@ -12,7 +12,7 @@ a member's history.
 
 ## Setup
 
-{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @ada51f13, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @8f995578 */}
+{/* source: packages/sushii-worker/src/features/guild-settings/presentation/views/panel/SettingsPanel.ts#TAB_LABELS @6e5db27b, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/LoggingPanel.ts#LOG_ROWS @ada51f13, packages/sushii-worker/src/features/guild-settings/application/GuildSettingsService.ts#applyPatch @856ec040 */}
 
 Before anything else, point sushii at a private moderation log channel via
 **`/settings` → Logging → Mod log**. Click **Edit** and pick a channel. Once
@@ -151,7 +151,7 @@ closed, it's noted in the mod log.
 /tempban-list
 ```
 
-{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @83dd79dd, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Ban" @a493814c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Kick" @71fbb3b5 */}
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @2d7829f6, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildBanModal @c5e5f8b1, packages/sushii-worker/src/features/guild-settings/presentation/modals/dmModals.ts#buildKickModal @22343e37, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Ban" @a493814c, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Kick" @71fbb3b5 */}
 
 By default, sushii DMs the reason for bans but not for kicks. Change the
 defaults with the **Ban** and **Kick** rows in **`/settings` → Moderation**,
@@ -175,7 +175,7 @@ actioned elsewhere.
 The command is available to servers that are Discord-discoverable with 1,000+
 members, or that are Discord-partnered or verified.
 
-{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @83dd79dd, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/moderation/cases/presentation/views/LookupBanEntryFormatter.ts#formatBanEntry @d711770e */}
+{/* source: packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @2d7829f6, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/ModerationPanel.ts#"Lookup sharing" @25dae587, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/panelParts.ts#toggleButton @ccc0b67d, packages/sushii-worker/src/features/moderation/cases/presentation/views/LookupBanEntryFormatter.ts#formatBanEntry @d711770e */}
 
 <Callout type="info" title="Sharing is opt-in">
   By default, your server's name and ban reasons are hidden when other servers

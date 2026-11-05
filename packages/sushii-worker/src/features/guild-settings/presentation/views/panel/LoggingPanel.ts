@@ -77,16 +77,12 @@ function updatesDetail(
     state.kind === "on" ||
     (state.kind === "attention" &&
       state.problem.kind === "missing_permissions");
-  if (!input.updates || !channelId || !channelExists) {
+  if (!input.sushiiUpdatesAvailable || !channelId || !channelExists) {
     return null;
   }
-  if (input.updates.following) {
-    return "📢 Following sushii updates";
-  }
-  if (!input.updates.canManageWebhooks) {
-    return "⚠️ sushii needs **Manage Webhooks** here to post updates";
-  }
-  return "Updates off";
+  return input.config.loggingSettings.sushiiUpdatesEnabled
+    ? "📢 sushii updates on"
+    : "sushii updates off";
 }
 
 function logValue(state: RowState, channelId: string | null): string {

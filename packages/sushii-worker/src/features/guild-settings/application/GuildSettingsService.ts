@@ -85,6 +85,8 @@ function applyPatch(
           return config.setAutomodSpamEnabled(patch.enabled);
         case "automodScamImage":
           return config.setAutomodScamImageEnabled(patch.enabled);
+        case "sushiiUpdates":
+          return config.setSushiiUpdatesEnabled(patch.enabled);
       }
   }
 }

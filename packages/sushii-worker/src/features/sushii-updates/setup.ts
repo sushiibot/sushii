@@ -3,24 +3,21 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import { FOLLOW_UPDATES_ID } from "@/features/prompts/definitions/followUpdates/message";
-import { DrizzlePromptStateRepository } from "@/features/prompts/infrastructure/DrizzlePromptStateRepository";
 import type * as schema from "@/infrastructure/database/schema";
-import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
-import { SushiiNotificationService } from "@/shared/infrastructure/SushiiNotificationService";
+import type { CommandMentions } from "@/shared/presentation/commandMentions";
 
-import { SushiiUpdatesBackfillService } from "./application/SushiiUpdatesBackfillService";
-import { SushiiUpdatesService } from "./application/SushiiUpdatesService";
+import { SushiiUpdatesCaptureService } from "./application/SushiiUpdatesCaptureService";
+import { SushiiUpdatesRelayService } from "./application/SushiiUpdatesRelayService";
 import { DrizzleSushiiUpdatesRepository } from "./infrastructure/DrizzleSushiiUpdatesRepository";
 import { SushiiUpdatesMetrics } from "./infrastructure/SushiiUpdatesMetrics";
-import { SushiiUpdatesBackfillTask } from "./infrastructure/tasks/SushiiUpdatesBackfillTask";
-import { BACKFILL_NOTICE } from "./presentation/updatesText";
+import { SushiiUpdatesRelayTask } from "./infrastructure/tasks/SushiiUpdatesRelayTask";
+import { UpdatesPublishHandler } from "./presentation/events/UpdatesPublishHandler";
 
 interface SushiiUpdatesDependencies {
   client: Client;
   db: NodePgDatabase<typeof schema>;
-  guildConfigRepository: GuildConfigRepository;
   deploymentService: DeploymentService;
+  commandMentions: CommandMentions;
   logger: Logger;
   /** Unset turns the whole feature off. */
   sourceChannelId: string | undefined;
@@ -29,55 +26,44 @@ interface SushiiUpdatesDependencies {
 export function setupSushiiUpdatesFeature({
   client,
   db,
-  guildConfigRepository,
   deploymentService,
+  commandMentions,
   logger,
   sourceChannelId,
 }: SushiiUpdatesDependencies) {
   if (!sourceChannelId) {
-    return { services: { sushiiUpdatesService: null }, tasks: [] };
+    return { available: false, eventHandlers: [], tasks: [] };
   }
 
   const repository = new DrizzleSushiiUpdatesRepository(db);
-  const promptStates = new DrizzlePromptStateRepository(db);
-  const promptSubject = (guildId: string) =>
-    ({ scope: "guild", id: BigInt(guildId) }) as const;
-  const service = new SushiiUpdatesService(
+  const metrics = new SushiiUpdatesMetrics();
+  const capture = new SushiiUpdatesCaptureService(
     client.rest,
     sourceChannelId,
     repository,
-    guildConfigRepository,
-    new SushiiUpdatesMetrics(),
-    {
-      record: (guildId) =>
-        promptStates.recordDismissed(promptSubject(guildId), FOLLOW_UPDATES_ID),
-      isOptedOut: async (guildId) =>
-        !!(await promptStates.find(promptSubject(guildId), FOLLOW_UPDATES_ID))
-          ?.dismissedAt,
-    },
-    logger.child({ component: "SushiiUpdatesService" }),
+    metrics,
+    logger.child({ component: "SushiiUpdatesCaptureService" }),
   );
-
-  const backfill = new SushiiUpdatesBackfillService(
+  const relay = new SushiiUpdatesRelayService(
+    client.rest,
+    sourceChannelId,
     repository,
-    service,
-    new SushiiNotificationService(
-      client,
-      guildConfigRepository,
-      logger.child({ component: "SushiiNotificationService" }),
-    ),
-    BACKFILL_NOTICE,
-    logger.child({ component: "SushiiUpdatesBackfillService" }),
+    metrics,
+    commandMentions,
+    logger.child({ component: "SushiiUpdatesRelayService" }),
   );
 
   return {
-    services: { sushiiUpdatesService: service },
+    available: true,
+    eventHandlers: [new UpdatesPublishHandler(sourceChannelId, capture)],
     tasks: [
-      new SushiiUpdatesBackfillTask(
+      new SushiiUpdatesRelayTask(
         client,
         deploymentService,
-        logger.child({ component: "SushiiUpdatesBackfillTask" }),
-        backfill,
+        logger.child({ component: "SushiiUpdatesRelayTask" }),
+        sourceChannelId,
+        capture,
+        relay,
       ),
     ],
   };

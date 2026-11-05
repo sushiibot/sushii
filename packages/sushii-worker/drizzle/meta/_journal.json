@@ -575,6 +575,13 @@
       "when": 1793861594051,
       "tag": "0081_sushii-updates-follow",
       "breakpoints": false
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793904980118,
+      "tag": "0082_sushii-updates-relay",
+      "breakpoints": false
     }
   ]
 }

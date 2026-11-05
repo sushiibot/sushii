@@ -11,7 +11,6 @@ import type {
 import { computeSettingsStatus } from "@/features/guild-settings/application/SettingsStatus";
 import type { IpGrabberSettingsState } from "@/features/ip-grabber-links/application/IpGrabberSettingsPort";
 import type { ScreeningSettingsState } from "@/features/member-screening/application/ScreeningSettingsPort";
-import type { SushiiUpdatesSettingsState } from "@/features/sushii-updates/application/SushiiUpdatesSettingsPort";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import Color from "@/utils/colors";
 
@@ -111,7 +110,7 @@ interface Fixture {
   config: GuildConfig;
   screening?: ScreeningSettingsState | null;
   ipGrabbers?: IpGrabberSettingsState | null;
-  updates?: SushiiUpdatesSettingsState | null;
+  sushiiUpdatesAvailable?: boolean;
   health?: [string, ChannelHealth][];
 }
 
@@ -133,7 +132,7 @@ function makeInput(
     }),
     screening,
     ipGrabbers,
-    updates: fixture.updates ?? null,
+    sushiiUpdatesAvailable: fixture.sushiiUpdatesAvailable ?? false,
     ignoredChannelIds: [CH.botspam, CH.memes],
     emojis: EMOJIS,
     expired: false,
@@ -478,6 +477,34 @@ describe("buildSettingsPanel", () => {
         expect(b.style).toBe(ButtonStyle.Secondary);
         expect(b.disabled ?? false).toBe(false);
       }
+    });
+
+    test.each([
+      { available: true, enabled: true, detail: "📢 sushii updates on" },
+      { available: true, enabled: false, detail: "sushii updates off" },
+    ])(
+      "sushii updates detail when enabled=$enabled",
+      ({ available, enabled, detail }) => {
+        const config = typical()
+          .config.updateLogChannel("notifications", CH.member)
+          .setLoggingEnabled("notifications", true)
+          .setSushiiUpdatesEnabled(enabled);
+        const text = allText(
+          toJson(
+            makeInput("logging", { config, sushiiUpdatesAvailable: available }),
+          ),
+        );
+        expect(text).toContain(`-# ${detail}`);
+      },
+    );
+
+    test("no sushii updates detail when the feature is off", () => {
+      const config = typical().config.updateLogChannel(
+        "notifications",
+        CH.member,
+      );
+      const text = allText(toJson(makeInput("logging", { config })));
+      expect(text).not.toContain("sushii updates on");
     });
 
     test("expired disables accessories", () => {
@@ -945,11 +972,7 @@ describe("budgets", () => {
           ruleName: "r".repeat(100),
           problem: "rule_full",
         },
-        updates: {
-          following: false,
-          optedOut: false,
-          canManageWebhooks: false,
-        },
+        sushiiUpdatesAvailable: true,
         ignoredChannelIds: Array.from(
           { length: ignoredCount },
           (_, i) => `1029384756102939${String(i).padStart(3, "0")}`,
