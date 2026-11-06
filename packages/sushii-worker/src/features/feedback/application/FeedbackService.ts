@@ -1,3 +1,7 @@
+import {
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -33,6 +37,7 @@ export class FeedbackService {
     private readonly publisher: FeedbackPublisher,
     private readonly metrics: FeedbackMetrics,
     private readonly logger: Logger,
+    private readonly productEvents: ProductEventTracker = noopProductEvents,
   ) {}
 
   async submit(
@@ -64,6 +69,13 @@ export class FeedbackService {
       });
       return Err("rate_limited");
     }
+
+    this.productEvents.track({
+      name: "feedback.submitted",
+      userId: input.userId,
+      guildId: input.guildId,
+      props: { source: input.source, kind: input.kind },
+    });
 
     let published: PublishOutcome;
     try {

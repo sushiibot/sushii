@@ -1,3 +1,4 @@
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
@@ -21,6 +22,7 @@ interface SushiiUpdatesDependencies {
   logger: Logger;
   /** Unset turns the whole feature off. */
   sourceChannelId: string | undefined;
+  productEvents: ProductEventTracker;
 }
 
 export function setupSushiiUpdatesFeature({
@@ -30,6 +32,7 @@ export function setupSushiiUpdatesFeature({
   commandMentions,
   logger,
   sourceChannelId,
+  productEvents,
 }: SushiiUpdatesDependencies) {
   if (!sourceChannelId) {
     return { available: false, eventHandlers: [], tasks: [] };
@@ -49,6 +52,8 @@ export function setupSushiiUpdatesFeature({
     metrics,
     commandMentions,
     logger.child({ component: "SushiiUpdatesRelayService" }),
+    undefined,
+    productEvents,
   );
 
   return {

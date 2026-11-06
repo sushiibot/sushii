@@ -4,6 +4,8 @@ import {
   bigserial,
   boolean,
   check,
+  customType,
+  date,
   doublePrecision,
   foreignKey,
   index,
@@ -1618,6 +1620,82 @@ export const feedbackInAppPublic = appPublic.table(
   (table) => [
     index("feedback_user_id_created_at_idx").on(table.userId, table.createdAt),
   ],
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+export const productEventsInAppPublic = appPublic.table(
+  "product_events",
+  {
+    id: bigint("id", { mode: "bigint" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    occurredAt: timestamp("occurred_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    name: text().notNull(),
+    feature: text().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }),
+    actor: bytea(),
+    props: jsonb()
+      .$type<Readonly<Record<string, string>>>()
+      .default({})
+      .notNull(),
+  },
+  (table) => [
+    index("product_events_occurred_at_idx").on(table.occurredAt),
+    index("product_events_name_occurred_at_idx").on(
+      table.name,
+      table.occurredAt,
+    ),
+    index("product_events_actor_idx").on(table.actor),
+  ],
+);
+
+export const productUsageWeeklyInAppPublic = appPublic.table(
+  "product_usage_weekly",
+  {
+    week: date().notNull(),
+    feature: text().notNull(),
+    guilds: integer(),
+    actors: integer(),
+    events: integer().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.week, table.feature],
+      name: "product_usage_weekly_pkey",
+    }),
+  ],
+);
+
+export const productRetentionWeeklyInAppPublic = appPublic.table(
+  "product_retention_weekly",
+  {
+    cohortWeek: date("cohort_week").notNull(),
+    unit: text().$type<"user" | "guild">().notNull(),
+    feature: text().notNull(),
+    weeksLater: smallint("weeks_later").notNull(),
+    base: integer(),
+    retained: integer(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.cohortWeek, table.unit, table.feature, table.weeksLater],
+      name: "product_retention_weekly_pkey",
+    }),
+  ],
+);
+
+export const productRollupStateInAppPublic = appPublic.table(
+  "product_rollup_state",
+  {
+    id: boolean().primaryKey().default(true),
+    watermark: date().notNull(),
+  },
+  (table) => [check("product_rollup_state_single_row", sql`${table.id}`)],
 );
 
 export const reasonTemplatesInAppPublic = appPublic.table(

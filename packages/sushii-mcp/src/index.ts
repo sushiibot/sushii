@@ -1,5 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
+import { ANALYTICS_PATH_PREFIX, handleAnalyticsRequest } from "./analytics.ts";
 import { checkBearerToken } from "./auth.ts";
 import { config } from "./config.ts";
 import { initDatabase } from "./db.ts";
@@ -30,6 +31,15 @@ Bun.serve({
 
       await server.connect(transport);
       return transport.handleRequest(req);
+    }
+
+    if (url.pathname.startsWith(ANALYTICS_PATH_PREFIX)) {
+      return handleAnalyticsRequest(
+        req,
+        url.pathname,
+        db,
+        secrets.ANALYTICS_AUTH_TOKEN,
+      );
     }
 
     return new Response("Not Found", { status: 404 });

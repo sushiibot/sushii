@@ -1,3 +1,7 @@
+import {
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
 import { type Client, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
@@ -109,6 +113,7 @@ export class ModerationExecutionPipeline {
       ModerationMetrics,
       "recordProofAdded"
     > = NOOP_MODERATION_METRICS,
+    private readonly productEvents: ProductEventTracker = noopProductEvents,
   ) {}
 
   /**
@@ -570,6 +575,12 @@ export class ModerationExecutionPipeline {
       outcome = "ok";
     } finally {
       this.metrics.recordProofAdded("action", outcome);
+      this.productEvents.track({
+        name: "proof.added",
+        userId: executorId,
+        guildId: cases[0].guildId,
+        props: { source: "action", outcome },
+      });
     }
 
     for (const moderationCase of cases) {

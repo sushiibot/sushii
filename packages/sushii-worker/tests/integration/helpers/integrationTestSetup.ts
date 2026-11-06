@@ -14,6 +14,7 @@ import { setupGiveawayFeature } from "@/features/giveaways/setup";
 import { createLevelingServices } from "@/features/leveling/setup";
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupPermissionAuditFeature } from "@/features/permission-audit";
+import { noopProductEvents } from "@/features/product-analytics/domain/ProductEvent";
 import { setupUserNameHistoryFeature } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
@@ -120,6 +121,7 @@ export async function setupIntegrationTest(): Promise<IntegrationTestServices> {
     permissionUsageRecorder:
       permissionAuditFeature.services.permissionUsageRecorder,
     promptOffer: { offer: async () => undefined },
+    productEvents: noopProductEvents,
   });
 
   // Create giveaway services with mock client

@@ -25,6 +25,12 @@ import {
 
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import {
+  type ProductEventName,
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
+import { featureForHandler } from "@/features/product-analytics/domain/features";
+import {
   type ReplyableInteraction,
   interactionReplyErrorInternal,
 } from "@/interactions/responses/error";
@@ -115,6 +121,27 @@ export function findFocusedOption(
   };
 }
 
+function productEventNameFor(
+  interaction: Interaction,
+): ProductEventName | undefined {
+  if (interaction.isChatInputCommand()) {
+    return "interaction.command";
+  }
+  if (interaction.isContextMenuCommand()) {
+    return "interaction.context_menu";
+  }
+  if (interaction.isButton()) {
+    return "interaction.button";
+  }
+  if (interaction.isAnySelectMenu()) {
+    return "interaction.select";
+  }
+  if (interaction.isModalSubmit()) {
+    return "interaction.modal";
+  }
+  return undefined;
+}
+
 export type AfterCommandHook = (
   interaction: ChatInputCommandInteraction,
 ) => Promise<void>;
@@ -124,6 +151,8 @@ export default class InteractionRouter {
    * Runs after a slash command handler finishes without throwing. Must not throw.
    */
   private afterCommandHook: AfterCommandHook | null = null;
+
+  private productEvents: ProductEventTracker = noopProductEvents;
 
   /**
    * Discord client
@@ -456,6 +485,72 @@ export default class InteractionRouter {
     }
 
     log.info("commands registered!");
+  }
+
+  public setProductEvents(tracker: ProductEventTracker): void {
+    this.productEvents = tracker;
+  }
+
+  private handlerNameFor(interaction: Interaction): string | undefined {
+    if (interaction.isChatInputCommand()) {
+      const guildCommand = interaction.guildId
+        ? this.guildCommands
+            .get(interaction.guildId)
+            ?.get(interaction.commandName)
+        : undefined;
+      const handler =
+        guildCommand ?? this.commands.get(interaction.commandName);
+      return handler?.constructor.name;
+    }
+    if (interaction.isContextMenuCommand()) {
+      return this.contextMenuHandlers.get(interaction.commandName)?.constructor
+        .name;
+    }
+
+    let handlers: readonly (ButtonHandler | SelectMenuHandler | ModalHandler)[];
+    if (interaction.isButton()) {
+      handlers = this.buttonHandlers;
+    } else if (interaction.isAnySelectMenu()) {
+      handlers = this.selectMenuHandlers;
+    } else if (interaction.isModalSubmit()) {
+      handlers = this.modalHandlers;
+    } else {
+      return undefined;
+    }
+
+    const { customId } = interaction;
+    return handlers.find((handler) => handler.customIDMatch(customId) !== false)
+      ?.constructor.name;
+  }
+
+  /** Records the route, never the custom ID or options, which can hold IDs and user input. */
+  private trackInteraction(
+    interaction: Interaction,
+    status: "success" | "error",
+  ): void {
+    const name = productEventNameFor(interaction);
+    if (!name) {
+      return;
+    }
+
+    try {
+      const handlerName = this.handlerNameFor(interaction);
+      this.productEvents.track({
+        name,
+        feature: featureForHandler(handlerName),
+        userId: interaction.user.id,
+        guildId: interaction.guildId,
+        props: {
+          route: interaction.isChatInputCommand()
+            ? getFullCommandName(interaction)
+            : (handlerName ?? "unmatched"),
+          status,
+        },
+      });
+    } catch (err) {
+      // Best-effort: analytics must never turn into a failed interaction.
+      log.warn({ err }, "Failed to track interaction");
+    }
   }
 
   private async safeReplyInternalError(
@@ -1024,6 +1119,7 @@ export default class InteractionRouter {
 
           const status = success ? "success" : "error";
           this.interactionMetrics.recordInteraction(interaction, status);
+          this.trackInteraction(interaction, status);
 
           return undefined;
         } catch (err) {
@@ -1040,6 +1136,7 @@ export default class InteractionRouter {
             "unhandled error handling interaction",
           );
           this.interactionMetrics.recordInteraction(interaction, "error");
+          this.trackInteraction(interaction, "error");
         } finally {
           span.end();
         }

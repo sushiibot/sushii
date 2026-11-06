@@ -2,6 +2,7 @@ import { WebhookClient } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type * as schema from "@/infrastructure/database/schema";
 
 import { FeedbackService } from "./application/FeedbackService";
@@ -20,12 +21,14 @@ export interface FeedbackFeatureOptions {
   db: NodePgDatabase<typeof schema>;
   webhookUrl: string | undefined;
   logger: Logger;
+  productEvents: ProductEventTracker;
 }
 
 export function setupFeedbackFeature({
   db,
   webhookUrl,
   logger,
+  productEvents,
 }: FeedbackFeatureOptions): FeedbackFeature {
   const feedbackService = new FeedbackService(
     new DrizzleFeedbackRepository(db),
@@ -35,6 +38,7 @@ export function setupFeedbackFeature({
     ),
     new FeedbackMetrics(),
     logger.child({ component: "FeedbackService" }),
+    productEvents,
   );
 
   return {

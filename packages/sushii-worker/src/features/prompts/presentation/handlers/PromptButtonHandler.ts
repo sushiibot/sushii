@@ -46,7 +46,7 @@ async function handlePromptComponent(
   }
 
   const ctx = service.actionContext(prompt, interaction);
-  service.recordAction(prompt.id, parsed.action);
+  service.recordAction(prompt.id, parsed.action, interaction);
 
   if (parsed.action === "snooze") {
     await service.recordSnoozed(prompt, ctx.subject);

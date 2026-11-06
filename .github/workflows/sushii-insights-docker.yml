@@ -1,0 +1,42 @@
+name: Build and Deploy sushii-insights
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/sushii-insights/**"
+      - ".github/workflows/sushii-insights-docker.yml"
+
+permissions: {}
+
+jobs:
+  docker-build:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: sushiibot/sushii-workflows/.github/workflows/build-verified.yml@3bb8de95bb1bdc4c5368aac3be8af86118290097
+    with:
+      image_name: ghcr.io/sushiibot/sushii-insights
+      dockerfile: packages/sushii-insights/Dockerfile
+
+  deploy:
+    name: Release verified insights image
+    needs: docker-build
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+      statuses: write
+      id-token: write
+      attestations: write
+    uses: sushiibot/sushii-workflows/.github/workflows/release-auto.yml@3bb8de95bb1bdc4c5368aac3be8af86118290097
+    with:
+      target: insights
+      image_name: ghcr.io/sushiibot/sushii-insights
+      artifact_digest: ${{ needs.docker-build.outputs.artifact_digest }}
+      environment: sushii-insights
+    secrets:
+      SUSHII_CI_PRIVATE_KEY: ${{ secrets.SUSHII_CI_PRIVATE_KEY }}

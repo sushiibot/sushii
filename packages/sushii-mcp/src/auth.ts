@@ -1,3 +1,10 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
+function sameToken(a: string, b: string): boolean {
+  const digest = (value: string) => createHash("sha256").update(value).digest();
+  return timingSafeEqual(digest(a), digest(b));
+}
+
 export function checkBearerToken(req: Request, token: string): boolean {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
@@ -9,5 +16,5 @@ export function checkBearerToken(req: Request, token: string): boolean {
     return false;
   }
 
-  return parts[1] === token;
+  return sameToken(parts[1], token);
 }

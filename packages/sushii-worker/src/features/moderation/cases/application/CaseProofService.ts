@@ -1,3 +1,4 @@
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -103,6 +104,7 @@ export interface CaseProofServiceDeps {
   responseRegistry: Pick<ActionResponseRegistry, "markStale">;
   proofChangeListener: ProofChangeListener;
   metrics: Pick<ModerationMetrics, "recordProofAdded">;
+  productEvents?: ProductEventTracker;
   logger: Logger;
   download?: typeof downloadProofSource;
 }
@@ -133,6 +135,12 @@ export class CaseProofService {
     } finally {
       if (!input.fallback) {
         this.deps.metrics.recordProofAdded(input.kind, outcome);
+        this.deps.productEvents?.track({
+          name: "proof.added",
+          userId: input.authorId,
+          guildId: input.guildId,
+          props: { source: input.kind, outcome },
+        });
       }
     }
   }

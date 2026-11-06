@@ -1,3 +1,4 @@
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
@@ -118,6 +119,7 @@ interface ModerationDependencies {
   setNicknameService: SetNicknameService;
   permissionUsageRecorder: PermissionUsageRecorder;
   promptOffer: PromptOffer;
+  productEvents: ProductEventTracker;
 }
 
 interface ModerationTaskDependencies extends ModerationDependencies {
@@ -135,6 +137,7 @@ export function createModerationServices({
   altAccountRepository,
   permissionUsageRecorder,
   promptOffer,
+  productEvents,
 }: ModerationDependencies) {
   const modLogRepository = new DrizzleModLogRepository(
     db,
@@ -218,6 +221,7 @@ export function createModerationServices({
     modLogMessageService,
     caseProofRepository,
     moderationMetrics,
+    productEvents,
   );
 
   const moderationService = new ModerationService(
@@ -302,6 +306,7 @@ export function createModerationServices({
     responseRegistry: actionResponseRegistry,
     proofChangeListener: modViewRegistry,
     metrics: moderationMetrics,
+    productEvents,
     logger: logger.child({ module: "caseProofService" }),
   });
 
@@ -537,6 +542,7 @@ export function setupModerationFeature({
   setNicknameService,
   permissionUsageRecorder,
   promptOffer,
+  productEvents,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
@@ -555,6 +561,7 @@ export function setupModerationFeature({
     setNicknameService,
     permissionUsageRecorder,
     promptOffer,
+    productEvents,
   });
 
   // Built ahead of both createModerationCommands (History/Names/Lookup

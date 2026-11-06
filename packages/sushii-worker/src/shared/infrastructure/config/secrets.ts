@@ -16,6 +16,7 @@ const schema = z.object({
   FEEDBACK_WEBHOOK_URL: optional,
   GOOGLE_CALENDAR_API_KEY: optional,
   OPENROUTER_API_KEY: optional,
+  PRODUCT_ANALYTICS_KEY: z.string().min(32).optional(),
   SCAM_IMAGE_STORE_ACCESS_KEY_ID: optional,
   SCAM_IMAGE_STORE_SECRET_ACCESS_KEY: optional,
 });

@@ -1,3 +1,7 @@
+import {
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
 import { sleep as bunSleep } from "bun";
 import type { APIChannel, APIMessage, Client, Guild } from "discord.js";
 import {
@@ -113,6 +117,7 @@ export class SushiiUpdatesRelayService {
     private readonly commandMentions: CommandMentions,
     private readonly logger: Logger,
     options: RelayOptions = {},
+    private readonly productEvents: ProductEventTracker = noopProductEvents,
   ) {
     this.sendDelayMs = options.sendDelayMs ?? DEFAULT_SEND_DELAY_MS;
     this.now = options.now ?? (() => new Date());
@@ -392,6 +397,12 @@ export class SushiiUpdatesRelayService {
       this.repository.completeDelivery(post.messageId, guildId, result),
     );
     this.metrics.recordRelay(result.status);
+    this.productEvents.track({
+      name: "update.relayed",
+      userId: null,
+      guildId,
+      props: { outcome: result.status },
+    });
   }
 
   private async getSourceGuildId(): Promise<string> {

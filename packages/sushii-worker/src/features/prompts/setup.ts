@@ -7,6 +7,8 @@ import { PromptService } from "./application/PromptService";
 import { ALL_PROMPTS } from "./definitions";
 import { DrizzlePromptStateRepository } from "./infrastructure/DrizzlePromptStateRepository";
 import { PromptMetrics } from "./infrastructure/PromptMetrics";
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
+
 import {
   PromptButtonHandler,
   PromptSelectMenuHandler,
@@ -15,14 +17,21 @@ import {
 interface PromptsDependencies {
   db: NodePgDatabase<typeof schema>;
   logger: Logger;
+  productEvents: ProductEventTracker;
 }
 
-export function setupPromptsFeature({ db, logger }: PromptsDependencies) {
+export function setupPromptsFeature({
+  db,
+  logger,
+  productEvents,
+}: PromptsDependencies) {
   const service = new PromptService(
     new DrizzlePromptStateRepository(db),
     ALL_PROMPTS,
     new PromptMetrics(),
     logger.child({ feature: "Prompts" }),
+    undefined,
+    productEvents,
   );
 
   return {

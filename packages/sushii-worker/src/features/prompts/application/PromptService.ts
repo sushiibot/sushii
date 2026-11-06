@@ -4,6 +4,11 @@ import type {
 } from "discord.js";
 import type { Logger } from "pino";
 
+import {
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
+
 import type {
   PromptActionContext,
   PromptDefinition,
@@ -31,6 +36,7 @@ export class PromptService {
     private readonly metrics: PromptMetrics,
     private readonly logger: Logger,
     private readonly now: () => Date = () => new Date(),
+    private readonly productEvents: ProductEventTracker = noopProductEvents,
   ) {
     this.byId = new Map(prompts.map((p) => [p.id, p]));
   }
@@ -143,6 +149,12 @@ export class PromptService {
       await this.repository.recordShownToUser(userId, prompt.id, now);
     }
     this.metrics.recordShown(prompt.id);
+    this.productEvents.track({
+      name: "prompt.shown",
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      props: { prompt: prompt.id },
+    });
     return "shown";
   }
 
@@ -218,8 +230,18 @@ export class PromptService {
     await this.repository.recordDismissed(subject, prompt.id);
   }
 
-  recordAction(promptId: string, action: string): void {
+  recordAction(
+    promptId: string,
+    action: string,
+    interaction: Pick<PromptInteraction, "user" | "guildId">,
+  ): void {
     this.metrics.recordAction(promptId, action);
+    this.productEvents.track({
+      name: "prompt.action",
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      props: { prompt: promptId, action },
+    });
   }
 
   private markPrompted(interactionId: string): void {

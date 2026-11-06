@@ -39,6 +39,7 @@ import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupPermissionAuditFeature } from "@/features/permission-audit";
 import { configureFollowUpdatesPrompt } from "@/features/prompts/definitions/followUpdates";
+import { setupProductAnalyticsFeature } from "@/features/product-analytics/setup";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
@@ -262,10 +263,20 @@ export function registerFeatures(
     logger: logger.child({ feature: "IpGrabberLinks" }),
     discoveryEnabled: config.ipGrabberDiscoveryEnabled,
   });
+  const productAnalyticsFeature = setupProductAnalyticsFeature({
+    client,
+    databaseUrl: secrets.DATABASE_URL,
+    deploymentService,
+    logger: logger.child({ feature: "ProductAnalytics" }),
+    analyticsKey: secrets.PRODUCT_ANALYTICS_KEY,
+  });
+  const { productEvents } = productAnalyticsFeature.services;
+  interactionRouter.setProductEvents(productEvents);
   const feedbackFeature = setupFeedbackFeature({
     db,
     webhookUrl: secrets.FEEDBACK_WEBHOOK_URL,
     logger,
+    productEvents,
   });
   const banCacheFeature = setupBanCacheFeature({ db, logger });
   const sushiiUpdatesFeature = setupSushiiUpdatesFeature({
@@ -275,6 +286,7 @@ export function registerFeatures(
     commandMentions,
     logger: logger.child({ feature: "SushiiUpdates" }),
     sourceChannelId: config.sushiiUpdatesChannelId,
+    productEvents,
   });
   configureFollowUpdatesPrompt(
     sushiiUpdatesFeature.available
@@ -284,7 +296,7 @@ export function registerFeatures(
         }
       : null,
   );
-  const promptsFeature = setupPromptsFeature({ db, logger });
+  const promptsFeature = setupPromptsFeature({ db, logger, productEvents });
   const levelingFeature = setupLevelingFeature({
     db,
     logger,
@@ -368,6 +380,7 @@ export function registerFeatures(
     permissionUsageRecorder:
       permissionAuditFeature.services.permissionUsageRecorder,
     promptOffer: promptsFeature.services.promptService,
+    productEvents,
   });
   const serverManagementFeature = setupServerManagementFeature({
     db,
@@ -654,6 +667,7 @@ export function registerFeatures(
 
   const featureTasks = [
     ...giveawayFeature.tasks,
+    ...productAnalyticsFeature.tasks,
     ...moderationFeature.tasks,
     ...emojiStatsFeature.tasks,
     ...messageLogFeature.tasks,

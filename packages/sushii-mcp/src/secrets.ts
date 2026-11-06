@@ -4,6 +4,7 @@ import { z } from "zod";
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   MCP_AUTH_TOKEN: z.string().min(1),
+  ANALYTICS_AUTH_TOKEN: z.string().min(32).optional(),
 });
 
 export type Secrets = Readonly<z.infer<typeof schema>>;
@@ -63,7 +64,7 @@ function databasePassword(url: string): string[] {
 // Longest first so a secret containing another is replaced whole.
 const knownValues = [
   ...new Set([
-    ...Object.values(secrets),
+    ...Object.values(secrets).filter((v) => v !== undefined),
     ...databasePassword(secrets.DATABASE_URL),
   ]),
 ]

@@ -582,6 +582,20 @@
       "when": 1793904980118,
       "tag": "0082_sushii-updates-relay",
       "breakpoints": false
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1793999709998,
+      "tag": "0083_product-analytics",
+      "breakpoints": false
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1793999710508,
+      "tag": "0084_analytics-views",
+      "breakpoints": false
     }
   ]
 }
