@@ -429,9 +429,9 @@ describe("ModLogMessageService.render", () => {
 
     const json = text(await service.render(makeCase()));
 
-    expect(json).toContain(`-# spambot · \`${TARGET}\``);
+    expect(json).toContain(`<@${TARGET}> · spambot · \`${TARGET}\``);
     expect(json).not.toContain("renamed_now");
-    expect(json).toContain(`**Moderator:** <@${EXECUTOR}>\\n-# tzuyu`);
+    expect(json).toContain(`**Moderator:** <@${EXECUTOR}> · tzuyu`);
   });
 
   test("falls back to a default avatar when the user can't be fetched", async () => {

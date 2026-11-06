@@ -447,19 +447,13 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
   );
   const executorId = moderationCase.executorId ?? input.fallbackExecutorId;
   // The tag keeps former mods identifiable when the mention can't resolve.
-  const moderatorLines = executorId
-    ? [
-        `**Moderator:** <@${executorId}>`,
-        ...(input.executorTag
-          ? [`-# ${escapeMarkdown(input.executorTag)}`]
-          : []),
-      ]
-    : [];
+  const moderatorTag = input.executorTag
+    ? ` · ${escapeMarkdown(input.executorTag)}`
+    : "";
   const header = [
     `### ${title}`,
-    `**User:** <@${target.id}>`,
-    `-# ${escapeMarkdown(target.username)} · \`${target.id}\``,
-    ...moderatorLines,
+    `**User:** <@${target.id}> · ${escapeMarkdown(target.username)} · \`${target.id}\``,
+    ...(executorId ? [`**Moderator:** <@${executorId}>${moderatorTag}`] : []),
   ].join("\n");
 
   let factsText: string | null;

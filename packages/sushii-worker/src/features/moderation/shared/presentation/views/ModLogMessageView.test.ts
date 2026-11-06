@@ -285,7 +285,7 @@ describe("buildModLogMessage", () => {
       media: { url: "https://cdn.discordapp.com/embed/avatars/4.png" },
     });
     expect(section.components[0]?.content).toBe(
-      `### ${emojis.ban} Banned · Case #4822\n**User:** <@${TARGET}>\n-# spambot · \`${TARGET}\`\n**Moderator:** <@${EXECUTOR}>`,
+      `### ${emojis.ban} Banned · Case #4822\n**User:** <@${TARGET}> · spambot · \`${TARGET}\`\n**Moderator:** <@${EXECUTOR}>`,
     );
 
     expect(allText(container)).toContain(
@@ -658,7 +658,7 @@ describe("preserved facts", () => {
     const container = render(makeCase(), { executorTag: "tzuyu_*" });
 
     expect(allText(container)).toContain(
-      `**Moderator:** <@${EXECUTOR}>\n-# tzuyu\\_\\*`,
+      `**Moderator:** <@${EXECUTOR}> · tzuyu\\_\\*`,
     );
   });
 
