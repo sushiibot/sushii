@@ -3,7 +3,7 @@ title: Privacy Policy
 description: Privacy Policy for sushii bot
 ---
 
-Last updated: October 25, 2026
+Last updated: November 6, 2026
 ## Interpretation and Definitions
 
 ### Interpretation
@@ -77,6 +77,7 @@ collect may include the following:
 * Avatar URL
 * Date and Time of last message
 * Number of messages in the past month, week, day, and in total
+* How you use the Bot, such as which commands and features are used, when, and in which server
 * Perceptual hashes (a compact numeric fingerprint) derived from image attachments posted in public channels of publicly listed servers, used to build and maintain a scam detection database. This processing occurs across all publicly listed servers where the Bot is present and cannot be opted out of on a per-server basis.
 * Image attachment content from public channels, in cases where images are flagged as potential scam candidates. These images are not stored, but may be transmitted to third-party AI services for classification (see "How your information may be shared"). Sighting records used to detect cross-server patterns are discarded after 2 minutes; candidate records may be retained indefinitely.
 
@@ -108,6 +109,8 @@ with our legal obligations. We use the information we collect or receive:
 * **To offer our services to you.** Our Service may need your data, specifically
   obtained through the Discord API (in that case, we’re referring to Discord End
   User Data) or voluntarily and directly provided to us.
+* **To improve our Services.** We look at how features are used so we can make
+  them better.
 * **Request feedback.** We may use your information to request feedback and to
   contact you about your use of our Services.
 * **To send administrative information to you** We may use your personal
@@ -157,8 +160,22 @@ in relation to some specific use cases:
   mentioning @everyone, we store your Discord ID, the server, the permission,
   the channel when known, and when and how often it was used. Server
   administrators use this to review which roles still need their permissions.
-* **Statistics:** When statistics are provided by our Services, we only keep
-  aggregated and anonymized data into our database.
+* **Usage Analytics:** We record how the Bot's features are used, such as which
+  commands and buttons are used, when, and in which server. These records use a
+  coded identifier instead of your Discord ID, and they don't include your
+  messages or what you type into commands. They aren't anonymous, because we can
+  match them to your Discord ID when you ask us to remove your data. We use them
+  to see how features are used, not to build profiles of people, and we keep
+  only totals long term.
+* **Statistics:** Bot-wide and server-wide statistics, such as emoji usage, are
+  kept only as aggregated and anonymized data. Per-member figures, such as
+  levels, message counts and reputation, are stored with your Discord ID so the
+  Bot can show them.
+* **Feedback:** When you send us feedback or an error report, we store what you
+  wrote with your Discord ID and the server it came from, and post it to a
+  private staff channel on Discord so we can review it.
+* **Prompts:** We store which tips and suggestions were shown to you or your
+  server and how they were answered, so we don't show them more than needed.
 * **Member Screening:** Member screening is an opt-in feature. We approve a
   server for it, and that server's moderators then turn it on and pick the
   channel for review posts. It helps server moderators review new members.
@@ -216,6 +233,9 @@ send these requests with OpenRouter's `data_collection: deny` setting, which
 excludes providers that train on prompts. Google AI Studio, one of the providers
 that can serve the image requests, may still keep prompts for up to 55 days.
 
+We don't share usage records with analytics providers. Our hosting and backup
+providers store data on our behalf.
+
 In general, we have no business needs that justify, nor direct interests in,
 sharing your information with other entities.
 
@@ -261,6 +281,12 @@ flagged as scam candidates are not stored.
 
 Permission usage records are deleted 60 days after the permission was last
 used.
+
+Usage records are deleted within 90 days. The totals made from them don't
+identify anyone and may be kept long term.
+
+Feedback and prompt records are kept until they are no longer needed or you ask
+us to remove them.
 
 When we have no ongoing legitimate business need to process your personal
 information, we will either delete or anonymize it, or, if this is not possible
@@ -342,6 +368,10 @@ policy frequently to be informed of how we are protecting your information.
 ## Data removal
 
 To request your data to be removed, please contact us in the following section.
+
+Your request also covers your feedback, your prompt records and the usage
+records we can match to you. Totals can't be linked to you, so they aren't
+changed.
 
 Member screening can't be turned off per member. If you don't want to be
 screened in a server, ask that server's moderators. They can turn screening off
