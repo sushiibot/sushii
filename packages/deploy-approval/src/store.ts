@@ -2,6 +2,11 @@ import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { cardExpired, type Candidate } from "./types";
 
+type NewRelease = Omit<
+  Candidate,
+  "id" | "revision" | "phase" | "detail" | "createdAt"
+>;
+
 export class Store {
   readonly db: Database;
   constructor(path: string) {
@@ -19,6 +24,7 @@ export class Store {
         actor TEXT NOT NULL, decision TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS deployments(target TEXT PRIMARY KEY, sha TEXT NOT NULL, run INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS lease(id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL, expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `);
   }
   card(id: string): Candidate | undefined {
@@ -102,62 +108,96 @@ export class Store {
       this.update(card, {
         phase: "stale",
         detail:
-          "This card is over 24 hours old. Review this run in GitHub; a new release will get a new card.",
+          "This message is over 24 hours old. Use Refresh for the latest release, or review this run in GitHub.",
       });
     return expired.length;
   }
-  candidate(
-    incoming: Omit<
-      Candidate,
-      "id" | "revision" | "phase" | "detail" | "createdAt"
-    >,
-    phase: "pending" | "deploying" = "pending",
+  private targetCards(
+    release: Pick<Candidate, "repositoryId" | "environmentId">,
+  ): Candidate[] {
+    return this.cards().filter(
+      (c) =>
+        c.repositoryId === release.repositoryId &&
+        c.environmentId === release.environmentId,
+    );
+  }
+  private insertCard(
+    incoming: NewRelease,
+    phase: "pending" | "deploying",
+    existing: Candidate[],
+  ): Candidate {
+    const card: Candidate = {
+      ...incoming,
+      id: randomUUID(),
+      revision: 1,
+      createdAt: Date.now(),
+      phase,
+      detail:
+        phase === "pending"
+          ? "Waiting for production approval"
+          : "Deployment in progress",
+    };
+    this.db
+      .query(
+        "INSERT INTO cards(id,target,run,phase,revision,data) VALUES(?,?,?,?,?,?)",
+      )
+      .run(
+        card.id,
+        incoming.repositoryId + ":" + incoming.environmentId,
+        card.runId,
+        card.phase,
+        card.revision,
+        JSON.stringify(card),
+      );
+    for (const old of existing) {
+      if (
+        ["pending", "stale"].includes(old.phase) &&
+        !old.replacedBy &&
+        old.runId <= card.runId
+      ) {
+        this.update(old, {
+          phase: "stale",
+          replacedBy: card.id,
+          detail: "Replaced by a newer approval message.",
+        });
+      }
+    }
+    return card;
+  }
+  // Cards are static: a release only reaches Discord as a new message, which retires older open ones.
+  issue(
+    incoming: NewRelease,
+    reissueAfterMs = Infinity,
+    now = Date.now(),
   ): Candidate | undefined {
     return this.db.transaction(() => {
-      this.expirePending();
-      const target = incoming.repositoryId + ":" + incoming.environmentId;
-      const rows = this.cards().filter(
+      this.expirePending(now);
+      const rows = this.targetCards(incoming);
+      const same = rows.filter(
         (c) =>
-          c.repositoryId === incoming.repositoryId &&
-          c.environmentId === incoming.environmentId,
+          c.runId === incoming.runId &&
+          c.runAttempt === incoming.runAttempt &&
+          !c.replacedBy,
       );
-      if (phase === "pending" && rows.some((c) => c.runId > incoming.runId))
+      const decided = same.some((c) => !["pending", "stale"].includes(c.phase));
+      const open = same.find((c) => c.phase === "pending");
+      if (decided || (open && now - open.createdAt < reissueAfterMs)) {
         return undefined;
+      }
+      return this.insertCard(incoming, "pending", rows);
+    })();
+  }
+  deploying(incoming: NewRelease): Candidate {
+    return this.db.transaction(() => {
+      this.expirePending();
+      const rows = this.targetCards(incoming);
       const same = rows.find(
         (c) =>
-          c.runId === incoming.runId && c.runAttempt === incoming.runAttempt,
+          c.runId === incoming.runId &&
+          c.runAttempt === incoming.runAttempt &&
+          !c.replacedBy,
       );
-      if (same) return same; // Deliveries never reopen a decided or cancelled candidate.
-      const pending = [...rows].reverse().find((c) => c.phase === "pending");
-      if (pending && phase === "pending")
-        return this.update(pending, {
-          ...incoming,
-          detail: "Waiting for production approval",
-        });
-      const card: Candidate = {
-        ...incoming,
-        id: randomUUID(),
-        revision: 1,
-        createdAt: Date.now(),
-        phase,
-        detail:
-          phase === "pending"
-            ? "Waiting for production approval"
-            : "Deployment in progress",
-      };
-      this.db
-        .query(
-          "INSERT INTO cards(id,target,run,phase,revision,data) VALUES(?,?,?,?,?,?)",
-        )
-        .run(
-          card.id,
-          target,
-          card.runId,
-          card.phase,
-          card.revision,
-          JSON.stringify(card),
-        );
-      return card;
+      return same ?? this.insertCard(incoming, "deploying", rows);
     })();
   }
   changed(): Candidate[] {
@@ -201,6 +241,16 @@ export class Store {
   }
   release(owner: string) {
     this.db.query("DELETE FROM lease WHERE id=1 AND owner=?").run(owner);
+  }
+  meta(key: string): string | undefined {
+    return (
+      this.db.query("SELECT value FROM meta WHERE key=?").get(key) as {
+        value: string;
+      } | null
+    )?.value;
+  }
+  setMeta(key: string, value: string) {
+    this.db.query("INSERT OR REPLACE INTO meta VALUES(?,?)").run(key, value);
   }
   secret(id: string): string | undefined {
     return (

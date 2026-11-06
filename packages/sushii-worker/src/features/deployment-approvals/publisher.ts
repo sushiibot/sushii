@@ -60,7 +60,7 @@ export class DeploymentApprovalPublisher {
       } finally {
         this.controller.abort();
       }
-      if (!this.stopped) await sleep(5000); // Reconnect the private event stream; never poll GitHub.
+      if (!this.stopped) await sleep(5000); // Reconnect the private event stream.
     }
   }
   async deliver(cards: Candidate[]): Promise<boolean> {

@@ -41,9 +41,11 @@ export const candidateSchema = z.object({
     .string()
     .regex(/^[0-9]{17,20}$/)
     .optional(),
+  replacedBy: z.string().uuid().optional(),
   detail: z.string().max(200),
 });
 export type Candidate = z.infer<typeof candidateSchema>;
+export type RefreshOutcome = "posted" | "current" | "waiting";
 export class ApprovalError extends Error {
   constructor(readonly code: string) {
     super("Approval service: " + code);
@@ -96,6 +98,11 @@ export class ApprovalClient {
       .parse(
         await this.post("/internal/review", { actor, id, revision, decision }),
       );
+  }
+  async refresh(actor: string, id: string) {
+    return z
+      .object({ outcome: z.enum(["posted", "current", "waiting"]) })
+      .parse(await this.post("/internal/refresh", { actor, id })).outcome;
   }
   async link(actor: string) {
     return z

@@ -141,13 +141,19 @@ if (mode === "relay") {
     maxRequestBodySize: 2 * 1024 * 1024,
     idleTimeout: 60,
   });
-  // Retry persisted deliveries only. This is not a GitHub status polling loop.
+  // Retries persisted deliveries; the daily check is the only scheduled GitHub read.
   const timer = setInterval(() => {
     void service
       .processInbox()
       .catch(() => console.error("Approval inbox processing failed"));
   }, 2000);
   timer.unref();
+  const dailyTimer = setInterval(() => {
+    void service
+      .dailyCheck()
+      .catch(() => console.error("Daily release check failed"));
+  }, 60000);
+  dailyTimer.unref();
   void service
     .processInbox()
     .catch(() => console.error("Approval inbox processing failed"));

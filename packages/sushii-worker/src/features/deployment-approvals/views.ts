@@ -42,7 +42,28 @@ const statusStyles = {
 } as const;
 function statusHeading(card: Candidate, emojis: Partial<StatusEmojis>) {
   const style = statusStyles[card.phase];
-  return `${emojis[style.emoji] ?? ""} **${style.title}**`.trim();
+  const title = card.replacedBy ? "Replaced" : style.title;
+  return `${emojis[style.emoji] ?? ""} **${title}**`.trim();
+}
+function closedLabel(card: Candidate): string {
+  if (card.replacedBy) {
+    return "Replaced by a newer message";
+  }
+  if (card.phase === "deciding") {
+    return "Checking approval";
+  }
+  if (card.phase === "stale") {
+    return "Stale — review in GitHub";
+  }
+  return "Release " + card.phase;
+}
+// Automatic targets have no gate to check, and a replaced card must stay inert.
+function canRefresh(card: Candidate): boolean {
+  return (
+    typeof card.environmentId === "number" &&
+    !card.replacedBy &&
+    !["deciding", "approved", "deploying"].includes(card.phase)
+  );
 }
 export function statusReply(
   card: Candidate,
@@ -132,16 +153,18 @@ export function releaseCard(
     row.addComponents(
       new ButtonBuilder()
         .setCustomId("/deploy-approval/closed/" + card.id)
-        .setLabel(
-          card.phase === "deciding"
-            ? "Checking approval"
-            : card.phase === "stale"
-              ? "Stale — review in GitHub"
-              : "Release " + card.phase,
-        )
+        .setLabel(closedLabel(card))
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(true),
     );
+  if (canRefresh(card)) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId("/deploy-approval/refresh/" + card.id)
+        .setLabel("Refresh")
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
   row.addComponents(
     new ButtonBuilder()
       .setLabel("Open in GitHub")

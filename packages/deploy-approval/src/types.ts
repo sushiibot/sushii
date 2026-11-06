@@ -56,6 +56,8 @@ export interface Candidate {
   phase: Phase;
   messageId?: string;
   threadMessageId?: string;
+  // The newer card that took over this release; a replaced card never changes again.
+  replacedBy?: string;
   detail: string;
 }
 export interface TokenSet {
@@ -76,6 +78,11 @@ export class ExpectedError extends Error {
 export type LinkedAccount = TokenSet & { githubUserId: number };
 
 export const CARD_LIFETIME_MS = 24 * 60 * 60 * 1000;
+export const DAILY_CHECK_HOUR = 9;
+export const DAILY_CHECK_TIME_ZONE = "America/Los_Angeles";
+// A card refreshed shortly before the daily check is recent enough to keep.
+export const DAILY_REISSUE_AFTER_MS = 12 * 60 * 60 * 1000;
+export type RefreshOutcome = "posted" | "current" | "waiting";
 export function cardExpired(
   card: Pick<Candidate, "createdAt">,
   now = Date.now(),

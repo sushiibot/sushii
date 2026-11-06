@@ -12,7 +12,7 @@ import { match } from "path-to-regexp";
 import type { BotEmojiRepository } from "@/features/bot-emojis/domain";
 import ButtonHandler from "@/shared/presentation/handlers/ButtonHandler";
 
-import type { ApprovalClient, Candidate } from "./client";
+import type { ApprovalClient, Candidate, RefreshOutcome } from "./client";
 import { ApprovalError } from "./client";
 import {
   STATUS_EMOJI_NAMES,
@@ -29,6 +29,21 @@ interface OpenReview {
 
 // Outlives the backend's two-minute confirmation so an expired click can still restore the card.
 const REVIEW_TTL_MS = 5 * 60 * 1000;
+
+const FAILURE_NOTICES: Record<string, string> = {
+  approval_result_uncertain:
+    "GitHub's response was uncertain. Check the workflow before trying another approval.",
+  github_read_failed: "Couldn't read GitHub. Try again in a moment.",
+  release_superseded:
+    "Newer commits landed after this message. Use Refresh to post the latest release.",
+};
+
+const REFRESH_NOTICES: Record<RefreshOutcome, string> = {
+  posted: "Posted a new approval message for the latest commit.",
+  current: "The latest commit already has an approval message.",
+  waiting:
+    "The latest commit isn't waiting for approval. It may still be building or deploying, or it didn't start a release.",
+};
 
 export class DeploymentApprovalButtonHandler extends ButtonHandler {
   readonly customIDMatch = match("/deploy-approval/*parts");
@@ -61,6 +76,8 @@ export class DeploymentApprovalButtonHandler extends ButtonHandler {
         /^\d+$/.test(parts[2])
       ) {
         await this.review(interaction, parts[1], Number(parts[2]), parts[3]);
+      } else if (parts[0] === "refresh" && parts.length === 2) {
+        await this.refresh(interaction, parts[1]);
       } else if (parts[0] === "confirm" && parts.length === 2) {
         await this.confirm(interaction, parts[1]);
       } else if (parts[0] === "cancel" && parts.length === 1) {
@@ -87,9 +104,8 @@ export class DeploymentApprovalButtonHandler extends ButtonHandler {
       } else {
         await this.notice(
           interaction,
-          err.code === "approval_result_uncertain"
-            ? "GitHub's response was uncertain. Check the workflow before trying another approval."
-            : "This release cannot be approved from this control now. Open GitHub or review the latest release message.",
+          FAILURE_NOTICES[err.code] ??
+            "This release cannot be approved from this control now. Open GitHub or review the latest release message.",
         );
       }
     }
@@ -118,6 +134,13 @@ export class DeploymentApprovalButtonHandler extends ButtonHandler {
           ),
       ],
     });
+  }
+
+  private async refresh(interaction: ButtonInteraction, id: string) {
+    // defer: private backend reads the branch head and gate from GitHub before answering.
+    await interaction.deferUpdate();
+    const outcome = await this.api.refresh(interaction.user.id, id);
+    await this.notice(interaction, REFRESH_NOTICES[outcome]);
   }
 
   private async review(

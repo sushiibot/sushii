@@ -21,8 +21,9 @@ The installation token is read-only and cannot approve a deployment.
   publishing. Only active deployment cluster zero consumes events. Other clusters
   handle interactions. Neither bot nor relay receives GitHub user tokens.
 
-There is no GitHub polling. Timers retry persisted deliveries and reconnect the
-private stream. A missed event at GitHub still needs webhook redelivery. GitHub
+The daily check and the Refresh button are the only reads not driven by a webhook.
+Other timers retry persisted deliveries and reconnect the private stream. A missed
+status event at GitHub still needs webhook redelivery. GitHub
 [does not automatically retry failed deliveries](https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries).
 
 ## Run and test
@@ -46,10 +47,20 @@ second editable copy of its repository or release policy.
 
 ## Behavior and limits
 
-One pending message per repository/environment is updated for newer eligible runs.
-After a decision, the card is frozen and a new run gets a new card. Thread status is
-updated in place. Success requires the trusted app's exact run/attempt host receipt;
-a successful workflow alone is insufficient.
+A pending message always describes one commit and never moves to another. Pushes do
+not post messages. At 9:00 AM Pacific the backend checks each approved target, and
+posts a new message if the branch head is waiting at its gate. It reposts an unchanged
+release unless that message is under 12 hours old. Refresh runs the same check for
+one target from any card. Each new message marks older open messages as replaced.
+
+An outdated message cannot be approved, because the head check rejects it. Refresh
+says so when the head commit has no gated run, for example while CI runs or after a
+docs-only commit. A run approved in GitHub without a card gets a card at that point,
+so its deployment still advances the baseline.
+
+After a decision, the card is frozen. Thread status is updated in place. Success
+requires the trusted app's exact run/attempt host receipt; a successful workflow
+alone is insufficient.
 
 Only first-attempt push runs at current branch head are supported, matching the
 registry release protocol. Older runs and reruns remain visible in GitHub but cannot

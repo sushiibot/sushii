@@ -126,6 +126,29 @@ export class GitHub {
     };
   }
 
+  // Undefined when the head commit has no run yet, or its paths skip the workflow.
+  async headRun(target: Target, token: string): Promise<number | undefined> {
+    const prefix = "/repos/" + target.repository;
+    const head = await this.request(
+      prefix + "/commits/" + encodeURIComponent(target.branch),
+      token,
+    );
+    const query = new URLSearchParams({
+      head_sha: head.sha,
+      branch: target.branch,
+      event: "push",
+      per_page: "100",
+    });
+    const { workflow_runs: runs } = await this.request(
+      prefix + "/actions/runs?" + query,
+      token,
+    );
+    const ids: number[] = runs
+      .filter((run: any) => run.path === target.workflow)
+      .map((run: any) => run.id);
+    return ids.length ? Math.max(...ids) : undefined;
+  }
+
   async pending(target: Target, runId: number, token: string) {
     if (target.mode === "automatic" || typeof target.environmentId !== "number")
       throw new ExpectedError("release_not_approvable");

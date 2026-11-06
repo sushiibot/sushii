@@ -203,6 +203,12 @@ export function backendHandler(service: ApprovalService) {
             body.decision,
           ),
         );
+      if (url.pathname === "/internal/refresh") {
+        if (typeof body.id !== "string") {
+          throw new ExpectedError("invalid_refresh", 400);
+        }
+        return json({ outcome: await service.refresh(body.actor, body.id) });
+      }
       if (url.pathname === "/internal/decide") {
         if (typeof body.confirmation !== "string")
           throw new ExpectedError("invalid_confirmation", 400);

@@ -7,7 +7,7 @@ import type { DeploymentService } from "@/features/deployment/application/Deploy
 import { scrubUrl } from "@/shared/infrastructure/logRedaction";
 
 import type { ApprovalClient } from "./client";
-import { type Candidate } from "./client";
+import { ApprovalError, type Candidate } from "./client";
 import { DeploymentApprovalButtonHandler } from "./handler";
 import { DeploymentApprovalPublisher } from "./publisher";
 import { confirmationCard, releaseCard } from "./views";
@@ -255,6 +255,90 @@ test("a broken Discord card does not block other services", async () => {
   };
   expect(await publisher.deliver([card, { ...card, id: "other" }])).toBe(false);
   expect(seen).toEqual([card.id, "other"]);
+});
+
+describe("refresh", () => {
+  const refreshId = "/deploy-approval/refresh/" + card.id;
+  test.each([
+    ["pending", true],
+    ["stale", true],
+    ["succeeded", true],
+    ["failed", true],
+    ["rejected", true],
+    ["cancelled", true],
+    ["deciding", false],
+    ["approved", false],
+    ["deploying", false],
+  ] as const)("%s card offers refresh: %p", (phase, offered) => {
+    expect(
+      JSON.stringify(releaseCard({ ...card, phase })).includes(refreshId),
+    ).toBe(offered);
+  });
+  test("a replaced card is inert and says so", () => {
+    const replaced = JSON.stringify(
+      releaseCard({
+        ...card,
+        phase: "stale",
+        replacedBy: "00000000-0000-4000-8000-000000000002",
+      }),
+    );
+    expect(replaced).toContain("**Replaced**");
+    expect(replaced).toContain("Replaced by a newer message");
+    expect(replaced).not.toContain("/deploy-approval/refresh/");
+    expect(replaced).not.toContain("/deploy-approval/review/");
+  });
+  test("automatic targets have nothing to refresh", () => {
+    const automatic = releaseCard({
+      ...card,
+      environmentId: "release:production",
+      phase: "succeeded",
+    });
+    expect(JSON.stringify(automatic)).not.toContain(
+      "/deploy-approval/refresh/",
+    );
+  });
+  test.each([
+    ["posted", "Posted a new approval message"],
+    ["current", "already has an approval message"],
+    ["waiting", "isn't waiting for approval"],
+  ] as const)("reports %s privately", async (outcome, text) => {
+    const refresh = mock(async () => outcome);
+    const handler = new DeploymentApprovalButtonHandler(
+      { refresh } as unknown as ApprovalClient,
+      "222222222222222222",
+      emojiRepo,
+    );
+    const followUp = mock(async (_body: unknown) => undefined);
+    await handler.handleInteraction({
+      user: { id: "222222222222222222" },
+      customId: refreshId,
+      deferred: true,
+      deferUpdate: mock(async () => undefined),
+      followUp,
+    } as unknown as ButtonInteraction);
+    expect(refresh).toHaveBeenCalledWith("222222222222222222", card.id);
+    expect(JSON.stringify(followUp.mock.calls[0][0])).toContain(text);
+    expect(JSON.stringify(followUp.mock.calls[0][0])).toContain('"flags":64');
+  });
+  test("an outdated card points review at Refresh", async () => {
+    const review = mock(async () => {
+      throw new ApprovalError("release_superseded");
+    });
+    const handler = new DeploymentApprovalButtonHandler(
+      { review } as unknown as ApprovalClient,
+      "222222222222222222",
+      emojiRepo,
+    );
+    const followUp = mock(async (_body: unknown) => undefined);
+    await handler.handleInteraction({
+      user: { id: "222222222222222222" },
+      customId: "/deploy-approval/review/" + card.id + "/1/approved",
+      deferred: true,
+      deferUpdate: mock(async () => undefined),
+      followUp,
+    } as unknown as ButtonInteraction);
+    expect(JSON.stringify(followUp.mock.calls[0][0])).toContain("Use Refresh");
+  });
 });
 
 test("automatic target cards never render approval buttons", () => {

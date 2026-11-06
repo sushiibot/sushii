@@ -3,17 +3,31 @@ import { GitHub } from "./github";
 import { digest, randomToken, TokenCipher } from "./security";
 import { Store } from "./store";
 import {
+  DAILY_CHECK_HOUR,
+  DAILY_CHECK_TIME_ZONE,
+  DAILY_REISSUE_AFTER_MS,
   ExpectedError,
   cardExpired,
   type Candidate,
   type Config,
+  type RefreshOutcome,
   type Target,
   type LinkedAccount,
 } from "./types";
 
+const dailyClock = new Intl.DateTimeFormat("en-CA", {
+  timeZone: DAILY_CHECK_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
 export class ApprovalService {
   readonly cipher: TokenCipher;
   private processing = false;
+  private dailyChecking = false;
   private tokenRefresh?: Promise<string>;
   readonly listeners = new Set<() => void>();
   constructor(
@@ -334,6 +348,110 @@ export class ApprovalService {
     }
   }
 
+  private release(target: Target, run: any, runUrl: string) {
+    return {
+      repository: target.repository,
+      repositoryId: target.repositoryId,
+      environment: target.environment,
+      environmentId: target.environmentId,
+      runId: run.id as number,
+      runAttempt: run.run_attempt as number,
+      sha: run.head_sha as string,
+      previousSha: this.store.deployed(
+        target.repositoryId,
+        target.environmentId,
+        run.id,
+      ),
+      label: target.label,
+      channelId: target.channelId,
+      runUrl,
+    };
+  }
+
+  async check(
+    target: Target,
+    reissueAfterMs?: number,
+  ): Promise<RefreshOutcome> {
+    const token = await this.github.appToken();
+    const runId = await this.github.headRun(target, token);
+    if (runId === undefined) {
+      return "waiting";
+    }
+    let run: any;
+    try {
+      ({ run } = await this.github.pending(target, runId, token));
+    } catch (err) {
+      if (
+        err instanceof ExpectedError &&
+        ["release_superseded", "release_no_longer_pending"].includes(err.code)
+      ) {
+        return "waiting";
+      }
+      throw err;
+    }
+    const card = this.store.issue(
+      this.release(
+        target,
+        run,
+        "https://github.com/" + target.repository + "/actions/runs/" + runId,
+      ),
+      reissueAfterMs,
+    );
+    if (!card) {
+      return "current";
+    }
+    this.notify();
+    return "posted";
+  }
+
+  async refresh(actor: unknown, id: string): Promise<RefreshOutcome> {
+    this.owner(actor);
+    const card = this.store.card(id);
+    if (!card) {
+      throw new ExpectedError("release_changed");
+    }
+    try {
+      return await this.check(this.target(card));
+    } catch (err) {
+      // This read uses the App token, so relinking the owner's account can't fix it.
+      if (
+        err instanceof ExpectedError &&
+        err.code === "github_authorization_required"
+      ) {
+        throw new ExpectedError("github_read_failed", 502);
+      }
+      throw err;
+    }
+  }
+
+  async dailyCheck(now = new Date()) {
+    const parts = Object.fromEntries(
+      dailyClock.formatToParts(now).map((part) => [part.type, part.value]),
+    );
+    if (Number(parts.hour) < DAILY_CHECK_HOUR || this.dailyChecking) {
+      return;
+    }
+    const today = parts.year + "-" + parts.month + "-" + parts.day;
+    this.dailyChecking = true;
+    try {
+      for (const target of this.config.targets) {
+        const key = "daily:" + target.repositoryId + ":" + target.environmentId;
+        if (target.mode === "automatic" || this.store.meta(key) === today) {
+          continue;
+        }
+        try {
+          await this.check(target, DAILY_REISSUE_AFTER_MS);
+          this.store.setMeta(key, today);
+        } catch {
+          // One unreachable repository must not hold back the others; the next tick retries it.
+          console.error("Daily release check failed for " + target.label);
+        }
+      }
+    } finally {
+      this.dailyChecking = false;
+    }
+  }
+
   enqueue(delivery: string, event: string, payload: string) {
     this.store.db
       .query("INSERT OR IGNORE INTO inbox(id,event,payload) VALUES(?,?,?)")
@@ -442,43 +560,63 @@ export class ApprovalService {
       if (!Number.isSafeInteger(reviewRunId) || reviewRunId <= 0)
         throw new Error("Review event has no workflow run identity");
     }
-    if (event === "deployment_review" && payload.action === "requested") {
-      const runId = reviewRunId;
+    // A release approved in GitHub may never have had a card here.
+    if (event === "deployment_review" && payload.action === "approved") {
       for (const target of targets.filter(
-        (t) => t.mode !== "automatic" && t.environment === payload.environment,
-      )) {
-        try {
-          const { run } = await this.github.pending(target, runId, token);
-          this.store.candidate({
-            repository: target.repository,
-            repositoryId: target.repositoryId,
-            environment: target.environment,
-            environmentId: target.environmentId,
-            runId,
-            runAttempt: run.run_attempt,
-            sha: run.head_sha,
-            previousSha: this.store.deployed(
-              target.repositoryId,
-              target.environmentId,
-              runId,
+        (t) =>
+          t.mode !== "automatic" &&
+          !this.store
+            .cards()
+            .some(
+              (c) =>
+                c.runId === reviewRunId &&
+                c.environmentId === t.environmentId &&
+                !c.replacedBy,
             ),
-            label: target.label,
-            channelId: target.channelId,
-            runUrl:
-              "https://github.com/" +
+      )) {
+        const history = await this.github.request(
+          "/repos/" +
+            target.repository +
+            "/actions/runs/" +
+            reviewRunId +
+            "/approvals",
+          token,
+        );
+        const approved = history.some(
+          (h: any) =>
+            h.state === "approved" &&
+            h.environments?.some(
+              (e: any) =>
+                e.id === target.environmentId && e.name === target.environment,
+            ),
+        );
+        if (!approved) {
+          continue;
+        }
+        const run = await this.github.request(
+          "/repos/" + target.repository + "/actions/runs/" + reviewRunId,
+          token,
+        );
+        if (
+          run.id !== reviewRunId ||
+          run.repository?.id !== target.repositoryId ||
+          run.head_repository?.id !== target.repositoryId ||
+          run.head_branch !== target.branch ||
+          run.path !== target.workflow ||
+          run.event !== "push"
+        ) {
+          continue;
+        }
+        this.store.deploying(
+          this.release(
+            target,
+            run,
+            "https://github.com/" +
               target.repository +
               "/actions/runs/" +
-              runId,
-          });
-        } catch (err) {
-          if (
-            !(err instanceof ExpectedError) ||
-            !["release_superseded", "release_no_longer_pending"].includes(
-              err.code,
-            )
-          )
-            throw err;
-        }
+              reviewRunId,
+          ),
+        );
       }
     }
     // A trusted importer status announces a real release, including automatic
@@ -526,31 +664,17 @@ export class ApprovalService {
           !(target.sourceEvents ?? ["push"]).includes(run.event)
         )
           continue;
-        this.store.candidate(
-          {
-            repository: target.repository,
-            repositoryId: target.repositoryId,
-            environment: target.environment,
-            environmentId: target.environmentId,
-            runId,
-            runAttempt: attempt,
-            sha: run.head_sha,
-            previousSha: this.store.deployed(
-              target.repositoryId,
-              target.environmentId,
-              runId,
-            ),
-            label: target.label,
-            channelId: target.channelId,
-            runUrl:
-              "https://github.com/" +
+        this.store.deploying(
+          this.release(
+            target,
+            run,
+            "https://github.com/" +
               target.repository +
               "/actions/runs/" +
               runId +
               "/attempts/" +
               attempt,
-          },
-          "deploying",
+          ),
         );
       }
     }
@@ -559,7 +683,8 @@ export class ApprovalService {
       .filter(
         (c) =>
           targets.some((t) => t.environmentId === c.environmentId) &&
-          c.repositoryId === payload.repository.id,
+          c.repositoryId === payload.repository.id &&
+          !c.replacedBy,
       );
     if (
       event === "deployment_review" &&
@@ -689,6 +814,7 @@ export class ApprovalService {
         .cards()
         .filter(
           (c) =>
+            !c.replacedBy &&
             targets.some(
               (t) =>
                 t.repositoryId === c.repositoryId &&

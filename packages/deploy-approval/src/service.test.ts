@@ -69,7 +69,9 @@ function fixture() {
   const statuses: any[] = [];
   const posts: any[] = [];
   const oauthCalls: any[] = [];
+  const lists: string[] = [];
   let postError = false;
+  let headRuns: any[] | undefined;
   const gh = new GitHub(config);
   gh.appToken = async () => "app-token";
   gh.oauth = async (params) => {
@@ -94,6 +96,10 @@ function fixture() {
       return [gate];
     }
     if (path.endsWith("/commits/main")) return { sha: run.head_sha };
+    if (path.includes("/actions/runs?")) {
+      lists.push(path);
+      return { workflow_runs: headRuns ?? [run] };
+    }
     if (path.endsWith("/actions/runs/" + run.id)) return run;
     throw new Error("Unexpected API path: " + path);
   };
@@ -128,25 +134,32 @@ function fixture() {
     posts,
     oauthCalls,
     payload,
+    lists,
+    setHeadRuns: (runs: any[]) => {
+      headRuns = runs;
+    },
     setPostError: () => {
       postError = true;
     },
   };
 }
 async function pending(f: ReturnType<typeof fixture>) {
-  await f.service.event("deployment_review", f.payload());
-  return f.store.cards()[0];
+  await f.service.check(target);
+  return f.store.cards().at(-1)!;
 }
 describe("approval binding and message lifecycle", () => {
-  test("updates one pending card, freezes after approval, and creates the next card", async () => {
+  test("a newer commit gets its own card and leaves the old one frozen", async () => {
     const f = fixture();
     const first = await pending(f);
     f.run.id = 11;
     f.run.head_sha = "b".repeat(40);
     const next = await pending(f);
-    expect(next.id).toBe(first.id);
-    expect(next.revision).toBe(2);
-    expect(f.store.cards()).toHaveLength(1);
+    expect(next.id).not.toBe(first.id);
+    expect(next.messageId).toBeUndefined();
+    const old = f.store.card(first.id)!;
+    expect(old.phase).toBe("stale");
+    expect(old.replacedBy).toBe(next.id);
+    expect(old.sha).toBe("a".repeat(40));
     const review = await f.service.review(
       config.ownerDiscordId,
       next.id,
@@ -160,19 +173,30 @@ describe("approval binding and message lifecycle", () => {
     f.run.id = 12;
     f.run.head_sha = "c".repeat(40);
     await pending(f);
-    expect(f.store.cards()).toHaveLength(2);
-    expect(f.store.card(next.id)?.sha).toBe("b".repeat(40));
+    expect(f.store.cards()).toHaveLength(3);
+    expect(f.store.card(next.id)?.phase).toBe("approved");
   });
-  test("duplicate and out-of-order deliveries do not replace a newer candidate", async () => {
+  test("a push reaching the gate posts nothing and leaves the open card alone", async () => {
     const f = fixture();
-    await pending(f);
-    await pending(f);
-    expect(f.store.cards()[0].revision).toBe(1);
-    f.run.id = 12;
-    await pending(f);
-    f.run.id = 11;
-    await pending(f);
-    expect(f.store.cards()[0].runId).toBe(12);
+    await f.service.event("deployment_review", f.payload());
+    expect(f.store.cards()).toHaveLength(0);
+    const card = await pending(f);
+    const original = f.service.github.request.bind(f.service.github);
+    f.service.github.request = async (path, ...args) =>
+      path.endsWith("/commits/main")
+        ? { sha: "b".repeat(40) }
+        : original(path, ...args);
+    await f.service.event("deployment_review", f.payload());
+    expect(f.store.cards()).toHaveLength(1);
+    expect(f.store.card(card.id)?.revision).toBe(card.revision);
+    await expect(
+      f.service.review(
+        config.ownerDiscordId,
+        card.id,
+        card.revision,
+        "approved",
+      ),
+    ).rejects.toThrow("release_superseded");
   });
   test("replacement invalidates an existing confirmation", async () => {
     const f = fixture();
@@ -275,8 +299,9 @@ describe("approval binding and message lifecycle", () => {
     f.run.id = 11;
     await pending(f);
     f.store.ack(first.id, 1, "333333333333333333");
-    expect(f.store.changed()[0].messageId).toBe("333333333333333333");
-    expect(f.store.changed()[0].revision).toBe(2);
+    const old = f.store.changed().find((card) => card.id === first.id)!;
+    expect(old.messageId).toBe("333333333333333333");
+    expect(old.revision).toBe(2);
   });
 });
 describe("OAuth and exposed boundaries", () => {
@@ -389,7 +414,11 @@ describe("OAuth and exposed boundaries", () => {
         )
       ).status,
     ).toBe(401);
-    const body = JSON.stringify(f.payload());
+    f.history.push({
+      state: "approved",
+      environments: [{ id: 2, name: "production" }],
+    });
+    const body = JSON.stringify({ ...f.payload(), action: "approved" });
     const headers = {
       authorization: "Bearer " + config.relayToken,
       "x-github-event": "deployment_review",
@@ -439,7 +468,7 @@ test("a candidate arriving during final validation prevents the older approval",
   const original = f.service.github.pending.bind(f.service.github);
   f.service.github.pending = async (...args) => {
     const result = await original(...args);
-    f.store.candidate({ ...card, runId: 11, sha: "b".repeat(40) });
+    f.store.issue({ ...card, runId: 11, sha: "b".repeat(40) });
     return result;
   };
   await expect(
@@ -468,7 +497,7 @@ test("review payload without workflow_run resolves through its job", async () =>
     workflow_run: null,
     workflow_job_run: { id: 20 },
   };
-  await f.service.event("deployment_review", payload);
+  await pending(f);
   f.history.push({
     state: "approved",
     environments: [{ id: 2, name: "production" }],
@@ -503,7 +532,15 @@ test("durable relay survives restart and backend outage", async () => {
 });
 test("persisted inbox continues beyond eight failures", async () => {
   const f = fixture();
-  f.service.enqueue("one", "deployment_review", JSON.stringify(f.payload()));
+  f.history.push({
+    state: "approved",
+    environments: [{ id: 2, name: "production" }],
+  });
+  f.service.enqueue(
+    "one",
+    "deployment_review",
+    JSON.stringify({ ...f.payload(), action: "approved" }),
+  );
   f.store.db.exec("UPDATE inbox SET attempts=9");
   await f.service.processInbox();
   expect(f.store.cards()).toHaveLength(1);
@@ -578,8 +615,7 @@ test("deployed baseline survives restart and updates pending comparisons without
   const old = "b".repeat(40),
     next = "c".repeat(40);
   f.store.recordDeployment(1, 2, old, 0);
-  await f.service.event("deployment_review", f.payload());
-  let card = f.store.cards()[0];
+  let card = await pending(f);
   expect(card.previousSha).toBe(old);
   const revision = card.revision;
   f.store.recordDeployment(1, 2, next, 9);
@@ -714,7 +750,7 @@ test("blue/green completion requires the exact host-wait job and successful step
       f.store,
       f.service.github,
     );
-    await service.event("deployment_review", f.payload());
+    await pending(f);
     const original = service.github.request.bind(service.github);
     service.github.request = async (path, ...args) =>
       path.includes("/jobs?")
@@ -749,7 +785,7 @@ test("blue/green completion requires the exact host-wait job and successful step
 
 describe("pending card expiry", () => {
   const day = 24 * 60 * 60 * 1000;
-  test("expires idle cards without GitHub polling, and new releases get fresh identities", async () => {
+  test("expired cards go stale, and Refresh reposts the same release", async () => {
     const f = fixture();
     const first = await pending(f);
     const born = Date.now() - day;
@@ -757,18 +793,14 @@ describe("pending card expiry", () => {
     expect(f.store.expirePending(born + day - 1)).toBe(0);
     await f.service.processInbox();
     expect(f.store.card(first.id)?.phase).toBe("stale");
-    const count = f.store.cards().length;
-    await f.service.processInbox();
-    expect(f.store.cards()).toHaveLength(count); // Quiet services do not post daily replacements.
-    await f.service.event("deployment_review", f.payload());
-    expect(f.store.cards()).toHaveLength(1); // Redelivery cannot reopen the same stale run.
-    f.run.id = 11;
-    f.run.head_sha = "b".repeat(40);
-    await f.service.event("deployment_review", f.payload());
+    expect(f.store.card(first.id)?.replacedBy).toBeUndefined();
+    await expect(
+      f.service.refresh(config.ownerDiscordId, first.id),
+    ).resolves.toBe("posted");
     const second = f.store.cards()[1];
-    expect(second.id).not.toBe(first.id);
     expect(second.phase).toBe("pending");
-    expect(second.messageId).toBeUndefined();
+    expect(second.runId).toBe(first.runId);
+    expect(f.store.card(first.id)?.replacedBy).toBe(second.id);
   });
   test("a confirmation issued before expiry cannot approve after the deadline", async () => {
     const f = fixture();
@@ -801,5 +833,213 @@ describe("pending card expiry", () => {
       action: "approved",
     });
     expect(f.store.card(card.id)?.phase).toBe("approved");
+  });
+});
+
+describe("refresh", () => {
+  test("is owner-only and reports a card that is already the latest", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    await expect(f.service.refresh("other", card.id)).rejects.toThrow(
+      "not_authorized",
+    );
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("current");
+    expect(f.store.cards()).toHaveLength(1);
+    expect(f.store.card(card.id)?.revision).toBe(card.revision);
+  });
+  test("posts the head release and notifies the bot stream", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    let notified = 0;
+    f.service.listeners.add(() => notified++);
+    f.run.id = 11;
+    f.run.head_sha = "b".repeat(40);
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("posted");
+    expect(notified).toBe(1);
+    expect(f.lists[1]).toContain("head_sha=" + "b".repeat(40));
+    expect(f.lists[1]).toContain("event=push");
+    expect(f.store.cards().at(-1)?.sha).toBe("b".repeat(40));
+  });
+  test("waits when the head commit has no gated run", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    f.setHeadRuns([]);
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("waiting");
+    f.setHeadRuns([{ id: 10, path: ".github/workflows/other.yml" }]);
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("waiting");
+    f.setHeadRuns([f.run]);
+    f.run.status = "completed";
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("waiting");
+    expect(f.store.cards()).toHaveLength(1);
+  });
+  test("an App token failure is not reported as a missing GitHub link", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    f.service.github.request = async () => {
+      throw new ExpectedError("github_authorization_required", 403);
+    };
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).rejects.toThrow("github_read_failed");
+  });
+  test("never reposts a release that is being decided or deployed", async () => {
+    const f = fixture();
+    const card = await pending(f);
+    f.store.update(card, { phase: "approved" });
+    await expect(
+      f.service.refresh(config.ownerDiscordId, card.id),
+    ).resolves.toBe("current");
+    expect(f.store.cards()).toHaveLength(1);
+  });
+  test("a replaced card ignores GitHub events for its run", async () => {
+    const f = fixture();
+    const first = await pending(f);
+    f.store.update(first, { createdAt: Date.now() - 24 * 60 * 60 * 1000 });
+    f.store.expirePending();
+    await f.service.refresh(config.ownerDiscordId, first.id);
+    const second = f.store.cards()[1];
+    const frozen = f.store.card(first.id)!;
+    f.history.push({
+      state: "approved",
+      environments: [{ id: 2, name: "production" }],
+    });
+    await f.service.event("deployment_review", {
+      ...f.payload(),
+      action: "approved",
+    });
+    expect(f.store.card(second.id)?.phase).toBe("approved");
+    expect(f.store.card(first.id)).toEqual(frozen);
+  });
+});
+
+describe("GitHub approval without a card", () => {
+  const approved = {
+    state: "approved",
+    environments: [{ id: 2, name: "production" }],
+  };
+  test("creates a tracked card so deployment history still advances", async () => {
+    const f = fixture();
+    f.history.push(approved);
+    await f.service.event("deployment_review", {
+      ...f.payload(),
+      action: "approved",
+    });
+    expect(f.store.cards()).toHaveLength(1);
+    expect(f.store.cards()[0].phase).toBe("deploying");
+    expect(f.store.cards()[0].runId).toBe(10);
+  });
+  test("retires an older open card when a newer run is approved there", async () => {
+    const f = fixture();
+    const old = await pending(f);
+    f.run.id = 11;
+    f.run.head_sha = "b".repeat(40);
+    f.history.push(approved);
+    await f.service.event("deployment_review", {
+      ...f.payload(),
+      action: "approved",
+    });
+    const next = f.store.cards()[1];
+    expect(next.phase).toBe("deploying");
+    expect(f.store.card(old.id)?.replacedBy).toBe(next.id);
+  });
+  test("ignores a run outside the target's workflow", async () => {
+    const f = fixture();
+    f.run.path = ".github/workflows/other.yml";
+    f.history.push(approved);
+    await f.service.event("deployment_review", {
+      ...f.payload(),
+      action: "approved",
+    });
+    expect(f.store.cards()).toHaveLength(0);
+  });
+});
+
+describe("daily check", () => {
+  const before = new Date("2026-11-06T16:59:00Z"); // 08:59 Pacific
+  const after = new Date("2026-11-06T17:00:00Z"); // 09:00 Pacific
+  const nextDay = new Date("2026-11-07T17:00:00Z");
+  test("posts once a day at 9 AM Pacific, even for an unchanged release", async () => {
+    const f = fixture();
+    await f.service.dailyCheck(before);
+    expect(f.store.cards()).toHaveLength(0);
+    await f.service.dailyCheck(after);
+    await f.service.dailyCheck(new Date(after.getTime() + 60000));
+    expect(f.store.cards()).toHaveLength(1);
+    const first = f.store.cards()[0];
+    f.store.update(first, { createdAt: Date.now() - 13 * 60 * 60 * 1000 });
+    await f.service.dailyCheck(nextDay);
+    expect(f.store.cards()).toHaveLength(2);
+    expect(f.store.card(first.id)?.replacedBy).toBe(f.store.cards()[1].id);
+  });
+  test("follows daylight saving time", async () => {
+    const f = fixture();
+    await f.service.dailyCheck(new Date("2026-07-06T15:59:00Z")); // 08:59 PDT
+    expect(f.store.cards()).toHaveLength(0);
+    await f.service.dailyCheck(new Date("2026-07-06T16:00:00Z")); // 09:00 PDT
+    expect(f.store.cards()).toHaveLength(1);
+  });
+  test("keeps a card refreshed shortly before the check", async () => {
+    const f = fixture();
+    await pending(f);
+    await f.service.dailyCheck(after);
+    expect(f.store.cards()).toHaveLength(1);
+  });
+  test("a newer commit always gets a card, however recent the last one", async () => {
+    const f = fixture();
+    await pending(f);
+    f.run.id = 11;
+    f.run.head_sha = "b".repeat(40);
+    await f.service.dailyCheck(after);
+    expect(f.store.cards()).toHaveLength(2);
+  });
+  test("skips automatic targets and retries only the target that failed", async () => {
+    const f = fixture();
+    const other = { ...target, repositoryId: 7, repository: "owner/other" };
+    const automatic = {
+      ...target,
+      repositoryId: 8,
+      repository: "owner/auto",
+      mode: "automatic" as const,
+      environmentId: "release:production",
+    };
+    const service = new ApprovalService(
+      { ...config, targets: [other, target, automatic] },
+      f.store,
+      f.service.github,
+    );
+    const original = service.github.request.bind(service.github);
+    let failing = true;
+    const calls: string[] = [];
+    service.github.request = async (path, ...args) => {
+      calls.push(path);
+      if (failing && path.startsWith("/repos/owner/other")) {
+        throw new Error("GitHub API request failed: 502");
+      }
+      return original(path, ...args);
+    };
+    await service.dailyCheck(after);
+    expect(f.store.cards().map((c) => c.repository)).toEqual(["owner/app"]);
+    expect(calls.some((path) => path.startsWith("/repos/owner/auto"))).toBe(
+      false,
+    );
+    failing = false;
+    calls.length = 0;
+    await service.dailyCheck(new Date(after.getTime() + 60000));
+    expect(calls.some((path) => path.startsWith("/repos/owner/app"))).toBe(
+      false,
+    );
+    expect(calls.some((path) => path.startsWith("/repos/owner/other"))).toBe(
+      true,
+    );
   });
 });
