@@ -61,8 +61,6 @@ function setup() {
   });
   const recordPostCaptured = mock(() => undefined);
   const capture = new SushiiUpdatesCaptureService(
-    { get: mock() } as never,
-    SOURCE,
     { savePost },
     { recordPostCaptured } as unknown as SushiiUpdatesMetrics,
     pino({ level: "silent" }),

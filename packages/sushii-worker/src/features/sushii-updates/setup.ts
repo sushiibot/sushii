@@ -38,8 +38,6 @@ export function setupSushiiUpdatesFeature({
   const repository = new DrizzleSushiiUpdatesRepository(db);
   const metrics = new SushiiUpdatesMetrics();
   const capture = new SushiiUpdatesCaptureService(
-    client.rest,
-    sourceChannelId,
     repository,
     metrics,
     logger.child({ component: "SushiiUpdatesCaptureService" }),
@@ -62,7 +60,6 @@ export function setupSushiiUpdatesFeature({
         deploymentService,
         logger.child({ component: "SushiiUpdatesRelayTask" }),
         sourceChannelId,
-        capture,
         relay,
       ),
     ],

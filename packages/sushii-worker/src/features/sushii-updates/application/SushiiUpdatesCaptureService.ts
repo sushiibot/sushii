@@ -1,12 +1,9 @@
-import type { APIMessage, Client } from "discord.js";
-import { MessageFlags, MessageType, Routes, SnowflakeUtil } from "discord.js";
+import { MessageFlags, MessageType, SnowflakeUtil } from "discord.js";
 import type { Logger } from "pino";
 
 import type { SushiiUpdatesRepository } from "../domain/SushiiUpdatesRepository";
 import { PUBLISH_WINDOW_MS } from "../domain/UpdatePost";
 import type { SushiiUpdatesMetrics } from "../infrastructure/SushiiUpdatesMetrics";
-
-const CATCH_UP_LIMIT = 10;
 
 export interface SourceMessage {
   id: string;
@@ -38,8 +35,6 @@ export function isPublishedUpdate(
 
 export class SushiiUpdatesCaptureService {
   constructor(
-    private readonly rest: Pick<Client["rest"], "get">,
-    private readonly sourceChannelId: string,
     private readonly repository: Pick<SushiiUpdatesRepository, "savePost">,
     private readonly metrics: SushiiUpdatesMetrics,
     private readonly logger: Logger,
@@ -62,25 +57,5 @@ export class SushiiUpdatesCaptureService {
       );
     }
     return stored;
-  }
-
-  /** Picks up posts published while no active deployment saw the update event. */
-  async catchUp(botUserId: string): Promise<void> {
-    const recent = (await this.rest.get(
-      Routes.channelMessages(this.sourceChannelId),
-      { query: new URLSearchParams({ limit: String(CATCH_UP_LIMIT) }) },
-    )) as APIMessage[];
-
-    for (const message of recent) {
-      await this.capture(
-        {
-          id: message.id,
-          flags: message.flags ?? 0,
-          type: message.type,
-          authorId: message.author.id,
-        },
-        botUserId,
-      );
-    }
   }
 }

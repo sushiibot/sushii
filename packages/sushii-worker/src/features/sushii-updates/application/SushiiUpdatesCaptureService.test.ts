@@ -9,7 +9,6 @@ import {
   isPublishedUpdate,
 } from "./SushiiUpdatesCaptureService";
 
-const SOURCE = "300000000000000001";
 const BOT_ID = "400000000000000001";
 const HOUR = 60 * 60 * 1000;
 
@@ -17,7 +16,7 @@ function idAgo(ms: number): string {
   return SnowflakeUtil.generate({ timestamp: Date.now() - ms }).toString();
 }
 
-function setup(messages: unknown[] = []) {
+function setup() {
   const stored = new Map<string, UpdatePost>();
   const savePost = mock(async (post: UpdatePost) => {
     if (stored.has(post.messageId)) {
@@ -26,16 +25,13 @@ function setup(messages: unknown[] = []) {
     stored.set(post.messageId, post);
     return true;
   });
-  const get = mock(async () => messages);
   const recordPostCaptured = mock(() => undefined);
   const service = new SushiiUpdatesCaptureService(
-    { get } as never,
-    SOURCE,
     { savePost },
     { recordPostCaptured } as unknown as SushiiUpdatesMetrics,
     pino({ level: "silent" }),
   );
-  return { service, stored, get, recordPostCaptured };
+  return { service, stored, recordPostCaptured };
 }
 
 describe("isPublishedUpdate", () => {
@@ -60,40 +56,22 @@ describe("isPublishedUpdate", () => {
   });
 });
 
-describe("SushiiUpdatesCaptureService.catchUp", () => {
-  test("captures recent published posts once from the last messages", async () => {
-    const published = idAgo(HOUR);
-    const t = setup([
-      {
-        id: published,
-        flags: MessageFlags.Crossposted,
-        type: MessageType.Default,
-        author: { id: "500000000000000001" },
-      },
-      {
-        id: idAgo(2 * HOUR),
-        flags: 0,
-        type: MessageType.Default,
-        author: { id: "500000000000000001" },
-      },
-      {
-        id: idAgo(48 * HOUR),
-        flags: MessageFlags.Crossposted,
-        type: MessageType.Default,
-        author: { id: "500000000000000001" },
-      },
-    ]);
+describe("SushiiUpdatesCaptureService.capture", () => {
+  test("stores a published post once, so edits don't queue it again", async () => {
+    const t = setup();
+    const message = {
+      id: idAgo(HOUR),
+      flags: MessageFlags.Crossposted,
+      type: MessageType.Default,
+      authorId: "500000000000000001",
+    };
 
-    await t.service.catchUp(BOT_ID);
-    await t.service.catchUp(BOT_ID);
+    expect(await t.service.capture(message, BOT_ID)).toBe(true);
+    expect(await t.service.capture(message, BOT_ID)).toBe(false);
 
-    expect([...t.stored.keys()]).toEqual([published]);
-    expect(t.stored.get(published)?.createdAt.getTime()).toBe(
-      SnowflakeUtil.timestampFrom(published),
+    expect(t.stored.get(message.id)?.createdAt.getTime()).toBe(
+      SnowflakeUtil.timestampFrom(message.id),
     );
     expect(t.recordPostCaptured).toHaveBeenCalledTimes(1);
-    expect(t.get).toHaveBeenCalledWith(`/channels/${SOURCE}/messages`, {
-      query: new URLSearchParams({ limit: "10" }),
-    });
   });
 });
