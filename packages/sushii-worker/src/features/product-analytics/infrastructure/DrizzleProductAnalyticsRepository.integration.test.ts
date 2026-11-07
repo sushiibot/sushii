@@ -240,6 +240,108 @@ describe("product analytics rollup", () => {
     });
   });
 
+  async function seedRelays(at: string, guilds: bigint[]) {
+    await db.insert(events).values(
+      guilds.map((guildId) => ({
+        occurredAt: new Date(at),
+        name: "update.relayed",
+        feature: "sushii-updates",
+        guildId,
+      })),
+    );
+  }
+
+  test("relayed updates keep their row and leave the all row alone", async () => {
+    await seed("2026-09-07T10:00:00Z", "social", [1, 2, 3, 4, 5]);
+    await seedRelays("2026-09-07T11:00:00Z", [
+      201n,
+      202n,
+      203n,
+      204n,
+      205n,
+      206n,
+    ]);
+    await rollup.run(new Date("2026-09-15T01:15:00Z"));
+
+    const rows = await db.select().from(schema.productUsageWeeklyInAppPublic);
+    expect(rows.find((row) => row.feature === "all")?.guilds).toBe(5);
+    expect(rows.find((row) => row.feature === "sushii-updates")?.guilds).toBe(
+      6,
+    );
+  });
+
+  test("relayed updates don't count in the live totals or levels", async () => {
+    const now = new Date().toISOString();
+    await seed(now, "social", [1, 2, 3, 4, 5]);
+    await seedRelays(now, [201n, 202n, 203n, 204n, 205n, 206n]);
+
+    const daily = await db.execute<{ feature: string; guilds: number }>(
+      sql`SELECT * FROM analytics.usage_daily WHERE feature = 'all'`,
+    );
+    expect(daily.rows[0].guilds).toBe(5);
+
+    const levels = await db.execute<{ level: string; servers: number }>(
+      sql`SELECT * FROM analytics.server_activity WHERE period = 'today'`,
+    );
+    expect(levels.rows).toEqual([
+      expect.objectContaining({ level: "1-9", servers: 5 }),
+    ]);
+  });
+
+  test("server levels split by volume and hide small levels", async () => {
+    const now = new Date();
+    await seed(now.toISOString(), "social", [1, 2, 3, 4, 5]);
+    await db.insert(events).values(
+      Array.from({ length: 12 }, () => ({
+        occurredAt: now,
+        name: "interaction.command",
+        feature: "social",
+        guildId: 900n,
+      })),
+    );
+
+    const { rows } = await db.execute<{
+      level: string;
+      servers: number | null;
+    }>(sql`
+      SELECT level, servers FROM analytics.server_activity
+      WHERE period = '30d' ORDER BY servers NULLS LAST
+    `);
+    expect(rows).toEqual([
+      { level: "1-9", servers: 5 },
+      { level: "10-99", servers: null },
+    ]);
+  });
+
+  test("command usage counts by command and hides small ones", async () => {
+    const now = new Date();
+    const uses = (route: string, users: number[]) =>
+      users.map((user) => ({
+        occurredAt: now,
+        name: "interaction.command",
+        feature: "social",
+        guildId: 100n + BigInt(user),
+        actor: actorCode(KEY, String(user)),
+        props: { route, status: "success" },
+      }));
+    await db
+      .insert(events)
+      .values([...uses("rank", [1, 2, 3, 4, 5]), ...uses("rep", [1, 2])]);
+
+    const { rows } = await db.execute(
+      sql`SELECT * FROM analytics.command_usage ORDER BY period`,
+    );
+    expect(rows).toEqual(
+      ["30d", "today", "week"].map((period) => ({
+        period,
+        command: "rank",
+        uses: 5,
+        users: 5,
+        servers: 5,
+      })),
+    );
+  });
+
   test("the reader sees the views and not the raw table", async () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL ROLE sushii_mcp_reader`);
@@ -251,6 +353,8 @@ describe("product analytics rollup", () => {
         "proof_weekly",
         "usage_daily",
         "usage_current_week",
+        "command_usage",
+        "server_activity",
       ]) {
         await tx.execute(sql.raw(`SELECT * FROM analytics.${view}`));
       }

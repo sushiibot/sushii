@@ -14,6 +14,22 @@ export interface DailyUsageRow {
   events: number;
 }
 
+export type ActivityPeriod = "today" | "week" | "30d";
+
+export interface CommandUsageRow {
+  period: ActivityPeriod;
+  command: string;
+  uses: number;
+  users: number;
+  servers: number | null;
+}
+
+export interface ServerActivityRow {
+  period: ActivityPeriod;
+  level: string;
+  servers: number | null;
+}
+
 export interface RetentionRow {
   cohort_week: string;
   unit: "user" | "guild";

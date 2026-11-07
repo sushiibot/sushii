@@ -1,9 +1,11 @@
 import { fetchView } from "$lib/server/analytics";
 import type {
+  CommandUsageRow,
   DailyUsageRow,
   PromptFunnelRow,
   ProofRow,
   RetentionRow,
+  ServerActivityRow,
   UpdateReachRow,
   UsageRow,
 } from "$lib/types";
@@ -15,6 +17,8 @@ export const load: PageServerLoad = async () => {
     usage,
     currentWeek,
     daily,
+    commands,
+    serverActivity,
     retention,
     promptFunnel,
     updateReach,
@@ -23,6 +27,8 @@ export const load: PageServerLoad = async () => {
     fetchView<UsageRow>("usage_weekly"),
     fetchView<UsageRow>("usage_current_week"),
     fetchView<DailyUsageRow>("usage_daily"),
+    fetchView<CommandUsageRow>("command_usage"),
+    fetchView<ServerActivityRow>("server_activity"),
     fetchView<RetentionRow>("retention_weekly"),
     fetchView<PromptFunnelRow>("prompt_funnel_weekly"),
     fetchView<UpdateReachRow>("update_reach"),
@@ -33,6 +39,8 @@ export const load: PageServerLoad = async () => {
     usage,
     currentWeek,
     daily,
+    commands,
+    serverActivity,
     retention,
     promptFunnel,
     updateReach,

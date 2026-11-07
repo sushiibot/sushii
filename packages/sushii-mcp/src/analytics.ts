@@ -7,6 +7,8 @@ const ANALYTICS_VIEWS = new Set([
   "usage_weekly",
   "usage_daily",
   "usage_current_week",
+  "command_usage",
+  "server_activity",
   "retention_weekly",
   "prompt_funnel_weekly",
   "update_reach",

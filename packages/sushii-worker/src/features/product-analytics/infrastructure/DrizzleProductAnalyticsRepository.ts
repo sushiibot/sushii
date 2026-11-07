@@ -11,6 +11,7 @@ import type {
 import {
   ALL_FEATURES,
   type ProductEventRow,
+  SYSTEM_EVENT,
   UNMATCHED_FEATURE,
 } from "../domain/ProductEvent";
 import type { FeatureUnit } from "../domain/features";
@@ -96,7 +97,13 @@ class DrizzleRollupTransaction implements ProductRollupTransaction {
     const all = await this.tx
       .select(columns)
       .from(events)
-      .where(and(range, ne(events.feature, UNMATCHED_FEATURE)))
+      .where(
+        and(
+          range,
+          ne(events.feature, UNMATCHED_FEATURE),
+          ne(events.name, SYSTEM_EVENT),
+        ),
+      )
       .groupBy(eventWeek);
 
     return [
@@ -127,7 +134,8 @@ class DrizzleRollupTransaction implements ProductRollupTransaction {
           date_trunc('week', occurred_at AT TIME ZONE 'UTC')::date AS week,
           feature,
           actor,
-          guild_id
+          guild_id,
+          name <> ${SYSTEM_EVENT} AS counts_as_activity
         FROM app_public.product_events
         WHERE occurred_at >= ${from.toISOString()}::timestamptz
           AND occurred_at < ${to.toISOString()}::timestamptz
@@ -141,10 +149,10 @@ class DrizzleRollupTransaction implements ProductRollupTransaction {
           FROM source WHERE guild_id IS NOT NULL
         UNION
         SELECT DISTINCT week, 'user', ${ALL_FEATURES}, encode(actor, 'hex')
-          FROM source WHERE actor IS NOT NULL
+          FROM source WHERE actor IS NOT NULL AND counts_as_activity
         UNION
         SELECT DISTINCT week, 'guild', ${ALL_FEATURES}, guild_id::text
-          FROM source WHERE guild_id IS NOT NULL
+          FROM source WHERE guild_id IS NOT NULL AND counts_as_activity
       ),
       cohorts AS (
         SELECT week, unit, feature, count(*)::int AS base

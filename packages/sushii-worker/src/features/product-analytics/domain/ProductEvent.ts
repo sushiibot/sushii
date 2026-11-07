@@ -43,6 +43,8 @@ export const noopProductEvents: ProductEventTracker = {
 
 export const UNMATCHED_FEATURE = "unmatched";
 export const ALL_FEATURES = "all";
+/** The bot posting on its own: it keeps a feature row but never makes a server active. */
+export const SYSTEM_EVENT: ProductEventName = "update.relayed";
 
 const EVENT_FEATURES: Partial<Record<ProductEventName, string>> = {
   "prompt.shown": "prompts",

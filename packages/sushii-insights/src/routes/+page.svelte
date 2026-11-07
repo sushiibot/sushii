@@ -7,10 +7,12 @@
   import LineChart from "$lib/components/LineChart.svelte";
   import RetentionTable from "$lib/components/RetentionTable.svelte";
   import {
+    commandsIn,
     dailyTrend,
     day,
     featureSummaries,
     latestWeek,
+    serverLevels,
     totals,
     updatePosts,
     usageOnDay,
@@ -28,7 +30,14 @@
     { id: "closed", label: "Last closed week" },
   ] as const;
 
+  const USAGE_PERIODS = [
+    { id: "today", label: "Today" },
+    { id: "week", label: "This week so far" },
+    { id: "30d", label: "Last 30 days" },
+  ] as const;
+
   let period = $state<(typeof PERIODS)[number]["id"]>("week");
+  let usagePeriod = $state<(typeof USAGE_PERIODS)[number]["id"]>("week");
 
   const week = $derived(latestWeek(data.usage));
   const today = $derived(usageOnDay(data.daily, day(data.generatedAt)));
@@ -36,6 +45,8 @@
     { today, week: data.currentWeek, closed: data.usage }[period],
   );
   const features = $derived(featureSummaries(periodRows));
+  const commands = $derived(commandsIn(data.commands, usagePeriod));
+  const levels = $derived(serverLevels(data.serverActivity, usagePeriod));
   const posts = $derived(updatePosts(data.updateReach));
   const updatedAt = $derived(data.generatedAt.slice(11, 16));
   const tiles = $derived([
@@ -174,6 +185,64 @@
                     <span class="empty">hidden</span>
                   {/if}
                 </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+  </section>
+
+  <section>
+    <div class="heading">
+      <h2>How much servers use sushii</h2>
+      <div class="periods">
+        {#each USAGE_PERIODS as option (option.id)}
+          <button
+            type="button"
+            aria-pressed={usagePeriod === option.id}
+            onclick={() => (usagePeriod = option.id)}
+          >
+            {option.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+    <p class="lede">Servers by how many actions people took in them.</p>
+    <div class="tile">
+      <dl>
+        {#each levels as level (level.level)}
+          <div>
+            <dt>{level.level} actions</dt>
+            <dd>{count(level.servers)}</dd>
+          </div>
+        {/each}
+      </dl>
+    </div>
+  </section>
+
+  <section>
+    <h2>Commands</h2>
+    {#if commands.length === 0}
+      <p class="empty">No command has reached 5 users in this period.</p>
+    {:else}
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th class="num">Uses</th>
+              <th class="num">Users</th>
+              <th class="num">Servers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each commands as row (row.command)}
+              <tr>
+                <td>{row.command}</td>
+                <td class="num">{row.uses.toLocaleString()}</td>
+                <td class="num">{row.users.toLocaleString()}</td>
+                <td class="num">{count(row.servers)}</td>
               </tr>
             {/each}
           </tbody>

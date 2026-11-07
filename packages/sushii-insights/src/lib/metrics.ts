@@ -1,6 +1,9 @@
 import type {
+  ActivityPeriod,
+  CommandUsageRow,
   DailyUsageRow,
   RetentionRow,
+  ServerActivityRow,
   UpdateReachRow,
   UsageRow,
 } from "./types";
@@ -90,6 +93,33 @@ export function featureSummaries(usage: readonly UsageRow[]): FeatureSummary[] {
         row.guilds !== null && total ? Math.min(row.guilds / total, 1) : null,
     }))
     .sort((a, b) => b.events - a.events);
+}
+
+export const SERVER_LEVELS = ["1-9", "10-99", "100+"] as const;
+
+export function commandsIn(
+  rows: readonly CommandUsageRow[],
+  period: ActivityPeriod,
+): CommandUsageRow[] {
+  return rows
+    .filter((row) => row.period === period)
+    .sort((a, b) => b.uses - a.uses);
+}
+
+export interface ServerLevel {
+  level: string;
+  /** Null means under 5 servers; a level nobody reached is 0. */
+  servers: number | null;
+}
+
+export function serverLevels(
+  rows: readonly ServerActivityRow[],
+  period: ActivityPeriod,
+): ServerLevel[] {
+  return SERVER_LEVELS.map((level) => {
+    const row = rows.find((r) => r.period === period && r.level === level);
+    return { level, servers: row ? row.servers : 0 };
+  });
 }
 
 export interface RetentionCohort {

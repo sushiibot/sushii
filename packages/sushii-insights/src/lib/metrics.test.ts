@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  commandsIn,
   dailyTrend,
   featureSummaries,
   latestWeek,
   retentionCohorts,
+  serverLevels,
   totals,
   updatePosts,
   usageOnDay,
@@ -57,6 +59,36 @@ describe("dailyTrend", () => {
     ]);
     expect(dailyTrend(daily, "actors")).toEqual([
       { label: "2026-11-09", value: 9 },
+    ]);
+  });
+});
+
+describe("commandsIn", () => {
+  test("keeps one period, most used first", () => {
+    const rows = [
+      { period: "week", command: "rep", uses: 9, users: 5, servers: null },
+      { period: "week", command: "rank", uses: 20, users: 8, servers: 5 },
+      { period: "today", command: "rank", uses: 6, users: 5, servers: null },
+    ] as const;
+
+    expect(commandsIn(rows, "week").map((row) => row.command)).toEqual([
+      "rank",
+      "rep",
+    ]);
+  });
+});
+
+describe("serverLevels", () => {
+  test("lists every level and tells zero from hidden", () => {
+    const rows = [
+      { period: "week", level: "1-9", servers: 12 },
+      { period: "week", level: "10-99", servers: null },
+    ] as const;
+
+    expect(serverLevels(rows, "week")).toEqual([
+      { level: "1-9", servers: 12 },
+      { level: "10-99", servers: null },
+      { level: "100+", servers: 0 },
     ]);
   });
 });
