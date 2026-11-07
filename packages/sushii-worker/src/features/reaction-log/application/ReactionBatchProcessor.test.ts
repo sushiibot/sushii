@@ -60,11 +60,15 @@ describe("ReactionBatchProcessor", () => {
 
   beforeEach(() => {
     timerCallbacks = [];
+    const realSetTimeout = globalThis.setTimeout;
     setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
       cb: () => void,
       ms?: number,
     ) => {
-      expect(ms).toBe(BATCH_WINDOW_MS);
+      // The spy is global, so timers left by other test files land here too.
+      if (ms !== BATCH_WINDOW_MS) {
+        return realSetTimeout(cb, ms);
+      }
       timerCallbacks.push(cb);
       return timerCallbacks.length as unknown as NodeJS.Timeout;
     }) as unknown as typeof setTimeout);
