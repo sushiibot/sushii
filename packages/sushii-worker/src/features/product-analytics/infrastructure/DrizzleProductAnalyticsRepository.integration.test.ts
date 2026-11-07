@@ -342,6 +342,135 @@ describe("product analytics rollup", () => {
     );
   });
 
+  test("feature parts split setup from member use and hide small parts", async () => {
+    const now = new Date();
+    const uses = (
+      route: string,
+      name: string,
+      audience: string,
+      users: number[],
+    ) =>
+      users.map((user) => ({
+        occurredAt: now,
+        name,
+        feature: "role-menu",
+        guildId: 100n,
+        actor: actorCode(KEY, String(user)),
+        props: { route, status: "success", audience },
+      }));
+    await db
+      .insert(events)
+      .values([
+        ...uses(
+          "RoleMenuButtonHandler",
+          "interaction.button",
+          "member",
+          [1, 2, 3, 4, 5, 6],
+        ),
+        ...uses("rolemenu create", "interaction.command", "staff", [1]),
+      ]);
+
+    const parts = await db.execute(sql`
+      SELECT part, kind, audience, events, users, servers
+      FROM analytics.feature_parts WHERE period = 'today'
+    `);
+    expect(parts.rows).toEqual([
+      {
+        part: "RoleMenuButtonHandler",
+        kind: "button",
+        audience: "member",
+        events: 6,
+        users: 6,
+        servers: null,
+      },
+    ]);
+
+    const audiences = await db.execute(sql`
+      SELECT audience, events, users FROM analytics.feature_audience
+      WHERE period = 'today' ORDER BY audience
+    `);
+    expect(audiences.rows).toEqual([
+      { audience: "member", events: 6, users: 6 },
+      { audience: "staff", events: 1, users: null },
+    ]);
+  });
+
+  test("prompt outcomes give each person one final outcome", async () => {
+    const now = new Date();
+    const later = new Date(now.getTime() + 60_000);
+    const actor = (user: number) => actorCode(KEY, String(user));
+    const users = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const action = (user: number, name: string, occurredAt = later) => ({
+      occurredAt,
+      name: "prompt.action",
+      feature: "prompts",
+      actor: actor(user),
+      props: { prompt: "follow_updates", action: name },
+    });
+    await db.insert(events).values([
+      ...users.map((user) => ({
+        occurredAt: now,
+        name: "prompt.shown",
+        feature: "prompts",
+        actor: actor(user),
+        props: { prompt: "follow_updates" },
+      })),
+      ...[1, 2, 3, 4, 5].flatMap((user) => [
+        action(user, "channel_select"),
+        action(user, "completed"),
+      ]),
+      action(6, "channel_select"),
+      action(7, "completed"),
+      action(7, "dismiss", new Date(later.getTime() + 60_000)),
+    ]);
+
+    const { rows } = await db.execute(sql`
+      SELECT outcome, people, shown FROM analytics.prompt_outcomes
+      ORDER BY outcome
+    `);
+    expect(rows).toEqual([
+      { outcome: "completed", people: 6, shown: 12 },
+      { outcome: "no_response", people: 5, shown: 12 },
+      { outcome: "started", people: null, shown: 12 },
+    ]);
+  });
+
+  test("proof_intro counts proof added within 7 days of being shown", async () => {
+    const now = new Date();
+    const actor = (user: number) => actorCode(KEY, String(user));
+    const proof = (user: number, occurredAt: Date, outcome = "ok") => ({
+      occurredAt,
+      name: "proof.added",
+      feature: "moderation",
+      actor: actor(user),
+      props: { source: "action", outcome },
+    });
+    const shownAt = new Date(now.getTime() - 8 * 86_400_000);
+    await db.insert(events).values([
+      ...[1, 2, 3, 4, 5, 6, 7].map((user) => ({
+        occurredAt: shownAt,
+        name: "prompt.shown",
+        feature: "prompts",
+        actor: actor(user),
+        props: { prompt: "proof_intro" },
+      })),
+      ...[1, 2, 3, 4, 5].map((user) =>
+        proof(user, new Date(shownAt.getTime() + 86_400_000)),
+      ),
+      proof(6, now),
+      proof(7, new Date(shownAt.getTime() + 86_400_000), "failed"),
+    ]);
+
+    const { rows } = await db.execute(sql`
+      SELECT outcome, people, shown FROM analytics.prompt_outcomes
+      ORDER BY outcome
+    `);
+    expect(rows).toEqual([
+      { outcome: "completed", people: 5, shown: 7 },
+      { outcome: "no_response", people: null, shown: 7 },
+    ]);
+  });
+
   test("the reader sees the views and not the raw table", async () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL ROLE sushii_mcp_reader`);
@@ -355,6 +484,9 @@ describe("product analytics rollup", () => {
         "usage_current_week",
         "command_usage",
         "server_activity",
+        "feature_parts",
+        "feature_audience",
+        "prompt_outcomes",
       ]) {
         await tx.execute(sql.raw(`SELECT * FROM analytics.${view}`));
       }
@@ -366,5 +498,12 @@ describe("product analytics rollup", () => {
       ) AS allowed
     `);
     expect(result.rows[0].allowed).toBe(false);
+
+    const parts = await db.execute<{ allowed: boolean }>(sql`
+      SELECT has_table_privilege(
+        'sushii_mcp_reader', 'app_public.product_event_parts', 'SELECT'
+      ) AS allowed
+    `);
+    expect(parts.rows[0].allowed).toBe(false);
   });
 });

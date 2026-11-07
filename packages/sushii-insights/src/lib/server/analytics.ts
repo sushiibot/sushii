@@ -22,6 +22,10 @@ export async function fetchView<T>(view: string): Promise<T[]> {
   const res = await fetch(`${baseUrl}/analytics/${view}`, {
     headers: { Authorization: `Bearer ${token()}` },
   });
+  // The dashboard can release ahead of the sushii-mcp allow-list for a new view.
+  if (res.status === 404) {
+    return [];
+  }
   if (!res.ok) {
     throw new Error(`Analytics view ${view} returned ${res.status}`);
   }

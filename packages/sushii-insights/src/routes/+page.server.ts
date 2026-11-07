@@ -2,7 +2,9 @@ import { fetchView } from "$lib/server/analytics";
 import type {
   CommandUsageRow,
   DailyUsageRow,
-  PromptFunnelRow,
+  FeatureAudienceRow,
+  FeaturePartRow,
+  PromptOutcomeRow,
   ProofRow,
   RetentionRow,
   ServerActivityRow,
@@ -20,9 +22,11 @@ export const load: PageServerLoad = async () => {
     commands,
     serverActivity,
     retention,
-    promptFunnel,
+    promptOutcomes,
     updateReach,
     proof,
+    featureParts,
+    featureAudience,
   ] = await Promise.all([
     fetchView<UsageRow>("usage_weekly"),
     fetchView<UsageRow>("usage_current_week"),
@@ -30,9 +34,11 @@ export const load: PageServerLoad = async () => {
     fetchView<CommandUsageRow>("command_usage"),
     fetchView<ServerActivityRow>("server_activity"),
     fetchView<RetentionRow>("retention_weekly"),
-    fetchView<PromptFunnelRow>("prompt_funnel_weekly"),
+    fetchView<PromptOutcomeRow>("prompt_outcomes"),
     fetchView<UpdateReachRow>("update_reach"),
     fetchView<ProofRow>("proof_weekly"),
+    fetchView<FeaturePartRow>("feature_parts"),
+    fetchView<FeatureAudienceRow>("feature_audience"),
   ]);
 
   return {
@@ -42,9 +48,11 @@ export const load: PageServerLoad = async () => {
     commands,
     serverActivity,
     retention,
-    promptFunnel,
+    promptOutcomes,
     updateReach,
     proof,
+    featureParts,
+    featureAudience,
     generatedAt: new Date().toISOString(),
   };
 };

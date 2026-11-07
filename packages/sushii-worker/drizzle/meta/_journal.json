@@ -610,6 +610,13 @@
       "when": 1794016084492,
       "tag": "0086_analytics-commands-activity",
       "breakpoints": false
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794078872707,
+      "tag": "0087_analytics-feature-parts",
+      "breakpoints": false
     }
   ]
 }

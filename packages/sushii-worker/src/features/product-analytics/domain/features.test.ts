@@ -4,6 +4,8 @@ import { describe, expect, test } from "bun:test";
 import {
   INTERNAL_HANDLERS,
   PRODUCT_FEATURES,
+  STAFF_HANDLERS,
+  audienceForHandler,
   featureForHandler,
 } from "./features";
 
@@ -36,6 +38,34 @@ describe("product features", () => {
         !INTERNAL_HANDLERS.includes(name),
     );
     expect(unmapped).toEqual([]);
+  });
+
+  test("every permission-gated handler is staff", async () => {
+    const gated: string[] = [];
+    const featuresDir = `${import.meta.dir}/../..`;
+    for await (const path of new Glob("**/*.ts").scan(featuresDir)) {
+      if (path.endsWith(".test.ts")) {
+        continue;
+      }
+      const source = await Bun.file(`${featuresDir}/${path}`).text();
+      if (source.includes("setDefaultMemberPermissions")) {
+        gated.push(...[...source.matchAll(HANDLER_CLASS)].map((m) => m[1]));
+      }
+    }
+    expect(gated.length).toBeGreaterThan(20);
+
+    const missed = gated.filter(
+      (name) =>
+        !STAFF_HANDLERS.includes(name) && !INTERNAL_HANDLERS.includes(name),
+    );
+    expect(missed).toEqual([]);
+  });
+
+  test("splits a feature's setup from what members use", () => {
+    expect(audienceForHandler("RoleMenuCommand")).toBe("staff");
+    expect(audienceForHandler("RoleMenuButtonHandler")).toBe("member");
+    expect(audienceForHandler("NoSuchHandler")).toBeUndefined();
+    expect(audienceForHandler(undefined)).toBeUndefined();
   });
 
   test("no handler is listed twice", () => {

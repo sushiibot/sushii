@@ -2,6 +2,10 @@ import type {
   ActivityPeriod,
   CommandUsageRow,
   DailyUsageRow,
+  FeatureAudienceRow,
+  FeaturePartRow,
+  FeaturePeriod,
+  PromptOutcomeRow,
   RetentionRow,
   ServerActivityRow,
   UpdateReachRow,
@@ -93,6 +97,162 @@ export function featureSummaries(usage: readonly UsageRow[]): FeatureSummary[] {
         row.guilds !== null && total ? Math.min(row.guilds / total, 1) : null,
     }))
     .sort((a, b) => b.events - a.events);
+}
+
+const AUDIENCE_LABELS: Record<string, string> = {
+  member: "Members",
+  staff: "Staff",
+  bot: "Bot",
+  unknown: "Not classified",
+};
+const AUDIENCE_ORDER = ["member", "staff", "bot", "unknown"];
+
+export const audienceLabel = (audience: string): string =>
+  AUDIENCE_LABELS[audience] ?? audience;
+
+export interface FeatureAudience {
+  label: string;
+  events: number;
+}
+
+export function featureAudiences(
+  rows: readonly FeatureAudienceRow[],
+  period: FeaturePeriod,
+  feature: string,
+): FeatureAudience[] {
+  return rows
+    .filter((row) => row.period === period && row.feature === feature)
+    .sort(
+      (a, b) =>
+        AUDIENCE_ORDER.indexOf(a.audience) - AUDIENCE_ORDER.indexOf(b.audience),
+    )
+    .map((row) => ({ label: audienceLabel(row.audience), events: row.events }));
+}
+
+function partName(row: FeaturePartRow): string {
+  if (row.kind === "command") {
+    return `/${row.part}`;
+  }
+  const words = row.part
+    .replace(/(Handler|Command)$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+export interface FeaturePart {
+  name: string;
+  /** Empty for the row that folds in parts under 5 users. */
+  detail: string;
+  servers: number | null;
+  users: number | null;
+  events: number;
+  errors: number;
+  adoption: number | null;
+}
+
+export function featureParts(
+  rows: readonly FeaturePartRow[],
+  period: FeaturePeriod,
+  feature: FeatureSummary,
+  activeServers: number | null,
+): FeaturePart[] {
+  const parts = rows
+    .filter((row) => row.period === period && row.feature === feature.feature)
+    .sort((a, b) => b.events - a.events)
+    .map((row) => ({
+      name: partName(row),
+      detail: `${audienceLabel(row.audience)} · ${row.kind}`,
+      servers: row.servers,
+      users: row.users,
+      events: row.events,
+      errors: row.errors,
+      adoption:
+        row.servers !== null && activeServers
+          ? Math.min(row.servers / activeServers, 1)
+          : null,
+    }));
+
+  const shown = parts.reduce((sum, part) => sum + part.events, 0);
+  if (parts.length === 0 || shown >= feature.events) {
+    return parts;
+  }
+  return [
+    ...parts,
+    {
+      name: "Other parts",
+      detail: "",
+      servers: null,
+      users: null,
+      events: feature.events - shown,
+      errors: 0,
+      adoption: null,
+    },
+  ];
+}
+
+const PROMPT_GOALS: Record<string, string> = {
+  follow_updates: "Turned on notifications",
+  proof_intro: "Added proof within 7 days",
+};
+
+const OUTCOMES = [
+  { id: "completed", label: "Did what it asked" },
+  { id: "started", label: "Started, didn't finish" },
+  { id: "snoozed", label: "Snoozed" },
+  { id: "dismissed", label: "Dismissed" },
+  { id: "no_response", label: "No response" },
+];
+
+export interface PromptSegment {
+  id: string;
+  label: string;
+  people: number;
+  share: number;
+}
+
+export interface PromptOutcome {
+  prompt: string;
+  shown: number;
+  segments: PromptSegment[];
+}
+
+export function promptOutcomes(
+  rows: readonly PromptOutcomeRow[],
+): PromptOutcome[] {
+  const prompts = [...new Set(rows.map((row) => row.prompt))].sort();
+
+  return prompts
+    .map((prompt) => {
+      const own = rows.filter((row) => row.prompt === prompt);
+      const shown = own[0].shown;
+      const segment = (id: string, label: string, people: number) => ({
+        id,
+        label,
+        people,
+        share: people / shown,
+      });
+
+      const segments = OUTCOMES.flatMap(({ id, label }) => {
+        const people = own.find((row) => row.outcome === id)?.people;
+        if (!people) {
+          return [];
+        }
+        const goal = id === "completed" ? PROMPT_GOALS[prompt] : undefined;
+        return [segment(id, goal ?? label, people)];
+      });
+
+      const counted = segments.reduce((sum, s) => sum + s.people, 0);
+      return {
+        prompt,
+        shown,
+        segments:
+          counted < shown
+            ? [...segments, segment("hidden", "Each under 5", shown - counted)]
+            : segments,
+      };
+    })
+    .sort((a, b) => b.shown - a.shown);
 }
 
 export const SERVER_LEVELS = ["1-9", "10-99", "100+"] as const;

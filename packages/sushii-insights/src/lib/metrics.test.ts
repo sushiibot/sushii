@@ -3,8 +3,11 @@ import { describe, expect, test } from "bun:test";
 import {
   commandsIn,
   dailyTrend,
+  featureAudiences,
+  featureParts,
   featureSummaries,
   latestWeek,
+  promptOutcomes,
   retentionCohorts,
   serverLevels,
   totals,
@@ -12,7 +15,12 @@ import {
   usageOnDay,
   weeklyTrend,
 } from "./metrics";
-import type { DailyUsageRow, RetentionRow, UsageRow } from "./types";
+import type {
+  DailyUsageRow,
+  FeaturePartRow,
+  RetentionRow,
+  UsageRow,
+} from "./types";
 
 const usage: UsageRow[] = [
   { week: "2026-10-26", feature: "all", guilds: 40, actors: 90, events: 500 },
@@ -170,5 +178,125 @@ describe("updatePosts", () => {
         { post_id: "1", posted_on: "2026-11-01", status: "skipped", guilds: 3 },
       ]),
     ).toEqual([{ postId: "1", postedOn: "2026-11-01", sent: 30, other: 5 }]);
+  });
+});
+
+describe("featureParts", () => {
+  const part = (over: Partial<FeaturePartRow>): FeaturePartRow => ({
+    period: "week",
+    feature: "role-menu",
+    part: "RoleMenuButtonHandler",
+    kind: "button",
+    audience: "member",
+    events: 80,
+    errors: 0,
+    users: 40,
+    servers: 10,
+    ...over,
+  });
+  const feature = {
+    feature: "role-menu",
+    guilds: 12,
+    actors: 45,
+    events: 100,
+    adoption: 0.24,
+  };
+
+  test("names parts, shares by active servers and folds the rest", () => {
+    const rows = [
+      part({
+        part: "rolemenu create",
+        kind: "command",
+        audience: "staff",
+        events: 15,
+        users: 5,
+        servers: null,
+      }),
+      part({}),
+      part({ period: "today" }),
+    ];
+
+    expect(featureParts(rows, "week", feature, 50)).toEqual([
+      {
+        name: "Role Menu Button",
+        detail: "Members · button",
+        servers: 10,
+        users: 40,
+        events: 80,
+        errors: 0,
+        adoption: 0.2,
+      },
+      {
+        name: "/rolemenu create",
+        detail: "Staff · command",
+        servers: null,
+        users: 5,
+        events: 15,
+        errors: 0,
+        adoption: null,
+      },
+      {
+        name: "Other parts",
+        detail: "",
+        servers: null,
+        users: null,
+        events: 5,
+        errors: 0,
+        adoption: null,
+      },
+    ]);
+  });
+
+  test("a feature with no visible parts has nothing to open", () => {
+    expect(featureParts([], "week", feature, 50)).toEqual([]);
+  });
+});
+
+describe("featureAudiences", () => {
+  test("lists members first, in the chosen period", () => {
+    const row = { feature: "role-menu", users: 5, servers: 5 };
+    expect(
+      featureAudiences(
+        [
+          { ...row, period: "week", audience: "staff", events: 3 },
+          { ...row, period: "week", audience: "member", events: 520 },
+          { ...row, period: "today", audience: "member", events: 9 },
+        ],
+        "week",
+        "role-menu",
+      ),
+    ).toEqual([
+      { label: "Members", events: 520 },
+      { label: "Staff", events: 3 },
+    ]);
+  });
+});
+
+describe("promptOutcomes", () => {
+  test("segments add up to everyone shown", () => {
+    const [outcome] = promptOutcomes([
+      {
+        prompt: "follow_updates",
+        outcome: "no_response",
+        people: 15,
+        shown: 30,
+      },
+      { prompt: "follow_updates", outcome: "completed", people: 11, shown: 30 },
+      {
+        prompt: "follow_updates",
+        outcome: "dismissed",
+        people: null,
+        shown: 30,
+      },
+    ]);
+
+    expect(outcome.segments.map((s) => [s.label, s.people])).toEqual([
+      ["Turned on notifications", 11],
+      ["No response", 15],
+      ["Each under 5", 4],
+    ]);
+    expect(outcome.segments.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(
+      1,
+    );
   });
 });

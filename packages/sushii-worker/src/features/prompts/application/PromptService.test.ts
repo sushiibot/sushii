@@ -198,6 +198,33 @@ describe("PromptService", () => {
     expect(i.followUp).not.toHaveBeenCalled();
   });
 
+  test("finishing a prompt records a completed action", async () => {
+    const track = mock();
+    const svc = new PromptService(
+      repo,
+      [prompt()],
+      metrics,
+      logger,
+      () => NOW,
+      { track },
+    );
+    const context = svc.actionContext(
+      prompt(),
+      makeInteraction("1") as unknown as Parameters<
+        typeof svc.actionContext
+      >[1],
+    );
+
+    await context.recordCompleted();
+
+    expect(track).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "prompt.action",
+        props: { prompt: "tip", action: "completed" },
+      }),
+    );
+  });
+
   test("only one prompt per interaction", async () => {
     const svc = service([prompt({ id: "a" }), prompt({ id: "b" })]);
     const i = makeInteraction();

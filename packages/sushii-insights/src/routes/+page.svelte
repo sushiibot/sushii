@@ -5,7 +5,9 @@
   import { onMount } from "svelte";
 
   import { invalidateAll } from "$app/navigation";
+  import FeatureTable from "$lib/components/FeatureTable.svelte";
   import LineChart from "$lib/components/LineChart.svelte";
+  import PromptOutcomes from "$lib/components/PromptOutcomes.svelte";
   import RetentionTable from "$lib/components/RetentionTable.svelte";
   import {
     commandsIn,
@@ -13,6 +15,7 @@
     day,
     featureSummaries,
     latestWeek,
+    promptOutcomes,
     serverLevels,
     totals,
     updatePosts,
@@ -48,6 +51,7 @@
   const features = $derived(featureSummaries(periodRows));
   const commands = $derived(commandsIn(data.commands, usagePeriod));
   const levels = $derived(serverLevels(data.serverActivity, usagePeriod));
+  const outcomes = $derived(promptOutcomes(data.promptOutcomes));
   const posts = $derived(updatePosts(data.updateReach));
   const updatedAt = $derived(data.generatedAt.slice(11, 16));
   const tiles = $derived([
@@ -159,44 +163,13 @@
     {#if features.length === 0}
       <p class="empty">No feature has reached 5 servers or users in this period.</p>
     {:else}
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Feature</th>
-              <th class="num">Servers</th>
-              <th class="num">Users</th>
-              <th class="num">Events</th>
-              <th>Share of active servers</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each features as feature (feature.feature)}
-              <tr>
-                <td>{feature.feature}</td>
-                <td class="num">{count(feature.guilds)}</td>
-                <td class="num">{count(feature.actors)}</td>
-                <td class="num">{feature.events.toLocaleString()}</td>
-                <td>
-                  {#if feature.adoption !== null}
-                    <div class="share">
-                      <span class="track">
-                        <span
-                          class="fill"
-                          style={`width: ${feature.adoption * 100}%`}
-                        ></span>
-                      </span>
-                      {Math.round(feature.adoption * 100)}%
-                    </div>
-                  {:else}
-                    <span class="empty">hidden</span>
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <FeatureTable
+        {features}
+        {period}
+        parts={data.featureParts}
+        audiences={data.featureAudience}
+        activeServers={totals(periodRows)?.guilds ?? null}
+      />
     {/if}
   </section>
 
@@ -267,30 +240,14 @@
   </section>
 
   <section>
-    <h2>Prompt funnel</h2>
-    {#if data.promptFunnel.length === 0}
-      <p class="empty">No data yet.</p>
+    <h2>Prompt outcomes</h2>
+    <p class="lede">
+      Everyone shown a prompt in the last 30 days, by where they ended up.
+    </p>
+    {#if outcomes.length === 0}
+      <p class="empty">No prompt has been shown to 5 people yet.</p>
     {:else}
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Week</th><th>Prompt</th><th>Step</th>
-              <th class="num">People</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each data.promptFunnel as row (`${row.week}-${row.prompt}-${row.action}`)}
-              <tr>
-                <td>{day(row.week)}</td>
-                <td>{row.prompt}</td>
-                <td>{row.action}</td>
-                <td class="num">{row.actors.toLocaleString()}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <PromptOutcomes {outcomes} />
     {/if}
   </section>
 
@@ -456,25 +413,5 @@
   }
   .scroll {
     overflow-x: auto;
-  }
-  .share {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .track {
-    flex: 1;
-    min-width: 6rem;
-    height: 8px;
-    background: var(--grid);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .fill {
-    display: block;
-    height: 100%;
-    background: var(--series-1);
-    border-radius: 0 4px 4px 0;
   }
 </style>

@@ -202,8 +202,15 @@ export class PromptService {
     const subject = this.subjectFor(prompt, interaction);
     return {
       subject,
-      recordCompleted: () =>
-        this.repository.recordCompleted(subject, prompt.id),
+      recordCompleted: async () => {
+        await this.repository.recordCompleted(subject, prompt.id);
+        this.productEvents.track({
+          name: "prompt.action",
+          userId: interaction.user.id,
+          guildId: interaction.guildId,
+          props: { prompt: prompt.id, action: "completed" },
+        });
+      },
       recordDismissed: () =>
         this.repository.recordDismissed(subject, prompt.id),
     };

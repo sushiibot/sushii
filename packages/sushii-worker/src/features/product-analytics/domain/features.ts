@@ -1,6 +1,7 @@
 import { ALL_FEATURES, UNMATCHED_FEATURE } from "./ProductEvent";
 
 export type FeatureUnit = "user" | "guild";
+export type FeatureAudience = "staff" | "member";
 
 interface FeatureDefinition {
   unit: FeatureUnit;
@@ -151,6 +152,60 @@ export const PRODUCT_FEATURES: Readonly<Record<string, FeatureDefinition>> = {
   },
 };
 
+/** Handlers for running a server; everything else in a feature is what members use. */
+export const STAFF_HANDLERS: readonly string[] = [
+  "ActionResponseButtonHandler",
+  "AddAsProofButtonHandler",
+  "AddAsProofContextMenuHandler",
+  "AddAsProofSelectHandler",
+  "AddProofButtonHandler",
+  "AltNicknameButtonHandler",
+  "AltsCommand",
+  "AutomodAlertActionButtonHandler",
+  "AutomodAlertRemoveTimeoutButtonHandler",
+  "CheckReactionStartersCommand",
+  "GiveawayCommand",
+  "HistoryCommand",
+  "IpGrabberRevertButtonHandler",
+  "LevelRoleCommand",
+  "LookupCommand",
+  "MemberScreeningCommand",
+  "ModLogDeleteDMButtonHandler",
+  "ModLogReasonButtonHandler",
+  "ModViewCommand",
+  "ModViewContextMenuHandler",
+  "ModerationCommand",
+  "NamesCommand",
+  "PermissionAuditCommand",
+  "PromptButtonHandler",
+  "PromptSelectMenuHandler",
+  "ProofCommand",
+  "PruneCommand",
+  "ReasonCommand",
+  "ReasonTemplatesCommand",
+  "ReasonTemplatesPanelButtonHandler",
+  "RoleMenuCommand",
+  "ScamCandidateButtonHandler",
+  "ScamCandidateLabelModalHandler",
+  "ScamHashCommand",
+  "ScamHashReportButtonHandler",
+  "ScheduleConfigCommand",
+  "ScheduleConfigDeleteButtonHandler",
+  "ScheduleConfigNewButtonHandler",
+  "ScreeningActionButtonHandler",
+  "ScreeningIgnoreSelectHandler",
+  "ServerCommand",
+  "SettingsCommand",
+  "SlowmodeCommand",
+  "TagAdminCommand",
+  "TempbanListCommand",
+  "TemplateEditButtonHandler",
+  "UncaseCommand",
+  "VerifyMessageCommand",
+  "VerifyMessageGuideCommand",
+  "XpCommand",
+];
+
 /** Operator tools, left out of product numbers on purpose. */
 export const INTERNAL_HANDLERS: readonly string[] = [
   "DeploymentApprovalButtonHandler",
@@ -172,6 +227,15 @@ export function featureForHandler(handlerName: string | undefined): string {
 }
 
 /** `all` covers both units, so it's reported for both. */
+export function audienceForHandler(
+  handlerName: string | undefined,
+): FeatureAudience | undefined {
+  if (featureForHandler(handlerName) === UNMATCHED_FEATURE) {
+    return undefined;
+  }
+  return STAFF_HANDLERS.includes(handlerName as string) ? "staff" : "member";
+}
+
 export function unitsForFeature(feature: string): readonly FeatureUnit[] {
   if (feature === ALL_FEATURES) {
     return ["user", "guild"];

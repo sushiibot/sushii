@@ -39,12 +39,35 @@ export interface RetentionRow {
   retained: number | null;
 }
 
-export interface PromptFunnelRow {
-  week: string;
+export type FeaturePeriod = "today" | "week" | "closed";
+
+export interface FeaturePartRow {
+  period: FeaturePeriod;
+  feature: string;
+  part: string;
+  kind: string;
+  audience: string;
+  events: number;
+  errors: number;
+  users: number | null;
+  servers: number | null;
+}
+
+export interface FeatureAudienceRow {
+  period: FeaturePeriod;
+  feature: string;
+  audience: string;
+  events: number;
+  users: number | null;
+  servers: number | null;
+}
+
+export interface PromptOutcomeRow {
   prompt: string;
-  step: string;
-  action: string;
-  actors: number;
+  outcome: string;
+  /** Null means under 5 people. */
+  people: number | null;
+  shown: number;
 }
 
 export interface UpdateReachRow {

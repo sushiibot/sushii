@@ -29,7 +29,10 @@ import {
   type ProductEventTracker,
   noopProductEvents,
 } from "@/features/product-analytics/domain/ProductEvent";
-import { featureForHandler } from "@/features/product-analytics/domain/features";
+import {
+  audienceForHandler,
+  featureForHandler,
+} from "@/features/product-analytics/domain/features";
 import {
   type ReplyableInteraction,
   interactionReplyErrorInternal,
@@ -121,7 +124,7 @@ export function findFocusedOption(
   };
 }
 
-function productEventNameFor(
+export function productEventNameFor(
   interaction: Interaction,
 ): ProductEventName | undefined {
   if (interaction.isChatInputCommand()) {
@@ -535,6 +538,7 @@ export default class InteractionRouter {
 
     try {
       const handlerName = this.handlerNameFor(interaction);
+      const audience = audienceForHandler(handlerName);
       this.productEvents.track({
         name,
         feature: featureForHandler(handlerName),
@@ -545,6 +549,7 @@ export default class InteractionRouter {
             ? getFullCommandName(interaction)
             : (handlerName ?? "unmatched"),
           status,
+          ...(audience && { audience }),
         },
       });
     } catch (err) {
