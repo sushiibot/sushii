@@ -5,6 +5,8 @@ import type { Db } from "./db.ts";
 
 const ANALYTICS_VIEWS = new Set([
   "usage_weekly",
+  "usage_daily",
+  "usage_current_week",
   "retention_weekly",
   "prompt_funnel_weekly",
   "update_reach",

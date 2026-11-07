@@ -194,6 +194,52 @@ describe("product analytics rollup", () => {
     expect(await db.select().from(events)).toHaveLength(1);
   });
 
+  test("live views count today and hide small groups", async () => {
+    const now = new Date().toISOString();
+    await seed(now, "social", [1, 2, 3, 4, 5]);
+    await seed(now, "tags", [6, 7]);
+
+    for (const view of ["usage_daily", "usage_current_week"]) {
+      const { rows } = await db.execute<{
+        feature: string;
+        guilds: number | null;
+        actors: number | null;
+        events: number;
+      }>(sql.raw(`SELECT * FROM analytics.${view} ORDER BY feature`));
+
+      expect(
+        rows.map(({ feature, guilds, actors, events: count }) => ({
+          feature,
+          guilds,
+          actors,
+          count,
+        })),
+      ).toEqual([
+        { feature: "all", guilds: 7, actors: 7, count: 7 },
+        { feature: "social", guilds: 5, actors: 5, count: 5 },
+      ]);
+    }
+  });
+
+  test("live totals stay visible with the small counts hidden", async () => {
+    await seed(new Date().toISOString(), "social", [1, 2]);
+
+    const { rows } = await db.execute<{
+      feature: string;
+      guilds: number | null;
+      actors: number | null;
+      events: number;
+    }>(sql`SELECT * FROM analytics.usage_daily`);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      feature: "all",
+      guilds: null,
+      actors: null,
+      events: 2,
+    });
+  });
+
   test("the reader sees the views and not the raw table", async () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL ROLE sushii_mcp_reader`);
@@ -203,6 +249,8 @@ describe("product analytics rollup", () => {
         "prompt_funnel_weekly",
         "update_reach",
         "proof_weekly",
+        "usage_daily",
+        "usage_current_week",
       ]) {
         await tx.execute(sql.raw(`SELECT * FROM analytics.${view}`));
       }

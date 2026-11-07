@@ -1,26 +1,79 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  dailyTrend,
   featureSummaries,
   latestWeek,
   retentionCohorts,
+  totals,
   updatePosts,
+  usageOnDay,
   weeklyTrend,
 } from "./metrics";
-import type { RetentionRow, UsageRow } from "./types";
+import type { DailyUsageRow, RetentionRow, UsageRow } from "./types";
 
 const usage: UsageRow[] = [
   { week: "2026-10-26", feature: "all", guilds: 40, actors: 90, events: 500 },
   { week: "2026-11-02", feature: "all", guilds: 50, actors: 100, events: 600 },
-  { week: "2026-11-02", feature: "social", guilds: 10, actors: 60, events: 300 },
+  {
+    week: "2026-11-02",
+    feature: "social",
+    guilds: 10,
+    actors: 60,
+    events: 300,
+  },
   { week: "2026-11-02", feature: "tags", guilds: 25, actors: null, events: 90 },
 ];
 
+const currentWeek: UsageRow[] = [
+  { week: "2026-11-09", feature: "all", guilds: 12, actors: null, events: 70 },
+];
+
+const daily: DailyUsageRow[] = [
+  { day: "2026-11-10", feature: "all", guilds: 8, actors: null, events: 40 },
+  { day: "2026-11-09", feature: "all", guilds: 6, actors: 9, events: 30 },
+  { day: "2026-11-10", feature: "social", guilds: 5, actors: 5, events: 12 },
+];
+
 describe("weeklyTrend", () => {
-  test("uses the all row, oldest first", () => {
-    expect(weeklyTrend(usage, "guilds")).toEqual([
+  test("uses the all row, oldest first, and marks the open week", () => {
+    expect(weeklyTrend(usage, currentWeek, "guilds")).toEqual([
       { label: "2026-10-26", value: 40 },
       { label: "2026-11-02", value: 50 },
+      { label: "2026-11-09 (so far)", value: 12 },
+    ]);
+  });
+
+  test("skips an open week whose count is hidden", () => {
+    expect(weeklyTrend([], currentWeek, "actors")).toEqual([]);
+  });
+});
+
+describe("dailyTrend", () => {
+  test("uses the all row, oldest first, and skips hidden counts", () => {
+    expect(dailyTrend(daily, "events")).toEqual([
+      { label: "2026-11-09", value: 30 },
+      { label: "2026-11-10", value: 40 },
+    ]);
+    expect(dailyTrend(daily, "actors")).toEqual([
+      { label: "2026-11-09", value: 9 },
+    ]);
+  });
+});
+
+describe("usageOnDay", () => {
+  test("feeds one day into totals and the feature table", () => {
+    const today = usageOnDay(daily, "2026-11-10");
+
+    expect(totals(today)?.events).toBe(40);
+    expect(featureSummaries(today)).toEqual([
+      {
+        feature: "social",
+        guilds: 5,
+        actors: 5,
+        events: 12,
+        adoption: 5 / 8,
+      },
     ]);
   });
 });

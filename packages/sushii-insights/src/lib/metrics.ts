@@ -1,4 +1,9 @@
-import type { RetentionRow, UpdateReachRow, UsageRow } from "./types";
+import type {
+  DailyUsageRow,
+  RetentionRow,
+  UpdateReachRow,
+  UsageRow,
+} from "./types";
 
 export const ALL_FEATURES = "all";
 export const RETENTION_WEEKS = [1, 2, 4, 6] as const;
@@ -10,14 +15,48 @@ export interface Point {
   value: number;
 }
 
+export type Measure = "guilds" | "actors" | "events";
+
 export function weeklyTrend(
   usage: readonly UsageRow[],
-  measure: "guilds" | "actors",
+  currentWeek: readonly UsageRow[],
+  measure: Measure,
 ): Point[] {
-  return usage
+  const toPoints = (rows: readonly UsageRow[], suffix: string) =>
+    rows
+      .filter((row) => row.feature === ALL_FEATURES && row[measure] !== null)
+      .map((row) => ({
+        label: `${day(row.week)}${suffix}`,
+        value: row[measure] as number,
+      }));
+
+  return [...toPoints(usage, ""), ...toPoints(currentWeek, " (so far)")].sort(
+    (a, b) => a.label.localeCompare(b.label),
+  );
+}
+
+export function dailyTrend(
+  daily: readonly DailyUsageRow[],
+  measure: Measure,
+): Point[] {
+  return daily
     .filter((row) => row.feature === ALL_FEATURES && row[measure] !== null)
-    .map((row) => ({ label: day(row.week), value: row[measure] as number }))
+    .map((row) => ({ label: day(row.day), value: row[measure] as number }))
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Daily rows for one day, shaped like a week so the feature table can use them. */
+export function usageOnDay(
+  daily: readonly DailyUsageRow[],
+  date: string,
+): UsageRow[] {
+  return daily
+    .filter((row) => day(row.day) === date)
+    .map(({ day: week, ...row }) => ({ ...row, week }));
+}
+
+export function totals(rows: readonly UsageRow[]): UsageRow | null {
+  return rows.find((row) => row.feature === ALL_FEATURES) ?? null;
 }
 
 export interface FeatureSummary {
@@ -37,7 +76,8 @@ export function latestWeek(usage: readonly UsageRow[]): string | null {
 export function featureSummaries(usage: readonly UsageRow[]): FeatureSummary[] {
   const week = latestWeek(usage);
   const rows = usage.filter((row) => day(row.week) === week);
-  const total = rows.find((row) => row.feature === ALL_FEATURES)?.guilds ?? null;
+  const total =
+    rows.find((row) => row.feature === ALL_FEATURES)?.guilds ?? null;
 
   return rows
     .filter((row) => row.feature !== ALL_FEATURES)

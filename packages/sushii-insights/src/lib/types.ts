@@ -6,6 +6,14 @@ export interface UsageRow {
   events: number;
 }
 
+export interface DailyUsageRow {
+  day: string;
+  feature: string;
+  guilds: number | null;
+  actors: number | null;
+  events: number;
+}
+
 export interface RetentionRow {
   cohort_week: string;
   unit: "user" | "guild";

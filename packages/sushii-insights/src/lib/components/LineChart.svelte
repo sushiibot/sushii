@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { Point } from "$lib/metrics";
 
-  let { title, points }: { title: string; points: Point[] } = $props();
+  let {
+    title,
+    points,
+    unit = "Week",
+  }: { title: string; points: Point[]; unit?: string } = $props();
 
   const width = 560;
   const height = 180;
@@ -53,6 +57,9 @@
         />
         <text class="tick" x={pad.left} y={height - 6}>{points[0].label}</text>
         <path class="line" d={path} />
+        {#if points.length === 1}
+          <circle class="dot" cx={x(0)} cy={y(points[0].value)} r="4" />
+        {/if}
         {#if last}
           <text class="end" x={x(points.length - 1) + 8} y={y(last.value) + 4}>
             {last.value.toLocaleString()}
@@ -83,7 +90,7 @@
     <details>
       <summary>Table</summary>
       <table>
-        <thead><tr><th>Week</th><th class="num">Count</th></tr></thead>
+        <thead><tr><th>{unit}</th><th class="num">Count</th></tr></thead>
         <tbody>
           {#each points as point (point.label)}
             <tr><td>{point.label}</td><td class="num">{point.value}</td></tr>

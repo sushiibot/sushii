@@ -1,13 +1,19 @@
 <script lang="ts">
   import "../app.css";
 
+  import { onMount } from "svelte";
+
+  import { invalidateAll } from "$app/navigation";
   import LineChart from "$lib/components/LineChart.svelte";
   import RetentionTable from "$lib/components/RetentionTable.svelte";
   import {
+    dailyTrend,
     day,
     featureSummaries,
     latestWeek,
+    totals,
     updatePosts,
+    usageOnDay,
     weeklyTrend,
   } from "$lib/metrics";
 
@@ -15,36 +21,125 @@
 
   let { data }: PageProps = $props();
 
+  const REFRESH_MS = 60_000;
+  const PERIODS = [
+    { id: "today", label: "Today" },
+    { id: "week", label: "This week so far" },
+    { id: "closed", label: "Last closed week" },
+  ] as const;
+
+  let period = $state<(typeof PERIODS)[number]["id"]>("week");
+
   const week = $derived(latestWeek(data.usage));
-  const features = $derived(featureSummaries(data.usage));
+  const today = $derived(usageOnDay(data.daily, day(data.generatedAt)));
+  const periodRows = $derived(
+    { today, week: data.currentWeek, closed: data.usage }[period],
+  );
+  const features = $derived(featureSummaries(periodRows));
   const posts = $derived(updatePosts(data.updateReach));
-  const count = (value: number | null) => value?.toLocaleString() ?? "under 5";
+  const updatedAt = $derived(data.generatedAt.slice(11, 16));
+  const tiles = $derived([
+    { label: "Today", row: totals(today) },
+    { label: "This week so far", row: totals(data.currentWeek) },
+  ]);
+  const count = (value: number | null | undefined) =>
+    value?.toLocaleString() ?? "under 5";
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) {
+        void invalidateAll();
+      }
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  });
 </script>
 
 <main>
   <header>
     <h1>sushii insights</h1>
-    {#if week}<p>Latest closed week: {week}</p>{/if}
+    <p>
+      Updated {updatedAt} UTC, refreshes every minute{#if week}
+        · Latest closed week: {week}{/if}
+    </p>
   </header>
 
   <section>
-    <h2>Activity</h2>
+    <h2>Live</h2>
+    <div class="tiles">
+      {#each tiles as tile (tile.label)}
+        <div class="tile">
+          <h3>{tile.label}</h3>
+          <dl>
+            <div><dt>Servers</dt><dd>{count(tile.row?.guilds)}</dd></div>
+            <div><dt>Users</dt><dd>{count(tile.row?.actors)}</dd></div>
+            <div>
+              <dt>Events</dt><dd>{(tile.row?.events ?? 0).toLocaleString()}</dd>
+            </div>
+          </dl>
+        </div>
+      {/each}
+    </div>
+  </section>
+
+  <section>
+    <h2>Daily, last 30 days</h2>
+    <p class="lede">Days are UTC, and today is still counting.</p>
     <div class="grid">
       <LineChart
-        title="Active servers per week"
-        points={weeklyTrend(data.usage, "guilds")}
+        title="Active servers per day"
+        unit="Day"
+        points={dailyTrend(data.daily, "guilds")}
       />
       <LineChart
-        title="Active users per week"
-        points={weeklyTrend(data.usage, "actors")}
+        title="Active users per day"
+        unit="Day"
+        points={dailyTrend(data.daily, "actors")}
+      />
+      <LineChart
+        title="Events per day"
+        unit="Day"
+        points={dailyTrend(data.daily, "events")}
       />
     </div>
   </section>
 
   <section>
-    <h2>Features</h2>
+    <h2>Weekly</h2>
+    <p class="lede">Weeks start on Monday, and the open week is marked so far.</p>
+    <div class="grid">
+      <LineChart
+        title="Active servers per week"
+        points={weeklyTrend(data.usage, data.currentWeek, "guilds")}
+      />
+      <LineChart
+        title="Active users per week"
+        points={weeklyTrend(data.usage, data.currentWeek, "actors")}
+      />
+      <LineChart
+        title="Events per week"
+        points={weeklyTrend(data.usage, data.currentWeek, "events")}
+      />
+    </div>
+  </section>
+
+  <section>
+    <div class="heading">
+      <h2>Features</h2>
+      <div class="periods">
+        {#each PERIODS as option (option.id)}
+          <button
+            type="button"
+            aria-pressed={period === option.id}
+            onclick={() => (period = option.id)}
+          >
+            {option.label}
+          </button>
+        {/each}
+      </div>
+    </div>
     {#if features.length === 0}
-      <p class="empty">No data yet.</p>
+      <p class="empty">No feature has reached 5 servers or users in this period.</p>
     {:else}
       <div class="scroll">
         <table>
@@ -213,6 +308,65 @@
   h2 {
     font-size: 1rem;
     margin: 0 0 0.75rem;
+  }
+  h3 {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1.5rem;
+  }
+  .tile {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  dl {
+    display: flex;
+    gap: 2rem;
+    margin: 0;
+  }
+  dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+  }
+  dd {
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+  .heading {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .heading h2 {
+    margin: 0;
+  }
+  .periods {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .periods button {
+    background: none;
+    border: 1px solid var(--grid);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .periods button[aria-pressed="true"] {
+    background: var(--surface-2);
+    color: var(--text-primary);
   }
   .lede {
     color: var(--text-secondary);
