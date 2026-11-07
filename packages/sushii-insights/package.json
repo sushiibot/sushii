@@ -15,7 +15,8 @@
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/bun": "latest",
-    "svelte": "^5.56.1",
+    "layerchart": "2.9.2",
+    "svelte": "^5.57.1",
     "svelte-check": "^4.6.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

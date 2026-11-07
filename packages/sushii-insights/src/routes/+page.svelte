@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "layerchart/core.css";
   import "../app.css";
 
   import { onMount } from "svelte";
@@ -70,8 +71,8 @@
   <header>
     <h1>sushii insights</h1>
     <p>
-      Updated {updatedAt} UTC, refreshes every minute{#if week}
-        · Latest closed week: {week}{/if}
+      Updated {updatedAt} UTC, refreshes every minute{#if week}{" "}· Latest
+        closed week: {week}{/if}
     </p>
   </header>
 
@@ -100,16 +101,19 @@
       <LineChart
         title="Active servers per day"
         unit="Day"
+        partialLast
         points={dailyTrend(data.daily, "guilds")}
       />
       <LineChart
         title="Active users per day"
         unit="Day"
+        partialLast
         points={dailyTrend(data.daily, "actors")}
       />
       <LineChart
         title="Events per day"
         unit="Day"
+        partialLast
         points={dailyTrend(data.daily, "events")}
       />
     </div>
@@ -121,14 +125,17 @@
     <div class="grid">
       <LineChart
         title="Active servers per week"
+        partialLast={data.currentWeek.length > 0}
         points={weeklyTrend(data.usage, data.currentWeek, "guilds")}
       />
       <LineChart
         title="Active users per week"
+        partialLast={data.currentWeek.length > 0}
         points={weeklyTrend(data.usage, data.currentWeek, "actors")}
       />
       <LineChart
         title="Events per week"
+        partialLast={data.currentWeek.length > 0}
         points={weeklyTrend(data.usage, data.currentWeek, "events")}
       />
     </div>
