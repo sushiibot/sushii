@@ -15,7 +15,7 @@ import {
   toSourceMessage,
 } from "../components/AddAsProofHandlers";
 
-/** Right-click a message to add it to one of its author's cases, or anyone's. */
+/** Right-click a message to add it to a recent case, or any case by number. */
 export class AddAsProofContextMenuHandler extends ContextMenuHandler {
   command = new ContextMenuCommandBuilder()
     .setName("Add as proof")
@@ -45,7 +45,7 @@ export class AddAsProofContextMenuHandler extends ContextMenuHandler {
         interaction.guildId,
         source,
         { id: message.author.id, username: message.author.username },
-        source.forwarded ? "unknown" : "author",
+        "recent",
       ),
     );
   }

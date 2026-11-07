@@ -49,7 +49,7 @@ describe("modViewRegistry", () => {
     const { view, showProofCounts } = makeView();
     registry.register(view);
 
-    await registry.proofAdded(GUILD, ["2"]);
+    await registry.proofChanged(GUILD, ["2"]);
 
     expect(countsByCases).toHaveBeenCalledWith(GUILD, ["1", "2"]);
     expect(showProofCounts).toHaveBeenCalledWith(counts);
@@ -62,7 +62,7 @@ describe("modViewRegistry", () => {
     registry.register(otherGuild.view);
     registry.register(otherCases.view);
 
-    await registry.proofAdded(GUILD, ["2"]);
+    await registry.proofChanged(GUILD, ["2"]);
 
     expect(countsByCases).not.toHaveBeenCalled();
     expect(otherGuild.showProofCounts).not.toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe("modViewRegistry", () => {
     registry.register(view);
     registry.unregister(view);
 
-    await registry.proofAdded(GUILD, ["2"]);
+    await registry.proofChanged(GUILD, ["2"]);
 
     expect(showProofCounts).not.toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe("modViewRegistry", () => {
     const { view, showProofCounts } = makeView({ editableUntil: 5_000 });
     registry.register(view);
 
-    await registry.proofAdded(GUILD, ["2"]);
+    await registry.proofChanged(GUILD, ["2"]);
 
     expect(showProofCounts).not.toHaveBeenCalled();
   });
@@ -100,7 +100,7 @@ describe("modViewRegistry", () => {
     registry.register(ok.view);
     const warn = spyOn(logger, "warn");
 
-    await expect(registry.proofAdded(GUILD, ["2"])).resolves.toBeUndefined();
+    await expect(registry.proofChanged(GUILD, ["2"])).resolves.toBeUndefined();
 
     expect(ok.showProofCounts).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledTimes(1);
@@ -115,7 +115,7 @@ describe("modViewRegistry", () => {
     const { view, showProofCounts } = makeView();
     registry.register(view);
 
-    await expect(registry.proofAdded(GUILD, ["2"])).resolves.toBeUndefined();
+    await expect(registry.proofChanged(GUILD, ["2"])).resolves.toBeUndefined();
     expect(showProofCounts).not.toHaveBeenCalled();
   });
 
@@ -130,6 +130,6 @@ describe("modViewRegistry", () => {
       showProofCounts: () => Promise.resolve(),
     });
 
-    await expect(registry.proofAdded(GUILD, ["2"])).resolves.toBeUndefined();
+    await expect(registry.proofChanged(GUILD, ["2"])).resolves.toBeUndefined();
   });
 });

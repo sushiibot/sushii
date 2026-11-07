@@ -149,6 +149,19 @@ export function isDownloadableProofUrl(url: string): boolean {
   }
 }
 
+/** Where a stored proof URL's file lives; null for other hosts. */
+export function proofAttachmentRef(
+  url: string,
+): { channelId: string; attachmentId: string } | null {
+  if (!isDownloadableProofUrl(url)) {
+    return null;
+  }
+  const match = new URL(url).pathname.match(/^\/attachments\/(\d+)\/(\d+)\//);
+  return match?.[1] && match[2]
+    ? { channelId: match[1], attachmentId: match[2] }
+    : null;
+}
+
 /**
  * - `ok`: downloaded
  * - `dead`: Discord says the file is gone; retrying won't help

@@ -6,7 +6,10 @@ import {
   MOD,
   makeCase,
 } from "@/features/moderation/actions/presentation/response/testFixtures";
-import type { ProofHostResult } from "@/features/moderation/shared/application/ModLogMessageService";
+import type {
+  ProofHostResult,
+  ProofRemoveResult,
+} from "@/features/moderation/shared/application/ModLogMessageService";
 import type {
   CaseProof,
   NewCaseProof,
@@ -23,10 +26,27 @@ const FILE = {
 
 const HOSTED_URL = "https://cdn.discordapp.com/attachments/9/8/1_shot.png?ex=b";
 
+const UNDO_PROOF: CaseProof = {
+  id: "7",
+  guildId: GUILD,
+  caseId: "4822",
+  authorId: MOD,
+  createdAt: new Date("2026-11-01T12:00:00.000Z"),
+  content: null,
+  attachments: [HOSTED_URL],
+  sourceMessageUrl: null,
+  sourceAuthorId: null,
+  sourceContent: null,
+  hostMessageId: "1029384756102938499",
+  source: "context_menu",
+};
+
 function setup(
   options: {
     caseIds?: string[];
     existingFiles?: number;
+    storedProof?: CaseProof | null;
+    removed?: ProofRemoveResult;
     host?: (caseId: string) => ProofHostResult;
     download?: Awaited<
       ReturnType<
@@ -82,8 +102,18 @@ function setup(
             },
   );
   const markStale = mock(async () => undefined);
-  const proofAdded = mock((_guildId: string, _caseIds: string[]) => undefined);
+  const proofChanged = mock(
+    (_guildId: string, _caseIds: string[]) => undefined,
+  );
   const recordProofAdded = mock();
+  const recordProofUndone = mock();
+  const findById = mock(
+    async (_g: string, _id: string): Promise<CaseProof | null> =>
+      options.storedProof === undefined ? UNDO_PROOF : options.storedProof,
+  );
+  const removeProof = mock(
+    async (): Promise<ProofRemoveResult> => options.removed ?? "removed",
+  );
   const download = mock(
     async () =>
       options.download ?? {
@@ -95,11 +125,11 @@ function setup(
   const logger = pino({ level: "silent" });
   const service = new CaseProofService({
     modLogRepository: { findByIds },
-    caseProofRepository: { add, countsByCases },
-    modLogMessageService: { hostProof },
+    caseProofRepository: { add, countsByCases, findById },
+    modLogMessageService: { hostProof, removeProof },
     responseRegistry: { markStale },
-    proofChangeListener: { proofAdded },
-    metrics: { recordProofAdded },
+    proofChangeListener: { proofChanged },
+    metrics: { recordProofAdded, recordProofUndone },
     logger,
     download,
   });
@@ -122,8 +152,11 @@ function setup(
     add,
     hostProof,
     markStale,
-    proofAdded,
+    proofChanged,
     recordProofAdded,
+    recordProofUndone,
+    findById,
+    removeProof,
     download,
     logger,
   };
@@ -367,8 +400,8 @@ describe("CaseProofService proof change listener", () => {
 
     await ctx.service.add(ctx.input());
 
-    expect(ctx.proofAdded).toHaveBeenCalledTimes(1);
-    expect(ctx.proofAdded).toHaveBeenCalledWith(GUILD, ["4822", "4824"]);
+    expect(ctx.proofChanged).toHaveBeenCalledTimes(1);
+    expect(ctx.proofChanged).toHaveBeenCalledWith(GUILD, ["4822", "4824"]);
   });
 
   test("is not told when no case got the proof", async () => {
@@ -377,7 +410,7 @@ describe("CaseProofService proof change listener", () => {
     const result = await ctx.service.add(ctx.input());
 
     expect(result.ok).toBe(false);
-    expect(ctx.proofAdded).not.toHaveBeenCalled();
+    expect(ctx.proofChanged).not.toHaveBeenCalled();
   });
 
   test("is not told about a refused add", async () => {
@@ -385,12 +418,12 @@ describe("CaseProofService proof change listener", () => {
 
     await ctx.service.add(ctx.input({ content: null }));
 
-    expect(ctx.proofAdded).not.toHaveBeenCalled();
+    expect(ctx.proofChanged).not.toHaveBeenCalled();
   });
 
   test("a throwing listener doesn't fail the add", async () => {
     const ctx = setup();
-    ctx.proofAdded.mockImplementation(() => {
+    ctx.proofChanged.mockImplementation(() => {
       throw new Error("boom");
     });
     const error = spyOn(ctx.logger, "error");
@@ -403,5 +436,94 @@ describe("CaseProofService proof change listener", () => {
       guildId: GUILD,
       caseIds: ["4822"],
     });
+  });
+});
+
+describe("CaseProofService.undo", () => {
+  const input = {
+    guildId: GUILD,
+    caseId: "4822",
+    proofId: "7",
+    actorId: MOD,
+  };
+
+  test("removes the proof, then refreshes everything showing it", async () => {
+    const ctx = setup();
+
+    const result = await ctx.service.undo(input);
+
+    expect(result.ok).toBe(true);
+    expect(ctx.removeProof).toHaveBeenCalledTimes(1);
+    expect(ctx.markStale).toHaveBeenCalledWith(GUILD, ["4822"]);
+    expect(ctx.proofChanged).toHaveBeenCalledWith(GUILD, ["4822"]);
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("ok");
+  });
+
+  test("a proof that's gone reports it", async () => {
+    const ctx = setup({ storedProof: null });
+
+    const result = await ctx.service.undo(input);
+
+    expect(result.val).toBe("gone");
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("gone");
+  });
+
+  test("a proof on another case is treated as gone", async () => {
+    const ctx = setup();
+
+    const result = await ctx.service.undo({ ...input, caseId: "4823" });
+
+    expect(result.val).toBe("gone");
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+  });
+
+  test("another mod can't undo it", async () => {
+    const ctx = setup();
+
+    const result = await ctx.service.undo({ ...input, actorId: "1" });
+
+    expect(result.val).toBe("not_allowed");
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+  });
+
+  test("proof added another way can't be undone here", async () => {
+    const ctx = setup({ storedProof: { ...UNDO_PROOF, source: "button" } });
+
+    const result = await ctx.service.undo(input);
+
+    expect(result.val).toBe("not_allowed");
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+  });
+
+  test("a Discord failure leaves everything else alone", async () => {
+    const ctx = setup({ removed: "failed" });
+
+    const result = await ctx.service.undo(input);
+
+    expect(result.val).toBe("failed");
+    expect(ctx.markStale).not.toHaveBeenCalled();
+    expect(ctx.proofChanged).not.toHaveBeenCalled();
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("failed");
+  });
+
+  test("an unexpected error is thrown and counted as failed", async () => {
+    const ctx = setup();
+    ctx.removeProof.mockImplementation(async () => {
+      throw new Error("db down");
+    });
+
+    await expect(ctx.service.undo(input)).rejects.toThrow("db down");
+
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("failed");
+  });
+
+  test("losing a race with another undo reports it as gone", async () => {
+    const ctx = setup({ removed: "already_removed" });
+
+    const result = await ctx.service.undo(input);
+
+    expect(result.val).toBe("gone");
+    expect(ctx.markStale).not.toHaveBeenCalled();
   });
 });

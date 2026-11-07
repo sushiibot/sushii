@@ -18,7 +18,7 @@ export interface ModViewRegistry extends ProofChangeListener {
   register(view: LiveModView): void;
   unregister(view: LiveModView): void;
   /** Resolves once every matching view has refreshed; never rejects. */
-  proofAdded(guildId: string, caseIds: string[]): Promise<void>;
+  proofChanged(guildId: string, caseIds: string[]): Promise<void>;
 }
 
 interface ModViewRegistryDeps {
@@ -41,7 +41,7 @@ export function createModViewRegistry(
     await view.showProofCounts(counts);
   }
 
-  async function proofAdded(guildId: string, caseIds: string[]) {
+  async function proofChanged(guildId: string, caseIds: string[]) {
     const wanted = new Set(caseIds);
     const at = now();
     const matches: LiveModView[] = [];
@@ -76,8 +76,8 @@ export function createModViewRegistry(
     unregister(view) {
       views.delete(view);
     },
-    proofAdded(guildId, caseIds) {
-      return proofAdded(guildId, caseIds).catch((err: unknown) => {
+    proofChanged(guildId, caseIds) {
+      return proofChanged(guildId, caseIds).catch((err: unknown) => {
         deps.logger.warn(
           { err, guildId },
           "Failed to refresh mod view proof counts",

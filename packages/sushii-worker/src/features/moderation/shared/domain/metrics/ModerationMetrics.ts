@@ -48,6 +48,7 @@ export const MOD_LOG_EDIT_KINDS: readonly ModLogEditKind[] = [
 
 export type ModLogEditOutcome = "ok" | "failed";
 
+export type ProofUndoOutcome = "ok" | "gone" | "not_allowed" | "failed";
 export type ProofAddSource = "action" | "button" | "command" | "context_menu";
 export type ProofAddOutcome =
   | "ok"
@@ -77,6 +78,7 @@ export interface ModerationMetrics {
   ): void;
   recordModLogEdit(kind: ModLogEditKind, outcome: ModLogEditOutcome): void;
   recordProofAdded(source: ProofAddSource, outcome: ProofAddOutcome): void;
+  recordProofUndone(outcome: ProofUndoOutcome): void;
 }
 
 export const NOOP_MODERATION_METRICS: ModerationMetrics = {
@@ -86,6 +88,7 @@ export const NOOP_MODERATION_METRICS: ModerationMetrics = {
   recordActionResponseButton: () => undefined,
   recordModLogEdit: () => undefined,
   recordProofAdded: () => undefined,
+  recordProofUndone: () => undefined,
 };
 
 export interface ReasonTracking {

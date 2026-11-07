@@ -4,7 +4,6 @@ import {
   GUILD,
   MOD,
   TARGET,
-  TARGET_3,
   botEmoji,
   makeCase,
 } from "@/features/moderation/actions/presentation/response/testFixtures";
@@ -20,8 +19,15 @@ import {
   buildAddAsProofCustomId,
   buildAddAsProofDone,
   buildAddAsProofPicker,
+  buildAddAsProofUndoCustomId,
+  buildAddAsProofUndoFailed,
+  buildAddAsProofUndone,
+  buildCaseNumberModal,
+  caseNumberNotice,
   parseAddAsProofCustomId,
+  parseAddAsProofUndoCustomId,
   proofSourceContent,
+  readCaseNumber,
 } from "./AddAsProofView";
 
 const CHANNEL = "1029384756102938401";
@@ -55,15 +61,14 @@ function json(payload: { components?: readonly unknown[] }) {
 
 describe("Add as proof custom ids", () => {
   test("round-trip and fit 100 characters", () => {
+    const ref = {
+      channelId: "12345678901234567890",
+      messageId: "12345678901234567890",
+    };
     const ids = [
-      {
-        kind: "add" as const,
-        caseId: "999999999999999999",
-        channelId: "12345678901234567890",
-        messageId: "12345678901234567890",
-      },
-      { kind: "pick" as const, channelId: CHANNEL, messageId: MESSAGE },
-      { kind: "user" as const, channelId: CHANNEL, messageId: MESSAGE },
+      { kind: "pick" as const, ...ref },
+      { kind: "scope" as const, scope: "author" as const, ...ref },
+      { kind: "number" as const, scope: "recent" as const, ...ref },
     ];
     for (const id of ids) {
       const customId = buildAddAsProofCustomId(id);
@@ -75,14 +80,31 @@ describe("Add as proof custom ids", () => {
   test("rejects other and malformed ids", () => {
     for (const customId of [
       "caseProof/add/4822",
-      `proof/ctx/add/${CHANNEL}/${MESSAGE}`,
-      `proof/ctx/add/${CHANNEL}/${MESSAGE}/abc`,
+      `proof/ctx/add/${CHANNEL}/${MESSAGE}/4822`,
       `proof/ctx/pick/${CHANNEL}/${MESSAGE}/4822`,
       `proof/ctx/pick/${CHANNEL}`,
-      `proof/ctx/user/x/${MESSAGE}`,
+      `proof/ctx/scope/${CHANNEL}/${MESSAGE}`,
+      `proof/ctx/scope/${CHANNEL}/${MESSAGE}/other`,
+      `proof/ctx/number/x/${MESSAGE}/recent`,
       `proof/ctx/other/${CHANNEL}/${MESSAGE}`,
     ]) {
       expect(parseAddAsProofCustomId(customId)).toBeNull();
+    }
+  });
+
+  test("undo ids round-trip, fit 100 characters and reject the rest", () => {
+    const id = { caseId: "999999999999999999", proofId: "9223372036854775807" };
+    const customId = buildAddAsProofUndoCustomId(id);
+
+    expect(customId.length).toBeLessThanOrEqual(100);
+    expect(parseAddAsProofUndoCustomId(customId)).toEqual(id);
+    for (const other of [
+      "proof/undo/4822",
+      "proof/undo/4822/x",
+      "proof/undo/4822/1/2",
+      `proof/ctx/pick/${CHANNEL}/${MESSAGE}`,
+    ]) {
+      expect(parseAddAsProofUndoCustomId(other)).toBeNull();
     }
   });
 });
@@ -140,6 +162,7 @@ describe("proofSourceContent for a forward", () => {
 });
 
 describe("Add as proof picker", () => {
+  const author = { id: TARGET, username: "spambot" };
   const cases = [
     makeCase({ caseId: "4822" }),
     makeCase({
@@ -147,111 +170,120 @@ describe("Add as proof picker", () => {
       actionType: ActionType.Warn,
       reason: "Posting invite links",
     }),
-    makeCase({ caseId: "4790", actionType: ActionType.Note }),
   ];
-
-  test("several cases: newest is a button, the rest a select, then the user select", () => {
-    const payload = buildAddAsProofPicker({
+  const picker = (
+    overrides: Partial<Parameters<typeof buildAddAsProofPicker>[0]> = {},
+  ) =>
+    buildAddAsProofPicker({
       message: message(),
-      user: { id: TARGET, username: "spambot" },
-      showing: "author",
+      author,
+      scope: "recent",
       cases,
       emojis,
       now: NOW,
+      ...overrides,
     });
+
+  test("recent cases name their user, with both buttons", () => {
+    const payload = picker();
     const out = json(payload);
 
     expect(out).toContain("**Add this message as proof**");
     expect(out).toContain("> I'm giving away free nitro, claim here");
     expect(out).toContain(`-# From <@${TARGET}> in <#${CHANNEL}> · 1 image`);
-    expect(out).toContain("Add to #4822 · Ban · 2 hours ago");
-    expect(out).toContain(`proof/ctx/add/${CHANNEL}/${MESSAGE}/4822`);
-    expect(out).toContain("Or another of spambot's cases…");
-    expect(out).toContain('"value":"4801"');
-    expect(out).toContain('"value":"4790"');
-    expect(out).not.toContain('"value":"4822"');
-    expect(out).toContain("Someone else's case…");
-    expect(out).not.toContain("Showing");
-    expect(out).toContain(
-      "-# Left the server? Use `/proof` with their case number.",
-    );
+    expect(out).toContain("Pick a recent case…");
+    expect(out).toContain(`#4822 Ban · ${makeCase().userTag} · 2 hours ago`);
+    expect(out).toContain("Posting invite links");
+    expect(out).toContain("Enter case number…");
+    expect(out).toContain("Show only spambot's cases");
+    expect(out).toContain(`proof/ctx/scope/${CHANNEL}/${MESSAGE}/author`);
+    expect(out).toContain(`proof/ctx/number/${CHANNEL}/${MESSAGE}/recent`);
     expect(payload.allowedMentions).toEqual({ parse: [] });
   });
 
-  test("one case: only the button and the user select", () => {
-    const out = json(
-      buildAddAsProofPicker({
-        message: message(),
-        user: { id: TARGET, username: "spambot" },
-        showing: "author",
-        cases: [cases[0]],
-        emojis,
-        now: NOW,
-      }),
-    );
+  test("the author filter drops the username and offers the way back", () => {
+    const out = json(picker({ scope: "author" }));
 
-    expect(out).toContain("Add to #4822");
-    expect(out).not.toContain("Or another of");
-    expect(out).toContain("Someone else's case…");
+    expect(out).toContain(`-# Showing <@${TARGET}>'s cases`);
+    expect(out).toContain("Pick one of spambot's cases…");
+    expect(out).toContain("#4822 Ban · 2 hours ago");
+    expect(out).toContain("Show all recent cases");
+    expect(out).toContain(`proof/ctx/scope/${CHANNEL}/${MESSAGE}/recent`);
+    expect(out).toContain(`proof/ctx/number/${CHANNEL}/${MESSAGE}/author`);
   });
 
-  test("someone else picked: says whose cases and keeps them selected", () => {
-    const out = json(
-      buildAddAsProofPicker({
-        message: message(),
-        user: { id: TARGET_3, username: "raider_99" },
-        showing: "other",
-        cases: [makeCase({ caseId: "4824", userId: TARGET_3 })],
-        emojis,
-        now: NOW,
-      }),
-    );
-
-    expect(out).toContain(`-# Showing <@${TARGET_3}>'s cases`);
-    expect(out).toContain("Add to #4824");
-    expect(out).toContain(
-      `"default_values":[{"id":"${TARGET_3}","type":"user"}]`,
-    );
-  });
-
-  test("no cases: only the user select and a /note hint", () => {
-    const out = json(
-      buildAddAsProofPicker({
-        message: message({ files: [] }),
-        user: { id: TARGET, username: "spambot" },
-        showing: "author",
-        cases: [],
-        emojis,
-        now: NOW,
-      }),
-    );
+  test("an author without cases has no select but can go back", () => {
+    const out = json(picker({ scope: "author", cases: [] }));
 
     expect(out).toContain(
-      `-# <@${TARGET}> has no cases. Pick whose case this is for, or use \`/note\` to keep a note about them.`,
+      `-# <@${TARGET}> has no cases. Use \`/note\` to keep a note about them.`,
     );
-    expect(out).toContain(`-# From <@${TARGET}> in <#${CHANNEL}>\\n`);
-    expect(out).not.toContain("Add to #");
     expect(out).not.toContain("proof/ctx/pick/");
-    expect(out).toContain(`proof/ctx/user/${CHANNEL}/${MESSAGE}`);
+    expect(out).toContain("Show all recent cases");
   });
 
-  test("lists at most the newest 10 cases", () => {
-    const many = Array.from({ length: 12 }, (_, i) =>
+  test("a server without cases has nothing to pick", () => {
+    const out = json(picker({ cases: [] }));
+
+    expect(out).toContain("This server has no cases yet");
+    expect(out).not.toContain("proof/ctx/pick/");
+    expect(out).not.toContain("Enter case number");
+  });
+
+  test("a forward has no author filter", () => {
+    const out = json(picker({ message: message({ forwarded: true }) }));
+
+    expect(out).toContain("Forwards don't say who first wrote them");
+    expect(out).toContain("Enter case number…");
+    expect(out).not.toContain("Show only");
+  });
+
+  test("a notice shows under the message", () => {
+    const out = json(picker({ notice: caseNumberNotice("9999") }));
+
+    expect(out).toContain("-# ❌ No case #9999 in this server.");
+  });
+
+  test("lists at most 25 cases", () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
       makeCase({ caseId: `${100 - i}` }),
     );
-    const out = json(
-      buildAddAsProofPicker({
-        message: message(),
-        user: { id: TARGET, username: "spambot" },
-        showing: "author",
-        cases: many,
-        emojis,
-        now: NOW,
-      }),
-    );
+    const out = json(picker({ cases: many }));
 
-    expect(out).toContain('"value":"91"');
-    expect(out).not.toContain('"value":"90"');
+    expect(out).toContain('"value":"76"');
+    expect(out).not.toContain('"value":"75"');
+  });
+
+  test("a long username stays within the button limit", () => {
+    const payload = picker({
+      author: { id: TARGET, username: "x".repeat(200) },
+    });
+
+    expect(() => json(payload)).not.toThrow();
+  });
+});
+
+describe("Case number modal", () => {
+  function fields(value: string) {
+    return { getTextInputValue: () => value } as never;
+  }
+
+  test("says where to find the number", () => {
+    const out = JSON.stringify(buildCaseNumberModal("id").toJSON());
+
+    expect(out).toContain("Copy it from the mod log or /history");
+  });
+
+  test("accepts a pasted number with or without the #", () => {
+    expect(readCaseNumber(fields("412"))).toBe("412");
+    expect(readCaseNumber(fields(" #412 "))).toBe("412");
+  });
+
+  test("anything else isn't a case number", () => {
+    for (const value of ["abc", "#", "12a", "1234567890123456789"]) {
+      expect(readCaseNumber(fields(value))).toBeNull();
+    }
+    expect(caseNumberNotice(null)).toContain("That isn't a case number");
   });
 });
 
@@ -270,41 +302,95 @@ describe("Add as proof confirmation", () => {
     hostMessageId: "1029384756102938499",
     source: "context_menu",
   };
-
-  test("names the case and what was saved", () => {
-    const out = json(
+  const done = (
+    overrides: Partial<Parameters<typeof buildAddAsProofDone>[0]> = {},
+  ) =>
+    json(
       buildAddAsProofDone({
-        moderationCase: makeCase(),
+        moderationCase: makeCase({ reason: "Scam links" }),
         proof,
         files: message().files,
         emojis,
+        now: NOW,
+        ...overrides,
       }),
     );
 
+  test("shows what the case is, what was saved, and Undo", () => {
+    const out = done();
+
+    expect(out).toContain("✅ **Added as proof to case #4822**");
     expect(out).toContain(
-      `✅ Added to case #4822 as proof · ${botEmoji("ban")} Ban · <@${TARGET}>`,
+      `${botEmoji("ban")} Ban · <@${TARGET}> · 2 hours ago`,
     );
+    expect(out).toContain("> Scam links");
     expect(out).toContain(
       "-# Message link, text and 1 image saved · mod log entry updated",
+    );
+    expect(out).toContain('"label":"Undo"');
+    expect(out).toContain("proof/undo/4822/1");
+  });
+
+  test("a case without a reason says so", () => {
+    const out = done({ moderationCase: makeCase({ reason: null }) });
+
+    expect(out).toContain("-# No reason set");
+  });
+
+  test("a long reason is shortened", () => {
+    const out = done({
+      moderationCase: makeCase({ reason: "x".repeat(500) }),
+    });
+
+    expect(out).not.toContain("x".repeat(201));
+  });
+
+  test("says how many files weren't saved", () => {
+    expect(
+      done({
+        files: [{ contentType: "image/png" }, { contentType: "image/png" }],
+        filesNotSaved: "one is over the 25 MB limit.",
+      }),
+    ).toContain(
+      "-# None of the 2 images were saved: one is over the 25 MB limit.",
+    );
+    expect(done({ filesNotSaved: "it's over the 25 MB limit." })).toContain(
+      "-# The image wasn't saved: it's over the 25 MB limit.",
     );
   });
 
   test("a link alone without a mod log entry", () => {
-    const out = json(
-      buildAddAsProofDone({
-        moderationCase: makeCase(),
-        proof: {
-          ...proof,
-          sourceContent: null,
-          attachments: [],
-          hostMessageId: null,
-        },
-        files: [],
-        emojis,
-      }),
-    );
+    const out = done({
+      proof: {
+        ...proof,
+        sourceContent: null,
+        attachments: [],
+        hostMessageId: null,
+      },
+      files: [],
+    });
 
     expect(out).toContain("-# Message link saved");
     expect(out).not.toContain("mod log entry updated");
+  });
+});
+
+describe("Add as proof undo", () => {
+  test("names the case it left", () => {
+    const out = json(buildAddAsProofUndone(makeCase(), emojis));
+
+    expect(out).toContain(
+      `↩️ Removed from case #4822 · ${botEmoji("ban")} Ban · <@${TARGET}>`,
+    );
+    expect(out).not.toContain("proof/undo/");
+  });
+
+  test("a failure keeps Undo, since the proof is still there", () => {
+    const out = json(
+      buildAddAsProofUndoFailed({ caseId: "4822", proofId: "1" }),
+    );
+
+    expect(out).toContain("still on case #4822");
+    expect(out).toContain("proof/undo/4822/1");
   });
 });

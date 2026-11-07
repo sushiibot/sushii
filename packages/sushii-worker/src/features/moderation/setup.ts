@@ -1,4 +1,3 @@
-import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { Client } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
@@ -11,6 +10,7 @@ import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type { PermissionUsageRecorder } from "@/features/permission-audit";
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { UserNameHistoryService } from "@/features/user-name-history";
 import type * as schema from "@/infrastructure/database/schema";
 import { DrizzleGuildConfigRepository } from "@/shared/infrastructure/DrizzleGuildConfigRepository";
@@ -61,6 +61,7 @@ import {
   AddAsProofButtonHandler,
   type AddAsProofDeps,
   AddAsProofSelectHandler,
+  AddAsProofUndoButtonHandler,
 } from "./cases/presentation/components/AddAsProofHandlers";
 import { AddProofButtonHandler } from "./cases/presentation/components/AddProofButtonHandler";
 import { createReasonEditingHandlers } from "./cases/presentation/reasonEditingFactory";
@@ -486,6 +487,7 @@ export function createModerationCommands(
       logger: logger.child({ buttonHandler: "addProof" }),
     }),
     new AddAsProofButtonHandler(addAsProof),
+    new AddAsProofUndoButtonHandler(addAsProof),
     ...reasonTemplates.buttonHandlers,
   ];
 

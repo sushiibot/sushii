@@ -5,6 +5,7 @@ import type {
   Message,
   ModalMessageModalSubmitInteraction,
   SendableChannels,
+  TextBasedChannel,
   User,
 } from "discord.js";
 import {
@@ -59,11 +60,14 @@ import {
   isDownloadableProofUrl,
   postedFiles,
   postedFilesOf,
+  proofAttachmentRef,
   uniqueUploadNames,
   uploadedUrls,
 } from "./proofHosting";
 
 export type { ProofUpload } from "./proofHosting";
+
+export type ProofRemoveResult = "removed" | "already_removed" | "failed";
 
 /**
  * - `hosted`: files went on the entry or an overflow reply to it
@@ -148,6 +152,8 @@ export interface ModLogEntry {
   missing: Exclude<ModLogRefreshOutcome, "updated"> | null;
   /** With `failed`: the channel or message is gone or inaccessible, so retrying won't help. */
   gone?: boolean;
+  /** With `failed`: the channel or message no longer exists. */
+  deleted?: boolean;
 }
 
 const GONE_CODES = new Set<number>([
@@ -155,6 +161,15 @@ const GONE_CODES = new Set<number>([
   RESTJSONErrorCodes.UnknownMessage,
   RESTJSONErrorCodes.MissingAccess,
 ]);
+
+/** Lost access isn't here: the message may still exist and show its files. */
+function isDeletedError(err: unknown): boolean {
+  return (
+    err instanceof DiscordAPIError &&
+    (err.code === RESTJSONErrorCodes.UnknownMessage ||
+      err.code === RESTJSONErrorCodes.UnknownChannel)
+  );
+}
 
 function isGoneError(err: unknown): boolean {
   return err instanceof DiscordAPIError && GONE_CODES.has(Number(err.code));
@@ -556,6 +571,7 @@ export class ModLogMessageService {
         message: null,
         missing: "failed",
         gone: isGoneError(err),
+        deleted: isDeletedError(err),
       };
     }
 
@@ -608,6 +624,7 @@ export class ModLogMessageService {
     message: Message,
     moderationCase: ModerationCase,
     rendered: ModLogMessage,
+    keepFiles?: readonly string[],
   ): Promise<ModLogRefreshOutcome> {
     const kind = isLegacyEntry(message) ? "legacy_conversion" : "v2";
     try {
@@ -618,6 +635,11 @@ export class ModLogMessageService {
           message.flags.bitfield,
           rendered,
         );
+      } else if (keepFiles) {
+        await message.edit({
+          ...rendered,
+          attachments: keepFiles.map((id) => ({ id })),
+        });
       } else {
         await message.edit(rendered);
       }
@@ -702,6 +724,215 @@ export class ModLogMessageService {
           }
         : { kind: "text_only", hostMessageId: placed.hostMessageId };
     });
+  }
+
+  /**
+   * Removes a proof and the files sushii hosted for it. Discord goes first
+   * and the row last, so a failure keeps the row and the undo can be retried
+   * instead of leaving a file with nothing pointing at it. Returns "failed"
+   * whenever it can't tell that the files are gone.
+   */
+  async removeProof(
+    moderationCase: ModerationCase,
+    proofId: string,
+  ): Promise<ProofRemoveResult> {
+    let latest = moderationCase;
+    const result = await this.caseLock.run(
+      caseKey(moderationCase),
+      async (): Promise<ProofRemoveResult> => {
+        latest =
+          (await this.modLogRepository.findById(
+            moderationCase.guildId,
+            moderationCase.caseId,
+          )) ?? moderationCase;
+        const entry = await this.loadEntry(latest, { fresh: true });
+
+        const stored = await this.listProofs(moderationCase);
+        const proof = stored.find((p) => p.id === proofId);
+        if (!proof) {
+          return "already_removed";
+        }
+
+        const onDiscord =
+          proof.hostMessageId !== null ||
+          proof.attachments.some((url) => proofAttachmentRef(url));
+        if (
+          !entry.message &&
+          onDiscord &&
+          !(await this.entryDeletedWithFiles(entry, proof))
+        ) {
+          return "failed";
+        }
+
+        if (entry.message) {
+          const updated = await this.dropFromEntry(
+            entry.message,
+            entry.moderationCase,
+            proof,
+            stored.filter((p) => p.id !== proofId),
+          );
+          if (updated !== "updated") {
+            return "failed";
+          }
+        }
+
+        // Text moved to a reply leaves its files on the entry, so both are checked.
+        if (proof.hostMessageId && proof.hostMessageId !== latest.msgId) {
+          const deleted = await this.deleteHostReplies(
+            latest,
+            proof,
+            proof.hostMessageId,
+          );
+          if (!deleted) {
+            return "failed";
+          }
+        }
+
+        await this.caseProofRepository.remove(moderationCase.guildId, proofId);
+        return "removed";
+      },
+    );
+
+    if (result === "removed") {
+      await this.refreshAfterRemoval(latest);
+    }
+    return result;
+  }
+
+  /** Refreshes don't take the case lock, so one that read the row before it went can restore the proof. */
+  private async refreshAfterRemoval(
+    moderationCase: ModerationCase,
+  ): Promise<void> {
+    try {
+      await this.refresh(moderationCase);
+    } catch (err) {
+      this.logger.warn(
+        {
+          err,
+          guildId: moderationCase.guildId,
+          caseId: moderationCase.caseId,
+        },
+        "Failed to refresh mod log entry after removing proof",
+      );
+    }
+  }
+
+  /**
+   * A moved mod log channel also fetches as Unknown Message, so the files'
+   * own channel has to match for the entry to really be gone with them.
+   */
+  private async entryDeletedWithFiles(
+    entry: ModLogEntry,
+    proof: CaseProof,
+  ): Promise<boolean> {
+    if (!entry.deleted) {
+      return false;
+    }
+    const config = await this.guildConfigRepository.findByGuildId(
+      proof.guildId,
+    );
+    const channelId = config.loggingSettings.modLogChannel;
+    return proof.attachments
+      .flatMap((url) => proofAttachmentRef(url) ?? [])
+      .every((ref) => ref.channelId === channelId);
+  }
+
+  private async dropFromEntry(
+    entry: Message,
+    moderationCase: ModerationCase,
+    proof: CaseProof,
+    others: readonly CaseProof[],
+  ): Promise<ModLogRefreshOutcome> {
+    const removed = new Set(
+      proof.attachments.map((url) => proofAttachmentRef(url)?.attachmentId),
+    );
+    const keep = postedFiles(postedFilesOf(entry))
+      .map((file) => file.id)
+      .filter((id) => !removed.has(id));
+    const rendered = await this.renderWithProofs(
+      moderationCase,
+      { currentMessage: entry },
+      others,
+      entry.id,
+    );
+    return this.applyRefresh(entry, moderationCase, rendered, keep);
+  }
+
+  /**
+   * Deletes a proof's reply chain. Only the first reply's id is stored and
+   * the files are on the last, so the rest are found by what they reply to.
+   */
+  private async deleteHostReplies(
+    moderationCase: ModerationCase,
+    proof: CaseProof,
+    firstId: string,
+  ): Promise<boolean> {
+    const config = await this.guildConfigRepository.findByGuildId(
+      moderationCase.guildId,
+    );
+    const channelId = config.loggingSettings.modLogChannel;
+    if (!channelId) {
+      return false;
+    }
+
+    try {
+      const channel = await this.client.channels.fetch(channelId);
+      if (!channel?.isTextBased()) {
+        return false;
+      }
+
+      const later = await channel.messages.fetch({
+        after: firstId,
+        limit: 100,
+      });
+      const chain = [firstId];
+      let next = firstId;
+      for (;;) {
+        const current = next;
+        const reply = later.find(
+          (m) =>
+            m.author.id === this.client.user?.id &&
+            m.reference?.messageId === current,
+        );
+        if (!reply) {
+          break;
+        }
+        chain.push(reply.id);
+        next = reply.id;
+      }
+
+      for (const id of chain.reverse()) {
+        await this.deleteIfPresent(channel, id);
+      }
+      return true;
+    } catch (err) {
+      if (isDeletedError(err)) {
+        return true;
+      }
+      this.logger.warn(
+        {
+          err,
+          guildId: moderationCase.guildId,
+          caseId: moderationCase.caseId,
+          proofId: proof.id,
+        },
+        "Failed to delete proof replies",
+      );
+      return false;
+    }
+  }
+
+  private async deleteIfPresent(
+    channel: TextBasedChannel,
+    messageId: string,
+  ): Promise<void> {
+    try {
+      await channel.messages.delete(messageId);
+    } catch (err) {
+      if (!isDeletedError(err)) {
+        throw err;
+      }
+    }
   }
 
   private missingEntryResult(

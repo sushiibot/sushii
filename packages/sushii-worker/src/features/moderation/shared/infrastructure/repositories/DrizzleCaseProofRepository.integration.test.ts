@@ -263,6 +263,33 @@ describe("DrizzleCaseProofRepository (Integration)", () => {
     });
   });
 
+  describe("findById and remove", () => {
+    test("removes one row and returns it, then finds nothing", async () => {
+      const [first, second] = await repo.add([proof(), proof()]);
+      if (!first || !second) {
+        throw new Error("Expected two rows");
+      }
+
+      expect(await repo.findById(GUILD_ID, first.id)).toEqual(first);
+      expect(await repo.remove(GUILD_ID, first.id)).toEqual(first);
+
+      expect(await repo.findById(GUILD_ID, first.id)).toBeNull();
+      expect(await repo.remove(GUILD_ID, first.id)).toBeNull();
+      expect(await repo.listByCase(GUILD_ID, "1")).toEqual([second]);
+    });
+
+    test("another guild's id doesn't reach the row", async () => {
+      const [row] = await repo.add([proof()]);
+      if (!row) {
+        throw new Error("Expected a row");
+      }
+
+      expect(await repo.findById(OTHER_GUILD_ID, row.id)).toBeNull();
+      expect(await repo.remove(OTHER_GUILD_ID, row.id)).toBeNull();
+      expect(await repo.findById(GUILD_ID, row.id)).toEqual(row);
+    });
+  });
+
   describe("updateHosting", () => {
     test("replaces attachments and host message id", async () => {
       const [added] = await repo.add([

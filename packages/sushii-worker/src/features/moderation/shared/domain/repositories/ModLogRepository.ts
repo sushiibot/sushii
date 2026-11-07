@@ -153,6 +153,12 @@ export interface ModLogCaseOperations {
     limit: number,
   ): Promise<ModerationCase[]>;
 
+  /** The guild's newest cases by case number, without pending ones. */
+  findNewestNotPending(
+    guildId: string,
+    limit: number,
+  ): Promise<ModerationCase[]>;
+
   /**
    * Cases to pick from by hand, newest first, excluding pending ones.
    * Executor and username matches only look at the guild's newest cases.

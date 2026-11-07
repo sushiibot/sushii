@@ -73,6 +73,34 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
     return rows.map(mapRow);
   }
 
+  async findById(guildId: string, proofId: string): Promise<CaseProof | null> {
+    const [row] = await this.db
+      .select()
+      .from(modLogProofsInAppPublic)
+      .where(
+        and(
+          eq(modLogProofsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogProofsInAppPublic.id, BigInt(proofId)),
+        ),
+      );
+
+    return row ? mapRow(row) : null;
+  }
+
+  async remove(guildId: string, proofId: string): Promise<CaseProof | null> {
+    const [row] = await this.db
+      .delete(modLogProofsInAppPublic)
+      .where(
+        and(
+          eq(modLogProofsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogProofsInAppPublic.id, BigInt(proofId)),
+        ),
+      )
+      .returning();
+
+    return row ? mapRow(row) : null;
+  }
+
   async listByCase(guildId: string, caseId: string): Promise<CaseProof[]> {
     const rows = await this.db
       .select()

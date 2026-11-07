@@ -225,6 +225,7 @@ describe("ModerationExecutionPipeline", () => {
       countByNormalizedReason: mock(() => Promise.resolve(0)),
       updateAttachments: mock(() => Promise.resolve()),
       findNewestByUser: mock(() => Promise.resolve([])),
+      findNewestNotPending: mock(() => Promise.resolve([])),
       searchCases: mock(() => Promise.resolve([])),
     };
 

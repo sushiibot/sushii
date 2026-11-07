@@ -12,6 +12,9 @@ export interface CaseProofCounts {
 export interface CaseProofRepository {
   /** Inserts every row in one transaction. */
   add(proofs: NewCaseProof[]): Promise<CaseProof[]>;
+  findById(guildId: string, proofId: string): Promise<CaseProof | null>;
+  /** The removed row; null when it's already gone. */
+  remove(guildId: string, proofId: string): Promise<CaseProof | null>;
   /** Oldest first. */
   listByCase(guildId: string, caseId: string): Promise<CaseProof[]>;
   /** Oldest first per case; cases without proof are absent. */

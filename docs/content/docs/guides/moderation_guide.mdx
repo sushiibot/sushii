@@ -48,17 +48,18 @@ posted to your mod log channel.
 - `/note` — private mod note, never shown to the member or mentioned in any DM
 - `/uncase` — permanently removes a case from a member's history
 
-{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/ProofCommand.ts#ProofCommand.command @96a1e7d3, packages/sushii-worker/src/features/moderation/cases/presentation/commands/AddAsProofContextMenuHandler.ts#AddAsProofContextMenuHandler.command @2aa20052, packages/sushii-worker/src/features/moderation/cases/presentation/views/AddAsProofView.ts#PICKER_CASE_LIMIT @d065ccf1 */}
+{/* source: packages/sushii-worker/src/features/moderation/cases/presentation/commands/ProofCommand.ts#ProofCommand.command @96a1e7d3, packages/sushii-worker/src/features/moderation/cases/presentation/commands/AddAsProofContextMenuHandler.ts#AddAsProofContextMenuHandler.command @2aa20052, packages/sushii-worker/src/features/moderation/cases/presentation/views/AddAsProofView.ts#PICKER_CASE_LIMIT @d5d9d53d, packages/sushii-worker/src/features/moderation/cases/application/CaseProofService.ts#CaseProofService.undoProof @62421434 */}
 
 Proof is mod-only context on a case: screenshots, message links, notes for
 other mods. It's never sent to the member and shows on the mod log entry.
 
 - `/proof case: text: file:` — add proof to any case. Find the case by number
   or by the member's username. The reply is visible in the channel
-- **Apps → Add as proof** on a message adds its link, text and images to one of
-  the author's 10 newest cases, or to anyone else's. For a forwarded message,
-  pick whose case it is. If the files can't be stored, the link and text are
-  still saved. Only you see it
+- **Apps → Add as proof** on a message adds its link, text and images to a case.
+  Pick from the server's 25 newest cases, show only the message author's cases,
+  or enter a case number from the mod log or `/history`. If the files can't be
+  stored, the link and text are still saved. **Undo** removes the proof and its
+  stored files. Only you see it
 
 {/* source: packages/sushii-worker/src/features/moderation/shared/infrastructure/repositories/DrizzleModLogRepository.ts#DrizzleModLogRepository.deleteRange @4eb2af4b */}
 

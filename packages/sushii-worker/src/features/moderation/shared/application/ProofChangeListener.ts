@@ -1,5 +1,5 @@
-/** Told when proof lands on cases, so open views can refresh their counts. */
+/** Told when proof is added to or removed from cases, so open views can refresh their counts. */
 export interface ProofChangeListener {
   /** Best effort and never throws; the caller doesn't wait on it. */
-  proofAdded(guildId: string, caseIds: string[]): void;
+  proofChanged(guildId: string, caseIds: string[]): void;
 }

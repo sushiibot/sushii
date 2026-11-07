@@ -1,4 +1,3 @@
-import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
@@ -22,9 +21,11 @@ import type { ModerationCase } from "@/features/moderation/shared/domain/entitie
 import type {
   ModerationMetrics,
   ProofAddOutcome,
+  ProofUndoOutcome,
 } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 import type { ModLogRepository } from "@/features/moderation/shared/domain/repositories/ModLogRepository";
+import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
 
 export type { ProofFileSource } from "@/features/moderation/shared/application/proofDownloads";
 
@@ -79,6 +80,15 @@ export interface ProofNotAdded {
 
 export type AddProofError = AddProofRefusal | ProofNotAdded;
 
+export interface UndoProofInput {
+  guildId: string;
+  caseId: string;
+  proofId: string;
+  actorId: string;
+}
+
+export type UndoProofError = Exclude<ProofUndoOutcome, "ok">;
+
 export interface AddProofResult {
   /** The inserted rows, one per case that got the proof. */
   proofs: CaseProof[];
@@ -99,11 +109,14 @@ function errorOutcome(error: AddProofError): ProofAddOutcome {
 
 export interface CaseProofServiceDeps {
   modLogRepository: Pick<ModLogRepository, "findByIds">;
-  caseProofRepository: Pick<CaseProofRepository, "add" | "countsByCases">;
-  modLogMessageService: Pick<ModLogMessageService, "hostProof">;
+  caseProofRepository: Pick<
+    CaseProofRepository,
+    "add" | "countsByCases" | "findById"
+  >;
+  modLogMessageService: Pick<ModLogMessageService, "hostProof" | "removeProof">;
   responseRegistry: Pick<ActionResponseRegistry, "markStale">;
   proofChangeListener: ProofChangeListener;
-  metrics: Pick<ModerationMetrics, "recordProofAdded">;
+  metrics: Pick<ModerationMetrics, "recordProofAdded" | "recordProofUndone">;
   productEvents?: ProductEventTracker;
   logger: Logger;
   download?: typeof downloadProofSource;
@@ -143,6 +156,58 @@ export class CaseProofService {
         });
       }
     }
+  }
+
+  /** Undoes the actor's own Add as proof, removing its hosted files too. */
+  async undo(
+    input: UndoProofInput,
+  ): Promise<Result<ModerationCase, UndoProofError>> {
+    let outcome: ProofUndoOutcome = "failed";
+    try {
+      const result = await this.undoProof(input);
+      outcome = result.ok ? "ok" : result.val;
+      return result;
+    } finally {
+      this.deps.metrics.recordProofUndone(outcome);
+    }
+  }
+
+  private async undoProof(
+    input: UndoProofInput,
+  ): Promise<Result<ModerationCase, UndoProofError>> {
+    const { guildId, caseId, proofId, actorId } = input;
+    const proof = await this.deps.caseProofRepository.findById(
+      guildId,
+      proofId,
+    );
+    if (!proof || proof.caseId !== caseId) {
+      return Err("gone");
+    }
+    if (proof.source !== "context_menu" || proof.authorId !== actorId) {
+      return Err("not_allowed");
+    }
+
+    const cases = await this.loadCases(guildId, [caseId]);
+    const moderationCase = cases?.[0];
+    if (!moderationCase) {
+      return Err("gone");
+    }
+
+    const removed = await this.deps.modLogMessageService.removeProof(
+      moderationCase,
+      proofId,
+    );
+    if (removed === "failed") {
+      return Err("failed");
+    }
+    if (removed === "already_removed") {
+      return Err("gone");
+    }
+
+    await this.deps.responseRegistry.markStale(guildId, [caseId]);
+    this.notifyProofChanged(guildId, [caseId]);
+    this.deps.logger.info({ guildId, caseId, proofId }, "Undid case proof");
+    return Ok(moderationCase);
   }
 
   private async addProof(
@@ -228,7 +293,7 @@ export class CaseProofService {
       proofs.map((p) => p.caseId),
       { exceptMessageId: input.exceptMessageId },
     );
-    this.notifyProofAdded(
+    this.notifyProofChanged(
       input.guildId,
       proofs.map((p) => p.caseId),
     );
@@ -278,9 +343,9 @@ export class CaseProofService {
     return row;
   }
 
-  private notifyProofAdded(guildId: string, caseIds: string[]): void {
+  private notifyProofChanged(guildId: string, caseIds: string[]): void {
     try {
-      this.deps.proofChangeListener.proofAdded(guildId, caseIds);
+      this.deps.proofChangeListener.proofChanged(guildId, caseIds);
     } catch (err) {
       // The proof is already stored, so a failed refresh can't fail the add.
       this.deps.logger.error(

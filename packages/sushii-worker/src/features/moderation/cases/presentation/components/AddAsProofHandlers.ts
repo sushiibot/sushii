@@ -4,7 +4,8 @@ import type {
   InteractionEditReplyOptions,
   Message,
   MessageComponentInteraction,
-  UserSelectMenuInteraction,
+  ModalMessageModalSubmitInteraction,
+  ModalSubmitInteraction,
 } from "discord.js";
 import {
   DiscordAPIError,
@@ -44,21 +45,34 @@ import {
 
 import {
   ADD_AS_PROOF_EMOJIS,
+  type AddAsProofEmojis,
   PICKER_CASE_LIMIT,
-  type PickerInput,
+  type PickerScope,
   type SourceMessage,
   type SourceMessageRef,
   buildAddAsProofAdding,
   buildAddAsProofDone,
   buildAddAsProofPicker,
+  buildAddAsProofUndoFailed,
+  buildAddAsProofUndoGone,
+  buildAddAsProofUndoNotAllowed,
+  buildAddAsProofUndoing,
+  buildAddAsProofUndone,
+  buildCaseNumberModal,
+  caseNumberNotice,
   parseAddAsProofCustomId,
+  parseAddAsProofUndoCustomId,
   proofSourceContent,
+  readCaseNumber,
 } from "../views/AddAsProofView";
 
 export interface AddAsProofDeps {
-  modLogRepository: Pick<ModLogRepository, "findNewestByUser">;
+  modLogRepository: Pick<
+    ModLogRepository,
+    "findById" | "findNewestByUser" | "findNewestNotPending"
+  >;
   guildConfigRepository: Pick<GuildConfigRepository, "findByGuildId">;
-  caseProofService: Pick<CaseProofService, "add">;
+  caseProofService: Pick<CaseProofService, "add" | "undo">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
   promptOffer: PromptOffer;
   logger: Logger;
@@ -104,6 +118,10 @@ function proofFiles(message: Message): ProofFileSource[] {
   }));
 }
 
+type ProofInteraction =
+  | MessageComponentInteraction<"cached">
+  | ModalSubmitInteraction<"cached">;
+
 const GONE_CODES = new Set<number | string>([
   RESTJSONErrorCodes.UnknownMessage,
   RESTJSONErrorCodes.UnknownChannel,
@@ -121,7 +139,7 @@ const READ_PERMISSIONS = [
  * it's gone, or when the bot or the clicker can't read its channel.
  */
 export async function fetchSourceMessage(
-  interaction: MessageComponentInteraction<"cached">,
+  interaction: ProofInteraction,
   ref: SourceMessageRef,
 ): Promise<Message | null> {
   try {
@@ -145,35 +163,34 @@ export async function fetchSourceMessage(
   }
 }
 
-/**
- * The picker for one user's cases. The caller picks the mode: a forward
- * opens as `unknown`, since its author is only whoever forwarded it.
- */
+/** The picker for the chosen scope. */
 export async function renderAddAsProofPicker(
   deps: AddAsProofDeps,
   guildId: string,
   message: SourceMessage,
-  user: { id: string; username: string },
-  showing: PickerInput["showing"],
+  author: { id: string; username: string },
+  scope: PickerScope,
+  notice?: string,
 ) {
   const [cases, emojis] = await Promise.all([
-    showing === "unknown"
-      ? []
-      : deps.modLogRepository.findNewestByUser(
+    scope === "author"
+      ? deps.modLogRepository.findNewestByUser(
           guildId,
-          user.id,
+          author.id,
           PICKER_CASE_LIMIT,
-        ),
+        )
+      : deps.modLogRepository.findNewestNotPending(guildId, PICKER_CASE_LIMIT),
     deps.emojiRepository.getEmojis(ADD_AS_PROOF_EMOJIS),
   ]);
 
   return buildAddAsProofPicker({
     message,
-    user,
-    showing,
+    author,
+    scope,
     cases,
     emojis,
     now: deps.now?.(),
+    notice,
   });
 }
 
@@ -184,9 +201,11 @@ export async function filesNotSavedReason(
   error: AddProofError,
   maxFileBytes: number,
   hasModLogChannel: () => Promise<boolean>,
+  fileTotal: number,
 ): Promise<string | null> {
   if (error === "file_too_large") {
-    return `one is over the ${Math.floor(maxFileBytes / MB)} MB limit.`;
+    const which = fileTotal === 1 ? "it's" : "one is";
+    return `${which} over the ${Math.floor(maxFileBytes / MB)} MB limit.`;
   }
   if (error === "too_many_files") {
     return `a case holds up to ${PROOF_FILES_PER_CASE_MAX} proof files.`;
@@ -197,7 +216,7 @@ export async function filesNotSavedReason(
     error.skipped.every((s) => s.reason === "no_mod_log_for_files")
   ) {
     // Also a deleted entry or an old case without one, not only a missing channel.
-    const noEntry = "this case has no mod log entry to keep them on.";
+    const noEntry = "this case has no mod log entry to keep files on.";
     return (await hasModLogChannel())
       ? noEntry
       : `${noEntry} Set a mod log channel in \`/settings\`.`;
@@ -209,7 +228,7 @@ type AddResult = Awaited<ReturnType<AddAsProofDeps["caseProofService"]["add"]>>;
 
 /** Edits the picker, which this flow already acknowledged with an update. */
 async function showResult(
-  interaction: MessageComponentInteraction<"cached">,
+  interaction: ProofInteraction,
   deps: AddAsProofDeps,
   message: Parameters<MessageComponentInteraction["editReply"]>[0],
 ): Promise<void> {
@@ -241,7 +260,9 @@ function errorEdit(
  * "Adding…" state, so a second click can't add it again.
  */
 async function addMessageToCase(
-  interaction: ButtonInteraction<"cached"> | AnySelectMenuInteraction<"cached">,
+  interaction:
+    | AnySelectMenuInteraction<"cached">
+    | ModalMessageModalSubmitInteraction<"cached">,
   deps: AddAsProofDeps,
   ref: SourceMessageRef,
   caseId: string,
@@ -284,14 +305,20 @@ async function addMessageToCase(
   let result: AddResult;
   let filesNotSaved: string | undefined;
   try {
-    result = await add(proofFiles(message));
+    const files = proofFiles(message);
+    result = await add(files);
     const reason = result.err
-      ? await filesNotSavedReason(result.val, maxFileBytes, async () => {
-          const config = await deps.guildConfigRepository.findByGuildId(
-            interaction.guildId,
-          );
-          return config.loggingSettings.modLogChannel !== null;
-        })
+      ? await filesNotSavedReason(
+          result.val,
+          maxFileBytes,
+          async () => {
+            const config = await deps.guildConfigRepository.findByGuildId(
+              interaction.guildId,
+            );
+            return config.loggingSettings.modLogChannel !== null;
+          },
+          files.length,
+        )
       : null;
     if (reason) {
       // The link and text still count as proof without the files.
@@ -339,6 +366,7 @@ async function addMessageToCase(
       files: toSourceMessage(message).files,
       emojis,
       filesNotSaved,
+      now: deps.now?.(),
     }),
   );
   await deps.promptOffer.offer(interaction, PROOF_INTRO_ID);
@@ -354,12 +382,16 @@ async function hasModPermission(
   );
 }
 
-/** "Add to #N": the newest case on the picker. */
+const MODAL_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The picker's "Show only…" / "Show all…" and "Enter case number…" buttons. */
 export class AddAsProofButtonHandler extends ButtonHandler {
-  customIDMatch = (customId: string) =>
-    parseAddAsProofCustomId(customId)?.kind === "add"
+  customIDMatch = (customId: string) => {
+    const kind = parseAddAsProofCustomId(customId)?.kind;
+    return kind === "scope" || kind === "number"
       ? { path: customId, index: 0, params: {} }
       : false;
+  };
 
   constructor(private readonly deps: AddAsProofDeps) {
     super();
@@ -371,7 +403,7 @@ export class AddAsProofButtonHandler extends ButtonHandler {
     }
 
     const id = parseAddAsProofCustomId(interaction.customId);
-    if (id?.kind !== "add") {
+    if (id?.kind !== "scope" && id?.kind !== "number") {
       throw new Error("No add as proof match", {
         cause: { customId: interaction.customId },
       });
@@ -381,18 +413,95 @@ export class AddAsProofButtonHandler extends ButtonHandler {
       return;
     }
 
-    await addMessageToCase(interaction, this.deps, id, id.caseId);
+    if (id.kind === "number") {
+      await this.askCaseNumber(interaction, id, id.scope);
+      return;
+    }
+
+    const message = await fetchSourceMessage(interaction, id);
+    if (!message) {
+      await interaction.reply(proofNotice(SOURCE_MESSAGE_GONE_TEXT));
+      return;
+    }
+    const picker = await renderAddAsProofPicker(
+      this.deps,
+      interaction.guildId,
+      toSourceMessage(message),
+      { id: message.author.id, username: message.author.username },
+      id.scope,
+    );
+    // An update can't set Ephemeral; the picker keeps its own flags.
+    await interaction.update({ ...picker, flags: MessageFlags.IsComponentsV2 });
+  }
+
+  private async askCaseNumber(
+    interaction: ButtonInteraction<"cached">,
+    ref: SourceMessageRef,
+    scope: PickerScope,
+  ): Promise<void> {
+    // Unique per click so a dismissed form's collector can't take a later submit.
+    const modalCustomId = `proof/ctx/numberForm/${interaction.id}`;
+    await interaction.showModal(buildCaseNumberModal(modalCustomId));
+
+    let submission: ModalSubmitInteraction;
+    try {
+      submission = await interaction.awaitModalSubmit({
+        time: MODAL_TIMEOUT_MS,
+        filter: (i) =>
+          i.user.id === interaction.user.id && i.customId === modalCustomId,
+      });
+    } catch {
+      // Rejects only when the form times out.
+      return;
+    }
+
+    if (!submission.inCachedGuild() || !submission.isFromMessage()) {
+      throw new Error("Case number form submitted outside its message", {
+        cause: { customId: submission.customId },
+      });
+    }
+
+    await this.useCaseNumber(submission, ref, scope);
+  }
+
+  private async useCaseNumber(
+    submission: ModalMessageModalSubmitInteraction<"cached">,
+    ref: SourceMessageRef,
+    scope: PickerScope,
+  ): Promise<void> {
+    const caseId = readCaseNumber(submission.fields);
+    const found = caseId
+      ? await this.deps.modLogRepository.findById(submission.guildId, caseId)
+      : null;
+    if (caseId && found && !found.pending) {
+      await addMessageToCase(submission, this.deps, ref, found.caseId);
+      return;
+    }
+
+    const message = await fetchSourceMessage(submission, ref);
+    if (!message) {
+      await submission.reply(proofNotice(SOURCE_MESSAGE_GONE_TEXT));
+      return;
+    }
+    const picker = await renderAddAsProofPicker(
+      this.deps,
+      submission.guildId,
+      toSourceMessage(message),
+      { id: message.author.id, username: message.author.username },
+      scope,
+      caseNumberNotice(caseId),
+    );
+    // An update can't set Ephemeral; the picker keeps its own flags.
+    await submission.update({ ...picker, flags: MessageFlags.IsComponentsV2 });
   }
 }
 
-/** The picker's case select and its "Someone else's case…" user select. */
+/** The case select on the picker. */
 export class AddAsProofSelectHandler extends SelectMenuHandler {
-  customIDMatch = (customId: string) => {
-    const kind = parseAddAsProofCustomId(customId)?.kind;
-    return kind === "pick" || kind === "user"
+  customIDMatch = (customId: string) =>
+    parseAddAsProofCustomId(customId)?.kind === "pick"
       ? { path: customId, index: 0, params: {} }
       : false;
-  };
 
   constructor(private readonly deps: AddAsProofDeps) {
     super();
@@ -406,7 +515,7 @@ export class AddAsProofSelectHandler extends SelectMenuHandler {
     }
 
     const id = parseAddAsProofCustomId(interaction.customId);
-    if (id?.kind !== "pick" && id?.kind !== "user") {
+    if (id?.kind !== "pick") {
       throw new Error("No add as proof select match", {
         cause: { customId: interaction.customId },
       });
@@ -416,44 +525,78 @@ export class AddAsProofSelectHandler extends SelectMenuHandler {
       return;
     }
 
-    if (id.kind === "pick") {
-      const [caseId] = interaction.values;
-      if (!caseId) {
-        throw new Error("Add as proof select without a case");
-      }
-      await addMessageToCase(interaction, this.deps, id, caseId);
-      return;
+    const [caseId] = interaction.values;
+    if (!caseId) {
+      throw new Error("Add as proof select without a case");
     }
+    await addMessageToCase(interaction, this.deps, id, caseId);
+  }
+}
 
-    if (!interaction.isUserSelectMenu()) {
-      throw new Error("Add as proof user select isn't a user select");
-    }
-    await this.showUser(interaction, id);
+/** Undo on the Done message: removes the proof and sushii's copies of its files. */
+export class AddAsProofUndoButtonHandler extends ButtonHandler {
+  customIDMatch = (customId: string) =>
+    parseAddAsProofUndoCustomId(customId)
+      ? { path: customId, index: 0, params: {} }
+      : false;
+
+  constructor(private readonly deps: AddAsProofDeps) {
+    super();
   }
 
-  private async showUser(
-    interaction: UserSelectMenuInteraction<"cached">,
-    ref: SourceMessageRef,
-  ): Promise<void> {
-    const message = await fetchSourceMessage(interaction, ref);
-    if (!message) {
-      await interaction.reply(proofNotice(SOURCE_MESSAGE_GONE_TEXT));
+  async handleInteraction(interaction: ButtonInteraction): Promise<void> {
+    if (!interaction.inCachedGuild()) {
+      throw new Error("Not a guild interaction");
+    }
+
+    const id = parseAddAsProofUndoCustomId(interaction.customId);
+    if (!id) {
+      throw new Error("No add as proof undo match", {
+        cause: { customId: interaction.customId },
+      });
+    }
+
+    if (!(await hasModPermission(interaction))) {
       return;
     }
 
-    const user = interaction.users.first();
-    if (!user) {
-      throw new Error("Add as proof user select without a user");
+    await interaction.update(buildAddAsProofUndoing(id.caseId));
+
+    let result: Awaited<ReturnType<AddAsProofDeps["caseProofService"]["undo"]>>;
+    let emojis: AddAsProofEmojis;
+    try {
+      // Fetched first, so a failure here can't follow a removal that worked.
+      emojis = await this.deps.emojiRepository.getEmojis(ADD_AS_PROOF_EMOJIS);
+      result = await this.deps.caseProofService.undo({
+        guildId: interaction.guildId,
+        caseId: id.caseId,
+        proofId: id.proofId,
+        actorId: interaction.user.id,
+      });
+    } catch (err) {
+      // Logged here instead of the router, which would answer a second time.
+      this.deps.logger.error(
+        { err, guildId: interaction.guildId, ...id },
+        "Failed to undo Add as proof",
+      );
+      await showResult(interaction, this.deps, buildAddAsProofUndoFailed(id));
+      return;
     }
-    const source = toSourceMessage(message);
-    const picker = await renderAddAsProofPicker(
-      this.deps,
-      interaction.guildId,
-      source,
-      { id: user.id, username: user.username },
-      user.id === source.authorId && !source.forwarded ? "author" : "other",
-    );
-    // An update can't set Ephemeral; the picker keeps its own flags.
-    await interaction.update({ ...picker, flags: MessageFlags.IsComponentsV2 });
+
+    if (result.ok) {
+      await showResult(
+        interaction,
+        this.deps,
+        buildAddAsProofUndone(result.val, emojis),
+      );
+      return;
+    }
+
+    const views = {
+      gone: () => buildAddAsProofUndoGone(id.caseId),
+      not_allowed: buildAddAsProofUndoNotAllowed,
+      failed: () => buildAddAsProofUndoFailed(id),
+    };
+    await showResult(interaction, this.deps, views[result.val]());
   }
 }

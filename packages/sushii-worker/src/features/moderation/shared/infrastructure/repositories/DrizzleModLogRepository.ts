@@ -697,6 +697,25 @@ export class DrizzleModLogRepository implements ModLogRepository {
     return results.map((row) => this.mapRowToModerationCase(row));
   }
 
+  async findNewestNotPending(
+    guildId: string,
+    limit: number,
+  ): Promise<ModerationCase[]> {
+    const results = await this.db
+      .select()
+      .from(modLogsInAppPublic)
+      .where(
+        and(
+          eq(modLogsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogsInAppPublic.pending, false),
+        ),
+      )
+      .orderBy(desc(modLogsInAppPublic.caseId))
+      .limit(limit);
+
+    return results.map((row) => this.mapRowToModerationCase(row));
+  }
+
   async findNewestByUser(
     guildId: string,
     userId: string,

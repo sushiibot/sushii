@@ -2,6 +2,7 @@ import { sleep } from "bun";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import type { Client, Message } from "discord.js";
 import {
+  Collection,
   DiscordAPIError,
   MessageFlags,
   RESTJSONErrorCodes,
@@ -130,7 +131,7 @@ function postedFrom(
   previous: FakeFile[] = [],
 ) {
   const kept = previous.filter((f) =>
-    payload.files ? payload.attachments?.some((a) => a.id === f.id) : true,
+    payload.attachments ? payload.attachments.some((a) => a.id === f.id) : true,
   );
   const added = (payload.files ?? []).map((f) => {
     const fileId = String(nextFileId++);
@@ -227,13 +228,19 @@ function setup(
     /** Called on every message fetch, so a test can serve the entry's latest state. */
     current?: () => unknown;
     findById?: ReturnType<typeof mock>;
+    /** What a fetch for messages after a reply returns. */
+    later?: { id: string; authorId: string; replyTo: string }[];
+    deleteMessage?: ReturnType<typeof mock>;
   } = {},
 ) {
   const listByCase = mock(async () => options.proofs ?? []);
   const updateHosting = mock(async () => undefined);
+  const removeRow = mock(async () => null);
+  const deleteMessage = options.deleteMessage ?? mock(async () => undefined);
   const caseProofRepository = {
     listByCase,
     updateHosting,
+    remove: removeRow,
   } as unknown as CaseProofRepository;
   const patch = mock(async () => undefined);
   const markDmDeleted = mock(async () => undefined);
@@ -266,10 +273,21 @@ function setup(
             ? mock(async () => {
                 throw options.fetchError;
               })
-            : mock(
-                async () =>
-                  options.current?.() ?? options.posted ?? v2Message(null),
+            : mock(async (query: unknown) =>
+                typeof query === "object" && query && "after" in query
+                  ? new Collection(
+                      (options.later ?? []).map((m) => [
+                        m.id,
+                        {
+                          id: m.id,
+                          author: { id: m.authorId },
+                          reference: { messageId: m.replyTo },
+                        },
+                      ]),
+                    )
+                  : (options.current?.() ?? options.posted ?? v2Message(null)),
               ),
+          delete: deleteMessage,
         },
       })),
     },
@@ -298,6 +316,8 @@ function setup(
     recordModLogEdit,
     listByCase,
     updateHosting,
+    removeRow,
+    deleteMessage,
     client,
     service: new ModLogMessageService(
       client,
@@ -915,6 +935,294 @@ describe("ModLogMessageService.hostProof", () => {
       typeof fakeMessage
     >;
     expect(payloadText(editPayload(edited))).toContain(url);
+  });
+});
+
+describe("ModLogMessageService.removeProof", () => {
+  const BOT = "1";
+  const SECOND_REPLY = "1029384756102938601";
+
+  function gone(): DiscordAPIError {
+    return new DiscordAPIError(
+      { code: RESTJSONErrorCodes.UnknownMessage, message: "Unknown Message" },
+      RESTJSONErrorCodes.UnknownMessage,
+      404,
+      "DELETE",
+      "/channels/x/messages/y",
+      {},
+    );
+  }
+
+  test("drops the proof's files from the entry and keeps other proofs' files", async () => {
+    const [mine, theirs] = existingFiles(2) as [FakeFile, FakeFile];
+    const posted = v2Message(null, [mine, theirs]);
+    const { service, removeRow, deleteMessage } = setup({
+      posted,
+      proofs: [
+        makeProof({
+          id: "1",
+          attachments: [mine.url],
+          hostMessageId: LOG_MESSAGE,
+        }),
+        makeProof({
+          id: "2",
+          attachments: [theirs.url],
+          hostMessageId: LOG_MESSAGE,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    const payload = editPayload(posted);
+    expect(payload.attachments).toEqual([{ id: theirs.id }]);
+    expect(payloadText(payload)).toContain(theirs.url);
+    expect(payloadText(payload)).not.toContain(mine.url);
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("removes files left on the entry when the text moved to a reply", async () => {
+    const [mine] = existingFiles(1) as [FakeFile];
+    const posted = v2Message(null, [mine]);
+    const { service, deleteMessage, removeRow } = setup({
+      posted,
+      proofs: [
+        makeProof({
+          id: "1",
+          attachments: [mine.url],
+          hostMessageId: LOG_REPLY,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(editPayload(posted).attachments).toEqual([]);
+    expect(deleteMessage).toHaveBeenCalledWith(LOG_REPLY);
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("deletes the whole reply chain, not only the stored first reply", async () => {
+    const { service, deleteMessage } = setup({
+      posted: v2Message(null),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+      later: [
+        { id: SECOND_REPLY, authorId: BOT, replyTo: LOG_REPLY },
+        { id: "1029384756102938602", authorId: BOT, replyTo: LOG_MESSAGE },
+        { id: "1029384756102938603", authorId: MOD, replyTo: SECOND_REPLY },
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(deleteMessage.mock.calls).toEqual([[SECOND_REPLY], [LOG_REPLY]]);
+  });
+
+  test("keeps the row when the entry edit fails, so undo can be retried", async () => {
+    const posted = v2Message(null);
+    posted.edit.mockImplementation(async () => {
+      throw new Error("Discord down");
+    });
+    const { service, removeRow, deleteMessage } = setup({
+      posted,
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("keeps the row when a reply can't be deleted", async () => {
+    const { service, removeRow } = setup({
+      posted: v2Message(null),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+      deleteMessage: mock(async () => {
+        throw new Error("Discord down");
+      }),
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("a reply someone already deleted doesn't fail the undo", async () => {
+    const { service, removeRow } = setup({
+      posted: v2Message(null),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+      deleteMessage: mock(async () => {
+        throw gone();
+      }),
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("a deleted entry still has its replies removed", async () => {
+    const { service, removeRow, deleteMessage } = setup({
+      current: () => {
+        throw gone();
+      },
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(deleteMessage).toHaveBeenCalledWith(LOG_REPLY);
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("lost access to the entry removes nothing, since its files may still show", async () => {
+    const { service, removeRow } = setup({
+      fetchError: new DiscordAPIError(
+        { code: RESTJSONErrorCodes.MissingAccess, message: "Missing Access" },
+        RESTJSONErrorCodes.MissingAccess,
+        403,
+        "GET",
+        "/channels/x/messages/y",
+        {},
+      ),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_MESSAGE })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("lost access to a reply keeps the row", async () => {
+    const { service, removeRow } = setup({
+      posted: v2Message(null),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_REPLY })],
+      deleteMessage: mock(async () => {
+        throw new DiscordAPIError(
+          { code: RESTJSONErrorCodes.MissingAccess, message: "Missing Access" },
+          RESTJSONErrorCodes.MissingAccess,
+          403,
+          "DELETE",
+          "/channels/x/messages/y",
+          {},
+        );
+      }),
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("an entry deleted with its files touches nothing else in the channel", async () => {
+    const [mine] = existingFiles(1) as [FakeFile];
+    const { service, removeRow, deleteMessage } = setup({
+      current: () => {
+        throw gone();
+      },
+      proofs: [
+        makeProof({
+          id: "1",
+          attachments: [mine.url],
+          hostMessageId: LOG_MESSAGE,
+        }),
+      ],
+      later: [{ id: LOG_REPLY, authorId: BOT, replyTo: LOG_MESSAGE }],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("files in another channel mean the mod log moved, so nothing is removed", async () => {
+    const { service, removeRow, deleteMessage } = setup({
+      current: () => {
+        throw gone();
+      },
+      proofs: [
+        makeProof({
+          id: "1",
+          attachments: [
+            "https://cdn.discordapp.com/attachments/999/888/a.png?ex=1&is=2&hm=3&",
+          ],
+          hostMessageId: LOG_MESSAGE,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("a mod log that's off fails instead of guessing", async () => {
+    const { service, removeRow, deleteMessage } = setup({
+      modLogChannel: null,
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_MESSAGE })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("proof that never reached Discord only needs its row removed", async () => {
+    const { service, removeRow } = setup({
+      modLogChannel: null,
+      proofs: [makeProof({ id: "1" })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("removed");
+
+    expect(removeRow).toHaveBeenCalledWith(GUILD, "1");
+  });
+
+  test("renders again after the row is gone, in case a refresh restored the proof", async () => {
+    const posted = v2Message(null);
+    const proofs = [
+      makeProof({
+        id: "1",
+        content: "Same scam DMs",
+        hostMessageId: LOG_MESSAGE,
+      }),
+    ];
+    const { service, removeRow, listByCase } = setup({ posted, proofs });
+    removeRow.mockImplementation(async () => {
+      listByCase.mockImplementation(async () => []);
+      return null;
+    });
+
+    await service.removeProof(makeCase(), "1");
+
+    expect(posted.edit).toHaveBeenCalledTimes(2);
+    expect(payloadText(editPayload(posted, 1))).not.toContain("Same scam DMs");
+  });
+
+  test("a temporary fetch failure removes nothing", async () => {
+    const { service, removeRow } = setup({
+      fetchError: new Error("timeout"),
+      proofs: [makeProof({ id: "1", hostMessageId: LOG_MESSAGE })],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("a proof already removed doesn't touch the entry", async () => {
+    const posted = v2Message(null);
+    const { service, removeRow } = setup({ posted, proofs: [] });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("already_removed");
+
+    expect(posted.edit).not.toHaveBeenCalled();
+    expect(removeRow).not.toHaveBeenCalled();
   });
 });
 

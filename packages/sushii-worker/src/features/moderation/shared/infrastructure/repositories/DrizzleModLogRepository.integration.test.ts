@@ -311,6 +311,26 @@ describe("DrizzleModLogRepository (Integration)", () => {
       ]);
     });
 
+    test("findNewestNotPending lists the guild's settled cases, newest first", async () => {
+      await insertRows([
+        { caseId: 1 },
+        { caseId: 2, userId: OTHER_USER_ID },
+        { caseId: 3, pending: true },
+        { caseId: 4 },
+        { caseId: 5, guildId: OTHER_GUILD_ID },
+      ]);
+
+      expect(ids(await repo.findNewestNotPending(GUILD_ID, 10))).toEqual([
+        "4",
+        "2",
+        "1",
+      ]);
+      expect(ids(await repo.findNewestNotPending(GUILD_ID, 2))).toEqual([
+        "4",
+        "2",
+      ]);
+    });
+
     test("searchCases by executor lists the mod's own cases", async () => {
       await insertRows([
         { caseId: 1 },

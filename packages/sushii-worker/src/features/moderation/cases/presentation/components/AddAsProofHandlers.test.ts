@@ -6,13 +6,13 @@ import type {
 } from "discord.js";
 import { DiscordAPIError, MessageFlags, RESTJSONErrorCodes } from "discord.js";
 import pino from "pino";
+import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import {
   GUILD,
   MOD,
   TARGET,
-  TARGET_3,
   botEmoji,
   makeCase,
 } from "@/features/moderation/actions/presentation/response/testFixtures";
@@ -20,16 +20,21 @@ import type { CaseProof } from "@/features/moderation/shared/domain/entities/Cas
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 
-import type { AddProofResult } from "../../application/CaseProofService";
+import type {
+  AddProofResult,
+  UndoProofError,
+} from "../../application/CaseProofService";
 import { AddAsProofContextMenuHandler } from "../commands/AddAsProofContextMenuHandler";
 import {
   ADD_AS_PROOF_EMOJIS,
   SOURCE_SHORTENED_LINE,
   buildAddAsProofCustomId,
+  buildAddAsProofUndoCustomId,
 } from "../views/AddAsProofView";
 import {
   AddAsProofButtonHandler,
   AddAsProofSelectHandler,
+  AddAsProofUndoButtonHandler,
   SOURCE_MESSAGE_GONE_TEXT,
 } from "./AddAsProofHandlers";
 
@@ -86,6 +91,10 @@ function proof(): CaseProof {
 function setup(
   options: {
     cases?: Record<string, ModerationCase[]>;
+    recent?: ModerationCase[];
+    /** What a typed case number finds. */
+    found?: ModerationCase | null;
+    undo?: UndoResult | Error;
     /** One per add call, in order; the last repeats. */
     results?: AddResult[];
     permitted?: boolean;
@@ -96,8 +105,22 @@ function setup(
 ) {
   const casesByUser = options.cases ?? {
     [TARGET]: [makeCase(), makeCase({ caseId: "4801" })],
-    [TARGET_3]: [makeCase({ caseId: "4824", userId: TARGET_3 })],
   };
+  const findNewestNotPending = mock(
+    async (_g: string, _l: number) =>
+      options.recent ?? [makeCase(), makeCase({ caseId: "4801" })],
+  );
+  const findById = mock(async (_g: string, caseId: string) =>
+    options.found === undefined
+      ? makeCase({ caseId, reason: "Scam links" })
+      : options.found,
+  );
+  const undo = mock(async (_input: unknown) => {
+    if (options.undo instanceof Error) {
+      throw options.undo;
+    }
+    return options.undo ?? Ok(makeCase());
+  });
   const findNewestByUser = mock(
     async (_g: string, userId: string, _l: number) => casesByUser[userId] ?? [],
   );
@@ -109,7 +132,7 @@ function setup(
     async (_input: unknown) => results[Math.min(calls++, results.length - 1)],
   );
   const deps = {
-    modLogRepository: { findNewestByUser },
+    modLogRepository: { findNewestByUser, findNewestNotPending, findById },
     guildConfigRepository: {
       findByGuildId: mock(async () => {
         const config = GuildConfig.createDefault(GUILD);
@@ -120,7 +143,7 @@ function setup(
         return config;
       }),
     },
-    caseProofService: { add },
+    caseProofService: { add, undo },
     emojiRepository: {
       getEmojis: mock(async () =>
         Object.fromEntries(ADD_AS_PROOF_EMOJIS.map((n) => [n, botEmoji(n)])),
@@ -165,6 +188,7 @@ function setup(
       inCachedGuild: () => true,
       reply: mock(async (_o: unknown) => undefined),
       update: mock(async (_o: unknown) => undefined),
+      showModal: mock(async (_o: unknown) => undefined),
       deferUpdate: mock(async () => undefined),
       editReply: mock(async (_o: unknown) => undefined),
       followUp: mock(async (_o: unknown) => undefined),
@@ -175,7 +199,10 @@ function setup(
   return {
     deps,
     add,
+    undo,
     findNewestByUser,
+    findNewestNotPending,
+    findById,
     fetchMessage,
     component,
     offer: deps.promptOffer.offer,
@@ -191,6 +218,7 @@ interface AddInput {
 type AddResult = Awaited<
   ReturnType<AddAsProofButtonHandler["deps"]["caseProofService"]["add"]>
 >;
+type UndoResult = Result<ModerationCase, UndoProofError>;
 
 function stored(attachments: string[], sourceContent: string | null = "x") {
   return Ok<AddProofResult>({
@@ -205,25 +233,27 @@ function json(call: unknown[] | undefined): string {
   return JSON.stringify(payload.components.map((c) => c.toJSON()));
 }
 
-const ADD_ID = buildAddAsProofCustomId({
-  kind: "add",
-  caseId: "4822",
-  channelId: CHANNEL,
-  messageId: MESSAGE,
-});
 const PICK_ID = buildAddAsProofCustomId({
   kind: "pick",
   channelId: CHANNEL,
   messageId: MESSAGE,
 });
-const USER_ID = buildAddAsProofCustomId({
-  kind: "user",
+const SCOPE_AUTHOR_ID = buildAddAsProofCustomId({
+  kind: "scope",
+  scope: "author",
   channelId: CHANNEL,
   messageId: MESSAGE,
 });
+const NUMBER_ID = buildAddAsProofCustomId({
+  kind: "number",
+  scope: "author",
+  channelId: CHANNEL,
+  messageId: MESSAGE,
+});
+const UNDO_ID = buildAddAsProofUndoCustomId({ caseId: "4822", proofId: "1" });
 
 describe("Add as proof context menu", () => {
-  test("opens a private picker of the author's cases", async () => {
+  test("opens a private picker of the server's newest cases", async () => {
     const ctx = setup();
     const handler = new AddAsProofContextMenuHandler(ctx.deps as never);
     const reply = mock(async (_o: unknown) => undefined);
@@ -235,12 +265,14 @@ describe("Add as proof context menu", () => {
       reply,
     } as unknown as ContextMenuCommandInteraction);
 
-    expect(ctx.findNewestByUser).toHaveBeenCalledWith(GUILD, TARGET, 10);
+    expect(ctx.findNewestNotPending).toHaveBeenCalledWith(GUILD, 25);
+    expect(ctx.findNewestByUser).not.toHaveBeenCalled();
     const [payload] = reply.mock.calls[0] as [{ flags: number }];
     expect(payload.flags & MessageFlags.Ephemeral).toBe(MessageFlags.Ephemeral);
     const out = json(reply.mock.calls[0]);
-    expect(out).toContain("Add to #4822");
+    expect(out).toContain('"value":"4822"');
     expect(out).toContain('"value":"4801"');
+    expect(out).toContain("Show only spambot's cases");
   });
 
   test("is limited to mods by default and only in servers", () => {
@@ -255,11 +287,11 @@ describe("Add as proof context menu", () => {
 });
 
 describe("Add as proof pick", () => {
-  test("the button adds the refetched message with its link, text and images", async () => {
+  test("picking a case adds the refetched message with its link, text and images", async () => {
     const ctx = setup();
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
@@ -288,16 +320,16 @@ describe("Add as proof pick", () => {
       fallback: false,
     });
     expect(json(interaction.editReply.mock.calls[0])).toContain(
-      "✅ Added to case #4822 as proof",
+      "✅ **Added as proof to case #4822**",
     );
     expect(ctx.offer).toHaveBeenCalledWith(interaction, "proof_intro");
   });
 
   test("stores long message text capped", async () => {
     const ctx = setup({ message: sourceMessage("spam ".repeat(500)) });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     const [input] = ctx.add.mock.calls[0] as unknown as [
@@ -311,7 +343,6 @@ describe("Add as proof pick", () => {
     const ctx = setup();
     const interaction = ctx.component(PICK_ID, {
       values: ["4801"],
-      isUserSelectMenu: () => false,
     });
     await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
       interaction as unknown as AnySelectMenuInteraction,
@@ -322,7 +353,7 @@ describe("Add as proof pick", () => {
 
   test("the first click replaces the picker with a state that can't be clicked again", async () => {
     const ctx = setup();
-    const interaction = ctx.component(ADD_ID);
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
     const order: string[] = [];
     interaction.update.mockImplementation(async () => {
       order.push("update");
@@ -331,8 +362,8 @@ describe("Add as proof pick", () => {
       order.push("add");
       return stored(["https://cdn.discordapp.com/attachments/9/9/scam.png"]);
     });
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(order).toEqual(["update", "add"]);
@@ -344,9 +375,9 @@ describe("Add as proof pick", () => {
 
   test("an unrelated refusal replaces the picker with the error", async () => {
     const ctx = setup({ results: [Err("cases_not_found")] });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(ctx.add).toHaveBeenCalledTimes(1);
@@ -361,9 +392,9 @@ describe("Add as proof pick", () => {
     ctx.add.mockImplementation(async () => {
       throw new Error("Discord down");
     });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(JSON.stringify(interaction.editReply.mock.calls[0])).toContain(
@@ -380,32 +411,32 @@ describe("Add as proof pick", () => {
     [
       "no mod log channel",
       noEntry,
-      "-# Files weren't saved: this case has no mod log entry to keep them on. Set a mod log channel in `/settings`.",
+      "-# The image wasn't saved: this case has no mod log entry to keep files on. Set a mod log channel in `/settings`.",
       null,
     ],
     [
       "no entry for the case",
       noEntry,
-      "-# Files weren't saved: this case has no mod log entry to keep them on.\"",
+      "-# The image wasn't saved: this case has no mod log entry to keep files on.\"",
     ],
     [
       "a file over the limit",
       Err("file_too_large" as const),
-      "-# Files weren't saved: one is over the 10 MB limit.",
+      "-# The image wasn't saved: it's over the 10 MB limit.",
     ],
     [
       "too many files",
       Err("too_many_files" as const),
-      "-# Files weren't saved: a case holds up to 10 proof files.",
+      "-# The image wasn't saved: a case holds up to 10 proof files.",
     ],
   ];
 
   for (const [name, refusal, note, modLogChannel] of fallbacks) {
     test(`with ${name}, still saves the link and text`, async () => {
       const ctx = setup({ results: [refusal, stored([])], modLogChannel });
-      const interaction = ctx.component(ADD_ID);
-      await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-        interaction as unknown as ButtonInteraction,
+      const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+      await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+        interaction as unknown as AnySelectMenuInteraction,
       );
 
       expect(ctx.add).toHaveBeenCalledTimes(2);
@@ -418,7 +449,7 @@ describe("Add as proof pick", () => {
       expect(retry.source).toEqual(first.source);
 
       const out = json(interaction.editReply.mock.calls[0]);
-      expect(out).toContain("✅ Added to case #4822 as proof");
+      expect(out).toContain("✅ **Added as proof to case #4822**");
       expect(out).toContain("-# Message link and text saved");
       expect(out).not.toContain("image saved");
       expect(out).toContain(note);
@@ -434,9 +465,9 @@ describe("Add as proof pick", () => {
         }),
       ],
     });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(ctx.add).toHaveBeenCalledTimes(1);
@@ -454,9 +485,9 @@ describe("Add as proof pick", () => {
         ]),
       ],
     });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(json(interaction.editReply.mock.calls[0])).toContain(
@@ -477,9 +508,9 @@ describe("Add as proof pick", () => {
         ]),
       }),
     });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(ctx.add.mock.calls[0]).toMatchObject([
@@ -496,9 +527,9 @@ describe("Add as proof pick", () => {
 
   test("a clicker who can't read the channel gets the can't-read text", async () => {
     const ctx = setup({ canRead: false });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(ctx.add).not.toHaveBeenCalled();
@@ -510,9 +541,9 @@ describe("Add as proof pick", () => {
   for (const gone of ["deleted", "foreign"] as const) {
     test(`a ${gone} message is reported, nothing is added`, async () => {
       const ctx = setup({ message: gone });
-      const interaction = ctx.component(ADD_ID);
-      await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-        interaction as unknown as ButtonInteraction,
+      const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+      await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+        interaction as unknown as AnySelectMenuInteraction,
       );
 
       expect(ctx.add).not.toHaveBeenCalled();
@@ -524,9 +555,9 @@ describe("Add as proof pick", () => {
 
   test("someone without mod permissions is refused", async () => {
     const ctx = setup({ permitted: false });
-    const interaction = ctx.component(ADD_ID);
-    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as ButtonInteraction,
+    const interaction = ctx.component(PICK_ID, { values: ["4822"] });
+    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as AnySelectMenuInteraction,
     );
 
     expect(interaction.update).not.toHaveBeenCalled();
@@ -535,23 +566,10 @@ describe("Add as proof pick", () => {
       "You need **Ban Members, Kick Members, or Timeout Members**",
     );
   });
-
-  test("the user select is refused without mod permissions too", async () => {
-    const ctx = setup({ permitted: false });
-    const interaction = ctx.component(USER_ID, {
-      isUserSelectMenu: () => true,
-    });
-    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as AnySelectMenuInteraction,
-    );
-
-    expect(interaction.update).not.toHaveBeenCalled();
-    expect(ctx.findNewestByUser).not.toHaveBeenCalled();
-  });
 });
 
 describe("Add as proof forwards", () => {
-  test("a forward opens with only the user select, since its author isn't known", async () => {
+  test("a forward lists recent cases without an author filter", async () => {
     const ctx = setup();
     const handler = new AddAsProofContextMenuHandler(ctx.deps as never);
     const reply = mock(async (_o: unknown) => undefined);
@@ -566,73 +584,240 @@ describe("Add as proof forwards", () => {
       reply,
     } as unknown as ContextMenuCommandInteraction);
 
-    expect(ctx.findNewestByUser).not.toHaveBeenCalled();
+    expect(ctx.findNewestNotPending).toHaveBeenCalledWith(GUILD, 25);
     const out = json(reply.mock.calls[0]);
     expect(out).toContain("> forwarded scam text");
     expect(out).toContain(
       `-# Forwarded message, sent by <@${TARGET}> in <#${CHANNEL}>`,
     );
-    expect(out).toContain("Forwards don't say who first wrote them.");
-    expect(out).not.toContain("Add to #");
-    expect(out).toContain("Someone else's case…");
+    expect(out).toContain("Forwards don't say who first wrote them");
+    expect(out).not.toContain("Show only");
   });
 });
 
-describe("Add as proof user select on a forward", () => {
-  test("picking the forwarder lists their cases", async () => {
-    const ctx = setup({
-      message: sourceMessage("", {
-        content: "forwarded scam text",
-        attachments: attachments([]),
-      }),
-    });
-    const interaction = ctx.component(USER_ID, {
-      isUserSelectMenu: () => true,
-      users: { first: () => ({ id: TARGET, username: "spambot" }) },
-    });
-    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as AnySelectMenuInteraction,
-    );
-
-    expect(ctx.findNewestByUser).toHaveBeenCalledWith(GUILD, TARGET, 10);
-    const out = json(interaction.update.mock.calls[0]);
-    expect(out).toContain("Add to #4822");
-    expect(out).toContain(`-# Showing <@${TARGET}>'s cases`);
-  });
-});
-
-describe("Add as proof user select", () => {
-  test("shows the picked user's cases in place", async () => {
+describe("Add as proof filter", () => {
+  test("switches to the author's cases in place", async () => {
     const ctx = setup();
-    const interaction = ctx.component(USER_ID, {
-      isUserSelectMenu: () => true,
-      users: { first: () => ({ id: TARGET_3, username: "raider_99" }) },
-    });
-    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as AnySelectMenuInteraction,
+    const interaction = ctx.component(SCOPE_AUTHOR_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
     );
 
-    expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    expect(ctx.findNewestByUser).toHaveBeenCalledWith(GUILD, TARGET_3, 10);
+    expect(ctx.findNewestByUser).toHaveBeenCalledWith(GUILD, TARGET, 25);
     const [payload] = interaction.update.mock.calls[0] as [{ flags: number }];
     expect(payload.flags).toBe(MessageFlags.IsComponentsV2);
     const out = json(interaction.update.mock.calls[0]);
-    expect(out).toContain(`-# Showing <@${TARGET_3}>'s cases`);
-    expect(out).toContain("Add to #4824");
+    expect(out).toContain(`-# Showing <@${TARGET}>'s cases`);
+    expect(out).toContain("Show all recent cases");
   });
 
-  test("picking someone without cases says so", async () => {
+  test("an author without cases says so", async () => {
     const ctx = setup({ cases: {} });
-    const interaction = ctx.component(USER_ID, {
-      isUserSelectMenu: () => true,
-      users: { first: () => ({ id: TARGET_3, username: "raider_99" }) },
-    });
-    await new AddAsProofSelectHandler(ctx.deps as never).handleInteraction(
-      interaction as unknown as AnySelectMenuInteraction,
+    const interaction = ctx.component(SCOPE_AUTHOR_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
     );
 
     expect(json(interaction.update.mock.calls[0])).toContain(
-      `<@${TARGET_3}> has no cases.`,
+      `<@${TARGET}> has no cases.`,
     );
+  });
+
+  test("a deleted message is reported", async () => {
+    const ctx = setup({ message: "deleted" });
+    const interaction = ctx.component(SCOPE_AUTHOR_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(interaction.update).not.toHaveBeenCalled();
+    expect(json(interaction.reply.mock.calls[0])).toContain(
+      SOURCE_MESSAGE_GONE_TEXT,
+    );
+  });
+
+  test("is refused without mod permissions", async () => {
+    const ctx = setup({ permitted: false });
+    const interaction = ctx.component(SCOPE_AUTHOR_ID);
+    await new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as unknown as ButtonInteraction,
+    );
+
+    expect(interaction.update).not.toHaveBeenCalled();
+    expect(ctx.findNewestByUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("Add as proof case number", () => {
+  function submit(ctx: ReturnType<typeof setup>, typed: string) {
+    const submission = ctx.component("form", {
+      inCachedGuild: () => true,
+      isFromMessage: () => true,
+      fields: { getTextInputValue: () => typed },
+    });
+    const interaction = ctx.component(NUMBER_ID, {
+      id: "1029384756102938777",
+      awaitModalSubmit: mock(async () => submission),
+    });
+    return { interaction, submission };
+  }
+
+  const run = (ctx: ReturnType<typeof setup>, interaction: unknown) =>
+    new AddAsProofButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as ButtonInteraction,
+    );
+
+  test("a typed number adds the message straight away", async () => {
+    const ctx = setup();
+    const { interaction, submission } = submit(ctx, "#4822");
+    await run(ctx, interaction);
+
+    expect(interaction.showModal).toHaveBeenCalledTimes(1);
+    expect(ctx.findById).toHaveBeenCalledWith(GUILD, "4822");
+    const [input] = ctx.add.mock.calls[0] as [{ caseIds: string[] }];
+    expect(input.caseIds).toEqual(["4822"]);
+    expect(json(submission.update.mock.calls[0])).toContain(
+      "Adding the message to case #4822",
+    );
+    expect(json(submission.editReply.mock.calls[0])).toContain(
+      "✅ **Added as proof to case #4822**",
+    );
+  });
+
+  test("leading zeros reach the stored case id", async () => {
+    const ctx = setup({ found: makeCase({ caseId: "7" }) });
+    const { interaction } = submit(ctx, "007");
+    await run(ctx, interaction);
+
+    const [input] = ctx.add.mock.calls[0] as [{ caseIds: string[] }];
+    expect(input.caseIds).toEqual(["7"]);
+  });
+
+  test("an unknown case keeps the picker, in the same view, with an error", async () => {
+    const ctx = setup({ found: null });
+    const { interaction, submission } = submit(ctx, "9999");
+    await run(ctx, interaction);
+
+    expect(ctx.add).not.toHaveBeenCalled();
+    const out = json(submission.update.mock.calls[0]);
+    expect(out).toContain("No case #9999 in this server");
+    expect(out).toContain(`-# Showing <@${TARGET}>'s cases`);
+  });
+
+  test("a pending case counts as not found", async () => {
+    const ctx = setup({ found: makeCase().withPending(true) });
+    const { interaction, submission } = submit(ctx, "4822");
+    await run(ctx, interaction);
+
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(json(submission.update.mock.calls[0])).toContain("No case #4822");
+  });
+
+  test("text that isn't a number isn't looked up", async () => {
+    const ctx = setup();
+    const { interaction, submission } = submit(ctx, "abc");
+    await run(ctx, interaction);
+
+    expect(ctx.findById).not.toHaveBeenCalled();
+    expect(json(submission.update.mock.calls[0])).toContain(
+      "That isn't a case number",
+    );
+  });
+
+  test("a form that times out does nothing", async () => {
+    const ctx = setup();
+    const interaction = ctx.component(NUMBER_ID, {
+      id: "1029384756102938777",
+      awaitModalSubmit: mock(async () => {
+        throw new Error("time");
+      }),
+    });
+    await run(ctx, interaction);
+
+    expect(ctx.add).not.toHaveBeenCalled();
+  });
+
+  test("is refused without mod permissions", async () => {
+    const ctx = setup({ permitted: false });
+    const { interaction } = submit(ctx, "4822");
+    await run(ctx, interaction);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+  });
+});
+
+describe("Add as proof undo", () => {
+  const run = (ctx: ReturnType<typeof setup>, interaction: unknown) =>
+    new AddAsProofUndoButtonHandler(ctx.deps as never).handleInteraction(
+      interaction as ButtonInteraction,
+    );
+
+  test("replaces Done first, so a second click can't run it again", async () => {
+    const ctx = setup();
+    const order: string[] = [];
+    ctx.undo.mockImplementation(async () => {
+      order.push("undo");
+      return Ok(makeCase());
+    });
+    const interaction = ctx.component(UNDO_ID);
+    interaction.update.mockImplementation(async () => {
+      order.push("update");
+    });
+    await run(ctx, interaction);
+
+    expect(order).toEqual(["update", "undo"]);
+    expect(json(interaction.update.mock.calls[0])).not.toContain("proof/undo/");
+    expect(ctx.undo).toHaveBeenCalledWith({
+      guildId: GUILD,
+      caseId: "4822",
+      proofId: "1",
+      actorId: MOD,
+    });
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      "↩️ Removed from case #4822",
+    );
+  });
+
+  const refusals: [string, UndoProofError, string][] = [
+    ["gone", "gone", "already removed from case #4822"],
+    ["someone else's", "not_allowed", "Only the mod who added this proof"],
+  ];
+  for (const [name, error, text] of refusals) {
+    test(`a ${name} proof is explained`, async () => {
+      const ctx = setup({ undo: Err(error) });
+      const interaction = ctx.component(UNDO_ID);
+      await run(ctx, interaction);
+
+      expect(json(interaction.editReply.mock.calls[0])).toContain(text);
+    });
+  }
+
+  test("a failure brings Undo back", async () => {
+    const ctx = setup({ undo: Err("failed" as const) });
+    const interaction = ctx.component(UNDO_ID);
+    await run(ctx, interaction);
+
+    const out = json(interaction.editReply.mock.calls[0]);
+    expect(out).toContain("still on case #4822");
+    expect(out).toContain("proof/undo/4822/1");
+  });
+
+  test("an unexpected error is shown, not thrown", async () => {
+    const ctx = setup({ undo: new Error("db down") });
+    const interaction = ctx.component(UNDO_ID);
+    await run(ctx, interaction);
+
+    expect(json(interaction.editReply.mock.calls[0])).toContain(
+      "still on case #4822",
+    );
+  });
+
+  test("is refused without mod permissions", async () => {
+    const ctx = setup({ permitted: false });
+    const interaction = ctx.component(UNDO_ID);
+    await run(ctx, interaction);
+
+    expect(interaction.update).not.toHaveBeenCalled();
+    expect(ctx.undo).not.toHaveBeenCalled();
   });
 });

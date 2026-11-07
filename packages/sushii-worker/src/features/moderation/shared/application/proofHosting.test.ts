@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 
-import { downloadProofFile, isDownloadableProofUrl } from "./proofHosting";
+import {
+  downloadProofFile,
+  isDownloadableProofUrl,
+  proofAttachmentRef,
+} from "./proofHosting";
 
 const URL_ = "https://cdn.discordapp.com/attachments/1/2/a.png?ex=1&is=2&hm=3&";
 
@@ -72,5 +76,22 @@ describe("isDownloadableProofUrl", () => {
       false,
     );
     expect(isDownloadableProofUrl("not a url")).toBe(false);
+  });
+});
+
+describe("proofAttachmentRef", () => {
+  test("reads the channel and attachment from a signed CDN url", () => {
+    expect(
+      proofAttachmentRef(
+        "https://cdn.discordapp.com/attachments/1029/4455/a.png?ex=1&is=2&hm=3&",
+      ),
+    ).toEqual({ channelId: "1029", attachmentId: "4455" });
+  });
+
+  test("ignores links sushii doesn't host", () => {
+    expect(
+      proofAttachmentRef("https://example.com/attachments/1/2/a.png"),
+    ).toBeNull();
+    expect(proofAttachmentRef("attachment://a.png")).toBeNull();
   });
 });
