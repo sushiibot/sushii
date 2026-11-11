@@ -29,9 +29,15 @@
       parts: featureParts(parts, period, feature, activeServers),
     })),
   );
-  const count = (value: number | null) =>
-    value?.toLocaleString() ?? "under 5";
 </script>
+
+{#snippet count(value: number | null)}
+  {#if value !== null}
+    {value.toLocaleString()}
+  {:else}
+    <span class="wide">under 5</span><span class="narrow">&lt;5</span>
+  {/if}
+{/snippet}
 
 {#snippet share(adoption: number | null)}
   {#if adoption !== null}
@@ -42,7 +48,9 @@
       {Math.round(adoption * 100)}%
     </div>
   {:else}
-    <span class="muted">hidden</span>
+    <span class="muted"
+      ><span class="wide">hidden</span><span class="narrow">—</span></span
+    >
   {/if}
 {/snippet}
 
@@ -51,15 +59,21 @@
     <thead>
       <tr>
         <th>Feature</th>
-        <th>Events by who</th>
+        <th class="who">Events by who</th>
         <th class="num">Servers</th>
         <th class="num">Users</th>
         <th class="num">Events</th>
-        <th>Share of active servers</th>
+        <th class="adoption">
+          <span class="wide">Share of active servers</span>
+          <span class="narrow">Share</span>
+        </th>
       </tr>
     </thead>
     <tbody>
       {#each rows as feature (feature.feature)}
+        {@const who = feature.who
+          .map((who) => `${who.label} ${who.events.toLocaleString()}`)
+          .join(" · ")}
         <tr>
           <td class="name">
             {#if feature.parts.length > 0}
@@ -78,39 +92,35 @@
             {:else}
               <span class="plain">{feature.feature}</span>
             {/if}
+            <span class="sub muted">{who}</span>
           </td>
-          <td class="who muted">
-            {feature.who
-              .map((who) => `${who.label} ${who.events.toLocaleString()}`)
-              .join(" · ")}
-          </td>
-          <td class="num" data-label="servers">{count(feature.guilds)}</td>
-          <td class="num" data-label="users">{count(feature.actors)}</td>
-          <td class="num" data-label="events">
-            {feature.events.toLocaleString()}
-          </td>
+          <td class="who muted">{who}</td>
+          <td class="num">{@render count(feature.guilds)}</td>
+          <td class="num">{@render count(feature.actors)}</td>
+          <td class="num">{feature.events.toLocaleString()}</td>
           <td class="adoption">{@render share(feature.adoption)}</td>
         </tr>
         {#if open[feature.feature]}
           {#each feature.parts as part (`${part.name}-${part.detail}`)}
+            {@const detail = `${part.detail || "each under 5 users"}${
+              part.errors > 0
+                ? ` · ${part.errors.toLocaleString()} failed`
+                : ""
+            }`}
             <tr class="part">
-              <td class="name" colspan="2">
+              <td class="name">
                 {part.name}
-                <span class="muted">
-                  {part.detail || "each under 5 users"}{#if part.errors > 0}
-                    {" "}· {part.errors.toLocaleString()} failed{/if}
-                </span>
+                <span class="sub muted">{detail}</span>
               </td>
+              <td class="who muted">{detail}</td>
               {#if part.detail}
-                <td class="num" data-label="servers">{count(part.servers)}</td>
-                <td class="num" data-label="users">{count(part.users)}</td>
+                <td class="num">{@render count(part.servers)}</td>
+                <td class="num">{@render count(part.users)}</td>
               {:else}
-                <td class="num" data-label="servers">—</td>
-                <td class="num" data-label="users">—</td>
+                <td class="num">—</td>
+                <td class="num">—</td>
               {/if}
-              <td class="num" data-label="events">
-                {part.events.toLocaleString()}
-              </td>
+              <td class="num">{part.events.toLocaleString()}</td>
               <td class="adoption">
                 {#if part.detail}{@render share(part.adoption)}{/if}
               </td>
@@ -172,78 +182,42 @@
     background: var(--series-1);
     border-radius: 0 4px 4px 0;
   }
+  .sub,
+  .narrow {
+    display: none;
+  }
 
   @media (max-width: 40rem) {
-    table {
-      display: block;
-    }
-    thead {
+    .who,
+    .wide,
+    .track {
       display: none;
     }
-    tbody {
-      display: grid;
-      grid-template-columns: auto auto minmax(0, 1fr) minmax(4.5rem, 7.5rem);
-      column-gap: 0.5rem;
+    .narrow {
+      display: inline;
     }
-    /* subgrid keeps the stat columns aligned from one feature to the next */
-    tr {
-      display: grid;
-      grid-column: 1 / -1;
-      grid-template-columns: subgrid;
-      align-items: center;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--grid);
-    }
+    th,
     td {
-      border: 0;
-      padding: 0;
+      padding-inline: 0.25rem;
     }
-    .name {
-      grid-column: 1 / 4;
-      padding-left: 0.5rem;
+    .sub {
+      display: block;
+      padding-left: 1rem;
+    }
+    .part .sub {
+      padding-left: 0;
+    }
+    td.name {
       white-space: normal;
     }
-    .adoption {
-      grid-column: 4;
-      grid-row: 1;
-      padding-right: 0.5rem;
-      text-align: right;
-    }
-    .who {
-      grid-column: 1 / -1;
-      padding-left: 1.5rem;
-    }
     .num {
-      grid-row: 3;
-      text-align: left;
       white-space: nowrap;
     }
-    .num[data-label="events"] {
-      grid-column: 3 / 5;
-      padding-right: 0.5rem;
+    .adoption {
+      text-align: right;
     }
-    .num::after {
-      content: " " attr(data-label);
-      color: var(--text-secondary);
-      font-size: 0.8125rem;
-    }
-    .num[data-label="servers"] {
-      padding-left: 1.5rem;
-    }
-    .part {
-      background: var(--surface-2);
-    }
-    .part td:first-child {
-      padding-left: 2.25rem;
-    }
-    .part .name .muted {
-      display: block;
-    }
-    .part .num {
-      grid-row: 2;
-    }
-    .track {
-      min-width: 1.5rem;
+    .share {
+      justify-content: flex-end;
     }
   }
 </style>
