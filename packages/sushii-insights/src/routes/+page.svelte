@@ -385,6 +385,7 @@
   }
   .periods {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
   }
   .periods button {
@@ -396,6 +397,7 @@
     font: inherit;
     font-size: 0.8125rem;
     padding: 0.25rem 0.5rem;
+    white-space: nowrap;
   }
   .periods button[aria-pressed="true"] {
     background: var(--surface-2);

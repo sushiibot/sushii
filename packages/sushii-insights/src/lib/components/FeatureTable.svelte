@@ -61,7 +61,7 @@
     <tbody>
       {#each rows as feature (feature.feature)}
         <tr>
-          <td>
+          <td class="name">
             {#if feature.parts.length > 0}
               <button
                 type="button"
@@ -79,20 +79,22 @@
               <span class="plain">{feature.feature}</span>
             {/if}
           </td>
-          <td class="muted">
+          <td class="who muted">
             {feature.who
               .map((who) => `${who.label} ${who.events.toLocaleString()}`)
               .join(" · ")}
           </td>
-          <td class="num">{count(feature.guilds)}</td>
-          <td class="num">{count(feature.actors)}</td>
-          <td class="num">{feature.events.toLocaleString()}</td>
-          <td>{@render share(feature.adoption)}</td>
+          <td class="num" data-label="servers">{count(feature.guilds)}</td>
+          <td class="num" data-label="users">{count(feature.actors)}</td>
+          <td class="num" data-label="events">
+            {feature.events.toLocaleString()}
+          </td>
+          <td class="adoption">{@render share(feature.adoption)}</td>
         </tr>
         {#if open[feature.feature]}
           {#each feature.parts as part (`${part.name}-${part.detail}`)}
             <tr class="part">
-              <td colspan="2">
+              <td class="name" colspan="2">
                 {part.name}
                 <span class="muted">
                   {part.detail || "each under 5 users"}{#if part.errors > 0}
@@ -100,14 +102,16 @@
                 </span>
               </td>
               {#if part.detail}
-                <td class="num">{count(part.servers)}</td>
-                <td class="num">{count(part.users)}</td>
+                <td class="num" data-label="servers">{count(part.servers)}</td>
+                <td class="num" data-label="users">{count(part.users)}</td>
               {:else}
-                <td class="num">—</td>
-                <td class="num">—</td>
+                <td class="num" data-label="servers">—</td>
+                <td class="num" data-label="users">—</td>
               {/if}
-              <td class="num">{part.events.toLocaleString()}</td>
-              <td>
+              <td class="num" data-label="events">
+                {part.events.toLocaleString()}
+              </td>
+              <td class="adoption">
                 {#if part.detail}{@render share(part.adoption)}{/if}
               </td>
             </tr>
@@ -167,5 +171,79 @@
     height: 100%;
     background: var(--series-1);
     border-radius: 0 4px 4px 0;
+  }
+
+  @media (max-width: 40rem) {
+    table {
+      display: block;
+    }
+    thead {
+      display: none;
+    }
+    tbody {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) minmax(4.5rem, 7.5rem);
+      column-gap: 0.5rem;
+    }
+    /* subgrid keeps the stat columns aligned from one feature to the next */
+    tr {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--grid);
+    }
+    td {
+      border: 0;
+      padding: 0;
+    }
+    .name {
+      grid-column: 1 / 4;
+      padding-left: 0.5rem;
+      white-space: normal;
+    }
+    .adoption {
+      grid-column: 4;
+      grid-row: 1;
+      padding-right: 0.5rem;
+      text-align: right;
+    }
+    .who {
+      grid-column: 1 / -1;
+      padding-left: 1.5rem;
+    }
+    .num {
+      grid-row: 3;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .num[data-label="events"] {
+      grid-column: 3 / 5;
+      padding-right: 0.5rem;
+    }
+    .num::after {
+      content: " " attr(data-label);
+      color: var(--text-secondary);
+      font-size: 0.8125rem;
+    }
+    .num[data-label="servers"] {
+      padding-left: 1.5rem;
+    }
+    .part {
+      background: var(--surface-2);
+    }
+    .part td:first-child {
+      padding-left: 2.25rem;
+    }
+    .part .name .muted {
+      display: block;
+    }
+    .part .num {
+      grid-row: 2;
+    }
+    .track {
+      min-width: 1.5rem;
+    }
   }
 </style>
