@@ -26,6 +26,7 @@ import type { SuggestionPreviewRenderer } from "../infrastructure/preview/types"
 import { savedSuggestionLinks } from "./savedProof";
 import {
   SUGGESTION_ACTIONS,
+  actionNoun,
   orderSuggestions,
   summarize,
 } from "./suggestionText";
@@ -204,6 +205,8 @@ export class SuggestionFlow {
           guildId: moderationCase.guildId,
           targetId: moderationCase.userId,
           targetDisplayName: moderationCase.userTag,
+          actionTime: moderationCase.actionTime,
+          actionNoun: actionNoun(moderationCase.actionType),
         },
         access,
       );

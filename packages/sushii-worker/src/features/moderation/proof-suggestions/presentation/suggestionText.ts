@@ -11,6 +11,7 @@ import type {
   SkipReason,
 } from "../domain/proofContent";
 import { MAX_LINKS_PER_PROOF } from "../domain/proofContent";
+import { relativeTimeRange } from "../domain/relativeTime";
 
 /** Actions whose cases get suggested proof; reversals and lookups don't need any. */
 export const SUGGESTION_ACTIONS: ReadonlySet<ActionType> = new Set([
@@ -110,6 +111,15 @@ function timeRange(suggestion: ProofSuggestion): string {
   return first === last ? `<t:${last}:R>` : `<t:${first}:R> – <t:${last}:R>`;
 }
 
+function pickerTimeRange(suggestion: ProofSuggestion): string {
+  const first = unix(suggestion.firstAt);
+  const last = unix(suggestion.lastAt);
+  // `:t` shows minutes only, so a range inside one minute would print the same time twice.
+  return Math.floor(first / 60) === Math.floor(last / 60)
+    ? `<t:${last}:t>`
+    : `<t:${first}:t>–<t:${last}:t>`;
+}
+
 function visibility(suggestion: ProofSuggestion): string {
   const deleted = suggestion.deletedCount ?? 0;
   return deleted > 0 ? `${deleted} deleted` : "still visible";
@@ -157,9 +167,9 @@ export function responseBlockText(input: {
   const { count, exact } = linksEstimate(suggestions);
   const links = `${exact ? "" : "up to "}${plural(count, "link")}`;
   return [
-    `**💡 ${plural(suggestions.length, "suggestion")}** · from ${escapeMarkdown(input.targetName)}'s last activity before the ${actionNoun(input.actionType)}`,
+    `**💡 ${plural(suggestions.length, "suggestion")}** · from ${escapeMarkdown(input.targetName)}'s messages before the ${actionNoun(input.actionType)}`,
     ...suggestions.map(responseLine),
-    `-# Adds ${links}. Review shows previews only to you.`,
+    `-# Adds ${links}. Review shows previews only you can see.`,
   ].join("\n");
 }
 
@@ -170,11 +180,11 @@ export function pickerSectionText(suggestion: ProofSuggestion): string {
     const blocked = suggestion.blockedInChannelId
       ? ` · blocked in <#${suggestion.blockedInChannelId}>`
       : "";
-    return `**${emoji} AutoMod alert** · ${escapeMarkdown(ruleName(suggestion))}${blocked}\n-# Saves the alert link in <#${suggestion.channelId}>`;
+    return `**${emoji} AutoMod alert** · ${escapeMarkdown(ruleName(suggestion))}${blocked} · ${pickerTimeRange(suggestion)}\n-# Saves the alert link in <#${suggestion.channelId}>`;
   }
 
   const one = suggestion.messageIds.length === 1;
-  const heading = `**${emoji} ${countLabel(suggestion)}** in <#${suggestion.channelId}>`;
+  const heading = `**${emoji} ${countLabel(suggestion)}** in <#${suggestion.channelId}> · ${pickerTimeRange(suggestion)}`;
   if (suggestion.kind === "deleted") {
     return `${heading}\n-# ${one ? "Saves its message log link" : "Saves their message log links"}`;
   }
@@ -214,31 +224,6 @@ export function selectLabel(
   return truncate(`${countLabel(suggestion)}${where}`, OPTION_TEXT_MAX_LENGTH);
 }
 
-function shortAgo(ms: number): string {
-  const minutes = Math.max(0, Math.floor(ms / 60_000));
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
-}
-
-/** e.g. "2m before" or "0–7m before" the action. */
-export function beforeAction(
-  suggestion: ProofSuggestion,
-  actionTime: Date,
-): string {
-  const nearest = shortAgo(actionTime.getTime() - suggestion.lastAt.getTime());
-  const furthest = shortAgo(
-    actionTime.getTime() - suggestion.firstAt.getTime(),
-  );
-  if (nearest === furthest) {
-    return `${nearest} before`;
-  }
-  const sameUnit = nearest.slice(-1) === furthest.slice(-1);
-  return `${sameUnit ? nearest.slice(0, -1) : nearest}–${furthest} before`;
-}
-
 /** Modal checkbox label: text only, ≤ 100 characters. */
 export function checkboxLabel(
   suggestion: ProofSuggestion,
@@ -246,7 +231,11 @@ export function checkboxLabel(
   actionTime: Date,
 ): string {
   const emoji = KIND_EMOJI[suggestion.kind];
-  const when = beforeAction(suggestion, actionTime);
+  const when = relativeTimeRange(
+    suggestion.firstAt,
+    suggestion.lastAt,
+    actionTime,
+  );
   if (suggestion.kind === "automod") {
     return truncate(
       `${emoji} AutoMod alert · ${ruleName(suggestion)} · ${when}`,
@@ -330,7 +319,7 @@ function detailLines(summary: AddedSummary): string[] {
   if (skipped.unchecked > 0) {
     const n = skipped.unchecked;
     lines.push(
-      `-# ${plural(n, "message")} ${n === 1 ? "was" : "were"} skipped: sushii couldn't check ${n === 1 ? "it" : "them"}. Try again later.`,
+      `-# ${plural(n, "message")} ${n === 1 ? "was" : "were"} skipped: sushii couldn't check ${n === 1 ? "it" : "them"}. Add ${n === 1 ? "it" : "them"} later from **Suggested proof**.`,
     );
   }
   if (summary.shown === "pending") {
@@ -372,7 +361,7 @@ export function undoneText(caseId: string, links: number | null): string {
 }
 
 export function undoFailedText(removed: number, remaining: number): string {
-  return `Removed ${removed} of ${removed + remaining}; ${remaining} couldn't be removed. Try again.`;
+  return `Removed ${removed} of ${removed + remaining} links; ${remaining} couldn't be removed. Try again.`;
 }
 
 export const UNDO_GONE_TEXT = "Already removed.";
@@ -382,9 +371,9 @@ export const UNDO_UNAVAILABLE_TEXT = "That undo is no longer available.";
 export const UNDO_ERROR_TEXT = "Couldn't undo that. Try again.";
 export const OUT_OF_DATE_TEXT = "This button is out of date.";
 export const SUGGESTIONS_CHANGED_TEXT =
-  "Suggestions changed — open Review to see the current ones.";
+  "Suggestions changed. Open Review to see the current ones.";
 export const SUGGESTIONS_DIFFER_TEXT =
-  "These suggestions are different for you — open Review to see yours.";
+  "These suggestions are different for you. Open Review to see yours.";
 export const NOTHING_SELECTED_TEXT = "Pick at least one suggestion first.";
 export const ADD_FAILED_TEXT = "Couldn't add the suggestions. Try again.";
 export const CASE_GONE_TEXT =

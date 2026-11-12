@@ -145,7 +145,7 @@ describe("ResponseSuggestions", () => {
 
     const edit = json(ctx.interaction.editReply.mock.calls[0][0]);
     expect(edit).toContain(
-      "**💡 1 suggestion** · from spambot's last activity before the ban",
+      "**💡 1 suggestion** · from spambot's messages before the ban",
     );
     expect(edit).toContain(`"id":${ACTION_RESPONSE_IDS.suggestionsRow}`);
     expect(edit).not.toContain("secret deleted spam text");

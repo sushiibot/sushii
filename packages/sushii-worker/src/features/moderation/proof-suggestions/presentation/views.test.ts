@@ -11,11 +11,13 @@ import {
 
 import { suggestedOptions } from "./modalSuggestions";
 import {
+  SUGGESTIONS_CHANGED_TEXT,
+  SUGGESTIONS_DIFFER_TEXT,
   addedText,
-  beforeAction,
   linksFromAddedText,
   nothingAddedText,
   orderSuggestions,
+  pickerSectionText,
   plainSnippet,
   responseBlockText,
   summarize,
@@ -39,6 +41,64 @@ import {
 } from "./views";
 
 const FP = "0a1b2c3d";
+
+test("stale suggestion messages use separate sentences", () => {
+  expect(SUGGESTIONS_CHANGED_TEXT).toBe(
+    "Suggestions changed. Open Review to see the current ones.",
+  );
+  expect(SUGGESTIONS_DIFFER_TEXT).toBe(
+    "These suggestions are different for you. Open Review to see yours.",
+  );
+});
+
+test("picker headings use local short times for single alerts and message ranges", () => {
+  for (const suggestion of [
+    automodSuggestion(),
+    deletedSuggestion(),
+    recentSuggestion(),
+  ]) {
+    const first = Math.floor(suggestion.firstAt.getTime() / 1000);
+    const last = Math.floor(suggestion.lastAt.getTime() / 1000);
+    const heading = pickerSectionText(suggestion).split("\n")[0];
+    expect(heading).toContain(
+      first === last ? `<t:${first}:t>` : `<t:${first}:t>–<t:${last}:t>`,
+    );
+    expect(heading).not.toContain(":R>");
+  }
+});
+
+test("unchecked plural messages point back to Suggested proof", () => {
+  expect(
+    addedText({
+      caseId: "1",
+      added: 1,
+      links: 1,
+      pending: 0,
+      skipped: { unchecked: 2, deleted_not_logged: 0 },
+      shown: "all",
+    }),
+  ).toContain(
+    "2 messages were skipped: sushii couldn't check them. Add them later from **Suggested proof**.",
+  );
+});
+
+test("picker and modal explain whose messages are shown", () => {
+  expect(json(postedOf(pickerPayload(false)))).toContain(
+    "messages before the ban, in channels you can read. Only the links are saved, not these images.",
+  );
+  const modal = buildAddProofModal({
+    customId: "caseProof/form/1",
+    caseIds: ["1"],
+    userName: "spambot",
+    existingFiles: 0,
+    suggested: [
+      { value: "0", label: "Message", description: null, checked: true },
+    ],
+  });
+  expect(json(modal.toJSON())).toContain(
+    "From spambot's messages, in channels you can read",
+  );
+});
 const suggestions = orderSuggestions([
   recentSuggestion(),
   automodSuggestion(),
@@ -116,11 +176,11 @@ describe("response suggestion block", () => {
     });
     expect(content).toBe(
       [
-        "**💡 3 suggestions** · from spam\\_bot's last activity before the ban",
+        "**💡 3 suggestions** · from spam\\_bot's messages before the ban",
         `> 🗑️ **4 deleted messages** in <#${GENERAL}> · <t:1793098380:R> – <t:1793098740:R>`,
         "> 🤖 **AutoMod alert** · Scam links · <t:1793098680:R>",
         "> 💬 **2 messages** in <#1029384756102938403> · still visible · <t:1793091000:R> – <t:1793091600:R>",
-        "-# Adds up to 7 links. Review shows previews only to you.",
+        "-# Adds up to 7 links. Review shows previews only you can see.",
       ].join("\n"),
     );
 
@@ -309,7 +369,7 @@ describe("Added message and undo text", () => {
     expect(nothingAddedText(summary)).toBe(
       [
         "Nothing was added to **Case #4822**: none of these messages could be linked.",
-        "-# 1 message was skipped: sushii couldn't check it. Try again later.",
+        "-# 1 message was skipped: sushii couldn't check it. Add it later from **Suggested proof**.",
       ].join("\n"),
     );
   });
@@ -337,7 +397,7 @@ describe("Added message and undo text", () => {
       "Undone. Removed the suggested proof from Case #4822.",
     );
     expect(undoFailedText(2, 1)).toBe(
-      "Removed 2 of 3; 1 couldn't be removed. Try again.",
+      "Removed 2 of 3 links; 1 couldn't be removed. Try again.",
     );
   });
 });
@@ -379,7 +439,7 @@ describe("Add proof form suggestions", () => {
       default: true,
     });
     expect(checkbox.options[1].label).toBe(
-      "🗑️ 4 deleted messages · #general · 1–7m before",
+      "🗑️ 4 deleted messages · #general · 7–1m before",
     );
     expect(checkbox.options[1].default).toBe(true);
     expect(checkbox.options[2].label).toBe(
@@ -397,6 +457,5 @@ describe("Add proof form suggestions", () => {
 
   test("helpers", () => {
     expect(plainSnippet("a\\*b\\_c")).toBe("a*b_c");
-    expect(beforeAction(recentSuggestion(), ACTION_TIME)).toBe("2h before");
   });
 });

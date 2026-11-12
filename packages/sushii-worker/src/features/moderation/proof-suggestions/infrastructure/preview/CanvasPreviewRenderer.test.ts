@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { AvatarResolver } from "./AvatarResolver";
 import {
   CanvasPreviewRenderer,
+  FOOTER_TEXT,
   MAX_HEIGHT,
   MAX_PENDING_RENDERS,
   PAD,
@@ -44,6 +45,25 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 const renderer = new CanvasPreviewRenderer(
   new AvatarResolver(cdnStub, async () => new Response(null, { status: 404 })),
 );
+
+test("preview footer and dividers describe what is omitted", () => {
+  expect(FOOTER_TEXT).toBe(
+    "sushii preview from logged messages · not saved as proof",
+  );
+  expect(dividerText({ type: "context", count: 14, minutes: 5 })).toBe(
+    "14 messages from others over 5 min",
+  );
+  expect(dividerText({ type: "earlier", count: 150, name: "spambot" })).toBe(
+    "150 earlier messages from spambot not shown",
+  );
+  expect(
+    dividerText({
+      type: "cut",
+      count: 25,
+      earlier: { count: 12, name: "spambot" },
+    }),
+  ).toBe("25 earlier messages not shown (12 from spambot)");
+});
 
 async function expectPng(result: Awaited<ReturnType<typeof renderer.render>>) {
   expect(result.png.subarray(0, 4)).toEqual(PNG_SIGNATURE);
@@ -120,30 +140,48 @@ describe("CanvasPreviewRenderer", () => {
     expect(grouped.lines.length).toBeGreaterThan(1);
   });
 
-  test("keeps the per-user hidden count when rows are cut for height", () => {
-    const long = Array.from({ length: 20 }, (_, i) => `line ${i}`).join("\n");
-    const messages = Array.from({ length: 8 }, (_, i) => [
-      msg(alice, `18:${10 + i}:00`, long),
-      msg(spambot, `18:${10 + i}:30`, `${long}\n${i}`, { deleted: true }),
-    ]).flat();
-    const { items, height } = planPreview(
-      request(messages, { hiddenEarlierCount: 12 }),
-    );
-    const first = items[0];
-    if (first.kind !== "divider") {
-      throw new Error("expected a divider first");
-    }
+  test.each([0, 12])(
+    "counts all omitted messages and target messages after a height cut (hidden=%s)",
+    (hidden) => {
+      const long = Array.from({ length: 20 }, (_, i) => `line ${i}`).join("\n");
+      const messages = Array.from({ length: 8 }, (_, i) => [
+        msg(alice, `18:${10 + i}:00`, long),
+        msg(spambot, `18:${10 + i}:30`, `${long}\n${i}`, { deleted: true }),
+      ]).flat();
+      const { items, height } = planPreview(
+        request(messages, { hiddenEarlierCount: hidden }),
+      );
+      const first = items[0];
+      if (first.kind !== "divider") {
+        throw new Error("expected a divider first");
+      }
 
-    expect(height).toBeLessThanOrEqual(MAX_HEIGHT);
-    expect(first.divider).toMatchObject({
-      type: "cut",
-      earlier: { count: 12, name: "spambot" },
-    });
-    expect(dividerText(first.divider)).toStartWith(
-      "12 earlier from spambot + ",
-    );
-    expect(items.filter((item) => item.kind === "divider")).toHaveLength(1);
-  });
+      expect(height).toBeLessThanOrEqual(MAX_HEIGHT);
+      expect(first.divider).toMatchObject({
+        type: "cut",
+        earlier: { name: "spambot" },
+      });
+      expect(dividerText(first.divider)).toMatch(
+        /^\d+ earlier messages not shown \(\d+ from spambot\)$/,
+      );
+      if (first.divider.type !== "cut") {
+        throw new Error("expected cut");
+      }
+      const keptTargets = items.reduce(
+        (n, item) =>
+          n +
+          (item.kind === "message" && item.row.isTarget ? item.row.count : 0),
+        0,
+      );
+      expect(first.divider.earlier?.count).toBe(hidden + 8 - keptTargets);
+      const keptMessages = items.reduce(
+        (n, item) => n + (item.kind === "message" ? item.row.count : 0),
+        0,
+      );
+      expect(first.divider.count).toBe(hidden + 16 - keptMessages);
+      expect(items.filter((item) => item.kind === "divider")).toHaveLength(1);
+    },
+  );
 
   test("a long name doesn't push the count out of the cut divider", () => {
     expect(
@@ -152,7 +190,7 @@ describe("CanvasPreviewRenderer", () => {
         count: 13,
         earlier: { count: 27, name: "W".repeat(32) },
       }),
-    ).toEndWith("+ 13 more messages not shown");
+    ).toStartWith("13 earlier messages not shown (27 from ");
   });
 
   test("renders 10 target and 10 context 4,000-char unbroken messages", async () => {
@@ -252,7 +290,7 @@ describe("CanvasPreviewRenderer", () => {
       if (!item) {
         throw new Error("expected a message row");
       }
-      return layoutHeader(ctx, item.row);
+      return layoutHeader(ctx, item.row, request(messages).actionTime);
     };
 
     test("shrinks the name so every pill stays inside the image", () => {
@@ -263,7 +301,7 @@ describe("CanvasPreviewRenderer", () => {
 
       expect(header.parts.map((p) => p.label)).toEqual([
         "APP",
-        "18:28 – 18:29",
+        "9–8m before",
         "×2",
         "DELETED",
         "AUTOMOD FLAGGED",

@@ -555,7 +555,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     const request = await previewOf(
       h.service,
       { ...suggestion([id(10), id(12)]), totalInWindow: 214 },
-      { guildId: GUILD, targetId: TARGET },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "ban",
+      },
       openAccess,
     );
 
@@ -577,7 +582,11 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     expect(appReply.triggeredBy).toBe("Spammy");
     expect(appReply.deleted).toBe(false);
     expect(request.hiddenEarlierCount).toBe(212);
-    expect(request.subtitle).toBe("18:10 – 18:12 · last 2 of 214 from Spammy");
+    expect(request.actionTime).toEqual(new Date("2026-11-10T18:22:00Z"));
+    expect(request.actionNoun).toBe("ban");
+    expect(request.subtitle).toBe(
+      "12–10m before the ban · Spammy's last 2 of 214 messages",
+    );
     expect(request.channelName).toBe("general");
     expect(request.targetUserId).toBe(TARGET);
   });
@@ -594,12 +603,20 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     const request = await previewOf(
       h.service,
       suggestion([id(10)]),
-      { guildId: GUILD, targetId: TARGET, targetDisplayName: "Target" },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        targetDisplayName: "Target",
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "timeout",
+      },
       { ...openAccess, canView: (c) => c !== LOG },
     );
 
     expect(request.messages.map((m) => m.id)).toEqual([id(8), id(10)]);
-    expect(request.subtitle).toBe("18:10 · 1 message from Target");
+    expect(request.subtitle).toBe(
+      "12m before the timeout · Target's 1 message",
+    );
     expect(request.hiddenEarlierCount).toBe(0);
   });
 
@@ -630,7 +647,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
         blockedInChannelId: "300000000000000002",
         lastAt: alert.createdAt,
       },
-      { guildId: GUILD, targetId: TARGET },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "ban",
+      },
       {
         ...openAccess,
         channelName: (c) => (c === CHANNEL ? "alerts" : "chat"),
@@ -641,7 +663,7 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     expect(request.messages).toHaveLength(1);
     expect(request.messages[0].content).toBe("buy followers");
     expect(request.messages[0].automodFlagged).toBe(true);
-    expect(request.subtitle).toBe("18:20 · AutoMod: Spam");
+    expect(request.subtitle).toBe("2m before the ban · AutoMod: Spam");
   });
 
   test("automod preview hides the blocked-in channel name the viewer can't see", async () => {
@@ -654,7 +676,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
         kind: "automod",
         blockedInChannelId: "300000000000000002",
       },
-      { guildId: GUILD, targetId: TARGET },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "ban",
+      },
       {
         ...openAccess,
         canView: (c) => c !== "300000000000000002",
@@ -680,7 +707,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     const request = await previewOf(
       h.service,
       suggestion(rows.map((r) => r.id)),
-      { guildId: GUILD, targetId: TARGET },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "ban",
+      },
       openAccess,
     );
 
@@ -691,7 +723,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
     const alertRequest = await previewOf(
       h.service,
       { ...suggestion(alertRows.map((r) => r.id)), kind: "automod" },
-      { guildId: GUILD, targetId: TARGET },
+      {
+        guildId: GUILD,
+        targetId: TARGET,
+        actionTime: new Date("2026-11-10T18:22:00Z"),
+        actionNoun: "ban",
+      },
       openAccess,
     );
 
@@ -725,7 +762,12 @@ describe("ProofSuggestionService.toPreviewRequestWithAccess", () => {
 
       const request = await h.service.toPreviewRequestWithAccess(
         suggestion([id(10)]),
-        { guildId: GUILD, targetId: TARGET },
+        {
+          guildId: GUILD,
+          targetId: TARGET,
+          actionTime: new Date("2026-11-10T18:22:00Z"),
+          actionNoun: "ban",
+        },
         c.access,
       );
 

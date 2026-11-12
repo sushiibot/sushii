@@ -568,7 +568,7 @@ describe("ProofSuggestionButtonHandler", () => {
       [Err({ kind: "gone" as const }), "Already removed.", false],
       [
         Err({ kind: "failed" as const, removed: 1, remaining: 2 }),
-        "Removed 1 of 3; 2 couldn't be removed. Try again.",
+        "Removed 1 of 3 links; 2 couldn't be removed. Try again.",
         true,
       ],
     ])("reports %p honestly", async (undo, text, keepsButton) => {

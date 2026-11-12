@@ -147,7 +147,7 @@ export function buildPicker(
   const container = new ContainerBuilder()
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `${pickerHeading(input.caseId)}\nFrom <@${input.targetId}>'s last activity before the ${actionNoun(input.actionType)}, in channels you can read. Proof saves links, not these previews.`,
+        `${pickerHeading(input.caseId)}\nFrom <@${input.targetId}>'s messages before the ${actionNoun(input.actionType)}, in channels you can read. Only the links are saved, not these images.`,
       ),
     )
     .addSeparatorComponents(separator());

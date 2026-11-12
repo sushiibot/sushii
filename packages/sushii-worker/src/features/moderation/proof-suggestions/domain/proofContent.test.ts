@@ -127,7 +127,7 @@ describe("formatProofContent", () => {
       resolved([messageLink("8")]),
     );
     expect(content).toBe(
-      `🤖 AutoMod alert: Block \\*invites\\* in <#300000000000000002> · ${messageUrl(GUILD, CHANNEL, "8")}`,
+      `🤖 AutoMod alert · Block \\*invites\\* · blocked in <#300000000000000002> · ${messageUrl(GUILD, CHANNEL, "8")}`,
     );
   });
 

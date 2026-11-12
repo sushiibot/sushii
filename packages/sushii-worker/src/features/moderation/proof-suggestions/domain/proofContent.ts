@@ -70,9 +70,9 @@ function proofLabel(
       RULE_NAME_MAX_LENGTH,
     );
     const where = suggestion.blockedInChannelId
-      ? ` in <#${suggestion.blockedInChannelId}>`
+      ? ` · blocked in <#${suggestion.blockedInChannelId}>`
       : "";
-    return `${emoji} AutoMod alert: ${rule}${where}`;
+    return `${emoji} AutoMod alert · ${rule}${where}`;
   }
 
   const linked = resolved.links.flatMap((l) => l.messageIds);

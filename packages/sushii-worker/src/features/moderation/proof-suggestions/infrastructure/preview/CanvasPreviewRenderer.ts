@@ -8,13 +8,19 @@ import type { Client } from "discord.js";
 
 import { newModuleLogger } from "@/shared/infrastructure/logger";
 
+import { relativeTimeRange } from "../../domain/relativeTime";
 import {
   AvatarResolver,
   avatarInitial,
   fallbackAvatarColor,
 } from "./AvatarResolver";
 import { type FontFile, font, registerPreviewFonts } from "./fonts";
-import { type DividerRow, type MessageRow, selectRows } from "./layout";
+import {
+  type DividerRow,
+  type MessageRow,
+  selectRows,
+  targetName,
+} from "./layout";
 import {
   type Measure,
   type Run,
@@ -41,7 +47,7 @@ const AVATAR = 36;
 const TEXT_X = PAD + AVATAR + 14;
 export const TEXT_W = WIDTH - TEXT_X - PAD;
 const LINE = 21;
-const HEADER = 34;
+const HEADER = 54;
 const FOOTER = 30;
 const DIVIDER = 30;
 const APP_LINE = 18;
@@ -51,8 +57,8 @@ const GROUP_WINDOW_MS = 7 * 60_000;
 export const MAX_HEIGHT = 800;
 export const PREVIEW_WIDTH = WIDTH * SCALE;
 
-const FOOTER_TEXT =
-  "Rendered by sushii from logged messages · preview only, not saved · times in UTC";
+export const FOOTER_TEXT =
+  "sushii preview from logged messages · not saved as proof";
 
 const C = {
   bg: "#313338",
@@ -118,16 +124,6 @@ export async function withRenderSlot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function hhmm(date: Date): string {
-  return date.toISOString().slice(11, 16);
-}
-
-function timeLabel(row: MessageRow): string {
-  const first = hhmm(row.firstAt);
-  const last = hhmm(row.lastAt);
-  return first === last ? first : `${first} – ${last}`;
-}
-
 const MAX_DIVIDER_NAME_CHARS = 20;
 
 function dividerName(name: string): string {
@@ -163,14 +159,14 @@ export function dividerText(divider: Divider): string {
     case "context": {
       const noun = divider.count === 1 ? "message" : "messages";
       const span = divider.minutes < 1 ? "<1" : String(divider.minutes);
-      return `${divider.count} ${noun} from others · ${span} min`;
+      return `${divider.count} ${noun} from others over ${span} min`;
     }
     case "earlier":
-      return `${divider.count} earlier from ${dividerName(divider.name)} not shown`;
+      return `${divider.count} earlier ${divider.count === 1 ? "message" : "messages"} from ${dividerName(divider.name)} not shown`;
     case "cut": {
       const noun = divider.count === 1 ? "message" : "messages";
       if (divider.earlier) {
-        return `${divider.earlier.count} earlier from ${dividerName(divider.earlier.name)} + ${divider.count} more ${noun} not shown`;
+        return `${divider.count} earlier ${noun} not shown (${divider.earlier.count} from ${dividerName(divider.earlier.name)})`;
       }
       return `${divider.count} earlier ${noun} not shown`;
     }
@@ -299,7 +295,9 @@ function prepare(
   wrapper: Wrapper,
   rows: Rows,
   cut: number,
+  cutTarget: number,
   earlier: Extract<DividerRow, { type: "earlier" }> | null,
+  name: string,
 ): { items: Prepared[]; height: number } {
   const items: Prepared[] = [];
   if (cut > 0) {
@@ -307,10 +305,11 @@ function prepare(
       kind: "divider",
       divider: {
         type: "cut",
-        count: cut,
-        earlier: earlier
-          ? { count: earlier.count, name: earlier.name }
-          : undefined,
+        count: cut + (earlier?.count ?? 0),
+        earlier:
+          earlier || cutTarget > 0
+            ? { count: (earlier?.count ?? 0) + cutTarget, name }
+            : undefined,
       },
       height: DIVIDER,
     });
@@ -353,18 +352,20 @@ function prepare(
 
 /**
  * Drops the oldest rows until the image fits, counting what was cut. The
- * "N earlier from X" divider is kept so the per-user count survives a cut.
+ * "N earlier messages from X" divider is kept so the per-user count survives a cut.
  */
 function fitToHeight(
   wrapper: Wrapper,
   rows: Rows,
+  name: string,
 ): { items: Prepared[]; height: number } {
   const first = rows[0];
   const earlier =
     first?.kind === "divider" && first.type === "earlier" ? first : null;
   let remaining = earlier ? rows.slice(1) : rows;
   let cut = 0;
-  let prepared = prepare(wrapper, remaining, cut, earlier);
+  let cutTarget = 0;
+  let prepared = prepare(wrapper, remaining, cut, cutTarget, earlier, name);
   while (prepared.height > MAX_HEIGHT && remaining.length > 1) {
     let start = 1;
     // A divider left at the top would stack under the cut divider; fold it in.
@@ -376,9 +377,12 @@ function fitToHeight(
     }
     for (const dropped of remaining.slice(0, start)) {
       cut += dropped.count;
+      if (dropped.kind === "message" && dropped.isTarget) {
+        cutTarget += dropped.count;
+      }
     }
     remaining = remaining.slice(start);
-    prepared = prepare(wrapper, remaining, cut, earlier);
+    prepared = prepare(wrapper, remaining, cut, cutTarget, earlier, name);
   }
   return prepared;
 }
@@ -435,13 +439,14 @@ const MIN_NAME_WIDTH = 40;
 export function layoutHeader(
   ctx: SKRSContext2D,
   row: MessageRow,
+  actionTime: Date,
 ): { name: string; parts: HeaderPart[]; right: number } {
   const author = row.message.author;
   const pills: { label: string; bg: string; fg: string }[] = [];
   if (author.isApp) {
     pills.push({ label: "APP", bg: C.appBg, fg: "#fff" });
   }
-  const time = timeLabel(row);
+  const time = relativeTimeRange(row.firstAt, row.lastAt, actionTime);
   const after: { label: string; bg: string; fg: string }[] = [];
   if (row.count > 1) {
     after.push({ label: `×${row.count}`, bg: C.repeatBg, fg: "#fff" });
@@ -588,6 +593,7 @@ function drawMessage(
   top: number,
   item: Extract<Prepared, { kind: "message" }>,
   avatars: Map<string, Image>,
+  actionTime: Date,
 ) {
   const { row, grouped, lines, height } = item;
   const message = row.message;
@@ -610,9 +616,14 @@ function drawMessage(
 
   if (grouped) {
     const lineY = y + 16;
-    ctx.font = font("Body", 10.5);
+    ctx.font = font("Body", 9);
     ctx.fillStyle = C.muted;
-    ctx.fillText(hhmm(row.firstAt), PAD + 2, lineY + 2);
+    ctx.fillText(
+      relativeTimeRange(row.firstAt, row.lastAt, actionTime),
+      PAD + 2,
+      lineY + 2,
+      TEXT_X - PAD - 8,
+    );
     let x = WIDTH - PAD;
     for (const tag of tagPills(row).reverse()) {
       x -= pillWidth(ctx, tag.label);
@@ -648,7 +659,7 @@ function drawMessage(
   drawAvatar(ctx, PAD, y, avatars.get(author.id), author);
 
   let lineY = y + 16;
-  const header = layoutHeader(ctx, row);
+  const header = layoutHeader(ctx, row, actionTime);
   ctx.font = font("BodyMedium", 15);
   ctx.fillStyle = C.name;
   ctx.fillText(header.name, TEXT_X, lineY);
@@ -690,7 +701,12 @@ export function planPreview(req: PreviewRequest): {
   height: number;
 } {
   const probe = createCanvas(1, 1).getContext("2d");
-  return fitToHeight(makeWrapper(probe), selectRows(sanitizeRequest(req)));
+  const sanitized = sanitizeRequest(req);
+  return fitToHeight(
+    makeWrapper(probe),
+    selectRows(sanitized),
+    targetName(sanitized),
+  );
 }
 
 export interface CanvasPreviewRendererOptions {
@@ -732,7 +748,11 @@ export class CanvasPreviewRenderer implements SuggestionPreviewRenderer {
     return withRenderSlot(async () => {
       const avatars = await decodeAvatars(avatarBuffers);
       const probe = createCanvas(1, 1).getContext("2d");
-      const { items, height } = fitToHeight(makeWrapper(probe), rows);
+      const { items, height } = fitToHeight(
+        makeWrapper(probe),
+        rows,
+        targetName(req),
+      );
 
       const canvas = createCanvas(WIDTH * SCALE, height * SCALE);
       const ctx = canvas.getContext("2d");
@@ -747,21 +767,16 @@ export class CanvasPreviewRenderer implements SuggestionPreviewRenderer {
       ctx.fillStyle = C.name;
       const channel = truncate(ctx, `# ${req.channelName}`, 220);
       ctx.fillText(channel, PAD, 22);
-      const channelWidth = ctx.measureText(channel).width;
       ctx.font = font("Body", 12.5);
       ctx.fillStyle = C.muted;
-      ctx.fillText(
-        truncate(ctx, req.subtitle, WIDTH - PAD * 2 - channelWidth - 10),
-        PAD + channelWidth + 10,
-        22,
-      );
+      ctx.fillText(truncate(ctx, req.subtitle, WIDTH - PAD * 2), PAD, 43);
 
       let y = HEADER + 8;
       for (const item of items) {
         if (item.kind === "divider") {
           drawDivider(ctx, y, item.divider);
         } else {
-          drawMessage(ctx, y, item, avatars);
+          drawMessage(ctx, y, item, avatars, req.actionTime);
         }
         y += item.height;
       }

@@ -62,9 +62,7 @@ function suggestedLabel(
   const shown = options.slice(0, SUGGESTED_OPTIONS_MAX);
   return new LabelBuilder()
     .setLabel("Suggested")
-    .setDescription(
-      clip(`From ${who}'s last activity, in channels you can read`),
-    )
+    .setDescription(clip(`From ${who}'s messages, in channels you can read`))
     .setCheckboxGroupComponent(
       new CheckboxGroupBuilder()
         .setCustomId(ADD_PROOF_SUGGESTED_ID)

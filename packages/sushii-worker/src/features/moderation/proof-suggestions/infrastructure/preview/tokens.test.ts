@@ -226,7 +226,7 @@ describe("tokenizeContent", () => {
 
   test("marks empty messages", () => {
     expect(tokenizeContent("", [], false)).toEqual([
-      { kind: "muted", text: "(no text content)" },
+      { kind: "muted", text: "(no text)" },
     ]);
   });
 });

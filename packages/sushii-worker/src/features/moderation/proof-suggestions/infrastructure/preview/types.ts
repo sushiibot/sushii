@@ -27,7 +27,9 @@ export interface PreviewMessage {
 export interface PreviewRequest {
   guildId: string;
   channelName: string;
-  /** e.g. "18:20 – 18:31 · last 10 of 214 from spambot" */
+  actionTime: Date;
+  actionNoun: string;
+  /** e.g. "16–5m before the ban · spambot's last 10 of 214 messages" */
   subtitle: string;
   /** Messages from this user (or triggered by them) are highlighted. */
   targetUserId: string;

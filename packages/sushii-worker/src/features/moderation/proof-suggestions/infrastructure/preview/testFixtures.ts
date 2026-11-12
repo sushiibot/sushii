@@ -54,6 +54,8 @@ export function request(
     guildId: GUILD_ID,
     channelName: "general",
     subtitle: "preview",
+    actionTime: new Date("2026-11-10T18:37:00Z"),
+    actionNoun: "ban",
     targetUserId: SPAMBOT_ID,
     messages,
     hiddenEarlierCount: 0,
@@ -82,7 +84,7 @@ export function spamFixture(): PreviewRequest {
   messages.push(msg(spambot, "18:31:50", "bye 😂", { deleted: true }));
   messages.push(msg(bob, "18:32:00", "finally"));
   return request(messages, {
-    subtitle: "18:20 – 18:31 · last 10 of 214 from spambot",
+    subtitle: "16–5m before the ban · spambot's last 10 of 214 messages",
   });
 }
 
@@ -131,7 +133,7 @@ export function koreanEmojiFixture(): PreviewRequest {
         },
       ),
     ],
-    { subtitle: "18:29 – 18:36 · 4 from spambot" },
+    { subtitle: "in the 7m before the ban · spambot's 4 messages" },
   );
 }
 
@@ -153,7 +155,7 @@ export function appResponseFixture(): PreviewRequest {
     ],
     {
       channelName: "media",
-      subtitle: "18:33 · app response triggered by spambot",
+      subtitle: "4m before the ban · spambot's 1 message",
     },
   );
 }

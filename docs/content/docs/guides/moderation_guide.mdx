@@ -21,9 +21,9 @@ set, every case will be posted there automatically.
 {/* source: packages/sushii-worker/src/features/moderation/audit-logs/domain/entities/AuditLogEvent.ts#AuditLogEvent.fromDiscordEntry @97eaa488, packages/sushii-worker/src/features/moderation/audit-logs/application/AuditLogService.ts#AuditLogService.createNewCase @9296d8fa */}
 
 <Callout title="Native Discord actions are also logged">
-Bans, kicks, and timeouts done through Discord's own menus become cases too,
-as long as sushii has the **View Audit Log** permission. If you entered a
-reason, sushii copies it into the case.
+  Bans, kicks, and timeouts done through Discord's own menus become cases too,
+  as long as sushii has the **View Audit Log** permission. If you entered a
+  reason, sushii copies it into the case.
 </Callout>
 
 ## How cases work
@@ -72,65 +72,69 @@ other mods. It's never sent to the member and shows on the mod log entry.
 
 {/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/SuggestionFlow.ts#SuggestionFlow.enabled @dc97b0fd, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/SuggestionFlow.ts#SuggestionFlow.compute @8482dcbc, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#SUGGESTION_ACTIONS @6e3b36ee */}
 
-Suggested proof helps you find context for a single-user moderation action.
-It is available for bans, temporary bans, softbans, kicks, timeouts, warnings,
-and notes. Suggestions appear while the case has no proof that a moderator
-added manually. Suggested proof rolls out per server, so it is not available
-on every server yet.
+After a ban, you might see a line like this under the response:
 
-{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/domain/ProofSuggestion.ts#MAX_TARGET_MESSAGES @b9731aa2, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/ProofSuggestion.ts#SUGGESTION_WINDOW_MS @2e0dbf60, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.findWithAccess @1818ca6f, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.messageLogEnabled @95af75d5 */}
+> 💡 3 suggestions · from spambot's messages before the ban
 
-The server's message log must be on. Suggestions use AutoMod alerts and the
-user's recent and deleted messages from their last activity. This covers about
-10 messages within 24 hours before the action. The action time fixes this window, so later
-messages do not become suggestions for that case.
+Suggestions also appear after temporary bans, softbans, kicks, timeouts,
+warnings, and notes. Once a mod adds proof by hand, suggestions stop showing;
+proof added from suggestions doesn't stop them. Not on every server yet.
+
+{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/domain/ProofSuggestion.ts#MAX_TARGET_MESSAGES @b9731aa2, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/ProofSuggestion.ts#MAX_AUTOMOD_SUGGESTIONS @621c5106, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/ProofSuggestion.ts#SUGGESTION_WINDOW_MS @2e0dbf60, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.findWithAccess @1818ca6f, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.messageLogEnabled @95af75d5 */}
+
+The server's message log must be on. Suggestions include up to 10 of the
+member's messages from the 24 hours before the action, plus up to 3 AutoMod
+alerts. Messages sent after the action aren't suggested.
 
 {/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/application/viewerAccess.ts#viewerAccessFromMember @d0e93956, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.findWithAccess @1818ca6f */}
 
 Your suggestions only include channels you can read. For recent messages, you
 need **View Channel** and **Read Message History**. Deleted messages also
-require access to the message log channel. Another moderator can see a
+require access to the message log channel. Another mod can see a
 different set of suggestions.
 
-{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/views.ts#buildResponseSuggestionBlock @caf0992b, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/modLogSuggestionOffer.ts#createModLogSuggestionOffer @556e3e99, packages/sushii-worker/src/features/moderation/shared/presentation/proof/addProofModal.ts#suggestedLabel @3dc9f9ef, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/modalSuggestions.ts#suggestedOptions @f2c20fdb, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#preselected @d1aac112 */}
+{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/views.ts#buildResponseSuggestionBlock @caf0992b, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/modLogSuggestionOffer.ts#createModLogSuggestionOffer @556e3e99, packages/sushii-worker/src/features/moderation/shared/presentation/proof/addProofModal.ts#suggestedLabel @c397b58e, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/modalSuggestions.ts#suggestedOptions @f2c20fdb, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#preselected @d1aac112 */}
 
-- **Add all** on the action response adds the offered suggestions. The button
-  includes the suggestion count.
+- **Add all** on the action response adds the offered suggestions.
 - **Review…** opens a private picker where you can choose suggestions.
 - **Suggested proof** on the mod log entry opens the same picker. This also
   works for actions from Discord's own menus, which have no command response.
 - The **Add proof** form has **Suggested** checkboxes when suggestions are
-  available. AutoMod alerts and groups of fully deleted messages start checked.
+  available.
 
-{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/ProofSuggestionButtonHandler.ts#ProofSuggestionButtonHandler.review @fb38e8b3, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/proofContent.ts#formatProofContent @39c7c4a2, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.linksFor @683ac9fd */}
+Deleted messages and AutoMod alerts start checked; messages still in the channel don't.
 
-Review previews are images visible only to the moderator who opens the picker.
-sushii never stores these preview images. Adding a suggestion saves links only:
-message links for existing messages, or message log links for deleted messages.
-These links can stop working later if someone deletes the linked message or
-log post.
+{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/ProofSuggestionButtonHandler.ts#ProofSuggestionButtonHandler.review @fb38e8b3, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/proofContent.ts#formatProofContent @39c7c4a2, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.linksFor @683ac9fd, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.toPreviewRequestWithAccess @0500e1cd */}
+
+Review shows previews only you can see, with times relative to the action.
+sushii doesn't save these images. Adding a suggestion saves message links,
+or message log links for deleted messages. These links can stop working if
+someone deletes the linked message or log post.
 
 {/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/views.ts#notice @98a86605, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#UNDO_NOT_ALLOWED_TEXT @2690bee4 */}
 
-The **Added** message has an **Undo** button to remove the suggested proof
-from that addition. Only the moderator who added it can undo it.
+Use **Undo** on the **Added** message to undo what you just added.
+Only the mod who added it can undo it.
 
-{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#detailLines @f6d80388, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.resolveLinksMany @b538fcfe */}
+{/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/suggestionText.ts#detailLines @459e8b41, packages/sushii-worker/src/features/moderation/proof-suggestions/application/ProofSuggestionService.ts#ProofSuggestionService.resolveLinksMany @b538fcfe */}
 
 After a ban, deleted messages can take a few seconds to reach the message log.
-sushii waits briefly and saves the links it can find. The result explains any
-messages it could not add:
+sushii waits briefly and saves the links it can find. If a message is still
+being logged, add it later from **Suggested proof** on the mod log entry.
 
-- **Still being logged** means the log post is not ready. Add those messages
-  later from **Suggested proof**.
-- **Skipped** can mean the message log post never arrived, or sushii could not
-  check the message. If sushii could not check it, try again later.
+A skipped message gets one of these explanations:
+
+- "1 deleted message was skipped: its message log post never arrived."
+- "1 message was skipped: sushii couldn't check it."
+
+Either way, open **Suggested proof** on the mod log entry to try again.
 
 {/* source: packages/sushii-worker/src/features/message-log/application/MessageLogService.ts#MessageLogService.buildDeleteEmbed @13dfe5f1, packages/sushii-worker/src/features/message-log/application/MessageLogService.ts#chunkEntries @aae7e24f */}
 
-The message log also records deleted app responses with **App response
-triggered by** and the member who triggered them. Each deleted message stays
-inside one log post. Very long entries can be shortened.
+The message log keeps each deleted message in one post, so each saved link
+opens that message's log entry. Very long messages are cut short in the log
+post. Deleted
+app responses name the member under **App response triggered by**.
 
 ## Reason templates
 

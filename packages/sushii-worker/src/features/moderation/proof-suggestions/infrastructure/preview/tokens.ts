@@ -307,7 +307,7 @@ export function tokenizeContent(
   }
 
   if (tokens.length === 0) {
-    tokens.push({ kind: "muted", text: "(no text content)" });
+    tokens.push({ kind: "muted", text: "(no text)" });
   }
   return tokens;
 }

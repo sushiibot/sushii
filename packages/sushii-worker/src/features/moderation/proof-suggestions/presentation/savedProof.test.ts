@@ -19,6 +19,10 @@ test("only reads saved links after the last separator, never URLs in rule names"
       skipped: [],
     },
   );
+  expect(content).toStartWith(
+    `🤖 AutoMod alert · Rule · ${labelUrl} · blocked in <#${automodSuggestion().blockedInChannelId}> · `,
+  );
+  expect(content?.length).toBeLessThanOrEqual(1000);
   expect(
     savedSuggestionLinks([{ source: "suggestion", content } as CaseProof]),
   ).toEqual([savedUrl]);
@@ -30,4 +34,14 @@ test("only reads saved links after the last separator, never URLs in rule names"
       { source: "suggestion", content: labelUrl } as CaseProof,
     ]),
   ).toEqual([]);
+});
+
+test("rows saved in the earlier AutoMod format still count as saved", () => {
+  const savedUrl = messageUrl("1", "2", "4");
+  const oldRow = `🛡️ AutoMod alert: Spam in <#2> · ${savedUrl}`;
+  expect(
+    savedSuggestionLinks([
+      { source: "suggestion", content: oldRow } as CaseProof,
+    ]),
+  ).toEqual([savedUrl]);
 });

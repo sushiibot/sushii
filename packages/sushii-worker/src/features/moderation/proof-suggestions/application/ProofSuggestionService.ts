@@ -33,6 +33,7 @@ import type {
   ResolvedSuggestionLinks,
   SkippedMessage,
 } from "../domain/proofContent";
+import { relativeTimeRange } from "../domain/relativeTime";
 import { toSnippet } from "../domain/snippet";
 import type {
   PreviewAuthor,
@@ -68,6 +69,8 @@ export interface ResolveLinksOptions {
 }
 
 export interface PreviewContext {
+  actionTime: Date;
+  actionNoun: string;
   guildId: string;
   targetId: string;
   viewer: GuildMember;
@@ -103,10 +106,6 @@ export interface ProofSuggestionServiceDeps {
 
 function displayName(msg: MessageData): string {
   return msg.member?.nick ?? msg.author.global_name ?? msg.author.username;
-}
-
-function formatClock(date: Date): string {
-  return date.toISOString().slice(11, 16);
 }
 
 function plural(count: number, word: string): string {
@@ -520,17 +519,27 @@ export class ProofSuggestionService {
     const shown = targetRows.length;
     const range =
       shown > 0
-        ? clockRange(targetRows[0].createdAt, targetRows[shown - 1].createdAt)
-        : clockRange(suggestion.firstAt, suggestion.lastAt);
+        ? relativeTimeRange(
+            targetRows[0].createdAt,
+            targetRows[shown - 1].createdAt,
+            context.actionTime,
+          )
+        : relativeTimeRange(
+            suggestion.firstAt,
+            suggestion.lastAt,
+            context.actionTime,
+          );
     const counts =
       suggestion.totalInWindow > shown
-        ? `last ${shown} of ${suggestion.totalInWindow} from ${targetName}`
-        : `${plural(shown, "message")} from ${targetName}`;
+        ? `${targetName}'s last ${shown} of ${suggestion.totalInWindow} messages`
+        : `${targetName}'s ${plural(shown, "message")}`;
 
     return {
       guildId,
       channelName: access.channelName(suggestion.channelId) ?? "unknown",
-      subtitle: `${range} · ${counts}`,
+      actionTime: context.actionTime,
+      actionNoun: context.actionNoun,
+      subtitle: `${range} the ${context.actionNoun} · ${counts}`,
       targetUserId: targetId,
       messages,
       hiddenEarlierCount: Math.max(0, suggestion.totalInWindow - shown),
@@ -560,7 +569,9 @@ export class ProofSuggestionService {
       guildId: context.guildId,
       channelName:
         blockedInName || access.channelName(suggestion.channelId) || "unknown",
-      subtitle: `${formatClock(suggestion.lastAt)} · AutoMod: ${suggestion.ruleName ?? "alert"}`,
+      actionTime: context.actionTime,
+      actionNoun: context.actionNoun,
+      subtitle: `${relativeTimeRange(suggestion.lastAt, suggestion.lastAt, context.actionTime)} the ${context.actionNoun} · AutoMod: ${suggestion.ruleName ?? "alert"}`,
       targetUserId: context.targetId,
       messages,
       hiddenEarlierCount: 0,
@@ -761,12 +772,6 @@ function compareIds(a: string, b: string): number {
   const x = BigInt(a);
   const y = BigInt(b);
   return x < y ? -1 : x > y ? 1 : 0;
-}
-
-function clockRange(first: Date, last: Date): string {
-  const a = formatClock(first);
-  const b = formatClock(last);
-  return a === b ? a : `${a} – ${b}`;
 }
 
 function snippetFor(ordered: CachedMessage[]): string {

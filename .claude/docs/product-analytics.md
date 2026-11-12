@@ -6,29 +6,29 @@ people use it.
 
 ## Pieces
 
-| Piece | Where |
-|---|---|
-| Event model, names, feature map | `packages/sushii-worker/src/features/product-analytics/domain/` (`ProductEvent.ts`, `features.ts`) |
-| `track()` (best-effort insert) | `application/ProductAnalyticsService.ts`, wired in `setup.ts` and `core/cluster/initialization/registerFeatures.ts` |
-| Automatic interaction events | `core/cluster/discord/InteractionRouter.ts` (`trackInteraction`) |
-| Raw table | `app_public.product_events` (90-day retention) |
-| Rollups | `product_usage_weekly`, `product_retention_weekly`, `product_rollup_state`; `application/ProductRollupService.ts`, run daily by `infrastructure/tasks/ProductRollupTask.ts` |
-| Read-only views | `analytics` schema, created by hand-written custom migrations (`drizzle/0084_analytics-views.sql` and later) |
-| API | `packages/sushii-mcp/src/analytics.ts`: `GET /analytics/:view`, allow-listed view names only |
-| Dashboard | `packages/sushii-insights` (SvelteKit, tailnet-only), reads the API from server `load` functions |
-| User deletion | `packages/sushii-worker/scripts/delete-user-analytics.ts <user id>` |
+| Piece                           | Where                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Event model, names, feature map | `packages/sushii-worker/src/features/product-analytics/domain/` (`ProductEvent.ts`, `features.ts`)                                                                          |
+| `track()` (best-effort insert)  | `application/ProductAnalyticsService.ts`, wired in `setup.ts` and `core/cluster/initialization/registerFeatures.ts`                                                         |
+| Automatic interaction events    | `core/cluster/discord/InteractionRouter.ts` (`trackInteraction`)                                                                                                            |
+| Raw table                       | `app_public.product_events` (90-day retention)                                                                                                                              |
+| Rollups                         | `product_usage_weekly`, `product_retention_weekly`, `product_rollup_state`; `application/ProductRollupService.ts`, run daily by `infrastructure/tasks/ProductRollupTask.ts` |
+| Read-only views                 | `analytics` schema, created by hand-written custom migrations (`drizzle/0084_analytics-views.sql` and later)                                                                |
+| API                             | `packages/sushii-mcp/src/analytics.ts`: `GET /analytics/:view`, allow-listed view names only                                                                                |
+| Dashboard                       | `packages/sushii-insights` (SvelteKit, tailnet-only), reads the API from server `load` functions                                                                            |
+| User deletion                   | `packages/sushii-worker/scripts/delete-user-analytics.ts <user id>`                                                                                                         |
 
 `track()` is a no-op when `PRODUCT_ANALYTICS_KEY` is unset (local dev, tests).
 
 ## Privacy rules (non-negotiable)
 
-Discord only allows API data for improving the app when it's aggregated or de-identified, and sushii's privacy policy
-(`docs/content/legal/privacy.md`) promises the same.
+Under "Handle Data with Care," [Discord's Developer Policy](https://support-dev.discord.com/hc/en-us/articles/8563934450327-Discord-Developer-Policy) allows API data for app improvement only when aggregated or de-identified.
+The data must not identify an individual. sushii's privacy policy (`docs/content/legal/privacy.md`) promises the same.
 
 - **Never store** user IDs, channel or message IDs, command option values, free text, names, or raw custom IDs
   (they embed IDs). The actor is `actorCode(key, userId)`: an HMAC with a secret key, first 16 bytes.
 - **Props are code values only**: closed sets like `surface: "modal"` or `outcome: "ok"`, or bucketed numbers
-  (`"1"`, `"2-5"`, `"6+"`). `ProductEventProps` is `Record<string, string>` with no free text by contract.
+  (`"1"`, `"2-5"`, `"6+"`). `ProductEventProps` is `Record<string, string>`. "No free text in props" is a convention enforced by review, not by the type.
 - **Best-effort**: `track()` never throws and never delays the caller. Don't `await` it, don't wrap it in logic that can
   fail the interaction.
 - Raw rows are deleted after 90 days; rollups keep no actor codes or guild IDs. Groups smaller than `SMALL_GROUP_MIN`
@@ -47,7 +47,7 @@ Every slash command, context menu, button, select and modal that reaches a regis
 - `props.audience`: `staff` | `member`, from `STAFF_HANDLERS`
 
 Autocomplete is never tracked. Buttons handled by inline collectors (no registered handler) record as `unmatched`.
-Interactions only run on the active blue/green slot, so nothing is double-counted.
+Interactions only run on the active blue/green slot, so interaction events aren't double-counted between slots.
 
 ## Adding analytics to a feature
 
@@ -64,9 +64,8 @@ Interactions only run on the active blue/green slot, so nothing is double-counte
    feature row but never makes a server count as active; extend that check if you add another such event.
 4. **Emit next to the metric.** Inject the `ProductEventTracker` (`productEvents` from the product-analytics feature
    services) through the feature's setup and call `track({ name, userId, guildId, props })` where the matching OTel
-   counter is recorded. A small adapter that records both the metric and the event keeps call sites clean
-   (see `proof-suggestions` for an example). Exposure events fire once per thing shown, not per re-render, and they
-   count as activity: a server that only saw an offer shows as active. Read adoption from outcome or interaction events.
+   counter is recorded. See the `proof-suggestions` adapter for an example.
+   Exposure events fire once per thing shown, not per re-render.
 5. **Test** emission at the adapter or service level with a fake tracker, and that a throwing tracker doesn't change
    the flow.
 6. **Need a chart?** Interaction and explicit events already roll up into usage and retention by feature. For a funnel
@@ -77,10 +76,12 @@ Interactions only run on the active blue/green slot, so nothing is double-counte
    - add the view name to `ANALYTICS_VIEWS` in `packages/sushii-mcp/src/analytics.ts` (a `sushii-mcp` release; it
      returns empty until the bot migration is live);
    - add the table or chart in `packages/sushii-insights`.
-   Views over raw rows only see 90 days; long-term questions need a rollup.
+     Views over raw rows only see 90 days; long-term questions need a rollup.
 
 ## Don'ts
 
+- Don't read exposure events as adoption. They count as activity: a server that only saw an offer shows as active.
+  Read adoption from outcome or interaction events.
 - Don't add a redirect service or tracking link to measure link-button clicks: it would collect IP addresses. Use a
   normal button that replies with the link, or measure the outcome instead.
 - Don't send events to third-party analytics.

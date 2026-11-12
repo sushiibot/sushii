@@ -21,8 +21,8 @@ its details.
 The reply is public. If someone else clicks its tabs, they get their own private
 copy. A search that finds nothing, or a command you can't use, replies only to you.
 
-| Command | What it does |
-|---|---|
+| Command | What it does                                                                                  |
+| ------- | --------------------------------------------------------------------------------------------- |
 | `/help` | See what sushii can do, or search with `command:` for a command's subcommands and permissions |
 
 ---
@@ -39,33 +39,33 @@ workflow.
 
 {/* source: packages/sushii-worker/src/features/moderation/shared/presentation/commands/ModerationCommandConstants.ts#COMMAND_METADATA @15fd6b20, packages/sushii-worker/src/features/moderation/management/presentation/commands/TempbanListCommand.ts#TempbanListCommand.command @64a57cfc, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#"Max messages to delete. (2-100)" @303fa4df, packages/sushii-worker/src/features/moderation/management/presentation/commands/PruneCommand.ts#PruneOption @62159a07, packages/sushii-worker/src/features/moderation/management/presentation/commands/SlowmodeCommand.ts#SlowmodeCommand.command @23f6308e, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ReasonCommand.ts#ReasonCommand.command @008c875b, packages/sushii-worker/src/features/moderation/cases/presentation/commands/ProofCommand.ts#ProofCommand.command @96a1e7d3, packages/sushii-worker/src/features/moderation/cases/presentation/commands/UncaseCommand.ts#UncaseCommand.command @f461a904, packages/sushii-worker/src/features/moderation/cases/presentation/commands/HistoryCommand.ts#HistoryCommand @b3a9ad80, packages/sushii-worker/src/features/moderation/cases/presentation/commands/LookupCommand.ts#LookupCommand @be1ce142, packages/sushii-worker/src/features/moderation/reason-templates/presentation/commands/ReasonTemplatesCommand.ts#ReasonTemplatesCommand @d920a251 */}
 
-| Command | What it does |
-|---|---|
-| `/warn` | Warn a user (always sends a DM) |
-| `/timeout` | Time out a user |
-| `/untimeout` | Remove a timeout |
-| `/kick` | Kick a user |
-| `/ban` | Ban a user |
-| `/unban` | Unban a user |
-| `/tempban` | Ban a user for a set duration |
-| `/tempban-list` | List all active temporary bans |
-| `/softban` | Remove a member and delete their recent messages without a permanent ban |
-| `/prune` | Bulk delete messages, with optional filters |
-| `/slowmode` | Set slowmode on a channel |
-| `/reason` | Edit the reason on an existing case |
-| `/proof` | Add mod-only proof (text, screenshots) to a case |
-| `/reason-templates` | Save reusable reasons and `!shortcuts` for every mod in the server |
-| `/uncase` | Remove a case from a user's history |
-| `/note` | Add a private moderator note to a user |
-| `/history` | View a user's full moderation history |
-| `/lookup` | Search cross-server bans for a user |
+| Command             | What it does                                                             |
+| ------------------- | ------------------------------------------------------------------------ |
+| `/warn`             | Warn a user (always sends a DM)                                          |
+| `/timeout`          | Time out a user                                                          |
+| `/untimeout`        | Remove a timeout                                                         |
+| `/kick`             | Kick a user                                                              |
+| `/ban`              | Ban a user                                                               |
+| `/unban`            | Unban a user                                                             |
+| `/tempban`          | Ban a user for a set duration                                            |
+| `/tempban-list`     | List all active temporary bans                                           |
+| `/softban`          | Remove a member and delete their recent messages without a permanent ban |
+| `/prune`            | Bulk delete messages, with optional filters                              |
+| `/slowmode`         | Set slowmode on a channel                                                |
+| `/reason`           | Edit the reason on an existing case                                      |
+| `/proof`            | Add mod-only proof (text, screenshots) to a case                         |
+| `/reason-templates` | Save reusable reasons and `!shortcuts` for every mod in the server       |
+| `/uncase`           | Remove a case from a user's history                                      |
+| `/note`             | Add a private moderator note to a user                                   |
+| `/history`          | View a user's full moderation history                                    |
+| `/lookup`           | Search cross-server bans for a user                                      |
 
 {/* source: packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/SuggestionFlow.ts#SuggestionFlow.enabled @dc97b0fd, packages/sushii-worker/src/features/moderation/proof-suggestions/presentation/SuggestionFlow.ts#SuggestionFlow.compute @8482dcbc, packages/sushii-worker/src/features/moderation/proof-suggestions/domain/proofContent.ts#formatProofContent @39c7c4a2 */}
 
-**Suggested proof** offers AutoMod alerts and recent or deleted messages as
-links for cases without manually added proof. Availability varies by server.
-See [Suggested proof](/docs/guides/moderation_guide#suggested-proof) for private
-previews, access requirements, and Undo.
+**Suggested proof** lists a member's AutoMod alerts and recent or deleted messages
+after an action, so you can add them to the case as links. Once a mod adds proof
+by hand, suggestions stop showing. Not on every server yet.
+[How to add suggested proof](/docs/guides/moderation_guide#suggested-proof).
 
 {/* source: packages/sushii-worker/src/features/automod/application/SpamActionService.ts#SPAM_TIMEOUT_MS @911e08e8, packages/sushii-worker/src/shared/domain/entities/GuildConfig.ts#GuildConfig.createDefault @2d7829f6, packages/sushii-worker/src/features/guild-settings/presentation/views/panel/AutomodPanel.ts#"Scam images" @f9369c06 */}
 
@@ -95,15 +95,15 @@ See the [XP & Levels Guide](/docs/guides/xp-levels) for setup.
 
 {/* source: packages/sushii-worker/src/features/leveling/presentation/commands/RankCommand.ts#RankCommand @f5cf6c30, packages/sushii-worker/src/features/leveling/presentation/commands/LeaderboardCommand.ts#LeaderboardCommand.command @2a28a932, packages/sushii-worker/src/features/leveling/presentation/commands/LevelRoleCommand.ts#CommandName @8f68a1cc, packages/sushii-worker/src/features/leveling/presentation/commands/XpCommands.ts#XpGroupName @9b7f8b43 */}
 
-| Command | What it does |
-|---|---|
-| `/rank` | View your rank and XP (or another member's) |
-| `/leaderboard` | Server XP leaderboard, filterable by day / week / month / all time |
-| `/levelrole new` | Award a role automatically when a member reaches a level |
-| `/levelrole delete` | Remove a level role reward |
-| `/levelrole list` | List all configured level roles |
-| `/xp block` | Exclude a channel or role from earning XP |
-| `/xp unblock` | Re-enable XP earning for a channel or role |
+| Command             | What it does                                                       |
+| ------------------- | ------------------------------------------------------------------ |
+| `/rank`             | View your rank and XP (or another member's)                        |
+| `/leaderboard`      | Server XP leaderboard, filterable by day / week / month / all time |
+| `/levelrole new`    | Award a role automatically when a member reaches a level           |
+| `/levelrole delete` | Remove a level role reward                                         |
+| `/levelrole list`   | List all configured level roles                                    |
+| `/xp block`         | Exclude a channel or role from earning XP                          |
+| `/xp unblock`       | Re-enable XP earning for a channel or role                         |
 
 ---
 
@@ -117,12 +117,12 @@ See the [Tags Guide](/docs/guides/tags) for full usage.
 
 {/* source: packages/sushii-worker/src/features/tags/presentation/commands/TagGetCommand.ts#TagGetCommand @afc00f38, packages/sushii-worker/src/features/tags/presentation/commands/TagAddCommand.ts#TagAddCommand.command @db3fa78d, packages/sushii-worker/src/features/tags/presentation/commands/TagEditCommand.ts#TagEditCommand.command @f5b18f58, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Get information about a tag." @db94d79f, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Search for tags." @58033cea, packages/sushii-worker/src/features/tags/presentation/commands/TagInfoCommand.ts#"Get all server tags." @21572c27, packages/sushii-worker/src/features/tags/presentation/commands/TagAdminCommand.ts#TagAdminSubcommand @3f8ae7aa */}
 
-| Command | What it does |
-|---|---|
-| `/t` | Use a tag |
-| `/tag-add` | Create a new tag |
-| `/tag-edit` | Edit or rename one of your tags, or delete it |
-| `/tag` | Browse, search, and get info on tags |
+| Command      | What it does                                           |
+| ------------ | ------------------------------------------------------ |
+| `/t`         | Use a tag                                              |
+| `/tag-add`   | Create a new tag                                       |
+| `/tag-edit`  | Edit or rename one of your tags, or delete it          |
+| `/tag`       | Browse, search, and get info on tags                   |
 | `/tag-admin` | Delete any tag or remove all tags from a specific user |
 
 ---
@@ -135,13 +135,13 @@ and update without recreating them.
 
 {/* source: packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Create a role menu with an interactive builder." @b41615f1, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Send a role menu to a channel." @a7453832, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Edit a role menu with an interactive builder." @20722a1e, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"Delete a role menu." @28872c49, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#"List all your role menus." @37f04a2f, packages/sushii-worker/src/features/role-menu/presentation/commands/RoleMenuCommand.ts#RoleMenuType @35007796 */}
 
-| Command | What it does |
-|---|---|
-| `/rolemenu create` | Build a new role menu |
-| `/rolemenu send` | Post a role menu to a channel |
-| `/rolemenu edit` | Edit an existing role menu |
-| `/rolemenu delete` | Remove a role menu |
-| `/rolemenu list` | List all role menus in the server |
+| Command            | What it does                      |
+| ------------------ | --------------------------------- |
+| `/rolemenu create` | Build a new role menu             |
+| `/rolemenu send`   | Post a role menu to a channel     |
+| `/rolemenu edit`   | Edit an existing role menu        |
+| `/rolemenu delete` | Remove a role menu                |
+| `/rolemenu list`   | List all role menus in the server |
 
 ---
 
@@ -152,9 +152,9 @@ them updated as the calendar changes.
 
 {/* source: packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleCommand.ts#ScheduleCommand.command @2a23bf39, packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleConfigCommand.ts#"Configure a schedule channel to sync a Google Calendar." @b1ae9583, packages/sushii-worker/src/features/schedule/presentation/commands/ScheduleConfigCommand.ts#"Edit the name or channels of an existing schedule." @8cfff077 */}
 
-| Command | What it does |
-|---|---|
-| `/schedule` | Preview upcoming scheduled events |
+| Command            | What it does                                      |
+| ------------------ | ------------------------------------------------- |
+| `/schedule`        | Preview upcoming scheduled events                 |
 | `/schedule-config` | Set up and manage auto-updating schedule channels |
 
 ---
@@ -166,13 +166,13 @@ them updated as the calendar changes.
 Run giveaways with optional entry requirements like roles, minimum level, or
 booster status. Winners are picked automatically when the giveaway ends.
 
-| Command | What it does |
-|---|---|
-| `/giveaway create` | Start a new giveaway |
-| `/giveaway list` | List active giveaways |
-| `/giveaway end` | End a giveaway early |
+| Command            | What it does                         |
+| ------------------ | ------------------------------------ |
+| `/giveaway create` | Start a new giveaway                 |
+| `/giveaway list`   | List active giveaways                |
+| `/giveaway end`    | End a giveaway early                 |
 | `/giveaway reroll` | Pick new winners for a past giveaway |
-| `/giveaway delete` | Cancel and remove a giveaway |
+| `/giveaway delete` | Cancel and remove a giveaway         |
 
 ---
 
@@ -185,11 +185,11 @@ without giving them Manage Server. `/server` needs Manage Server by default;
 allow it for a mod role under **Server Settings → Integrations → sushii**.
 Changes are posted in the channel, and the audit log names the mod who made them.
 
-| Command | What it does |
-|---|---|
-| `/server icon` | Change the server icon. The reply includes the old icon so you can put it back later |
-| `/server banner` | Change the server banner (boost level 2). The reply includes the old banner |
-| `/server name` | Rename the server. Suggests names the server has used before, so switching back is one pick |
+| Command          | What it does                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| `/server icon`   | Change the server icon. The reply includes the old icon so you can put it back later        |
+| `/server banner` | Change the server banner (boost level 2). The reply includes the old banner                 |
+| `/server name`   | Rename the server. Suggests names the server has used before, so switching back is one pick |
 
 ---
 
@@ -200,13 +200,13 @@ useful for keeping up with topics without watching every channel.
 
 {/* source: packages/sushii-worker/src/features/notifications/presentation/commands/NotificationCommand.ts#NotificationCommandName @3d7d31b4 */}
 
-| Command | What it does |
-|---|---|
-| `/notification add` | Add a keyword to watch for |
-| `/notification list` | View your active notifications |
-| `/notification delete` | Remove a keyword notification |
-| `/notification block` | Stop notifications from a channel or user |
-| `/notification unblock` | Remove a block |
+| Command                 | What it does                              |
+| ----------------------- | ----------------------------------------- |
+| `/notification add`     | Add a keyword to watch for                |
+| `/notification list`    | View your active notifications            |
+| `/notification delete`  | Remove a keyword notification             |
+| `/notification block`   | Stop notifications from a channel or user |
+| `/notification unblock` | Remove a block                            |
 
 ---
 
@@ -216,9 +216,9 @@ useful for keeping up with topics without watching every channel.
 
 Set a reminder for yourself — sushii will DM you when it's time.
 
-| Command | What it does |
-|---|---|
-| `/reminder add` | Create a reminder |
+| Command          | What it does                            |
+| ---------------- | --------------------------------------- |
+| `/reminder add`  | Create a reminder                       |
 | `/reminder list` | View and delete your upcoming reminders |
 
 ---
@@ -230,8 +230,8 @@ emoji or sticker, static or animated, and this server or others.
 
 {/* source: packages/sushii-worker/src/features/emoji-stats/presentation/commands/EmojiStatsCommand.ts#"Emojis or Stickers? (default: Emojis Only)" @17a82a8e */}
 
-| Command | What it does |
-|---|---|
+| Command       | What it does                       |
+| ------------- | ---------------------------------- |
 | `/emojistats` | View emoji and sticker usage stats |
 
 ---
@@ -243,13 +243,13 @@ emoji or sticker, static or animated, and this server or others.
 Reputation lets members vouch for each other. Fishies is a fishing minigame you can play every 12 hours.
 Both have server leaderboards.
 
-| Command | What it does |
-|---|---|
-| `/rep` | Give reputation to another member |
-| `/rep-leaderboard` | Server reputation leaderboard |
-| `/fishy` | Catch fish (every 12 hours) |
-| `/fishy-leaderboard` | Server fishy leaderboard |
-| `/fishy-collection` | Browse your or another member's fishy collection |
+| Command              | What it does                                     |
+| -------------------- | ------------------------------------------------ |
+| `/rep`               | Give reputation to another member                |
+| `/rep-leaderboard`   | Server reputation leaderboard                    |
+| `/fishy`             | Catch fish (every 12 hours)                      |
+| `/fishy-leaderboard` | Server fishy leaderboard                         |
+| `/fishy-collection`  | Browse your or another member's fishy collection |
 
 {/* source: packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#recordActiveDay @727cba98, packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#getActiveDaysMultiplier @809be11f, packages/sushii-worker/src/features/social/domain/constants/ActiveDaysConstants.ts#ACTIVE_DAYS_WINDOW @eb79cf13, packages/sushii-worker/src/features/social/domain/constants/ActiveDaysConstants.ts#MAX_ACTIVE_DAYS_BONUS @fa73153d, packages/sushii-worker/src/features/social/domain/entities/ActiveDays.ts#rollRepAmount @09b9e933, packages/sushii-worker/src/features/leveling/presentation/views/RankDisplayView.ts#formatFishyDays @9721fd3a */}
 
@@ -261,11 +261,11 @@ Each active day adds about 1.7% to the fishies you catch, up to +50% at 30 of 30
 bonus is a chance to give 2 rep instead of 1, up to 50%.
 
 | Days used (of the last 30) | Fishy bonus | Chance of 2 rep |
-|---|---|---|
-| 6 | +10% | 10% |
-| 15 | +25% | 25% |
-| 21 | +35% | 35% |
-| 30 | +50% | 50% |
+| -------------------------- | ----------- | --------------- |
+| 6                          | +10%        | 10%             |
+| 15                         | +25%        | 25%             |
+| 21                         | +35%        | 35%             |
+| 30                         | +50%        | 50%             |
 
 Your rank card shows the total number of days you've fished.
 
@@ -277,10 +277,9 @@ Quick lookups for any member's profile info.
 
 {/* source: packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoCommand.ts#UserInfoCommand.command @77aaadfe, packages/sushii-worker/src/features/user-profile/presentation/commands/AvatarCommand.ts#AvatarCommand @c0478422, packages/sushii-worker/src/features/user-profile/presentation/commands/BannerCommand.ts#BannerCommand @2d1cb57f, packages/sushii-worker/src/features/user-profile/presentation/commands/UserInfoContextMenuHandler.ts#UserInfoContextMenuHandler.command @8883e6a5 */}
 
-| Command | What it does |
-|---|---|
-| `/userinfo` | View account details, join dates, and roles |
-| `/avatar` | View someone's avatar at full size |
-| `/banner` | View someone's profile banner |
+| Command                                   | What it does                                              |
+| ----------------------------------------- | --------------------------------------------------------- |
+| `/userinfo`                               | View account details, join dates, and roles               |
+| `/avatar`                                 | View someone's avatar at full size                        |
+| `/banner`                                 | View someone's profile banner                             |
 | Right-click a user → Apps → **User Info** | View their account details privately, only visible to you |
-
