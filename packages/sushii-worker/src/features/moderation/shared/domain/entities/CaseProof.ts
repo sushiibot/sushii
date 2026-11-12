@@ -4,6 +4,7 @@ export const CASE_PROOF_SOURCES = [
   "command",
   "context_menu",
   "backfill",
+  "suggestion",
 ] as const;
 
 export type CaseProofSource = (typeof CASE_PROOF_SOURCES)[number];
@@ -21,6 +22,8 @@ export interface CaseProof {
   sourceContent: string | null;
   hostMessageId: string | null;
   source: CaseProofSource;
+  /** Rows added together from suggestions share one, so they're undone together. */
+  batchId?: string | null;
 }
 
 export type NewCaseProof = Omit<CaseProof, "id" | "createdAt"> & {

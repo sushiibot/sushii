@@ -103,6 +103,12 @@ export interface PendingEntryWait {
 
 const PENDING_ENTRY_WAIT: PendingEntryWait = { totalMs: 5_000, pollMs: 1_000 };
 
+/** Offers suggested proof on entries without proof; DB-only and the same for every viewer. */
+export interface ModLogSuggestionOffer {
+  /** The Suggested proof button's custom id, or null when there's nothing to suggest. */
+  buttonFor(moderationCase: ModerationCase): Promise<string | null>;
+}
+
 export type ModLogRenderOptions = Pick<
   ModLogMessageInput,
   "timeoutChange" | "confirmDeleteDm"
@@ -286,7 +292,34 @@ export class ModLogMessageService {
       "recordModLogEdit"
     > = NOOP_MODERATION_METRICS,
     private readonly pendingEntryWait: PendingEntryWait = PENDING_ENTRY_WAIT,
+    private readonly suggestionOffer: ModLogSuggestionOffer | null = null,
   ) {}
+
+  /** A lookup failure only hides the button; the entry still renders. */
+  private async suggestProofButton(
+    moderationCase: ModerationCase,
+    proofs: readonly PlacedProof[],
+  ): Promise<string | null> {
+    if (
+      !this.suggestionOffer ||
+      proofs.some((proof) => proof.source !== "suggestion")
+    ) {
+      return null;
+    }
+    try {
+      return await this.suggestionOffer.buttonFor(moderationCase);
+    } catch (err) {
+      this.logger.warn(
+        {
+          err,
+          guildId: moderationCase.guildId,
+          caseId: moderationCase.caseId,
+        },
+        "Failed to check suggested proof for a mod log entry",
+      );
+      return null;
+    }
+  }
 
   /**
    * Renders the case's entry. Given the posted entry, proof that no longer
@@ -399,12 +432,14 @@ export class ModLogMessageService {
     const { targetUser, currentMessage, ...viewOptions } = options;
     const executorId = moderationCase.executorId ?? this.client.user?.id;
 
-    const [target, executorTag, emojis, config] = await Promise.all([
-      this.resolveTarget(moderationCase, targetUser),
-      executorId ? this.resolveTag(executorId) : Promise.resolve(null),
-      this.emojiRepository.getEmojis(MOD_LOG_EMOJIS),
-      this.guildConfigRepository.findByGuildId(moderationCase.guildId),
-    ]);
+    const [target, executorTag, emojis, config, suggestProofButtonId] =
+      await Promise.all([
+        this.resolveTarget(moderationCase, targetUser),
+        executorId ? this.resolveTag(executorId) : Promise.resolve(null),
+        this.emojiRepository.getEmojis(MOD_LOG_EMOJIS),
+        this.guildConfigRepository.findByGuildId(moderationCase.guildId),
+        this.suggestProofButton(moderationCase, proofs),
+      ]);
 
     let factsBlock: string | null = null;
     let extraFacts: string[] = [];
@@ -440,6 +475,7 @@ export class ModLogMessageService {
         extraFacts,
         proofs: shown,
         moreProofUrl,
+        suggestProofButtonId,
         dmIncludedServerText:
           hasLiveDm(moderationCase) &&
           !!guildDmText(moderationCase.actionType, config),
@@ -670,6 +706,72 @@ export class ModLogMessageService {
   }
 
   /**
+   * Shows stored text-only proof: what fits goes on the entry, the rest
+   * into replies, and each unhosted text row records where it landed.
+   * Waits a few seconds for an entry that's still being posted, and for the
+   * case lock so a busy case can't leave rows hidden. Discord failures are
+   * returned.
+   */
+  async placeUnhostedText(
+    moderationCase: ModerationCase,
+  ): Promise<ModLogRefreshOutcome> {
+    // Waits unlocked: the audit log post that creates the entry needs the lock.
+    const waited = await this.awaitEntry(moderationCase, true);
+    return this.caseLock.run(caseKey(moderationCase), async () => {
+      const latest =
+        (await this.modLogRepository.findById(
+          moderationCase.guildId,
+          moderationCase.caseId,
+        )) ?? waited.moderationCase;
+      const entry = await this.loadEntry(latest, { fresh: true });
+      if (!entry.message) {
+        return entry.missing ?? "no_message";
+      }
+
+      const stored = await this.listProofs(moderationCase);
+      let relocated = await this.relocateOverflow(
+        entry.message,
+        entry.moderationCase,
+        stored,
+      );
+      // The first reply adds the "More proof" line, which can push a row that just fit off the entry.
+      if (relocated.complete && relocated.proofs !== stored) {
+        relocated = await this.relocateOverflow(
+          entry.message,
+          entry.moderationCase,
+          relocated.proofs,
+        );
+      }
+      if (!relocated.complete) {
+        return "failed";
+      }
+
+      const rendered = await this.renderWithProofs(
+        entry.moderationCase,
+        { currentMessage: entry.message },
+        relocated.proofs,
+        entry.message.id,
+      );
+      const outcome = await this.applyRefresh(
+        entry.message,
+        entry.moderationCase,
+        rendered,
+      );
+      if (outcome !== "updated") {
+        return outcome;
+      }
+
+      // Files without a host are left for adoptUnhosted to upload.
+      for (const proof of relocated.proofs) {
+        if (proof.hostMessageId === null && !proof.attachments.some(Boolean)) {
+          await this.saveHosting(proof, [], entry.message.id);
+        }
+      }
+      return outcome;
+    });
+  }
+
+  /**
    * Puts a new proof entry on the case's mod log entry, or in replies to it
    * when the entry is full. The caller stores the row with the result.
    * Waits a few seconds for an entry that's still being posted. Throws when
@@ -753,13 +855,24 @@ export class ModLogMessageService {
           return "already_removed";
         }
 
+        // A suggested row the entry showed before its host was saved is still on it.
         const onDiscord =
           proof.hostMessageId !== null ||
-          proof.attachments.some((url) => proofAttachmentRef(url));
+          proof.attachments.some((url) => proofAttachmentRef(url)) ||
+          (proof.source === "suggestion" && latest.msgId !== null);
         if (
           !entry.message &&
           onDiscord &&
           !(await this.entryDeletedWithFiles(entry, proof))
+        ) {
+          return "failed";
+        }
+        // The entry may be sent with this row before its message id is stored.
+        if (
+          !entry.message &&
+          proof.source === "suggestion" &&
+          latest.msgId === null &&
+          (await this.mayBePosting(entry))
         ) {
           return "failed";
         }

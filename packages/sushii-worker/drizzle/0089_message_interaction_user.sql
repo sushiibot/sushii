@@ -1,0 +1,2 @@
+ALTER TABLE "app_public"."messages" ADD COLUMN "interaction_user_id" bigint;
+CREATE INDEX "messages_guild_id_interaction_user_id_created_idx" ON "app_public"."messages" USING btree ("guild_id","interaction_user_id","created") WHERE "app_public"."messages"."interaction_user_id" IS NOT NULL;

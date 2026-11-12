@@ -1,7 +1,3 @@
-import {
-  type ProductEventTracker,
-  noopProductEvents,
-} from "@/features/product-analytics/domain/ProductEvent";
 import { type Client, DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
@@ -9,6 +5,10 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { PermissionUsageRecorder } from "@/features/permission-audit";
+import {
+  type ProductEventTracker,
+  noopProductEvents,
+} from "@/features/product-analytics/domain/ProductEvent";
 import type * as schema from "@/infrastructure/database/schema";
 import type { GuildConfig } from "@/shared/domain/entities/GuildConfig";
 import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildConfigRepository";
@@ -16,7 +16,10 @@ import type { GuildConfigRepository } from "@/shared/domain/repositories/GuildCo
 import type { DMNotificationService } from "../../shared/application/DMNotificationService";
 import type { ModLogMessageService } from "../../shared/application/ModLogMessageService";
 import type { SoftbanSuppressionSet } from "../../shared/application/SoftbanSuppressionSet";
-import type { ModerationAction } from "../../shared/domain/entities/ModerationAction";
+import {
+  type ModerationAction,
+  purgeWindowSeconds,
+} from "../../shared/domain/entities/ModerationAction";
 import {
   type DMResult,
   ModerationCase,
@@ -297,9 +300,8 @@ export class ModerationExecutionPipeline {
           ? action.duration.asSeconds()
           : null;
 
-        const deleteMessageSeconds = action.isSoftbanAction()
-          ? action.deleteMessageSeconds
-          : null;
+        // Stored for bans too, so suggested proof knows whether a purge is coming.
+        const deleteMessageSeconds = purgeWindowSeconds(action);
 
         // Create moderation case with DM intent
         // Use placeholder case ID - createCase() will auto-generate the real ID

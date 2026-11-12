@@ -30,6 +30,7 @@ import {
   DELETE_DM_PROMPT_RESERVE,
   MORE_PROOF_LINE_RESERVE,
   ModLogMessageService,
+  type ModLogSuggestionOffer,
 } from "./ModLogMessageService";
 import { postedFiles, postedFilesOf } from "./proofHosting";
 
@@ -52,13 +53,14 @@ function makeCase(
     actionType?: ActionType;
     timeoutDuration?: number | null;
     userTag?: string;
+    actionTime?: Date;
   } = {},
 ): ModerationCase {
   return new ModerationCase(
     GUILD,
     "4822",
     options.actionType ?? ActionType.Ban,
-    new Date("2026-10-27T11:00:00.000Z"),
+    options.actionTime ?? new Date("2026-10-27T11:00:00.000Z"),
     TARGET,
     options.userTag ?? "spambot",
     EXECUTOR,
@@ -228,6 +230,7 @@ function setup(
     /** Called on every message fetch, so a test can serve the entry's latest state. */
     current?: () => unknown;
     findById?: ReturnType<typeof mock>;
+    suggestionOffer?: ModLogSuggestionOffer;
     /** What a fetch for messages after a reply returns. */
     later?: { id: string; authorId: string; replyTo: string }[];
     deleteMessage?: ReturnType<typeof mock>;
@@ -328,6 +331,7 @@ function setup(
       pino({ level: "silent" }),
       { recordModLogEdit },
       { totalMs: 30, pollMs: 10 },
+      options.suggestionOffer ?? null,
     ),
   };
 }
@@ -465,6 +469,74 @@ describe("ModLogMessageService.render", () => {
 
     expect(json).toContain(`**User:** <@${TARGET}>`);
     expect(json).toMatch(/embed\/avatars\/\d\.png/);
+  });
+
+  test("offers Suggested proof with no proof or suggestion-only proof", async () => {
+    const buttonFor = mock(async () => "proof/suggest/review/4822/log");
+    const empty = setup({ suggestionOffer: { buttonFor } });
+    const json = text(await empty.service.render(makeCase()));
+    expect(json).toContain('"label":"Suggested proof"');
+    expect(json).toContain('"custom_id":"proof/suggest/review/4822/log"');
+    const suggested = setup({
+      suggestionOffer: { buttonFor },
+      proofs: [
+        {
+          id: "1",
+          guildId: GUILD,
+          caseId: "1",
+          authorId: EXECUTOR,
+          createdAt: new Date(),
+          content: "Saved link",
+          attachments: [],
+          sourceMessageUrl: null,
+          sourceAuthorId: null,
+          sourceContent: null,
+          hostMessageId: null,
+          source: "suggestion",
+        },
+      ],
+    });
+    expect(text(await suggested.service.render(makeCase()))).toContain(
+      '"label":"Suggested proof"',
+    );
+
+    const withProof = setup({
+      suggestionOffer: { buttonFor },
+      proofs: [
+        {
+          id: "1",
+          guildId: GUILD,
+          caseId: "1",
+          authorId: EXECUTOR,
+          createdAt: new Date(),
+          content: "Reported in #reports",
+          attachments: [],
+          sourceMessageUrl: null,
+          sourceAuthorId: null,
+          sourceContent: null,
+          hostMessageId: null,
+          source: "button",
+        },
+      ],
+    });
+    buttonFor.mockClear();
+    expect(text(await withProof.service.render(makeCase()))).not.toContain(
+      "Suggested proof",
+    );
+    expect(buttonFor).not.toHaveBeenCalled();
+  });
+
+  test("a failing suggestion lookup only hides the button", async () => {
+    const { service } = setup({
+      suggestionOffer: {
+        buttonFor: mock(async () => {
+          throw new Error("db down");
+        }),
+      },
+    });
+    const json = text(await service.render(makeCase()));
+    expect(json).not.toContain("Suggested proof");
+    expect(json).toContain("Proof");
   });
 });
 
@@ -1091,6 +1163,61 @@ describe("ModLogMessageService.removeProof", () => {
     });
 
     expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("a suggested row shown on an entry that can't be loaded stays", async () => {
+    const { service, removeRow } = setup({
+      fetchError: new Error("Discord down"),
+      proofs: [
+        makeProof({
+          id: "1",
+          content: "https://x.com/a/status/1",
+          source: "suggestion",
+          hostMessageId: LOG_MESSAGE,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("an unhosted suggested row stays while the case's entry can't be loaded", async () => {
+    const { service, removeRow } = setup({
+      fetchError: new Error("Discord down"),
+      proofs: [
+        makeProof({
+          id: "1",
+          content: "https://x.com/a/status/1",
+          source: "suggestion",
+          hostMessageId: null,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(makeCase(), "1")).toBe("failed");
+
+    expect(removeRow).not.toHaveBeenCalled();
+  });
+
+  test("a suggested row stays while a recent case's entry may still be posting", async () => {
+    const posting = makeCase({ msgId: null, actionTime: new Date() });
+    const { service, removeRow } = setup({
+      findById: mock(async () => posting),
+      proofs: [
+        makeProof({
+          id: "1",
+          content: "https://x.com/a/status/1",
+          source: "suggestion",
+          hostMessageId: null,
+        }),
+      ],
+    });
+
+    expect(await service.removeProof(posting, "1")).toBe("failed");
 
     expect(removeRow).not.toHaveBeenCalled();
   });
@@ -1743,6 +1870,207 @@ describe("ModLogMessageService without waiting on the case lock", () => {
     await adoption;
     fetchSpy.mockReset();
     expect(posted.edit.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("ModLogMessageService.placeUnhostedText", () => {
+  const suggestions = () =>
+    ["a", "b", "c"].map((c, i) =>
+      makeProof({
+        id: String(i + 3),
+        content: c.repeat(900),
+        source: "suggestion",
+        batchId: "0b6a5c1e-5f0e-4c3a-9a57-3c1f0b8f6d21",
+      }),
+    );
+
+  test("a batch that overflows the entry moves the rest into replies", async () => {
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [...fullEntryProofs(), ...suggestions()],
+    });
+
+    expect(await service.placeUnhostedText(caseWith())).toBe("updated");
+
+    expect(updateHosting).toHaveBeenCalledTimes(3);
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "3", {
+      attachments: [],
+      hostMessageId: LOG_MESSAGE,
+    });
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "4", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "5", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    const replies = posted.reply.mock.calls.map((call) =>
+      payloadText(call[0] as never),
+    );
+    expect(replies.join()).toContain("b".repeat(900));
+    expect(replies.join()).toContain("c".repeat(900));
+
+    const entry = editPayload(posted);
+    expect(messageTextLength(entry)).toBeLessThanOrEqual(4000);
+    expect(payloadText(entry)).toContain("a".repeat(900));
+    expect(payloadText(entry)).not.toContain("b".repeat(900));
+    expect(payloadText(entry)).toContain("More proof in the reply below");
+  });
+
+  test("a row that fits only without the More proof line still ends up somewhere", async () => {
+    const onEntry = fullEntryProofs();
+    const base = messageTextLength(await setup().service.render(caseWith()));
+    const lineOf = (content: string) =>
+      proofEntryText(makeProof({ content }), { lock: "", attachment: "" })
+        .length + 1;
+    const used =
+      base + onEntry.reduce((n, p) => n + lineOf(p.content ?? ""), 0);
+    const limit = MESSAGE_TEXT_MAX_LENGTH - DELETE_DM_PROMPT_RESERVE;
+    const slack = 50;
+    const tight = "t".repeat(limit - used - slack - (lineOf("x") - 1));
+    expect(used + lineOf(tight)).toBe(limit - slack);
+
+    const rows = [
+      makeProof({ id: "3", content: tight, source: "suggestion" }),
+      makeProof({ id: "4", content: "b".repeat(900), source: "suggestion" }),
+    ];
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [...onEntry, ...rows],
+    });
+
+    expect(await service.placeUnhostedText(caseWith())).toBe("updated");
+
+    expect(updateHosting).toHaveBeenCalledTimes(2);
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "3", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "4", {
+      attachments: [],
+      hostMessageId: LOG_REPLY,
+    });
+    const entry = editPayload(posted);
+    expect(payloadText(entry)).not.toContain(tight);
+    expect(payloadText(entry)).toContain("More proof in the reply below");
+    expect(messageTextLength(entry)).toBeLessThanOrEqual(4000);
+  });
+
+  test("waits for a busy case instead of leaving the batch off", async () => {
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [...fullEntryProofs(), ...suggestions()],
+    });
+    let release: () => void = () => undefined;
+    const held = lockOf(service).run(
+      `${GUILD}:4822`,
+      () => new Promise<void>((resolve) => (release = resolve)),
+    );
+
+    const placing = service.placeUnhostedText(caseWith());
+    await sleep(5);
+    expect(posted.edit).not.toHaveBeenCalled();
+    release();
+    await held;
+
+    expect(await placing).toBe("updated");
+    expect(updateHosting).toHaveBeenCalledTimes(3);
+  });
+
+  test("a failed reply leaves the entry unedited", async () => {
+    const posted = v2Message(null);
+    posted.reply.mockRejectedValue(new Error("Missing Permissions"));
+    const { service } = setup({
+      posted,
+      proofs: [...fullEntryProofs(), ...suggestions()],
+    });
+
+    expect(await service.placeUnhostedText(caseWith())).toBe("failed");
+    expect(posted.edit).not.toHaveBeenCalled();
+  });
+
+  test("unhosted text rows that fit record the entry as their host", async () => {
+    const rows = [
+      makeProof({ id: "3", content: "short", source: "suggestion" }),
+      makeProof({ id: "9", content: "older unhosted row" }),
+      makeProof({ id: "10", attachments: ["https://x/a.png"] }),
+    ];
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({ posted, proofs: rows });
+
+    expect(await service.placeUnhostedText(caseWith())).toBe("updated");
+
+    expect(payloadText(editPayload(posted))).toContain("short");
+    expect(updateHosting).toHaveBeenCalledTimes(2);
+    for (const id of ["3", "9"]) {
+      expect(updateHosting).toHaveBeenCalledWith(GUILD, id, {
+        attachments: [],
+        hostMessageId: LOG_MESSAGE,
+      });
+    }
+  });
+
+  test("a failed entry edit records no host", async () => {
+    const posted = v2Message(null);
+    posted.edit.mockImplementation(async () => {
+      throw new Error("Discord down");
+    });
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [makeProof({ id: "3", content: "short", source: "suggestion" })],
+    });
+
+    expect(await service.placeUnhostedText(caseWith())).toBe("failed");
+    expect(updateHosting).not.toHaveBeenCalled();
+  });
+
+  test("an entry posted after the caller loaded the case still gets the rows", async () => {
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [makeProof({ id: "3", content: "short", source: "suggestion" })],
+      findById: mock(async () => caseWith()),
+    });
+
+    expect(await service.placeUnhostedText(caseWith({ msgId: null }))).toBe(
+      "updated",
+    );
+    expect(payloadText(editPayload(posted))).toContain("short");
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "3", {
+      attachments: [],
+      hostMessageId: LOG_MESSAGE,
+    });
+  });
+
+  test("waits for an entry that's still being posted", async () => {
+    const posting = caseWith({ msgId: null, actionTime: new Date() });
+    const findById = mock(async () => caseWith({ actionTime: new Date() }));
+    findById.mockResolvedValueOnce(posting);
+    const posted = v2Message(null);
+    const { service, updateHosting } = setup({
+      posted,
+      proofs: [makeProof({ id: "3", content: "short", source: "suggestion" })],
+      findById,
+    });
+
+    expect(await service.placeUnhostedText(posting)).toBe("updated");
+    expect(findById.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(payloadText(editPayload(posted))).toContain("short");
+    expect(updateHosting).toHaveBeenCalledWith(GUILD, "3", {
+      attachments: [],
+      hostMessageId: LOG_MESSAGE,
+    });
+  });
+
+  test("no entry yet reports why", async () => {
+    const { service } = setup();
+    expect(await service.placeUnhostedText(caseWith({ msgId: null }))).toBe(
+      "no_message",
+    );
   });
 });
 

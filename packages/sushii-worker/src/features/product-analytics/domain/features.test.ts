@@ -1,12 +1,14 @@
 import { Glob } from "bun";
 import { describe, expect, test } from "bun:test";
 
+import { featureForEvent } from "./ProductEvent";
 import {
   INTERNAL_HANDLERS,
   PRODUCT_FEATURES,
   STAFF_HANDLERS,
   audienceForHandler,
   featureForHandler,
+  unitsForFeature,
 } from "./features";
 
 const HANDLER_CLASS =
@@ -28,6 +30,29 @@ async function interactionHandlerClasses(): Promise<string[]> {
 }
 
 describe("product features", () => {
+  test("suggested proof events and handlers belong to a guild feature", () => {
+    for (const name of [
+      "proof_suggestion.shown",
+      "proof_suggestion.added",
+      "proof_suggestion.undone",
+    ] as const) {
+      expect(featureForEvent({ name, userId: "123", guildId: "456" })).toBe(
+        "proof-suggestions",
+      );
+    }
+    for (const handler of [
+      "ProofSuggestionButtonHandler",
+      "ProofSuggestionSelectHandler",
+    ]) {
+      expect(featureForHandler(handler)).toBe("proof-suggestions");
+      expect(audienceForHandler(handler)).toBe("staff");
+      expect(PRODUCT_FEATURES.moderation.handlers).not.toContain(handler);
+    }
+    expect(unitsForFeature("proof-suggestions")).toEqual(["guild"]);
+    expect(
+      featureForEvent({ name: "proof.added", userId: "123", guildId: "456" }),
+    ).toBe("moderation");
+  });
   test("every interaction handler belongs to a feature or is internal", async () => {
     const names = await interactionHandlerClasses();
     expect(names.length).toBeGreaterThan(50);

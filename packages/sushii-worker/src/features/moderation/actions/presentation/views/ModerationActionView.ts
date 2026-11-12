@@ -115,6 +115,8 @@ export const ACTION_RESPONSE_IDS = {
   confirm: 2013,
   proofSection: 2014,
   status: 2016,
+  suggestions: 2017,
+  suggestionsRow: 2018,
 } as const;
 
 /**
@@ -669,6 +671,11 @@ export interface ResponseBodyInput {
   modLogUrl?: string | null;
   savePrompt: boolean;
   mode: ResponseMode;
+  /**
+   * The suggested proof block (separator, text, buttons). Rebuilds copy it
+   * from the posted message while the case has no proof.
+   */
+  suggestions?: readonly APIComponentInContainer[];
 }
 
 interface AssembleInput extends ResponseBodyInput {
@@ -940,6 +947,13 @@ function assemble(
   const terminalComponents = terminal
     ? [separator(), text(ACTION_RESPONSE_IDS.status, terminal)]
     : [];
+  const suggestions = encoded
+    ? (body.suggestions ?? []).flatMap(
+        (c) =>
+          (copyComponent(c as unknown as RawComponent, disabled) ??
+            []) as unknown as APIComponentInContainer[],
+      )
+    : [];
 
   // Expiry, staleness and the Delete DM confirm add text later without a re-render.
   const confirmPrompt =
@@ -952,7 +966,13 @@ function assemble(
   const statusText = delivery.status.join("\n");
   const proofMin = proofIntro(body).length + 1 + OVERFLOW_LINE_MAX_LENGTH;
   const fixed =
-    textLength([details, ...controls, ...tail, ...terminalComponents]) +
+    textLength([
+      details,
+      ...controls,
+      ...suggestions,
+      ...tail,
+      ...terminalComponents,
+    ]) +
     reserve +
     reasonCore.length +
     (statusText ? statusText.length + 1 : 0) +
@@ -982,6 +1002,7 @@ function assemble(
       headerComponent,
       details,
       ...controls,
+      ...suggestions,
       ...tail,
       ...terminalComponents,
     ]) -
@@ -1007,6 +1028,7 @@ function assemble(
     separator(),
     proofSection,
     gallery,
+    ...suggestions,
     ...tail,
     ...terminalComponents,
   ].filter((c): c is APIComponentInContainer => c !== null);
@@ -1458,11 +1480,104 @@ export function rebuildActionResponse(
     }
   }
 
+  const suggestions =
+    body.suggestions ??
+    (body.proofs.every((proof) => proof.source === "suggestion")
+      ? postedSuggestionBlock(container)
+      : []);
+
   return message(
     assemble(container?.accent_color ?? undefined, header, details, {
       ...body,
       reasonNotes,
+      suggestions,
       dmTextIncluded: previous.dmTextIncluded,
+    }),
+  );
+}
+
+function isSuggestionPart(component: APIComponentInContainer): boolean {
+  return (
+    component.id === ACTION_RESPONSE_IDS.suggestions ||
+    component.id === ACTION_RESPONSE_IDS.suggestionsRow
+  );
+}
+
+/** The posted suggested proof block with the separator above it, or none. */
+function postedSuggestionBlock(
+  container: APIContainerComponent | null,
+): APIComponentInContainer[] {
+  const components = container?.components ?? [];
+  const start = components.findIndex(isSuggestionPart);
+  if (start === -1) {
+    return [];
+  }
+  const from =
+    start > 0 && components[start - 1].type === ComponentType.Separator
+      ? start - 1
+      : start;
+  return components
+    .slice(from)
+    .filter((c, i) => (from + i < start ? true : isSuggestionPart(c)));
+}
+
+/** Room kept for text added later without a re-render: the terminal line and the Delete DM prompt. */
+const LATER_TEXT_RESERVE = TERMINAL_LINE_MAX_LENGTH + 400;
+
+/**
+ * The posted response with the suggested proof block placed under the
+ * proof, replacing an older block. null when the response is done (expired
+ * or stale), already shows proof, or the block wouldn't fit.
+ */
+export function withSuggestionBlock(
+  posted: readonly APIMessageTopLevelComponent[],
+  block: readonly APIComponentInContainer[],
+): ActionResponseMessage | null {
+  const container = findContainer(posted);
+  const proofText = findProofText(container);
+  if (
+    !container ||
+    showsExpiredLine(posted) ||
+    !proofText ||
+    proofText.id !== PROOF_TEXT_ID_BASE
+  ) {
+    return null;
+  }
+
+  const old = new Set(postedSuggestionBlock(container));
+  const kept = container.components.filter((c) => !old.has(c));
+  const proofIndex = kept.findIndex(
+    (c) =>
+      c.id === ACTION_RESPONSE_IDS.proofSection ||
+      (c.type === ComponentType.TextDisplay && isProofTextId(c.id)),
+  );
+  if (proofIndex === -1) {
+    return null;
+  }
+  const insertAt =
+    kept[proofIndex + 1]?.id === ACTION_RESPONSE_IDS.media
+      ? proofIndex + 2
+      : proofIndex + 1;
+
+  const copies = (components: readonly APIComponentInContainer[]) =>
+    components.flatMap(
+      (c) =>
+        (copyComponent(c as unknown as RawComponent, false) ??
+          []) as unknown as APIComponentInContainer[],
+    );
+  const components = [
+    ...copies(kept.slice(0, insertAt)),
+    ...block,
+    ...copies(kept.slice(insertAt)),
+  ];
+  if (textLength(components) + LATER_TEXT_RESERVE > MESSAGE_TEXT_MAX_LENGTH) {
+    return null;
+  }
+
+  return message(
+    new ContainerBuilder({
+      accent_color: container.accent_color ?? undefined,
+      components,
     }),
   );
 }
@@ -1476,15 +1591,18 @@ function withId<T extends Record<string, unknown>>(
   return source.id === undefined ? copy : { ...copy, id: source.id };
 }
 
-/** The fields a button needs to be sent again, disabled. */
-function disabledButton(source: RawComponent): RawComponent {
+/** The fields a button needs to be sent again. */
+function copyButton(source: RawComponent, disabled: boolean): RawComponent {
   const copy: RawComponent = { type: source.type, style: source.style };
   for (const key of ["label", "emoji", "custom_id", "url", "sku_id"]) {
     if (source[key] !== undefined) {
       copy[key] = source[key];
     }
   }
-  return withId(source, { ...copy, disabled: true });
+  if (disabled || source.disabled) {
+    copy.disabled = true;
+  }
+  return withId(source, copy);
 }
 
 function mediaOf(source: unknown): { url: string } {
@@ -1496,6 +1614,13 @@ function mediaOf(source: unknown): { url: string } {
  * without Discord's extra fields such as media proxy URLs and sizes.
  */
 function disabledCopy(source: RawComponent): RawComponent | null {
+  return copyComponent(source, true);
+}
+
+function copyComponent(
+  source: RawComponent,
+  disabled: boolean,
+): RawComponent | null {
   switch (source.type) {
     case ComponentType.TextDisplay:
       return withId(source, { type: source.type, content: source.content });
@@ -1519,11 +1644,11 @@ function disabledCopy(source: RawComponent): RawComponent | null {
       return withId(source, {
         type: source.type,
         components: (source.components as RawComponent[]).flatMap(
-          (c) => disabledCopy(c) ?? [],
+          (c) => copyComponent(c, disabled) ?? [],
         ),
         accessory:
           accessory.type === ComponentType.Button
-            ? disabledButton(accessory)
+            ? copyButton(accessory, disabled)
             : withId(accessory, {
                 type: accessory.type,
                 media: mediaOf(accessory.media),
@@ -1535,9 +1660,9 @@ function disabledCopy(source: RawComponent): RawComponent | null {
         type: source.type,
         components: (source.components as RawComponent[]).map((c) => {
           if (c.type === ComponentType.Button) {
-            return disabledButton(c);
+            return copyButton(c, disabled);
           }
-          return { ...c, disabled: true };
+          return disabled ? { ...c, disabled: true } : { ...c };
         }),
       });
     default:

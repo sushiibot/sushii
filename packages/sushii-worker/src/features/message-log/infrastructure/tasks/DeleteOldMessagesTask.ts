@@ -6,6 +6,7 @@ import { newModuleLogger } from "@/shared/infrastructure/logger";
 import { AbstractBackgroundTask } from "@/shared/infrastructure/tasks/AbstractBackgroundTask";
 
 import type { MessageLogEventRepository } from "../../domain/repositories/MessageLogEventRepository";
+import type { MessageLogPostRepository } from "../../domain/repositories/MessageLogPostRepository";
 
 const RETAIN_DURATION = dayjs.duration({
   days: 7,
@@ -19,6 +20,7 @@ export class DeleteOldMessagesTask extends AbstractBackgroundTask {
     client: Client,
     deploymentService: DeploymentService,
     private readonly messageLogEventRepository: MessageLogEventRepository,
+    private readonly messageLogPostRepository: MessageLogPostRepository,
   ) {
     super(client, deploymentService, newModuleLogger("DeleteOldMessagesTask"));
   }
@@ -28,10 +30,13 @@ export class DeleteOldMessagesTask extends AbstractBackgroundTask {
 
     const deleteCount =
       await this.messageLogEventRepository.deleteMessagesBefore(cutoffDate);
+    const postMappingDeleteCount =
+      await this.messageLogPostRepository.deleteBefore(cutoffDate);
 
     this.logger.info(
       {
         deleteCount,
+        postMappingDeleteCount,
         cutoffDate,
       },
       "Deleted old messages",

@@ -9,12 +9,15 @@ import type {
   GuildMessageCreatePayload,
   GuildMessageUpdatePayload,
 } from "../domain/types/GuildMessagePayloads";
+import type { MessageLogMetrics } from "../infrastructure/MessageLogMetrics";
 
 export class MessageCacheService {
   constructor(
     private readonly messageLogEventRepository: MessageLogEventRepository,
     private readonly messageLogBlockRepository: MessageLogBlockRepository,
     private readonly guildConfigRepository: GuildConfigRepository,
+    private readonly getSelfUserId: () => string | undefined,
+    private readonly metrics: MessageLogMetrics,
     private readonly logger: Logger,
     private readonly shouldCacheForScreening?: (
       guildId: string,
@@ -24,20 +27,36 @@ export class MessageCacheService {
   async handleRawMessageCreate(
     payload: GuildMessageCreatePayload,
   ): Promise<void> {
-    await this.handleRawMessage(payload);
+    await this.handleRawMessage(payload, "create");
   }
 
   async handleRawMessageUpdate(
     payload: GuildMessageUpdatePayload,
   ): Promise<void> {
-    await this.handleRawMessage(payload);
+    await this.handleRawMessage(payload, "update");
+  }
+
+  // MESSAGE_UPDATE carries the full message, so app-reply edits keep their interaction_metadata.
+  private shouldSkipAuthor(
+    payload: GuildMessageCreatePayload | GuildMessageUpdatePayload,
+  ): boolean {
+    if (!payload.author.bot) {
+      return false;
+    }
+
+    if (!payload.interaction_metadata) {
+      return true;
+    }
+
+    const selfUserId = this.getSelfUserId();
+    return !selfUserId || payload.author.id === selfUserId;
   }
 
   private async handleRawMessage(
     payload: GuildMessageCreatePayload | GuildMessageUpdatePayload,
+    kind: "create" | "update",
   ): Promise<void> {
-    // Ignore bots
-    if (payload.author.bot) {
+    if (this.shouldSkipAuthor(payload)) {
       return;
     }
 
@@ -56,7 +75,6 @@ export class MessageCacheService {
       return;
     }
 
-    // Check if channel is blocked
     const channelBlock =
       await this.messageLogBlockRepository.findByGuildAndChannel(
         payload.guild_id,
@@ -69,7 +87,17 @@ export class MessageCacheService {
 
     const messageLogEvent = MessageLogEvent.fromRawMessageCreate(payload);
 
+    // Bot edits must not resurrect uncached or expired rows, and most are no-op refreshes.
+    if (kind === "update" && payload.author.bot) {
+      await this.messageLogEventRepository.updateIfChanged(messageLogEvent);
+      return;
+    }
+
     await this.messageLogEventRepository.save(messageLogEvent);
+
+    if (kind === "create" && payload.author.bot) {
+      this.metrics.interactionCached.add(1);
+    }
 
     this.logger.trace(
       {

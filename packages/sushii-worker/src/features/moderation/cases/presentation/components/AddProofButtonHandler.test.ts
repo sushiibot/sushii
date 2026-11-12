@@ -16,6 +16,15 @@ import {
 import { buildActionResultMessage } from "@/features/moderation/actions/presentation/views/ModerationActionView";
 import { HISTORY_ACTION_EMOJIS } from "@/features/moderation/cases/presentation/views/HistoryView";
 import { buildCaseViewMessages } from "@/features/moderation/mod-view/presentation/views/CaseView";
+import type { ProofSuggestion } from "@/features/moderation/proof-suggestions/domain/ProofSuggestion";
+import { NOOP_PROOF_SUGGESTION_METRICS } from "@/features/moderation/proof-suggestions/domain/ProofSuggestionMetrics";
+import { fingerprintSuggestions } from "@/features/moderation/proof-suggestions/domain/fingerprint";
+import { SuggestionFlow } from "@/features/moderation/proof-suggestions/presentation/SuggestionFlow";
+import { orderSuggestions } from "@/features/moderation/proof-suggestions/presentation/suggestionText";
+import {
+  deletedSuggestion,
+  recentSuggestion,
+} from "@/features/moderation/proof-suggestions/presentation/testFixtures";
 import type { CaseProof } from "@/features/moderation/shared/domain/entities/CaseProof";
 import { BanAction } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
@@ -87,6 +96,26 @@ function responseMessage(cases: ModerationCase[] = [makeCase()]) {
   return asMessage(RESPONSE_ID, message.components);
 }
 
+/** A response whose posted suggestion block was built from the view with this fingerprint. */
+function responseMessageWithBlock(fingerprint: string) {
+  const base = responseMessage();
+  const addAll = {
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 3,
+        label: "Add all 2",
+        custom_id: `proof/suggest/add/4822/${fingerprint}`,
+      },
+    ],
+  };
+  return {
+    ...base,
+    components: [...base.components, { toJSON: () => addAll }],
+  };
+}
+
 function caseViewMessage() {
   const [first] = buildCaseViewMessages(
     makeCase(),
@@ -97,7 +126,11 @@ function caseViewMessage() {
   return asMessage("700000000000000000", first.components);
 }
 
-function fields(values: { text?: string; files?: unknown[] }) {
+function fields(values: {
+  text?: string;
+  files?: unknown[];
+  suggested?: string[];
+}) {
   const map = new Map<string, unknown>();
   if (values.text !== undefined) {
     map.set(ADD_PROOF_TEXT_ID, { type: ComponentType.TextInput });
@@ -105,11 +138,15 @@ function fields(values: { text?: string; files?: unknown[] }) {
   if (values.files !== undefined) {
     map.set(ADD_PROOF_FILES_ID, { type: ComponentType.FileUpload });
   }
+  if (values.suggested !== undefined) {
+    map.set("suggested", { type: ComponentType.CheckboxGroup });
+  }
   return {
     fields: map,
     getTextInputValue: () => values.text ?? "",
     getUploadedFiles: () =>
       new Map((values.files ?? []).map((f, i) => [`${i}`, f])),
+    getCheckboxGroup: () => values.suggested ?? [],
   };
 }
 
@@ -117,8 +154,11 @@ function setup(options: {
   message: ReturnType<typeof responseMessage>;
   existingFiles?: number;
   result?: Awaited<ReturnType<CaseProofService["add"]>>;
-  submitted?: { text?: string; files?: unknown[] };
+  submitted?: { text?: string; files?: unknown[]; suggested?: string[] };
   now?: number;
+  suggestionFlow?: SuggestionFlow;
+  /** Proof entries the case already has. */
+  entries?: number;
 }) {
   const cases = [makeCase()];
   const add = mock(
@@ -139,7 +179,13 @@ function setup(options: {
       countsByCases: mock(
         async () =>
           new Map([
-            ["4822", { entries: 1, files: options.existingFiles ?? 0 }],
+            [
+              "4822",
+              {
+                entries: options.entries ?? 1,
+                files: options.existingFiles ?? 0,
+              },
+            ],
           ]),
       ),
       listByCases,
@@ -151,14 +197,20 @@ function setup(options: {
     caseProofService: { add },
     emojiRepository: { getEmojis: mock(async () => makeAllEmojis()) },
     promptOffer: { offer: mock(async () => undefined) },
+    suggestionFlow: options.suggestionFlow,
     logger,
     now: () => options.now ?? CREATED + 60_000,
+  };
+  const member = {
+    id: MOD,
+    guild: { channels: { resolve: () => ({ name: "general" }) } },
   };
   const handler = new AddProofButtonHandler(deps as never);
 
   const submission = {
     customId: "",
     user: { id: MOD },
+    member,
     guildId: GUILD,
     message: options.message,
     fields: fields(options.submitted ?? { text: "Reported in #reports" }),
@@ -174,6 +226,7 @@ function setup(options: {
     customId: "caseProof/add/4822",
     guildId: GUILD,
     user: { id: MOD },
+    member,
     message: options.message,
     inCachedGuild: () => true,
     memberPermissions: { any: () => true },
@@ -230,6 +283,7 @@ describe("Add proof form", () => {
     expect(readAddProofFields(fields({}) as never)).toEqual({
       content: null,
       files: [],
+      suggested: [],
     });
     expect(
       readAddProofFields(
@@ -255,6 +309,7 @@ describe("Add proof form", () => {
           contentType: "image/png",
         },
       ],
+      suggested: [],
     });
   });
 });
@@ -484,5 +539,222 @@ describe("addProofOrigin", () => {
     expect(
       addProofOrigin(asMessage("1", []), [makeCase({ userId: TARGET })]),
     ).toBe("other");
+  });
+});
+
+function suggestionFlow(options: {
+  proofSource?: "suggestion" | "button";
+  flag?: boolean;
+  computes?: ProofSuggestion[][];
+}) {
+  const computes = [...(options.computes ?? [SUGGESTED])];
+  let last = computes[0] ?? [];
+  const findWithAccess = mock(async () => {
+    last = computes.shift() ?? last;
+    return last;
+  });
+  const addSuggestions = mock(async () =>
+    Ok({
+      batchId: "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+      proofs: [],
+      case: makeCase(),
+      shown: "all" as const,
+    }),
+  );
+  const shown: string[] = [];
+  const flow = new SuggestionFlow({
+    caseProofRepository: {
+      listByCase: async () =>
+        options.proofSource
+          ? [{ source: options.proofSource, content: null } as never]
+          : [],
+    },
+    flags: { isEnabled: mock(async () => options.flag ?? true) },
+    suggestions: {
+      findWithAccess,
+      resolveLinksMany: mock(async (chosen: ProofSuggestion[]) =>
+        chosen.map((s) => ({
+          links: [
+            {
+              url: `https://discord.com/channels/${GUILD}/${s.channelId}/${s.messageIds[0]}`,
+              source: "message" as const,
+              channelId: s.channelId,
+              messageIds: [s.messageIds[0]],
+            },
+          ],
+          pending: [],
+          skipped: [],
+        })),
+      ),
+      toPreviewRequestWithAccess: mock(async () => null),
+    },
+    renderer: { render: mock(async () => ({}) as never) },
+    caseProofService: { addSuggestions, undoBatch: mock() } as never,
+    modLogRepository: { findByIds: mock(async () => [makeCase()]) },
+    metrics: {
+      ...NOOP_PROOF_SUGGESTION_METRICS,
+      recordShown: (s) => shown.push(s),
+    },
+    logger: pino({ level: "silent" }),
+  });
+  return { flow, findWithAccess, addSuggestions, shown };
+}
+
+const SUGGESTED = orderSuggestions([deletedSuggestion(), recentSuggestion()]);
+const SUGGESTED_FP = fingerprintSuggestions(SUGGESTED);
+
+describe("Add proof form with suggested proof", () => {
+  test("still offers suggestions with suggestion-only proof", async () => {
+    const s = suggestionFlow({ proofSource: "suggestion" });
+    const ctx = setup({
+      message: responseMessage(),
+      suggestionFlow: s.flow,
+      entries: 1,
+    });
+    await ctx.run();
+    expect(modalJson(ctx)).toContain('"type":22');
+  });
+  test("lists suggestions as checkboxes above Details", async () => {
+    const s = suggestionFlow({});
+    const ctx = setup({
+      message: responseMessage(),
+      suggestionFlow: s.flow,
+      entries: 0,
+    });
+    await ctx.run();
+
+    const [modal] = ctx.interaction.showModal.mock.calls[0] as [
+      { toJSON(): { custom_id: string } },
+    ];
+    expect(modal.toJSON().custom_id).toBe(`caseProof/form/555/${SUGGESTED_FP}`);
+    const json = modalJson(ctx);
+    expect(json).toContain('"type":22');
+    expect(json).toContain("🗑️ 4 deleted messages · #general");
+    expect(json.indexOf('"type":22')).toBeLessThan(
+      json.indexOf('"custom_id":"text"'),
+    );
+    expect(s.shown).toEqual(["modal"]);
+  });
+
+  test("unchanged when the flag is off or the case has proof", async () => {
+    const off = suggestionFlow({ flag: false });
+    const offCtx = setup({
+      message: responseMessage(),
+      suggestionFlow: off.flow,
+      entries: 0,
+    });
+    await offCtx.run();
+    expect(modalJson(offCtx)).not.toContain('"type":22');
+    expect(off.findWithAccess).not.toHaveBeenCalled();
+
+    const proven = suggestionFlow({ proofSource: "button" });
+    const provenCtx = setup({
+      message: responseMessage(),
+      suggestionFlow: proven.flow,
+      entries: 1,
+    });
+    await provenCtx.run();
+    expect(modalJson(provenCtx)).not.toContain('"type":22');
+    expect(proven.findWithAccess).not.toHaveBeenCalled();
+  });
+
+  test("ticked suggestions alone are a valid submit", async () => {
+    const s = suggestionFlow({});
+    const ctx = setup({
+      message: responseMessage(),
+      suggestionFlow: s.flow,
+      entries: 0,
+      submitted: { text: "", suggested: ["0"] },
+    });
+    await ctx.run();
+
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(s.addSuggestions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caseId: "4822",
+        exceptMessageId: RESPONSE_ID,
+      }),
+    );
+    expect(ctx.submission.editReply).toHaveBeenCalledTimes(1);
+    const note = JSON.stringify(ctx.submission.followUp.mock.calls[0][0]);
+    expect(note).toContain(
+      "✅ Added **1 suggestion** (1 link) to **Case #4822**",
+    );
+    expect(note).toContain("proof/suggest/undo/4822/");
+  });
+
+  for (const remaining of [[], [recentSuggestion()]]) {
+    test(`suggestion-only submit refreshes the response with ${remaining.length} remaining`, async () => {
+      const s = suggestionFlow({ computes: [SUGGESTED, SUGGESTED, remaining] });
+      const ctx = setup({
+        message: responseMessageWithBlock(SUGGESTED_FP),
+        suggestionFlow: s.flow,
+        entries: 0,
+        submitted: { text: "", suggested: ["0", "1"] },
+      });
+      await ctx.run();
+      expect(s.findWithAccess).toHaveBeenCalledTimes(3);
+      const response = JSON.stringify(
+        ctx.submission.editReply.mock.calls[0][0],
+      );
+      if (remaining.length === 0) {
+        expect(response).not.toContain("proof/suggest/");
+      } else {
+        expect(response).toContain("Add all 1");
+        expect(response).toContain(fingerprintSuggestions(remaining));
+      }
+    });
+  }
+
+  test("a submit from a different view drops the public block instead of rebuilding it", async () => {
+    const s = suggestionFlow({
+      computes: [SUGGESTED, SUGGESTED, [recentSuggestion()]],
+    });
+    const ctx = setup({
+      message: responseMessageWithBlock("ffffffff"),
+      suggestionFlow: s.flow,
+      entries: 0,
+      submitted: { text: "", suggested: ["0", "1"] },
+    });
+    await ctx.run();
+
+    const response = JSON.stringify(ctx.submission.editReply.mock.calls[0][0]);
+    expect(response).not.toContain("proof/suggest/");
+  });
+
+  test("typed proof and ticked suggestions are both saved", async () => {
+    const s = suggestionFlow({});
+    const ctx = setup({
+      message: responseMessage(),
+      suggestionFlow: s.flow,
+      entries: 0,
+      submitted: { text: "Reported in #reports", suggested: ["0", "1"] },
+    });
+    await ctx.run();
+
+    expect(ctx.add).toHaveBeenCalledTimes(1);
+    expect(s.addSuggestions).toHaveBeenCalledTimes(1);
+    expect(ctx.submission.editReply).toHaveBeenCalledTimes(1);
+  });
+
+  test("a changed set saves nothing and quotes the typed text back", async () => {
+    const s = suggestionFlow({
+      computes: [SUGGESTED, [deletedSuggestion()]],
+    });
+    const ctx = setup({
+      message: responseMessage(),
+      suggestionFlow: s.flow,
+      entries: 0,
+      submitted: { text: "Reported in #reports", suggested: ["0"] },
+    });
+    await ctx.run();
+
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(s.addSuggestions).not.toHaveBeenCalled();
+    const note = JSON.stringify(ctx.submission.followUp.mock.calls[0][0]);
+    expect(note).toContain(
+      "The suggestions changed. Open Add proof again to see the current ones.",
+    );
+    expect(note).toContain("Reported in #reports");
   });
 });

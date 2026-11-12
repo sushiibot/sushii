@@ -7,6 +7,7 @@ import {
   makeCase,
 } from "@/features/moderation/actions/presentation/response/testFixtures";
 import type {
+  ModLogRefreshOutcome,
   ProofHostResult,
   ProofRemoveResult,
 } from "@/features/moderation/shared/application/ModLogMessageService";
@@ -14,6 +15,7 @@ import type {
   CaseProof,
   NewCaseProof,
 } from "@/features/moderation/shared/domain/entities/CaseProof";
+import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 
 import { type AddProofInput, CaseProofService } from "./CaseProofService";
 
@@ -47,6 +49,7 @@ function setup(
     existingFiles?: number;
     storedProof?: CaseProof | null;
     removed?: ProofRemoveResult;
+    batch?: CaseProof[];
     host?: (caseId: string) => ProofHostResult;
     download?: Awaited<
       ReturnType<
@@ -101,7 +104,7 @@ function setup(
               hostMessageId: `msg-${moderationCase.caseId}`,
             },
   );
-  const markStale = mock(async () => undefined);
+  const markStale = mock(async (): Promise<void> => undefined);
   const proofChanged = mock(
     (_guildId: string, _caseIds: string[]) => undefined,
   );
@@ -114,6 +117,13 @@ function setup(
   const removeProof = mock(
     async (): Promise<ProofRemoveResult> => options.removed ?? "removed",
   );
+  const listByBatch = mock(
+    async (_g: string, _c: string, _b: string): Promise<CaseProof[]> =>
+      options.batch ?? [],
+  );
+  const placeUnhostedText = mock(
+    async (_case: ModerationCase): Promise<ModLogRefreshOutcome> => "updated",
+  );
   const download = mock(
     async () =>
       options.download ?? {
@@ -125,8 +135,8 @@ function setup(
   const logger = pino({ level: "silent" });
   const service = new CaseProofService({
     modLogRepository: { findByIds },
-    caseProofRepository: { add, countsByCases, findById },
-    modLogMessageService: { hostProof, removeProof },
+    caseProofRepository: { add, countsByCases, findById, listByBatch },
+    modLogMessageService: { hostProof, removeProof, placeUnhostedText },
     responseRegistry: { markStale },
     proofChangeListener: { proofChanged },
     metrics: { recordProofAdded, recordProofUndone },
@@ -157,6 +167,8 @@ function setup(
     recordProofUndone,
     findById,
     removeProof,
+    listByBatch,
+    placeUnhostedText,
     download,
     logger,
   };
@@ -524,6 +536,239 @@ describe("CaseProofService.undo", () => {
     const result = await ctx.service.undo(input);
 
     expect(result.val).toBe("gone");
+    expect(ctx.markStale).not.toHaveBeenCalled();
+  });
+});
+
+describe("CaseProofService.addSuggestions", () => {
+  const input = {
+    guildId: GUILD,
+    caseId: "4822",
+    authorId: MOD,
+    items: [
+      {
+        content: "🗑️ Deleted in #general · https://discord.com/channels/1/2/3",
+      },
+      { content: "🛡️ AutoMod alert · https://discord.com/channels/1/4/5" },
+    ],
+  };
+
+  test("no items", async () => {
+    const ctx = setup();
+    const result = await ctx.service.addSuggestions({ ...input, items: [] });
+    expect(result.val).toBe("empty");
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("suggestion", "empty");
+  });
+
+  test("a blank item", async () => {
+    const ctx = setup();
+    const result = await ctx.service.addSuggestions({
+      ...input,
+      items: [...input.items, { content: "  " }],
+    });
+    expect(result.val).toBe("empty");
+    expect(ctx.add).not.toHaveBeenCalled();
+  });
+
+  test("an item over 1000 characters", async () => {
+    const ctx = setup();
+    const result = await ctx.service.addSuggestions({
+      ...input,
+      items: [{ content: "a".repeat(1001) }],
+    });
+    expect(result.val).toBe("content_too_long");
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith(
+      "suggestion",
+      "content_too_long",
+    );
+  });
+
+  test("a missing case", async () => {
+    const ctx = setup({ caseIds: [] });
+    const result = await ctx.service.addSuggestions(input);
+    expect(result.val).toBe("case_not_found");
+    expect(ctx.add).not.toHaveBeenCalled();
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith(
+      "suggestion",
+      "cases_not_found",
+    );
+  });
+
+  test("stores one batch and places it on the entry once", async () => {
+    const ctx = setup();
+    const result = await ctx.service.addSuggestions({
+      ...input,
+      exceptMessageId: "77",
+    });
+
+    expect(result.ok).toBe(true);
+    const { batchId, proofs, shown } = result.unwrap();
+    expect(shown).toBe("all");
+    expect(proofs).toHaveLength(2);
+    expect(proofs.every((p) => p.batchId === batchId)).toBe(true);
+    expect(proofs.every((p) => p.source === "suggestion")).toBe(true);
+    expect(proofs.every((p) => p.attachments.length === 0)).toBe(true);
+    expect(ctx.add).toHaveBeenCalledTimes(1);
+    expect(ctx.hostProof).not.toHaveBeenCalled();
+    expect(ctx.placeUnhostedText).toHaveBeenCalledTimes(1);
+    expect(ctx.markStale).toHaveBeenCalledWith(GUILD, ["4822"], {
+      exceptMessageId: "77",
+    });
+    expect(ctx.proofChanged).toHaveBeenCalledWith(GUILD, ["4822"]);
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("suggestion", "ok");
+  });
+
+  test("a placement that throws returns the batch as not shown", async () => {
+    const ctx = setup();
+    const error = spyOn(ctx.logger, "error");
+    ctx.placeUnhostedText.mockImplementation(async () => {
+      throw new Error("db down");
+    });
+
+    const result = await ctx.service.addSuggestions(input);
+
+    expect(result.unwrap().shown).toBe("not_shown");
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(ctx.markStale).toHaveBeenCalled();
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith(
+      "suggestion",
+      "not_shown",
+    );
+  });
+
+  test.each([
+    ["failed", "not_shown", "not_shown"],
+    ["no_message", "not_shown", "not_shown"],
+    ["not_configured", "not_shown", "not_shown"],
+    ["pending", "pending", "entry_pending"],
+  ] as const)("a %s placement returns %s", async (placed, shown, outcome) => {
+    const ctx = setup();
+    ctx.placeUnhostedText.mockImplementation(async () => placed);
+
+    const result = await ctx.service.addSuggestions(input);
+
+    expect(result.unwrap().shown).toBe(shown);
+    expect(ctx.recordProofAdded).toHaveBeenCalledWith("suggestion", outcome);
+  });
+});
+
+describe("CaseProofService.undoBatch", () => {
+  const BATCH_ID = "0b6a5c1e-5f0e-4c3a-9a57-3c1f0b8f6d21";
+  const batchRow = (id: string, extra: Partial<CaseProof> = {}): CaseProof => ({
+    ...UNDO_PROOF,
+    id,
+    attachments: [],
+    hostMessageId: null,
+    content: "🗑️ Deleted · https://discord.com/channels/1/2/3",
+    source: "suggestion",
+    batchId: BATCH_ID,
+    ...extra,
+  });
+  const input = {
+    guildId: GUILD,
+    caseId: "4822",
+    batchId: BATCH_ID,
+    actorId: MOD,
+  };
+
+  test("removes every row in the batch", async () => {
+    const ctx = setup({ batch: [batchRow("1"), batchRow("2")] });
+
+    const result = await ctx.service.undoBatch(input);
+
+    expect(result.ok).toBe(true);
+    expect(ctx.listByBatch).toHaveBeenCalledWith(GUILD, "4822", BATCH_ID);
+    expect(ctx.removeProof).toHaveBeenCalledTimes(2);
+    expect(ctx.markStale).toHaveBeenCalledTimes(1);
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("ok");
+  });
+
+  test("an empty batch is gone", async () => {
+    const ctx = setup({ batch: [] });
+    const result = await ctx.service.undoBatch(input);
+    expect(result.val).toEqual({ kind: "gone" });
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("gone");
+  });
+
+  test("another mod's batch is refused", async () => {
+    const ctx = setup({ batch: [batchRow("1"), batchRow("2")] });
+    const result = await ctx.service.undoBatch({ ...input, actorId: "999" });
+    expect(result.val).toEqual({ kind: "not_allowed" });
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+  });
+
+  test("a non-suggestion row in the batch refuses the whole undo", async () => {
+    const ctx = setup({
+      batch: [batchRow("1"), batchRow("2", { source: "button" })],
+    });
+    const result = await ctx.service.undoBatch(input);
+    expect(result.val).toEqual({ kind: "not_allowed" });
+    expect(ctx.removeProof).not.toHaveBeenCalled();
+  });
+
+  test("stops at the first row it can't remove and reports counts", async () => {
+    const ctx = setup({
+      batch: [batchRow("1"), batchRow("2"), batchRow("3")],
+    });
+    ctx.removeProof
+      .mockImplementationOnce(async () => "removed")
+      .mockImplementationOnce(async () => "failed");
+
+    const result = await ctx.service.undoBatch(input);
+
+    expect(result.val).toEqual({ kind: "failed", removed: 1, remaining: 2 });
+    expect(ctx.removeProof).toHaveBeenCalledTimes(2);
+    expect(ctx.markStale).toHaveBeenCalledTimes(1);
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("failed");
+  });
+
+  test("a removal that throws still marks what was removed stale", async () => {
+    const ctx = setup({ batch: [batchRow("1"), batchRow("2")] });
+    ctx.removeProof
+      .mockImplementationOnce(async () => "removed")
+      .mockImplementationOnce(async () => {
+        throw new Error("db down");
+      });
+
+    await expect(ctx.service.undoBatch(input)).rejects.toThrow("db down");
+    expect(ctx.markStale).toHaveBeenCalledTimes(1);
+    expect(ctx.proofChanged).toHaveBeenCalledWith(GUILD, ["4822"]);
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("failed");
+  });
+
+  test("a failing stale step doesn't hide the removal error", async () => {
+    const ctx = setup({ batch: [batchRow("1"), batchRow("2")] });
+    ctx.removeProof
+      .mockImplementationOnce(async () => "removed")
+      .mockImplementationOnce(async () => {
+        throw new Error("db down");
+      });
+    ctx.markStale.mockImplementation(async () => {
+      throw new Error("registry down");
+    });
+
+    await expect(ctx.service.undoBatch(input)).rejects.toThrow("db down");
+  });
+
+  test("rows removed earlier with the rest removed now is ok", async () => {
+    const ctx = setup({ batch: [batchRow("1"), batchRow("2")] });
+    ctx.removeProof
+      .mockImplementationOnce(async () => "already_removed")
+      .mockImplementationOnce(async () => "removed");
+
+    const result = await ctx.service.undoBatch(input);
+
+    expect(result.ok).toBe(true);
+    expect(ctx.markStale).toHaveBeenCalledTimes(1);
+    expect(ctx.recordProofUndone).toHaveBeenCalledWith("ok");
+  });
+
+  test("rows all removed by someone else is gone", async () => {
+    const ctx = setup({ batch: [batchRow("1")], removed: "already_removed" });
+    const result = await ctx.service.undoBatch(input);
+    expect(result.val).toEqual({ kind: "gone" });
     expect(ctx.markStale).not.toHaveBeenCalled();
   });
 });

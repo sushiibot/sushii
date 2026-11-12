@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 
+import { ResponseSuggestions } from "@/features/moderation/proof-suggestions/presentation/ResponseSuggestions";
 import { COMMAND_CONFIGS } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
 import type {
   ButtonHandler,
@@ -23,6 +24,7 @@ export function createActionResponseHandlers(
   const scheduleExpiry = createResponseExpiryScheduler(actionResponseRegistry, {
     resolveModLogUrl: createModLogUrlResolver(services),
   });
+  const responseSuggestions = new ResponseSuggestions(services.suggestionFlow);
   const commands: SlashCommandHandler[] = Object.values(COMMAND_CONFIGS).map(
     (config) =>
       new ModerationCommand(
@@ -36,6 +38,7 @@ export function createActionResponseHandlers(
         services.promptOffer,
         scheduleExpiry,
         services.moderationMetrics,
+        responseSuggestions,
       ),
   );
 

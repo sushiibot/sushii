@@ -162,7 +162,9 @@ export class BanAction extends ModerationAction {
       }
     }
 
-    const secondsValidation = validateDeleteMessageSeconds(this._deleteMessageSeconds);
+    const secondsValidation = validateDeleteMessageSeconds(
+      this._deleteMessageSeconds,
+    );
     if (!secondsValidation.ok) {
       return secondsValidation;
     }
@@ -308,7 +310,9 @@ export class SoftbanAction extends ModerationAction {
       return basicValidation;
     }
 
-    const secondsValidation = validateDeleteMessageSeconds(this._deleteMessageSeconds);
+    const secondsValidation = validateDeleteMessageSeconds(
+      this._deleteMessageSeconds,
+    );
     if (!secondsValidation.ok) {
       return secondsValidation;
     }
@@ -454,4 +458,20 @@ export class NoteAction extends ModerationAction {
   validate(): Result<void, string> {
     return Ok.EMPTY;
   }
+}
+
+/** The message-deletion window Discord is asked to apply, or null for actions that never delete. */
+export function purgeWindowSeconds(action: ModerationAction): number | null {
+  if (action.isBanAction()) {
+    return (
+      action.deleteMessageSeconds ?? (action.deleteMessageDays ?? 0) * 86_400
+    );
+  }
+  if (action.isTempBanAction()) {
+    return (action.deleteMessageDays ?? 0) * 86_400;
+  }
+  if (action.isSoftbanAction()) {
+    return action.deleteMessageSeconds;
+  }
+  return null;
 }

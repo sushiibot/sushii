@@ -8,6 +8,11 @@ import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { ExpandResult } from "@/features/moderation/reason-templates/domain/ReasonExpander";
+import {
+  BanAction,
+  KickAction,
+  SoftbanAction,
+} from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import { ActionType } from "@/features/moderation/shared/domain/value-objects/ActionType";
 import { COMMAND_CONFIGS } from "@/features/moderation/shared/presentation/commands/ModerationCommandConstants";
@@ -22,7 +27,11 @@ import {
   makeTarget,
   makeUser,
 } from "../response/testFixtures";
-import { ModerationCommand, expandedTooLongMessage } from "./ModerationCommand";
+import {
+  ModerationCommand,
+  actionPurgeSeconds,
+  expandedTooLongMessage,
+} from "./ModerationCommand";
 
 function expand(text: string, extra: Partial<ExpandResult> = {}): ExpandResult {
   return {
@@ -80,6 +89,7 @@ function setup(options: {
   const shouldPromptSave = mock(async () => false);
   const scheduleExpiry = mock(() => undefined);
   const offer = mock(async () => undefined);
+  const attach = mock(async (_input: unknown) => undefined);
   const metrics = {
     recordReasonResolved: mock(),
     recordSavePrompt: mock(),
@@ -98,6 +108,7 @@ function setup(options: {
     { offer },
     scheduleExpiry,
     metrics,
+    { attach },
   );
 
   const interaction = {
@@ -129,8 +140,81 @@ function setup(options: {
     scheduleExpiry,
     metrics,
     offer,
+    attach,
   };
 }
+
+describe("ModerationCommand suggested proof", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test("asks for suggestions after a single-target response is posted", async () => {
+    const ctx = setup({ strings: { users: TARGET }, expansion: null });
+    await ctx.run();
+
+    expect(ctx.attach).toHaveBeenCalledTimes(1);
+    expect(ctx.attach.mock.calls[0][0]).toMatchObject({
+      interaction: ctx.interaction,
+      purgeWindowSeconds: 0,
+    });
+    expect(ctx.attach.mock.invocationCallOrder[0]).toBeGreaterThan(
+      ctx.interaction.editReply.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("skips responses that already carry proof or failed", async () => {
+    const withFile = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      attachment: { ...PROOF, name: "log.txt" },
+    });
+    await withFile.run();
+    expect(withFile.attach).not.toHaveBeenCalled();
+
+    const failed = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      results: [Err("Missing permissions")],
+    });
+    await failed.run();
+    expect(failed.attach).not.toHaveBeenCalled();
+  });
+
+  test("skips multi-target actions", async () => {
+    const ctx = setup({
+      strings: { users: TARGET },
+      expansion: null,
+      results: [Ok(makeCase()), Ok(makeCase({ caseId: "4823" }))],
+    });
+    await ctx.run();
+    expect(ctx.attach).not.toHaveBeenCalled();
+  });
+});
+
+describe("actionPurgeSeconds", () => {
+  const user = makeUser(MOD, "tzuyu");
+  test("matches what the pipeline passes to Discord", () => {
+    expect(
+      actionPurgeSeconds(
+        new BanAction(GUILD, user, null, null, "unspecified", null, 1),
+      ),
+    ).toBe(86_400);
+    expect(
+      actionPurgeSeconds(new BanAction(GUILD, user, null, null, "unspecified")),
+    ).toBe(0);
+    expect(
+      actionPurgeSeconds(
+        new SoftbanAction(GUILD, user, null, null, "unspecified", 3600),
+      ),
+    ).toBe(3600);
+    expect(
+      actionPurgeSeconds(
+        new KickAction(GUILD, user, null, null, "unspecified"),
+      ),
+    ).toBe(0);
+  });
+});
 
 describe("ModerationCommand proof intro", () => {
   afterEach(() => {

@@ -1,9 +1,13 @@
+import { DiscordAPIError } from "discord.js";
 import type { Logger } from "pino";
 import type { Result } from "ts-results";
 import { Err, Ok } from "ts-results";
 
 import type { ActionResponseRegistry } from "@/features/moderation/actions/presentation/response/responseRegistry";
-import type { ModLogMessageService } from "@/features/moderation/shared/application/ModLogMessageService";
+import type {
+  ModLogMessageService,
+  ModLogRefreshOutcome,
+} from "@/features/moderation/shared/application/ModLogMessageService";
 import type { ProofChangeListener } from "@/features/moderation/shared/application/ProofChangeListener";
 import {
   type ProofFileSource,
@@ -89,6 +93,55 @@ export interface UndoProofInput {
 
 export type UndoProofError = Exclude<ProofUndoOutcome, "ok">;
 
+/** One proof row, its content already formatted by the caller. */
+export interface SuggestionProofItem {
+  content: string;
+}
+
+export interface AddSuggestionsInput {
+  guildId: string;
+  caseId: string;
+  authorId: string;
+  items: SuggestionProofItem[];
+  /** A response that shows the new proof itself, so it isn't marked stale. */
+  exceptMessageId?: string;
+}
+
+/**
+ * Whether the stored rows are confirmed on the mod log: `pending` when the
+ * entry was still being posted after a short wait, so they may show once it
+ * lands; `not_shown` when some or all of them couldn't be placed.
+ */
+export type SuggestionPlacement = "all" | "pending" | "not_shown";
+
+export interface AddSuggestionsResult {
+  batchId: string;
+  proofs: CaseProof[];
+  case: ModerationCase;
+  shown: SuggestionPlacement;
+}
+
+/** `retry_later` and `failed` are never returned yet: link-only rows don't wait on the entry. */
+export type AddSuggestionsError =
+  | "empty"
+  | "content_too_long"
+  | "case_not_found"
+  | "retry_later"
+  | "failed";
+
+export interface UndoBatchInput {
+  guildId: string;
+  caseId: string;
+  batchId: string;
+  actorId: string;
+}
+
+/** `failed`: removal stopped at a row it couldn't confirm; earlier rows are gone. */
+export type UndoBatchError =
+  | { kind: "gone" }
+  | { kind: "not_allowed" }
+  | { kind: "failed"; removed: number; remaining: number };
+
 export interface AddProofResult {
   /** The inserted rows, one per case that got the proof. */
   proofs: CaseProof[];
@@ -96,6 +149,17 @@ export interface AddProofResult {
   cases: ModerationCase[];
   /** Cases left without the proof when others got it. */
   skipped: CaseSkip[];
+}
+
+function placementOutcome(shown: SuggestionPlacement): ProofAddOutcome {
+  switch (shown) {
+    case "all":
+      return "ok";
+    case "pending":
+      return "entry_pending";
+    case "not_shown":
+      return "not_shown";
+  }
 }
 
 function errorOutcome(error: AddProofError): ProofAddOutcome {
@@ -111,9 +175,12 @@ export interface CaseProofServiceDeps {
   modLogRepository: Pick<ModLogRepository, "findByIds">;
   caseProofRepository: Pick<
     CaseProofRepository,
-    "add" | "countsByCases" | "findById"
+    "add" | "countsByCases" | "findById" | "listByBatch"
   >;
-  modLogMessageService: Pick<ModLogMessageService, "hostProof" | "removeProof">;
+  modLogMessageService: Pick<
+    ModLogMessageService,
+    "hostProof" | "removeProof" | "placeUnhostedText"
+  >;
   responseRegistry: Pick<ActionResponseRegistry, "markStale">;
   proofChangeListener: ProofChangeListener;
   metrics: Pick<ModerationMetrics, "recordProofAdded" | "recordProofUndone">;
@@ -170,6 +237,234 @@ export class CaseProofService {
     } finally {
       this.deps.metrics.recordProofUndone(outcome);
     }
+  }
+
+  /** Stores the items as one batch of link-only proof rows on a single case. */
+  async addSuggestions(
+    input: AddSuggestionsInput,
+  ): Promise<Result<AddSuggestionsResult, AddSuggestionsError>> {
+    let outcome: ProofAddOutcome = "failed";
+    try {
+      const result = await this.addSuggestionBatch(input);
+      if (result.ok) {
+        outcome = placementOutcome(result.val.shown);
+      } else {
+        outcome =
+          result.val === "case_not_found" ? "cases_not_found" : result.val;
+      }
+      return result;
+    } finally {
+      this.deps.metrics.recordProofAdded("suggestion", outcome);
+      this.deps.productEvents?.track({
+        name: "proof.added",
+        userId: input.authorId,
+        guildId: input.guildId,
+        props: { source: "suggestion", outcome },
+      });
+    }
+  }
+
+  /** Undoes the actor's own suggestion batch. Ok only when every row is gone. */
+  async undoBatch(
+    input: UndoBatchInput,
+  ): Promise<Result<ModerationCase, UndoBatchError>> {
+    let outcome: ProofUndoOutcome = "failed";
+    try {
+      const result = await this.undoSuggestionBatch(input);
+      outcome = result.ok ? "ok" : result.val.kind;
+      return result;
+    } finally {
+      this.deps.metrics.recordProofUndone(outcome);
+    }
+  }
+
+  private async addSuggestionBatch(
+    input: AddSuggestionsInput,
+  ): Promise<Result<AddSuggestionsResult, AddSuggestionsError>> {
+    const contents = input.items.map((item) => item.content.trim());
+    if (contents.length === 0 || contents.some((c) => c === "")) {
+      return Err("empty");
+    }
+    if (contents.some((c) => c.length > PROOF_CONTENT_MAX_LENGTH)) {
+      return Err("content_too_long");
+    }
+
+    const cases = await this.loadCases(input.guildId, [input.caseId]);
+    const moderationCase = cases?.[0];
+    if (!moderationCase) {
+      return Err("case_not_found");
+    }
+
+    const batchId = crypto.randomUUID();
+    const proofs = await this.deps.caseProofRepository.add(
+      contents.map(
+        (content): NewCaseProof => ({
+          guildId: input.guildId,
+          caseId: input.caseId,
+          authorId: input.authorId,
+          content,
+          attachments: [],
+          sourceMessageUrl: null,
+          sourceAuthorId: null,
+          sourceContent: null,
+          hostMessageId: null,
+          source: "suggestion",
+          batchId,
+        }),
+      ),
+    );
+
+    const shown = await this.placeOnEntry(moderationCase);
+    await this.deps.responseRegistry.markStale(input.guildId, [input.caseId], {
+      exceptMessageId: input.exceptMessageId,
+    });
+    this.notifyProofChanged(input.guildId, [input.caseId]);
+
+    this.deps.logger.info(
+      {
+        guildId: input.guildId,
+        caseId: input.caseId,
+        batchId,
+        count: proofs.length,
+        shown,
+      },
+      "Added suggested case proof",
+    );
+
+    return Ok({ batchId, proofs, case: moderationCase, shown });
+  }
+
+  /** The rows are already stored, so a Discord failure here can't fail the add. */
+  private async placeOnEntry(
+    moderationCase: ModerationCase,
+  ): Promise<SuggestionPlacement> {
+    const context = {
+      guildId: moderationCase.guildId,
+      caseId: moderationCase.caseId,
+    };
+    let placed: ModLogRefreshOutcome;
+    try {
+      placed =
+        await this.deps.modLogMessageService.placeUnhostedText(moderationCase);
+    } catch (err) {
+      // Rows are stored, so the add stays Ok; non-Discord errors still need the error alert.
+      if (err instanceof DiscordAPIError) {
+        this.deps.logger.warn(
+          { err, ...context },
+          "Failed to show suggested proof on the mod log entry",
+        );
+      } else {
+        this.deps.logger.error(
+          { err, ...context },
+          "Failed to show suggested proof on the mod log entry",
+        );
+      }
+      return "not_shown";
+    }
+
+    if (placed === "updated") {
+      return "all";
+    }
+    if (placed === "pending") {
+      return "pending";
+    }
+    this.deps.logger.warn(
+      { ...context, placed },
+      "Suggested proof saved but not shown on the mod log",
+    );
+    return "not_shown";
+  }
+
+  private async undoSuggestionBatch(
+    input: UndoBatchInput,
+  ): Promise<Result<ModerationCase, UndoBatchError>> {
+    const { guildId, caseId, batchId, actorId } = input;
+    const rows = await this.deps.caseProofRepository.listByBatch(
+      guildId,
+      caseId,
+      batchId,
+    );
+    if (rows.length === 0) {
+      return Err({ kind: "gone" });
+    }
+    if (
+      rows.some(
+        (row) => row.source !== "suggestion" || row.authorId !== actorId,
+      )
+    ) {
+      return Err({ kind: "not_allowed" });
+    }
+
+    const cases = await this.loadCases(guildId, [caseId]);
+    const moderationCase = cases?.[0];
+    if (!moderationCase) {
+      return Err({ kind: "gone" });
+    }
+
+    let removed = 0;
+    let alreadyGone = 0;
+    let failedAt: number | null = null;
+    try {
+      for (const [index, row] of rows.entries()) {
+        const result = await this.deps.modLogMessageService.removeProof(
+          moderationCase,
+          row.id,
+        );
+        if (result === "failed") {
+          failedAt = index;
+          this.deps.logger.warn(
+            { guildId, caseId, batchId, proofId: row.id, removed },
+            "Stopped undoing suggested proof at a row it couldn't remove",
+          );
+          break;
+        }
+        if (result === "removed") {
+          removed++;
+        } else {
+          alreadyGone++;
+        }
+      }
+    } catch (err) {
+      if (removed > 0) {
+        await this.afterProofRemoved(guildId, caseId).catch(
+          (notifyErr: unknown) => {
+            this.deps.logger.warn(
+              { err: notifyErr, guildId, caseId, batchId },
+              "Failed to mark responses stale after a failed undo",
+            );
+          },
+        );
+      }
+      throw err;
+    }
+    if (removed > 0) {
+      await this.afterProofRemoved(guildId, caseId);
+    }
+
+    if (failedAt !== null) {
+      return Err({
+        kind: "failed",
+        removed,
+        remaining: rows.length - failedAt,
+      });
+    }
+    if (removed === 0) {
+      return Err({ kind: "gone" });
+    }
+
+    this.deps.logger.info(
+      { guildId, caseId, batchId, removed, alreadyGone },
+      "Undid suggested case proof",
+    );
+    return Ok(moderationCase);
+  }
+
+  private async afterProofRemoved(
+    guildId: string,
+    caseId: string,
+  ): Promise<void> {
+    await this.deps.responseRegistry.markStale(guildId, [caseId]);
+    this.notifyProofChanged(guildId, [caseId]);
   }
 
   private async undoProof(

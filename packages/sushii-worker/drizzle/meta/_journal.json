@@ -617,6 +617,34 @@
       "when": 1794078872707,
       "tag": "0087_analytics-feature-parts",
       "breakpoints": false
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794442064921,
+      "tag": "0088_proof_suggestion_batch",
+      "breakpoints": false
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794449329459,
+      "tag": "0089_message_interaction_user",
+      "breakpoints": false
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1794450264974,
+      "tag": "0090_message_log_posts",
+      "breakpoints": false
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1794453947079,
+      "tag": "0091_feature_flag_proof_suggestions",
+      "breakpoints": false
     }
   ]
 }

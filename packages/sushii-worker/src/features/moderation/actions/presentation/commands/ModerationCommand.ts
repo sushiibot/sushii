@@ -49,6 +49,7 @@ import {
   UnTimeoutAction,
   UnbanAction,
   WarnAction,
+  purgeWindowSeconds,
 } from "@/features/moderation/shared/domain/entities/ModerationAction";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { ModerationMetrics } from "@/features/moderation/shared/domain/metrics/ModerationMetrics";
@@ -180,6 +181,20 @@ export function firstResponseProof(
   ];
 }
 
+/** Adds suggested proof to a posted response; never throws. */
+export interface ResponseSuggestionAttacher {
+  attach(input: {
+    interaction: ChatInputCommandInteraction<"cached">;
+    moderationCase: ModerationCase;
+    purgeWindowSeconds: number | null;
+  }): Promise<void>;
+}
+
+/** The window the pipeline passes to Discord when it bans; 0 when nothing is deleted. */
+export function actionPurgeSeconds(action: ModerationAction): number {
+  return purgeWindowSeconds(action) ?? 0;
+}
+
 interface ParsedOptions {
   reason: Reason | null;
   attachment: Attachment | null;
@@ -207,6 +222,7 @@ export class ModerationCommand extends SlashCommandHandler {
       ModerationMetrics,
       "recordReasonResolved" | "recordSavePrompt"
     > = NOOP_MODERATION_METRICS,
+    private readonly responseSuggestions: ResponseSuggestionAttacher | null = null,
   ) {
     super();
 
@@ -628,6 +644,20 @@ export class ModerationCommand extends SlashCommandHandler {
     }
 
     await this.promptOffer.offer(interaction, PROOF_INTRO_ID);
+
+    // Suggestions are for a case without proof, and only for one target.
+    if (
+      this.responseSuggestions &&
+      cases.length === 1 &&
+      targets.length === 1 &&
+      !options.attachment
+    ) {
+      await this.responseSuggestions.attach({
+        interaction,
+        moderationCase: cases[0],
+        purgeWindowSeconds: actionPurgeSeconds(action),
+      });
+    }
   }
 
   /** Only media is re-hosted: a gallery is the one place its link keeps working. */

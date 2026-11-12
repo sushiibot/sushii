@@ -78,7 +78,8 @@ export type ModLogProof = Pick<
   | "sourceMessageUrl"
   | "sourceAuthorId"
   | "sourceContent"
->;
+> &
+  Partial<Pick<CaseProof, "source">>;
 
 export interface ModLogTarget {
   id: string;
@@ -106,6 +107,8 @@ export interface ModLogMessageInput {
   proofs?: readonly ModLogProof[];
   /** Raw link to the first overflow reply, when any proof lives there. */
   moreProofUrl?: string | null;
+  /** Custom id of the Suggested proof button, shown only while the case has no proof. */
+  suggestProofButtonId?: string | null;
   /** The DM carried the server's custom text for this action from `/settings`. */
   dmIncludedServerText?: boolean;
   /** Swaps the reason's button row for the in-place Delete DM confirmation. */
@@ -514,6 +517,21 @@ export function buildModLogMessage(input: ModLogMessageInput): ModLogMessage {
         )
         .setButtonAccessory(addProofButton([moderationCase.caseId], emojis)),
     );
+
+  if (
+    input.suggestProofButtonId &&
+    proofs.every((proof) => proof.source === "suggestion")
+  ) {
+    container.addActionRowComponents(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Secondary)
+          .setLabel("Suggested proof")
+          .setEmoji("💡")
+          .setCustomId(input.suggestProofButtonId),
+      ),
+    );
+  }
 
   const media = proofMediaUrls(proofs);
   if (media.length > 0) {

@@ -1,4 +1,4 @@
-export const FEATURE_FLAGS = ["member_screening"] as const;
+export const FEATURE_FLAGS = ["member_screening", "proof_suggestions"] as const;
 export type FeatureFlag = (typeof FEATURE_FLAGS)[number];
 
 export interface FeatureFlagEntry {

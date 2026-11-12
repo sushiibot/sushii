@@ -160,6 +160,37 @@ describe("DrizzleCaseProofRepository (Integration)", () => {
     });
   });
 
+  describe("listByBatch", () => {
+    const BATCH = "6f1d2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b";
+    const OTHER_BATCH = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+
+    test("returns only that batch on that case, and stores null without one", async () => {
+      await repo.add([
+        proof({ content: "a", source: "suggestion", batchId: BATCH }),
+        proof({ content: "b", source: "suggestion", batchId: BATCH }),
+      ]);
+      await repo.add([
+        proof({ content: "other", source: "suggestion", batchId: OTHER_BATCH }),
+        proof({ caseId: "2", source: "suggestion", batchId: BATCH }),
+      ]);
+      const [plain] = await repo.add([proof({ content: "plain" })]);
+
+      const batch = await repo.listByBatch(GUILD_ID, "1", BATCH);
+
+      expect(batch.map((p) => p.content)).toEqual(["a", "b"]);
+      expect(batch.every((p) => p.batchId === BATCH)).toBe(true);
+      expect(plain.batchId).toBeNull();
+    });
+
+    test("a malformed batch id finds nothing", async () => {
+      await repo.add([
+        proof({ content: "a", source: "suggestion", batchId: BATCH }),
+      ]);
+
+      expect(await repo.listByBatch(GUILD_ID, "1", "not-a-uuid")).toEqual([]);
+    });
+  });
+
   describe("listByCase", () => {
     test("returns the case's proof oldest first, ties by insert order", async () => {
       await repo.add([

@@ -38,8 +38,8 @@ import { setupMessageVerificationFeature } from "@/features/message-verification
 import { setupModerationFeature } from "@/features/moderation/setup";
 import { setupNotificationFeature } from "@/features/notifications/setup";
 import { setupPermissionAuditFeature } from "@/features/permission-audit";
-import { configureFollowUpdatesPrompt } from "@/features/prompts/definitions/followUpdates";
 import { setupProductAnalyticsFeature } from "@/features/product-analytics/setup";
+import { configureFollowUpdatesPrompt } from "@/features/prompts/definitions/followUpdates";
 import { setupPromptsFeature } from "@/features/prompts/setup";
 import { setupReactionLog } from "@/features/reaction-log/setup";
 import { setupRemindersFeature } from "@/features/reminders/setup";
@@ -381,6 +381,7 @@ export function registerFeatures(
       permissionAuditFeature.services.permissionUsageRecorder,
     promptOffer: promptsFeature.services.promptService,
     productEvents,
+    featureFlags: featureFlagRepository,
   });
   const serverManagementFeature = setupServerManagementFeature({
     db,

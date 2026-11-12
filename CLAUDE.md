@@ -51,6 +51,7 @@ Discord bot (sushii) — Discord.js, Bun, TypeScript monorepo. Drizzle ORM, Post
 - **Components v2**: `.claude/components_v2.md` — container-based component system with builders
 - **OTel Reference**: `.claude/docs/otel-reference.md` — canonical instrumentation.ts + tracing.ts to copy into new services
 - **Tracing Guide**: `.claude/docs/tracing-guide.md` — what to trace, span naming, attributes, events, modal patterns, avoiding noise
+- **Product Analytics**: `.claude/docs/product-analytics.md` — usage/adoption events, privacy rules, adding analytics (events, feature map, views) to a feature
 
 **`sushii-ansible` repo** (deployments and ops):
 - **Docs index**: `docs/README.md`

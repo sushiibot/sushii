@@ -38,4 +38,17 @@ export interface MessageData {
       id: string;
     };
   };
+  member?: { avatar: string | null; nick: string | null };
+  interaction_metadata?: {
+    id: string;
+    type: number;
+    user_id: string;
+    authorizing_integration_owners: Record<string, string>;
+  };
+  /** Only for type 24 (AutoMod alert) and bot messages; capped. */
+  embeds?: {
+    title?: string;
+    description?: string;
+    fields?: { name: string; value: string }[];
+  }[];
 }

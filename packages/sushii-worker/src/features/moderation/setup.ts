@@ -8,6 +8,7 @@ import type { AutomodAlertReactionService } from "@/features/automod/application
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
+import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
@@ -85,6 +86,14 @@ import {
   createModViewDependencies,
   setupModViewFeature,
 } from "./mod-view/setup";
+import { OtelProofSuggestionMetrics } from "./proof-suggestions/infrastructure/OtelProofSuggestionMetrics";
+import { ProductProofSuggestionMetrics } from "./proof-suggestions/infrastructure/ProductProofSuggestionMetrics";
+import type { SuggestionPreviewRenderer } from "./proof-suggestions/infrastructure/preview/types";
+import { ProofSuggestionButtonHandler } from "./proof-suggestions/presentation/ProofSuggestionButtonHandler";
+import { ProofSuggestionSelectHandler } from "./proof-suggestions/presentation/ProofSuggestionSelectHandler";
+import { SuggestionFlow } from "./proof-suggestions/presentation/SuggestionFlow";
+import { createModLogSuggestionOffer } from "./proof-suggestions/presentation/modLogSuggestionOffer";
+import { createProofSuggestionServices } from "./proof-suggestions/setup";
 // Reason templates sub-feature
 import { ReasonTemplateService } from "./reason-templates/application/ReasonTemplateService";
 import { DrizzleReasonTemplateRepository } from "./reason-templates/infrastructure/DrizzleReasonTemplateRepository";
@@ -121,7 +130,13 @@ interface ModerationDependencies {
   permissionUsageRecorder: PermissionUsageRecorder;
   promptOffer: PromptOffer;
   productEvents: ProductEventTracker;
+  /** Per-guild flags; without them suggested proof stays off. */
+  featureFlags?: Pick<FeatureFlagRepository, "isEnabled">;
 }
+
+const FLAGS_OFF: Pick<FeatureFlagRepository, "isEnabled"> = {
+  isEnabled: async () => false,
+};
 
 interface ModerationTaskDependencies extends ModerationDependencies {
   deploymentService: DeploymentService;
@@ -139,7 +154,14 @@ export function createModerationServices({
   permissionUsageRecorder,
   promptOffer,
   productEvents,
+  featureFlags = FLAGS_OFF,
 }: ModerationDependencies) {
+  const { proofSuggestionService } = createProofSuggestionServices({
+    db,
+    client,
+    logger,
+  });
+
   const modLogRepository = new DrizzleModLogRepository(
     db,
     logger.child({ module: "modLogRepository" }),
@@ -188,6 +210,12 @@ export function createModerationServices({
     caseProofRepository,
     logger.child({ module: "modLogMessageService" }),
     moderationMetrics,
+    undefined,
+    createModLogSuggestionOffer({
+      caseProofRepository,
+      flags: featureFlags,
+      suggestions: proofSuggestionService,
+    }),
   );
 
   const caseDmDeletionService = new CaseDmDeletionService(
@@ -311,6 +339,30 @@ export function createModerationServices({
     logger: logger.child({ module: "caseProofService" }),
   });
 
+  // Loaded on first use, so the native canvas module never loads unless a preview renders.
+  let previewRenderer: Promise<SuggestionPreviewRenderer> | null = null;
+  const suggestionFlow = new SuggestionFlow({
+    caseProofRepository,
+    flags: featureFlags,
+    suggestions: proofSuggestionService,
+    renderer: {
+      render: async (request) => {
+        previewRenderer ??= import(
+          "./proof-suggestions/infrastructure/preview/CanvasPreviewRenderer"
+        ).then((m) => m.createSuggestionPreviewRenderer(client));
+        return (await previewRenderer).render(request);
+      },
+    },
+    caseProofService,
+    modLogRepository,
+    metrics: new ProductProofSuggestionMetrics(
+      new OtelProofSuggestionMetrics(),
+      productEvents,
+      logger,
+    ),
+    logger: logger.child({ module: "proofSuggestions" }),
+  });
+
   const caseRangeAutocompleteService = new CaseRangeAutocompleteService(
     modLogRepository,
     logger.child({ module: "caseRangeAutocompleteService" }),
@@ -343,6 +395,7 @@ export function createModerationServices({
     modLogRepository,
     caseProofRepository,
     caseProofService,
+    suggestionFlow,
     modViewRegistry,
     guildConfigRepository,
     tempBanRepository,
@@ -468,7 +521,15 @@ export function createModerationCommands(
 
   const selectMenuHandlers: SelectMenuHandler[] = [
     new AddAsProofSelectHandler(addAsProof),
+    new ProofSuggestionSelectHandler(),
   ];
+
+  const responseRefresh = {
+    modLogRepository: services.modLogRepository,
+    caseProofRepository: services.caseProofRepository,
+    guildConfigRepository: services.guildConfigRepository,
+    emojiRepository: services.emojiRepository,
+  };
 
   const buttonHandlers = [
     ...reasonEditing.buttonHandlers,
@@ -478,13 +539,15 @@ export function createModerationCommands(
     ),
     ...actionResponse.buttonHandlers,
     new AddProofButtonHandler({
-      modLogRepository: services.modLogRepository,
-      caseProofRepository: services.caseProofRepository,
-      guildConfigRepository: services.guildConfigRepository,
+      ...responseRefresh,
       caseProofService: services.caseProofService,
-      emojiRepository: services.emojiRepository,
       promptOffer: services.promptOffer,
+      suggestionFlow: services.suggestionFlow,
       logger: logger.child({ buttonHandler: "addProof" }),
+    }),
+    new ProofSuggestionButtonHandler({
+      flow: services.suggestionFlow,
+      response: responseRefresh,
     }),
     new AddAsProofButtonHandler(addAsProof),
     new AddAsProofUndoButtonHandler(addAsProof),
@@ -545,6 +608,7 @@ export function setupModerationFeature({
   permissionUsageRecorder,
   promptOffer,
   productEvents,
+  featureFlags,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
@@ -564,6 +628,7 @@ export function setupModerationFeature({
     permissionUsageRecorder,
     promptOffer,
     productEvents,
+    featureFlags,
   });
 
   // Built ahead of both createModerationCommands (History/Names/Lookup

@@ -102,6 +102,10 @@ export const PRODUCT_FEATURES: Readonly<Record<string, FeatureDefinition>> = {
     unit: "user",
     handlers: ["PromptButtonHandler", "PromptSelectMenuHandler"],
   },
+  "proof-suggestions": {
+    unit: "guild",
+    handlers: ["ProofSuggestionButtonHandler", "ProofSuggestionSelectHandler"],
+  },
   "reaction-log": { unit: "guild", handlers: ["CheckReactionStartersCommand"] },
   reminders: { unit: "user", handlers: ["ReminderCommand"] },
   "role-menu": {
@@ -182,6 +186,8 @@ export const STAFF_HANDLERS: readonly string[] = [
   "PromptButtonHandler",
   "PromptSelectMenuHandler",
   "ProofCommand",
+  "ProofSuggestionButtonHandler",
+  "ProofSuggestionSelectHandler",
   "PruneCommand",
   "ReasonCommand",
   "ReasonTemplatesCommand",

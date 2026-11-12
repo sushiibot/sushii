@@ -1,5 +1,7 @@
 import type { Attachment, ModalSubmitFields } from "discord.js";
 import {
+  CheckboxGroupBuilder,
+  CheckboxGroupOptionBuilder,
   FileUploadBuilder,
   LabelBuilder,
   ModalBuilder,
@@ -21,6 +23,18 @@ export const ADD_PROOF_FORM_PREFIX = "caseProof/form/";
 
 export const ADD_PROOF_EMPTY_HINT = "Fill in Details, add a file, or both.";
 
+export const ADD_PROOF_SUGGESTED_ID = "suggested";
+/** Discord's limit for a Checkbox Group. */
+export const SUGGESTED_OPTIONS_MAX = 10;
+const OPTION_TEXT_MAX_LENGTH = 100;
+
+export interface SuggestedProofOption {
+  value: string;
+  label: string;
+  description: string | null;
+  checked: boolean;
+}
+
 export interface AddProofModalInput {
   /** Unique per click so a dismissed form's collector can't take a later submit. */
   customId: string;
@@ -29,6 +43,47 @@ export interface AddProofModalInput {
   userName: string | null;
   /** The most proof files any of the cases already has. */
   existingFiles: number;
+  /** Suggested proof the mod can tick; only for a single case. */
+  suggested?: readonly SuggestedProofOption[];
+}
+
+function clip(text: string): string {
+  const chars = Array.from(text);
+  return chars.length <= OPTION_TEXT_MAX_LENGTH
+    ? text
+    : `${chars.slice(0, OPTION_TEXT_MAX_LENGTH - 1).join("")}…`;
+}
+
+function suggestedLabel(
+  userName: string | null,
+  options: readonly SuggestedProofOption[],
+): LabelBuilder {
+  const who = userName ?? "this user";
+  const shown = options.slice(0, SUGGESTED_OPTIONS_MAX);
+  return new LabelBuilder()
+    .setLabel("Suggested")
+    .setDescription(
+      clip(`From ${who}'s last activity, in channels you can read`),
+    )
+    .setCheckboxGroupComponent(
+      new CheckboxGroupBuilder()
+        .setCustomId(ADD_PROOF_SUGGESTED_ID)
+        .setRequired(false)
+        .setMinValues(0)
+        .setMaxValues(shown.length)
+        .addOptions(
+          shown.map((option) => {
+            const builder = new CheckboxGroupOptionBuilder()
+              .setValue(option.value)
+              .setLabel(clip(option.label))
+              .setDefault(option.checked);
+            if (option.description) {
+              builder.setDescription(clip(option.description));
+            }
+            return builder;
+          }),
+        ),
+    );
 }
 
 /** How many more files fit on every one of the cases. */
@@ -44,8 +99,11 @@ function title(caseIds: readonly string[]): string {
 
 function intro(input: AddProofModalInput, slots: number): string {
   const who = input.userName ? escapeMarkdown(input.userName) : "these users";
+  const suggestions = input.suggested?.length
+    ? " Suggestions save as links."
+    : "";
   const lines = [
-    `-# Only mods see proof. It's never sent to ${who}. Put anything they should see in the reason.`,
+    `-# Only mods see proof. It's never sent to ${who}. Put anything they should see in the reason.${suggestions}`,
   ];
   if (slots === 0) {
     lines.push(
@@ -64,24 +122,27 @@ export function buildAddProofModal(input: AddProofModalInput): ModalBuilder {
     .setTitle(title(input.caseIds))
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(intro(input, slots)),
-    )
-    .addLabelComponents(
-      new LabelBuilder()
-        .setLabel("Details")
-        .setDescription(
-          "Context, message links, anything other mods should know",
-        )
-        .setTextInputComponent(
-          new TextInputBuilder()
-            .setCustomId(ADD_PROOF_TEXT_ID)
-            .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder(
-              "e.g. Reported in #reports, also DM'd 3 other members",
-            )
-            .setRequired(false)
-            .setMaxLength(PROOF_CONTENT_MAX_LENGTH),
-        ),
     );
+
+  if (input.suggested?.length) {
+    modal.addLabelComponents(suggestedLabel(input.userName, input.suggested));
+  }
+
+  modal.addLabelComponents(
+    new LabelBuilder()
+      .setLabel("Details")
+      .setDescription("Context, message links, anything other mods should know")
+      .setTextInputComponent(
+        new TextInputBuilder()
+          .setCustomId(ADD_PROOF_TEXT_ID)
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder(
+            "e.g. Reported in #reports, also DM'd 3 other members",
+          )
+          .setRequired(false)
+          .setMaxLength(PROOF_CONTENT_MAX_LENGTH),
+      ),
+  );
 
   if (slots > 0) {
     const where = input.caseIds.length === 1 ? "this case" : "each case";
@@ -107,6 +168,8 @@ export function buildAddProofModal(input: AddProofModalInput): ModalBuilder {
 export interface AddProofFields {
   content: string | null;
   files: ProofFileSource[];
+  /** Checked suggestion values; empty when none were offered. */
+  suggested: string[];
 }
 
 function proofFile(attachment: Attachment): ProofFileSource {
@@ -126,8 +189,12 @@ export function readAddProofFields(fields: ModalSubmitFields): AddProofFields {
   const uploads = fields.fields.has(ADD_PROOF_FILES_ID)
     ? fields.getUploadedFiles(ADD_PROOF_FILES_ID)
     : null;
+  const suggested = fields.fields.has(ADD_PROOF_SUGGESTED_ID)
+    ? [...fields.getCheckboxGroup(ADD_PROOF_SUGGESTED_ID)]
+    : [];
   return {
     content,
     files: uploads ? [...uploads.values()].map(proofFile) : [],
+    suggested,
   };
 }

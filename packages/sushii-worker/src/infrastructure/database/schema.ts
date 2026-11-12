@@ -19,6 +19,7 @@ import {
   timestamp,
   unique,
   uniqueIndex,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -208,6 +209,7 @@ export const messagesInAppPublic = appPublic.table(
     created: timestamp({ mode: "string" }).notNull(),
     content: text().notNull(),
     msg: jsonb().notNull(),
+    interactionUserId: bigint("interaction_user_id", { mode: "bigint" }),
   },
   (table) => [
     index("messages_created_idx").using(
@@ -224,6 +226,26 @@ export const messagesInAppPublic = appPublic.table(
       table.authorId,
       table.created,
     ),
+    index("messages_guild_id_interaction_user_id_created_idx")
+      .on(table.guildId, table.interactionUserId, table.created)
+      .where(sql`${table.interactionUserId} IS NOT NULL`),
+  ],
+);
+
+export const messageLogPostsInAppPublic = appPublic.table(
+  "message_log_posts",
+  {
+    messageId: bigint("message_id", { mode: "bigint" }).primaryKey().notNull(),
+    guildId: bigint("guild_id", { mode: "bigint" }).notNull(),
+    channelId: bigint("channel_id", { mode: "bigint" }).notNull(),
+    logChannelId: bigint("log_channel_id", { mode: "bigint" }).notNull(),
+    logMessageId: bigint("log_message_id", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("message_log_posts_created_at_idx").on(table.createdAt),
   ],
 );
 
@@ -1043,6 +1065,7 @@ export const modLogProofsInAppPublic = appPublic.table(
     sourceContent: text("source_content"),
     hostMessageId: bigint("host_message_id", { mode: "bigint" }),
     source: text().$type<CaseProofSource>().notNull(),
+    batchId: uuid("batch_id"),
   },
   (table) => [
     foreignKey({

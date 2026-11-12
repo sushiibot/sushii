@@ -38,8 +38,12 @@ function mapRow(row: ProofRow): CaseProof {
     sourceContent: row.sourceContent,
     hostMessageId: row.hostMessageId?.toString() ?? null,
     source: row.source,
+    batchId: row.batchId,
   };
 }
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class DrizzleCaseProofRepository implements CaseProofRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
@@ -65,6 +69,7 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
             sourceContent: proof.sourceContent,
             hostMessageId: toBigInt(proof.hostMessageId),
             source: proof.source,
+            batchId: proof.batchId ?? null,
           })),
         )
         .returning(),
@@ -115,6 +120,31 @@ export class DrizzleCaseProofRepository implements CaseProofRepository {
         asc(modLogProofsInAppPublic.createdAt),
         asc(modLogProofsInAppPublic.id),
       );
+
+    return rows.map(mapRow);
+  }
+
+  async listByBatch(
+    guildId: string,
+    caseId: string,
+    batchId: string,
+  ): Promise<CaseProof[]> {
+    // A malformed id from a custom id would make Postgres throw on the uuid cast.
+    if (!UUID_PATTERN.test(batchId)) {
+      return [];
+    }
+
+    const rows = await this.db
+      .select()
+      .from(modLogProofsInAppPublic)
+      .where(
+        and(
+          eq(modLogProofsInAppPublic.guildId, BigInt(guildId)),
+          eq(modLogProofsInAppPublic.caseId, BigInt(caseId)),
+          eq(modLogProofsInAppPublic.batchId, batchId),
+        ),
+      )
+      .orderBy(asc(modLogProofsInAppPublic.id));
 
     return rows.map(mapRow);
   }

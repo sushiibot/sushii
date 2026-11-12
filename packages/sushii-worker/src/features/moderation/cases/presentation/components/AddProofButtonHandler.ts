@@ -1,4 +1,5 @@
 import type {
+  APIComponentInContainer,
   APIMessageTopLevelComponent,
   ButtonInteraction,
   Message,
@@ -27,6 +28,22 @@ import {
   isCaseViewMessage,
   loadCaseViewMessages,
 } from "@/features/moderation/mod-view/presentation/views/CaseView";
+import { viewerAccessFromMember } from "@/features/moderation/proof-suggestions/application/viewerAccess";
+import type { ProofSuggestion } from "@/features/moderation/proof-suggestions/domain/ProofSuggestion";
+import type {
+  SuggestionAddResult,
+  SuggestionFlow,
+} from "@/features/moderation/proof-suggestions/presentation/SuggestionFlow";
+import { postedAddAllFingerprint } from "@/features/moderation/proof-suggestions/presentation/customIds";
+import {
+  type OfferedSuggestions,
+  cachedViewerAccess,
+  suggestedOptions,
+} from "@/features/moderation/proof-suggestions/presentation/modalSuggestions";
+import {
+  buildResponseSuggestionBlock,
+  buildSuggestionAddResult,
+} from "@/features/moderation/proof-suggestions/presentation/views";
 import { proofFileMaxBytes } from "@/features/moderation/shared/application/proofDownloads";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
@@ -34,6 +51,7 @@ import type { ModLogRepository } from "@/features/moderation/shared/domain/repos
 import {
   ADD_PROOF_EMPTY_HINT,
   ADD_PROOF_FORM_PREFIX,
+  SUGGESTED_OPTIONS_MAX,
   buildAddProofModal,
   readAddProofFields,
 } from "@/features/moderation/shared/presentation/proof/addProofModal";
@@ -69,6 +87,8 @@ export interface AddProofDeps {
   caseProofService: Pick<CaseProofService, "add">;
   emojiRepository: Pick<BotEmojiRepository, "getEmojis">;
   promptOffer: PromptOffer;
+  /** Lists suggested proof in the form; without it the form is unchanged. */
+  suggestionFlow?: SuggestionFlow;
   logger: Logger;
   now?: () => number;
 }
@@ -89,6 +109,70 @@ function postedOf(message: Pick<PostedMessage, "components">) {
   return message.components.map((c) =>
     c.toJSON(),
   ) as APIMessageTopLevelComponent[];
+}
+
+function responseMode(
+  message: Pick<Message, "createdTimestamp"> & PostedMessage,
+  now: number,
+): ResponseMode {
+  const posted = postedOf(message);
+  if (postedStaleUrl(posted) !== undefined) {
+    return "stale";
+  }
+  return isResponseExpired(message.createdTimestamp, now) ||
+    showsExpiredLine(posted)
+    ? "expired"
+    : "buttons";
+}
+
+export type ResponseRefreshDeps = Pick<
+  AddProofDeps,
+  | "modLogRepository"
+  | "caseProofRepository"
+  | "guildConfigRepository"
+  | "emojiRepository"
+>;
+
+/** The action response re-rendered with its cases' current proof; null when the cases are gone. */
+export async function rebuildResponseWithProof(
+  deps: ResponseRefreshDeps,
+  guildId: string,
+  message: Pick<Message, "createdTimestamp"> & PostedMessage,
+  caseIds: string[],
+  now: number,
+  suggestions?: readonly APIComponentInContainer[],
+): Promise<ReturnType<typeof rebuildActionResponse> | null> {
+  const found = await deps.modLogRepository.findByIds(guildId, caseIds);
+  const byId = new Map(found.map((c) => [c.caseId, c]));
+  const cases = caseIds.flatMap((id) => byId.get(id) ?? []);
+  const first = cases[0];
+  if (!first) {
+    return null;
+  }
+
+  const [proofsByCase, config, emojis] = await Promise.all([
+    deps.caseProofRepository.listByCases(guildId, [first.caseId]),
+    deps.guildConfigRepository.findByGuildId(guildId),
+    deps.emojiRepository.getEmojis(MODERATION_ACTION_EMOJIS),
+  ]);
+  const posted = postedOf(message);
+  const mode = responseMode(message, now);
+  const modLogUrl = modLogEntryUrl(
+    guildId,
+    config.loggingSettings.modLogChannel,
+    first.msgId,
+  );
+
+  return rebuildActionResponse(posted, {
+    cases,
+    proofs: proofsByCase.get(first.caseId) ?? [],
+    suggestions,
+    emojis,
+    savePrompt: hasSavePrompt(posted),
+    modLogUrl:
+      mode === "stale" ? (postedStaleUrl(posted) ?? modLogUrl) : modLogUrl,
+    mode,
+  });
 }
 
 /** The mod log check comes first: it's the only one tied to stored data. */
@@ -166,7 +250,11 @@ export class AddProofButtonHandler extends ButtonHandler {
       return;
     }
 
-    const modalCustomId = `${ADD_PROOF_FORM_PREFIX}${interaction.id}`;
+    const offered = await this.offeredSuggestions(interaction, cases);
+    // The fingerprint pins what was listed, so a submit saves exactly that.
+    const modalCustomId = offered
+      ? `${ADD_PROOF_FORM_PREFIX}${interaction.id}/${offered.fingerprint}`
+      : `${ADD_PROOF_FORM_PREFIX}${interaction.id}`;
     await interaction.showModal(
       buildAddProofModal({
         customId: modalCustomId,
@@ -176,8 +264,15 @@ export class AddProofButtonHandler extends ButtonHandler {
           0,
           ...caseIds.map((id) => counts.get(id)?.files ?? 0),
         ),
+        suggested: offered ? suggestedOptions(offered) : undefined,
       }),
     );
+    if (offered) {
+      this.deps.suggestionFlow?.metrics.recordShown("modal", {
+        userId: interaction.user.id,
+        guildId: interaction.guildId,
+      });
+    }
 
     let submission: ModalSubmitInteraction;
     try {
@@ -197,19 +292,141 @@ export class AddProofButtonHandler extends ButtonHandler {
       });
     }
 
-    await this.handleSubmit(submission, caseIds, cases);
+    await this.handleSubmit(submission, caseIds, cases, offered);
+  }
+
+  /**
+   * Suggestions for a single case without proof. DB-only, since the modal
+   * must be the first response; uncached private threads are left out.
+   */
+  private async offeredSuggestions(
+    interaction: ButtonInteraction<"cached">,
+    cases: ModerationCase[],
+  ): Promise<OfferedSuggestions | null> {
+    const flow = this.deps.suggestionFlow;
+    const moderationCase = cases.length === 1 ? cases[0] : null;
+    if (!flow || !moderationCase || !flow.eligible(moderationCase)) {
+      return null;
+    }
+
+    try {
+      if (!(await flow.enabled(interaction.guildId))) {
+        return null;
+      }
+      const access = cachedViewerAccess(interaction.member, this.deps.logger);
+      const suggestions = (await flow.compute(moderationCase, access)).slice(
+        0,
+        SUGGESTED_OPTIONS_MAX,
+      );
+      if (suggestions.length === 0) {
+        return null;
+      }
+      return {
+        moderationCase,
+        suggestions,
+        fingerprint: flow.fingerprint(suggestions),
+        channelName: (id) => access.channelName(id),
+      };
+    } catch (err) {
+      // The form still opens, just without suggestions.
+      this.deps.logger.warn(
+        { err, guildId: interaction.guildId, caseId: moderationCase.caseId },
+        "Failed to find suggested proof for the Add proof form",
+      );
+      return null;
+    }
+  }
+
+  /** The ticked suggestions, or null when the set changed since the form opened. */
+  private async pickedSuggestions(
+    submission: ModalMessageModalSubmitInteraction<"cached">,
+    offered: OfferedSuggestions,
+    values: readonly string[],
+  ): Promise<ProofSuggestion[] | null> {
+    const flow = this.deps.suggestionFlow;
+    if (!flow) {
+      return null;
+    }
+    const access = cachedViewerAccess(submission.member, this.deps.logger);
+    const current = (await flow.compute(offered.moderationCase, access)).slice(
+      0,
+      SUGGESTED_OPTIONS_MAX,
+    );
+    if (flow.fingerprint(current) !== offered.fingerprint) {
+      return null;
+    }
+    const picked: ProofSuggestion[] = [];
+    for (const value of new Set(values)) {
+      const suggestion = /^\d{1,2}$/.test(value)
+        ? current[Number(value)]
+        : undefined;
+      if (!suggestion) {
+        return null;
+      }
+      picked.push(suggestion);
+    }
+    return picked;
   }
 
   private async handleSubmit(
     submission: ModalMessageModalSubmitInteraction<"cached">,
     caseIds: string[],
     cases: ModerationCase[],
+    offered: OfferedSuggestions | null,
   ): Promise<void> {
-    const { content, files } = readAddProofFields(submission.fields);
+    const { content, files, suggested } = readAddProofFields(submission.fields);
     const origin = addProofOrigin(submission.message, cases);
+    const flow = this.deps.suggestionFlow;
 
-    // defer: downloads and re-uploads files to the mod log
+    // defer: downloads and re-uploads files to the mod log, and resolves suggested message links
     await submission.deferUpdate();
+
+    let picked: ProofSuggestion[] = [];
+    if (offered && flow && suggested.length > 0) {
+      const current = await this.pickedSuggestions(
+        submission,
+        offered,
+        suggested,
+      );
+      if (!current) {
+        flow.metrics.recordAdded(
+          "modal",
+          "changed",
+          { userId: submission.user.id, guildId: submission.guildId },
+          0,
+        );
+        await submission.followUp(
+          proofNotice(
+            `The suggestions changed. Open Add proof again to see the current ones.${typedBackText(content)}`,
+            Color.Warning,
+          ),
+        );
+        return;
+      }
+      picked = current;
+    }
+
+    // Ticked suggestions alone are a complete submit.
+    if (picked.length > 0 && !content && files.length === 0) {
+      const added = await this.addPicked(submission, offered, picked, origin);
+      if (added?.kind === "added") {
+        await this.refreshOrigin(
+          submission,
+          caseIds,
+          origin,
+          cases[0],
+          offered?.fingerprint ?? null,
+        );
+      }
+      if (added) {
+        await this.notePrivately(submission, {
+          ...buildSuggestionAddResult(added),
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
+      }
+      await this.deps.promptOffer.offer(submission, PROOF_INTRO_ID);
+      return;
+    }
 
     let result: Awaited<ReturnType<AddProofDeps["caseProofService"]["add"]>>;
     try {
@@ -255,18 +472,22 @@ export class AddProofButtonHandler extends ButtonHandler {
     }
 
     const { proofs, skipped, cases: added } = result.val;
-    try {
-      if (origin === "response") {
-        await this.refreshResponse(submission, caseIds);
-      } else if (origin === "case_view") {
-        await this.refreshCaseView(submission, added[0]);
-      }
-    } catch (err) {
-      // The proof is saved; the mod log entry shows it even if this message doesn't.
-      this.deps.logger.warn(
-        { err, guildId: submission.guildId, caseIds, origin },
-        "Failed to refresh the message proof was added from",
-      );
+    const suggestionsAdded =
+      picked.length > 0
+        ? await this.addPicked(submission, offered, picked, origin)
+        : null;
+    await this.refreshOrigin(
+      submission,
+      caseIds,
+      origin,
+      added[0],
+      offered?.fingerprint ?? null,
+    );
+    if (suggestionsAdded) {
+      await this.notePrivately(submission, {
+        ...buildSuggestionAddResult(suggestionsAdded),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
     }
 
     if (skipped.length > 0) {
@@ -285,6 +506,74 @@ export class AddProofButtonHandler extends ButtonHandler {
     await this.deps.promptOffer.offer(submission, PROOF_INTRO_ID);
   }
 
+  /** null when it threw; that's logged and reported here. */
+  private async addPicked(
+    submission: ModalMessageModalSubmitInteraction<"cached">,
+    offered: OfferedSuggestions | null,
+    picked: ProofSuggestion[],
+    origin: AddProofOrigin,
+  ): Promise<SuggestionAddResult | null> {
+    const flow = this.deps.suggestionFlow;
+    if (!flow || !offered) {
+      return null;
+    }
+    try {
+      return await flow.add({
+        moderationCase: offered.moderationCase,
+        chosen: picked,
+        authorId: submission.user.id,
+        surface: "modal",
+        exceptMessageId:
+          origin === "response" ? submission.message.id : undefined,
+      });
+    } catch (err) {
+      this.deps.logger.error(
+        {
+          err,
+          guildId: submission.guildId,
+          caseId: offered.moderationCase.caseId,
+        },
+        "Failed to add suggested proof",
+      );
+      await this.notePrivately(
+        submission,
+        getErrorMessage(
+          "Couldn't add suggestions",
+          "Something went wrong. Try again.",
+          true,
+        ),
+      );
+      return null;
+    }
+  }
+
+  private async refreshOrigin(
+    submission: ModalMessageModalSubmitInteraction<"cached">,
+    caseIds: string[],
+    origin: AddProofOrigin,
+    moderationCase: ModerationCase | undefined,
+    offeredFingerprint: string | null,
+  ): Promise<void> {
+    try {
+      if (origin === "response") {
+        await this.refreshResponse(
+          submission,
+          caseIds,
+          moderationCase,
+          offeredFingerprint,
+        );
+      } else if (origin === "case_view" && moderationCase) {
+        await this.refreshCaseView(submission, moderationCase);
+      }
+    } catch (err) {
+      // The proof is saved; the mod log entry shows it even if this message doesn't.
+      this.deps.logger.warn(
+        { err, guildId: submission.guildId, caseIds, origin },
+        "Failed to refresh the message proof was added from",
+      );
+    }
+  }
+
   /** Best effort: the add already happened or was already reported. */
   private async notePrivately(
     submission: ModalMessageModalSubmitInteraction<"cached">,
@@ -300,55 +589,52 @@ export class AddProofButtonHandler extends ButtonHandler {
     }
   }
 
-  private responseMode(message: Message): ResponseMode {
-    const posted = postedOf(message);
-    if (postedStaleUrl(posted) !== undefined) {
-      return "stale";
-    }
-    return isResponseExpired(message.createdTimestamp, this.now()) ||
-      showsExpiredLine(posted)
-      ? "expired"
-      : "buttons";
-  }
-
   /** Re-rendered with the new proof, so its next click doesn't see it as changed. */
   private async refreshResponse(
     submission: ModalMessageModalSubmitInteraction<"cached">,
     caseIds: string[],
+    moderationCase: ModerationCase | undefined,
+    offeredFingerprint: string | null,
   ): Promise<void> {
-    const { guildId, message } = submission;
-    const found = await this.deps.modLogRepository.findByIds(guildId, caseIds);
-    const byId = new Map(found.map((c) => [c.caseId, c]));
-    const cases = caseIds.flatMap((id) => byId.get(id) ?? []);
-    const first = cases[0];
-    if (!first) {
-      return;
+    const flow = this.deps.suggestionFlow;
+    let block: APIComponentInContainer[] = [];
+    const posted = postedAddAllFingerprint(
+      JSON.stringify(submission.message.components),
+    );
+    // Only the view the public block was built from may rebuild it; another mod's submit drops it.
+    if (
+      flow &&
+      moderationCase &&
+      caseIds.length === 1 &&
+      posted !== null &&
+      posted === offeredFingerprint &&
+      (await flow.enabled(submission.guildId))
+    ) {
+      const suggestions = await flow.compute(
+        moderationCase,
+        viewerAccessFromMember(submission.member, this.deps.logger),
+      );
+      if (suggestions.length > 0) {
+        block = buildResponseSuggestionBlock({
+          caseId: moderationCase.caseId,
+          fingerprint: flow.fingerprint(suggestions),
+          suggestions,
+          targetName: moderationCase.userTag,
+          actionType: moderationCase.actionType,
+        });
+      }
     }
-
-    const [proofsByCase, config, emojis] = await Promise.all([
-      this.deps.caseProofRepository.listByCases(guildId, [first.caseId]),
-      this.deps.guildConfigRepository.findByGuildId(guildId),
-      this.deps.emojiRepository.getEmojis(MODERATION_ACTION_EMOJIS),
-    ]);
-    const posted = postedOf(message);
-    const mode = this.responseMode(message);
-    const modLogUrl = modLogEntryUrl(
-      guildId,
-      config.loggingSettings.modLogChannel,
-      first.msgId,
+    const rebuilt = await rebuildResponseWithProof(
+      this.deps,
+      submission.guildId,
+      submission.message,
+      caseIds,
+      this.now(),
+      block,
     );
-
-    await submission.editReply(
-      rebuildActionResponse(posted, {
-        cases,
-        proofs: proofsByCase.get(first.caseId) ?? [],
-        emojis,
-        savePrompt: hasSavePrompt(posted),
-        modLogUrl:
-          mode === "stale" ? (postedStaleUrl(posted) ?? modLogUrl) : modLogUrl,
-        mode,
-      }),
-    );
+    if (rebuilt) {
+      await submission.editReply(rebuilt);
+    }
   }
 
   private async refreshCaseView(

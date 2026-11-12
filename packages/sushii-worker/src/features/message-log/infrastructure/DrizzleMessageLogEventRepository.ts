@@ -1,5 +1,4 @@
-import { inArray, lt } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Logger } from "pino";
 
@@ -25,6 +24,9 @@ export class DrizzleMessageLogEventRepository
     );
 
     const discordMessageJson = JSON.stringify(event.discordMessage);
+    const interactionUserId = event.interactionUserId
+      ? BigInt(event.interactionUserId)
+      : null;
 
     await this.db
       .insert(messagesInAppPublic)
@@ -36,14 +38,50 @@ export class DrizzleMessageLogEventRepository
         content: event.content,
         created: event.createdAt.toISOString(),
         msg: sql`${discordMessageJson}`,
+        interactionUserId,
       })
       .onConflictDoUpdate({
         target: messagesInAppPublic.messageId,
         set: {
           content: event.content,
-          msg: sql`${discordMessageJson}`,
+          msg: this.mergedMsg(discordMessageJson),
+          interactionUserId: sql`coalesce(excluded.interaction_user_id, ${messagesInAppPublic.interactionUserId})`,
         },
       });
+  }
+
+  async updateIfChanged(event: MessageLogEvent): Promise<boolean> {
+    const discordMessageJson = JSON.stringify(event.discordMessage);
+    const interactionUserId = event.interactionUserId
+      ? BigInt(event.interactionUserId)
+      : null;
+
+    const result = await this.db
+      .update(messagesInAppPublic)
+      .set({
+        content: event.content,
+        msg: this.mergedMsg(discordMessageJson),
+        interactionUserId: sql`coalesce(${interactionUserId}::bigint, ${messagesInAppPublic.interactionUserId})`,
+      })
+      .where(
+        and(
+          eq(messagesInAppPublic.messageId, BigInt(event.messageId)),
+          or(
+            sql`${messagesInAppPublic.content} is distinct from ${event.content}`,
+            sql`${messagesInAppPublic.msg} -> 'embeds' is distinct from ${discordMessageJson}::jsonb -> 'embeds'`,
+          ),
+        ),
+      );
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Update payloads can omit attribution; keep the stored keys unless the new payload has them.
+  private mergedMsg(discordMessageJson: string) {
+    return sql`coalesce(
+      (select jsonb_object_agg(key, value) from jsonb_each(${messagesInAppPublic.msg}) where key in ('member', 'interaction_metadata')),
+      '{}'::jsonb
+    ) || ${discordMessageJson}::jsonb`;
   }
 
   async findByMessageIds(messageIds: string[]): Promise<MessageLogEvent[]> {

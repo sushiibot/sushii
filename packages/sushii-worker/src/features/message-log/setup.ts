@@ -13,6 +13,8 @@ import { MessageDeleteAuditLogCache } from "./application/MessageDeleteAuditLogC
 import { MessageLogService } from "./application/MessageLogService";
 import { DrizzleMessageLogBlockRepository } from "./infrastructure/DrizzleMessageLogBlockRepository";
 import { DrizzleMessageLogEventRepository } from "./infrastructure/DrizzleMessageLogEventRepository";
+import { DrizzleMessageLogPostRepository } from "./infrastructure/DrizzleMessageLogPostRepository";
+import { MessageLogMetrics } from "./infrastructure/MessageLogMetrics";
 import { DeleteOldMessagesTask } from "./infrastructure/tasks/DeleteOldMessagesTask";
 import { MessageDeleteAuditLogHandler } from "./presentation/events/MessageDeleteAuditLogHandler";
 import { MessageLogRawHandler } from "./presentation/events/MessageLogRawHandler";
@@ -42,11 +44,15 @@ export function setupMessageLog(
     logger.child({ component: "MessageLogBlockRepository" }),
   );
 
+  const messageLogPostRepository = new DrizzleMessageLogPostRepository(db);
+
   // Create services
   const messageCacheService = new MessageCacheService(
     messageLogEventRepository,
     messageLogBlockRepository,
     guildConfigRepository,
+    () => client.user?.id,
+    new MessageLogMetrics(),
     logger.child({ component: "MessageCacheService" }),
     shouldCacheForScreening,
   );
@@ -57,6 +63,7 @@ export function setupMessageLog(
     client,
     messageLogEventRepository,
     messageLogBlockRepository,
+    messageLogPostRepository,
     guildConfigRepository,
     emojiRepository,
     auditLogCache,
@@ -78,6 +85,7 @@ export function setupMessageLog(
     client,
     deploymentService,
     messageLogEventRepository,
+    messageLogPostRepository,
   );
 
   return {

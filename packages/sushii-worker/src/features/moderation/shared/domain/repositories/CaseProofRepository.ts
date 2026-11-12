@@ -17,6 +17,12 @@ export interface CaseProofRepository {
   remove(guildId: string, proofId: string): Promise<CaseProof | null>;
   /** Oldest first. */
   listByCase(guildId: string, caseId: string): Promise<CaseProof[]>;
+  /** Rows added together from suggestions, oldest first. */
+  listByBatch(
+    guildId: string,
+    caseId: string,
+    batchId: string,
+  ): Promise<CaseProof[]>;
   /** Oldest first per case; cases without proof are absent. */
   listByCases(
     guildId: string,

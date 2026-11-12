@@ -126,8 +126,7 @@ describe("DrizzleScreeningMessageContextRepository", () => {
           author: { ...author, discriminator: "0", avatar: null },
           content: "hi",
           timestamp: created.toISOString(),
-          // The writer never stores the member, so the nick step can't apply to cached rows.
-          member: { nick: "Nick" },
+          member: { nick: author.global_name ? "Nick" : null, avatar: null },
         } as unknown as GuildMessageCreatePayload),
       );
     };
@@ -155,7 +154,7 @@ describe("DrizzleScreeningMessageContextRepository", () => {
     const rows = await repo.recentInChannel(GUILD, CHANNEL, NOW, 20);
 
     expect(rows.map((r) => r.authorName)).toEqual([
-      "Global",
+      "Nick",
       "plain",
       OTHER_USER,
     ]);

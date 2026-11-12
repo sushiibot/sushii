@@ -49,7 +49,12 @@ export const MOD_LOG_EDIT_KINDS: readonly ModLogEditKind[] = [
 export type ModLogEditOutcome = "ok" | "failed";
 
 export type ProofUndoOutcome = "ok" | "gone" | "not_allowed" | "failed";
-export type ProofAddSource = "action" | "button" | "command" | "context_menu";
+export type ProofAddSource =
+  | "action"
+  | "button"
+  | "command"
+  | "context_menu"
+  | "suggestion";
 export type ProofAddOutcome =
   | "ok"
   | "partial"
@@ -61,6 +66,8 @@ export type ProofAddOutcome =
   | "retry_later"
   | "cases_not_found"
   | "not_added"
+  | "entry_pending"
+  | "not_shown"
   | "failed";
 
 /** Recording is synchronous and must never throw into the feature. */

@@ -153,7 +153,7 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
       {
         name: "proof",
         summary: "Add mod-only proof to a case",
-        keywords: ["evidence", "screenshots"],
+        keywords: ["evidence", "screenshots", "suggested proof"],
       },
       { name: "modview", summary: "Full moderation view for a user" },
       { name: "uncase", summary: "Delete cases" },

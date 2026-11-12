@@ -10,6 +10,9 @@ export type ProductEventName =
   | "prompt.action"
   | "feedback.submitted"
   | "proof.added"
+  | "proof_suggestion.shown"
+  | "proof_suggestion.added"
+  | "proof_suggestion.undone"
   | "update.relayed";
 
 /** Values must come from code, never from user input: this table has no free text. */
@@ -51,6 +54,9 @@ const EVENT_FEATURES: Partial<Record<ProductEventName, string>> = {
   "prompt.action": "prompts",
   "feedback.submitted": "feedback",
   "proof.added": "moderation",
+  "proof_suggestion.shown": "proof-suggestions",
+  "proof_suggestion.added": "proof-suggestions",
+  "proof_suggestion.undone": "proof-suggestions",
   "update.relayed": "sushii-updates",
 };
 
