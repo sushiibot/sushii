@@ -1,4 +1,3 @@
-import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { ModLogSuggestionOffer } from "@/features/moderation/shared/application/ModLogMessageService";
 import type { CaseProofRepository } from "@/features/moderation/shared/domain/repositories/CaseProofRepository";
 
@@ -9,19 +8,12 @@ import { SUGGESTION_ACTIONS } from "./suggestionText";
 
 /** Viewer-agnostic: the click recomputes for the mod, so the button never says what exists. */
 export function createModLogSuggestionOffer(deps: {
-  flags: Pick<FeatureFlagRepository, "isEnabled">;
   suggestions: Pick<ProofSuggestionService, "hasCandidates">;
   caseProofRepository: Pick<CaseProofRepository, "listByCase">;
 }): ModLogSuggestionOffer {
   return {
     async buttonFor(moderationCase) {
-      if (
-        !SUGGESTION_ACTIONS.has(moderationCase.actionType) ||
-        !(await deps.flags.isEnabled(
-          moderationCase.guildId,
-          "proof_suggestions",
-        ))
-      ) {
+      if (!SUGGESTION_ACTIONS.has(moderationCase.actionType)) {
         return null;
       }
       const proofs = await deps.caseProofRepository.listByCase(

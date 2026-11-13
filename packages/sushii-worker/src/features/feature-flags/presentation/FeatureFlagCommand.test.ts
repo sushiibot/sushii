@@ -117,7 +117,7 @@ describe("FeatureFlagCommand definition", () => {
       "list",
     ]);
     expect(JSON.stringify(json)).toContain(
-      '"choices":[{"name":"member_screening","value":"member_screening"},{"name":"proof_suggestions","value":"proof_suggestions"}]',
+      '"choices":[{"name":"member_screening","value":"member_screening"}]',
     );
   });
 });

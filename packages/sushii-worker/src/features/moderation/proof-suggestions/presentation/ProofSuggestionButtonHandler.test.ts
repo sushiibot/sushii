@@ -90,7 +90,6 @@ function asMessage(message: { components: { toJSON(): unknown }[] }) {
 
 function setup(options: {
   customId: string;
-  flag?: boolean;
   suggestions?: ProofSuggestion[];
   render?: (
     index: number,
@@ -128,7 +127,6 @@ function setup(options: {
 
   const flow = new SuggestionFlow({
     caseProofRepository: { listByCase: async () => [] },
-    flags: { isEnabled: mock(async () => options.flag ?? true) },
     suggestions: {
       findWithAccess,
       resolveLinksMany,
@@ -370,17 +368,6 @@ function pickerMessage(selected: number[]) {
 }
 
 describe("ProofSuggestionButtonHandler", () => {
-  test("flag off: says the button is out of date and does nothing", async () => {
-    const ctx = setup({ customId: buildAddAllId("4822", FP), flag: false });
-    await ctx.run();
-
-    expect(ctx.interaction.deferUpdate).not.toHaveBeenCalled();
-    expect(json(ctx.interaction.reply.mock.calls[0][0])).toContain(
-      OUT_OF_DATE_TEXT,
-    );
-    expect(ctx.findWithAccess).not.toHaveBeenCalled();
-  });
-
   test.each([
     ["proof/suggest/add/4822/nothex!!", OUT_OF_DATE_TEXT],
     ["proof/suggest/undo/4822/not-a-uuid", UNDO_UNAVAILABLE_TEXT],
@@ -595,16 +582,6 @@ describe("ProofSuggestionButtonHandler", () => {
       expect(json(ctx.interaction.followUp.mock.calls[0][0])).toContain(
         "Only the mod who added these can undo them.",
       );
-    });
-
-    test("still works with the flag turned off", async () => {
-      const ctx = setup({
-        customId: buildUndoId("4822", BATCH),
-        message: addedMessage,
-        flag: false,
-      });
-      await ctx.run();
-      expect(ctx.undoBatch).toHaveBeenCalled();
     });
   });
 });

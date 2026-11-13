@@ -381,7 +381,6 @@ export function registerFeatures(
       permissionAuditFeature.services.permissionUsageRecorder,
     promptOffer: promptsFeature.services.promptService,
     productEvents,
-    featureFlags: featureFlagRepository,
   });
   const serverManagementFeature = setupServerManagementFeature({
     db,

@@ -1,6 +1,5 @@
 import type { Logger } from "pino";
 
-import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { CaseProofService } from "@/features/moderation/cases/application/CaseProofService";
 import { KeyedMutex } from "@/features/moderation/shared/application/KeyedMutex";
 import type { ModerationCase } from "@/features/moderation/shared/domain/entities/ModerationCase";
@@ -46,7 +45,6 @@ export type SuggestionAddResult =
 
 export interface SuggestionFlowDeps {
   caseProofRepository: Pick<CaseProofRepository, "listByCase">;
-  flags: Pick<FeatureFlagRepository, "isEnabled">;
   suggestions: Pick<
     ProofSuggestionService,
     "findWithAccess" | "resolveLinksMany" | "toPreviewRequestWithAccess"
@@ -65,10 +63,6 @@ export class SuggestionFlow {
 
   get metrics(): ProofSuggestionMetrics {
     return this.deps.metrics;
-  }
-
-  enabled(guildId: string): Promise<boolean> {
-    return this.deps.flags.isEnabled(guildId, "proof_suggestions");
   }
 
   eligible(moderationCase: ModerationCase): boolean {

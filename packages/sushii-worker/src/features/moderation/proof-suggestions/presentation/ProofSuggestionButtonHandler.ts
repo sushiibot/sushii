@@ -156,13 +156,6 @@ export class ProofSuggestionButtonHandler extends ButtonHandler {
       return;
     }
 
-    if (!(await this.deps.flow.enabled(interaction.guildId))) {
-      await interaction.reply(
-        ephemeral(buildSuggestionNotice(OUT_OF_DATE_TEXT)),
-      );
-      return;
-    }
-
     switch (button.kind) {
       case "review":
         await this.review(interaction, button);

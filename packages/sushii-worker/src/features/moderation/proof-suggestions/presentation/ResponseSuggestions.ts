@@ -63,10 +63,7 @@ export class ResponseSuggestions {
       caseId: moderationCase.caseId,
     };
     try {
-      if (
-        !this.flow.eligible(moderationCase) ||
-        !(await this.flow.enabled(moderationCase.guildId))
-      ) {
+      if (!this.flow.eligible(moderationCase)) {
         return;
       }
 

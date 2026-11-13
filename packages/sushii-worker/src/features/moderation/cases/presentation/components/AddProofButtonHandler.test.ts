@@ -544,7 +544,6 @@ describe("addProofOrigin", () => {
 
 function suggestionFlow(options: {
   proofSource?: "suggestion" | "button";
-  flag?: boolean;
   computes?: ProofSuggestion[][];
 }) {
   const computes = [...(options.computes ?? [SUGGESTED])];
@@ -569,7 +568,6 @@ function suggestionFlow(options: {
           ? [{ source: options.proofSource, content: null } as never]
           : [],
     },
-    flags: { isEnabled: mock(async () => options.flag ?? true) },
     suggestions: {
       findWithAccess,
       resolveLinksMany: mock(async (chosen: ProofSuggestion[]) =>
@@ -636,17 +634,7 @@ describe("Add proof form with suggested proof", () => {
     expect(s.shown).toEqual(["modal"]);
   });
 
-  test("unchanged when the flag is off or the case has proof", async () => {
-    const off = suggestionFlow({ flag: false });
-    const offCtx = setup({
-      message: responseMessage(),
-      suggestionFlow: off.flow,
-      entries: 0,
-    });
-    await offCtx.run();
-    expect(modalJson(offCtx)).not.toContain('"type":22');
-    expect(off.findWithAccess).not.toHaveBeenCalled();
-
+  test("unchanged when the case has proof", async () => {
     const proven = suggestionFlow({ proofSource: "button" });
     const provenCtx = setup({
       message: responseMessage(),

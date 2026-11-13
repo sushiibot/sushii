@@ -140,7 +140,6 @@ describe("Add all suggested proof (Postgres)", () => {
 
     flow = new SuggestionFlow({
       caseProofRepository: proofRepo,
-      flags: { isEnabled: async () => true },
       suggestions,
       renderer: { render: async () => ({}) as never },
       caseProofService,

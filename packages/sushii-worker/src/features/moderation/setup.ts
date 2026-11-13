@@ -8,7 +8,6 @@ import type { AutomodAlertReactionService } from "@/features/automod/application
 import type { SpamAlertUpdateService } from "@/features/automod/application/SpamAlertUpdateService";
 import type { BotEmojiRepository } from "@/features/bot-emojis";
 import type { DeploymentService } from "@/features/deployment/application/DeploymentService";
-import type { FeatureFlagRepository } from "@/features/feature-flags/domain/FeatureFlagRepository";
 import type { UserLevelRepository } from "@/features/leveling/domain/repositories/UserLevelRepository";
 import type { PermissionUsageRecorder } from "@/features/permission-audit";
 import type { ProductEventTracker } from "@/features/product-analytics/domain/ProductEvent";
@@ -130,13 +129,7 @@ interface ModerationDependencies {
   permissionUsageRecorder: PermissionUsageRecorder;
   promptOffer: PromptOffer;
   productEvents: ProductEventTracker;
-  /** Per-guild flags; without them suggested proof stays off. */
-  featureFlags?: Pick<FeatureFlagRepository, "isEnabled">;
 }
-
-const FLAGS_OFF: Pick<FeatureFlagRepository, "isEnabled"> = {
-  isEnabled: async () => false,
-};
 
 interface ModerationTaskDependencies extends ModerationDependencies {
   deploymentService: DeploymentService;
@@ -154,7 +147,6 @@ export function createModerationServices({
   permissionUsageRecorder,
   promptOffer,
   productEvents,
-  featureFlags = FLAGS_OFF,
 }: ModerationDependencies) {
   const { proofSuggestionService } = createProofSuggestionServices({
     db,
@@ -213,7 +205,6 @@ export function createModerationServices({
     undefined,
     createModLogSuggestionOffer({
       caseProofRepository,
-      flags: featureFlags,
       suggestions: proofSuggestionService,
     }),
   );
@@ -343,7 +334,6 @@ export function createModerationServices({
   let previewRenderer: Promise<SuggestionPreviewRenderer> | null = null;
   const suggestionFlow = new SuggestionFlow({
     caseProofRepository,
-    flags: featureFlags,
     suggestions: proofSuggestionService,
     renderer: {
       render: async (request) => {
@@ -608,7 +598,6 @@ export function setupModerationFeature({
   permissionUsageRecorder,
   promptOffer,
   productEvents,
-  featureFlags,
 }: ModerationTaskDependencies): FullFeatureSetupReturn<
   ReturnType<typeof createModerationServices> & {
     modViewDependencies: ModViewDependencies;
@@ -628,7 +617,6 @@ export function setupModerationFeature({
     permissionUsageRecorder,
     promptOffer,
     productEvents,
-    featureFlags,
   });
 
   // Built ahead of both createModerationCommands (History/Names/Lookup

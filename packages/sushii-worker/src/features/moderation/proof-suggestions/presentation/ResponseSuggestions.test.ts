@@ -62,7 +62,6 @@ function purging(): ProofSuggestion {
 }
 
 function setup(options: {
-  flag?: boolean;
   computes?: (ProofSuggestion[] | Error)[];
   components?: ReturnType<typeof postedResponse>;
 }) {
@@ -88,7 +87,6 @@ function setup(options: {
 
   const flow = new SuggestionFlow({
     caseProofRepository: { listByCase: async () => [] },
-    flags: { isEnabled: mock(async () => options.flag ?? true) },
     suggestions: {
       findWithAccess,
       resolveLinksMany: mock(async () => []),
@@ -154,13 +152,6 @@ describe("ResponseSuggestions", () => {
     ).toBeLessThan(edit.indexOf(`"id":${ACTION_RESPONSE_IDS.suggestions}`));
     expect(ctx.shown).toEqual(["response"]);
     expect(ctx.sleep).not.toHaveBeenCalled();
-  });
-
-  test("flag off leaves the response alone", async () => {
-    const ctx = setup({ flag: false });
-    await ctx.attach();
-    expect(ctx.findWithAccess).not.toHaveBeenCalled();
-    expect(ctx.interaction.editReply).not.toHaveBeenCalled();
   });
 
   test("no suggestions: no edit", async () => {

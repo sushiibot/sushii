@@ -77,7 +77,6 @@ describe("createModLogSuggestionOffer", () => {
     const listByCase = mock(async () => []);
     const on = createModLogSuggestionOffer({
       caseProofRepository: { listByCase },
-      flags: { isEnabled: async () => true },
       suggestions: { hasCandidates },
     });
     expect(await on.buttonFor(makeCase())).toBe(
@@ -87,20 +86,8 @@ describe("createModLogSuggestionOffer", () => {
       await on.buttonFor(makeCase({ actionType: ActionType.BanRemove })),
     ).toBeNull();
 
-    const off = createModLogSuggestionOffer({
-      caseProofRepository: { listByCase },
-      flags: { isEnabled: async () => false },
-      suggestions: { hasCandidates },
-    });
-    hasCandidates.mockClear();
-    listByCase.mockClear();
-    expect(await off.buttonFor(makeCase())).toBeNull();
-    expect(hasCandidates).not.toHaveBeenCalled();
-    expect(listByCase).not.toHaveBeenCalled();
-
     const none = createModLogSuggestionOffer({
       caseProofRepository: { listByCase },
-      flags: { isEnabled: async () => true },
       suggestions: { hasCandidates: async () => false },
     });
     expect(await none.buttonFor(makeCase())).toBeNull();

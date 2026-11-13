@@ -310,9 +310,6 @@ export class AddProofButtonHandler extends ButtonHandler {
     }
 
     try {
-      if (!(await flow.enabled(interaction.guildId))) {
-        return null;
-      }
       const access = cachedViewerAccess(interaction.member, this.deps.logger);
       const suggestions = (await flow.compute(moderationCase, access)).slice(
         0,
@@ -607,8 +604,7 @@ export class AddProofButtonHandler extends ButtonHandler {
       moderationCase &&
       caseIds.length === 1 &&
       posted !== null &&
-      posted === offeredFingerprint &&
-      (await flow.enabled(submission.guildId))
+      posted === offeredFingerprint
     ) {
       const suggestions = await flow.compute(
         moderationCase,

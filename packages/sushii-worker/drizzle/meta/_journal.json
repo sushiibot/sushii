@@ -645,6 +645,20 @@
       "when": 1794453947079,
       "tag": "0091_feature_flag_proof_suggestions",
       "breakpoints": false
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1794598977854,
+      "tag": "0092_delete_proof_suggestions_flag",
+      "breakpoints": false
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794598978461,
+      "tag": "0093_remove_proof_suggestions_flag",
+      "breakpoints": false
     }
   ]
 }

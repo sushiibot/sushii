@@ -1,0 +1,2 @@
+ALTER TABLE "app_public"."guild_feature_flags" DROP CONSTRAINT "guild_feature_flags_flag_check";
+ALTER TABLE "app_public"."guild_feature_flags" ADD CONSTRAINT "guild_feature_flags_flag_check" CHECK ("app_public"."guild_feature_flags"."flag" IN ('member_screening'));
